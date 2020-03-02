@@ -7,7 +7,7 @@ import (
 
 // BaseType is a generic interface for producers
 type BaseType interface {
-	Initialize(string, string) error
+	Initialize() error
 	Close()
 	Events() chan kafka.Event
 	Produce([]byte) error
@@ -19,6 +19,8 @@ func Select(dataType string) BaseType {
 	switch dataType {
 	case "avm":
 		p = &avm.AVM{}
+	default:
+		p = nil
 	}
 	return p
 }
