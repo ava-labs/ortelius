@@ -15,3 +15,5 @@
 # vendor/
 
 ortelius
+test.producer.json
+test.consumer.json

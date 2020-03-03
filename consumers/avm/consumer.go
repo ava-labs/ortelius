@@ -1,10 +1,12 @@
 package avm
 
+import "github.com/ava-labs/gecko/utils/logging"
+
 // AVM consumes for the AVM
 type AVM struct{}
 
 // Initialize inits the consumer
-func (c *AVM) Initialize() error { return nil }
+func (c *AVM) Initialize(logging.Logger) error { return nil }
 
 // Close closes the consumer
 func (c *AVM) Close() {}

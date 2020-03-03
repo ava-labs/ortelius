@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
+
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
@@ -14,11 +16,13 @@ import (
 	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/utils"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 // AVM produces for the AVM
 type AVM struct {
+	log       logging.Logger
 	producer  *kafka.Producer
 	filter    Filter
 	topic     string
@@ -31,8 +35,9 @@ type AVM struct {
 }
 
 // Initialize the producer using the configs passed as an argument
-func (p *AVM) Initialize() error {
+func (p *AVM) Initialize(log logging.Logger) error {
 	var err error
+	p.log = log
 	p.topic = cfg.Viper.GetString("chainID")
 	if p.chainID, err = ids.FromString(p.topic); err != nil {
 		return err
@@ -90,17 +95,54 @@ func (p *AVM) Events() chan kafka.Event {
 	return p.producer.Events()
 }
 
+func (p *AVM) makeMessage(msg []byte) (*kafka.Message, error) {
+	var data []byte
+	var err error
+
+	topicPartition := kafka.TopicPartition{
+		Topic:     &p.topic,
+		Partition: kafka.PartitionAny,
+	}
+	var tx snowstorm.Tx
+	if tx, err = p.avm.ParseTx(msg); err != nil {
+		return nil, err
+	}
+
+	if data, err = json.Marshal(tx); err != nil {
+		return nil, err
+	}
+
+	message := utils.Message{
+		Raw:  msg,
+		Key:  tx.ID().Bytes(),
+		Data: data,
+	}
+
+	km := &kafka.Message{
+		TopicPartition: topicPartition,
+		Key:            message.Key,
+		Value:          data,
+	}
+
+	return km, nil
+}
+
 // Produce produces for the topic as an AVM tx
 func (p *AVM) Produce(msg []byte) error {
+	var message *kafka.Message
+	var err error
 	if p.filter.Filter(msg) {
 		return nil // filter returned true, so we filter it
 	}
 
-	return p.producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &p.topic,
-			Partition: kafka.PartitionAny,
-		},
-		Value: msg,
-	}, nil)
+	if message, err = p.makeMessage(msg); err != nil {
+		return err
+	}
+
+	var data map[string]interface{}
+	result := json.Unmarshal(message.Value, &data)
+	p.log.Info("%+v", result)
+
+	//return p.producer.Produce(message, p.Events())
+	return nil
 }

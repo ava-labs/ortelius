@@ -73,7 +73,7 @@ func (c *Client) Listen(clientType string) {
 		}
 	case "producer":
 		prod := producers.Select(dataType)
-		prod.Initialize()
+		prod.Initialize(c.log)
 		for {
 			if msg, err = sock.Recv(); err != nil {
 				utils.Die("Cannot recv: %s", err.Error())
@@ -83,18 +83,4 @@ func (c *Client) Listen(clientType string) {
 			}
 		}
 	}
-}
-
-func (c *Client) producerMsg(dataType string, filter string, msg []byte) error {
-	if dataType == "avm" {
-		// AVM producer
-	}
-	return nil
-}
-
-func (c *Client) consumerMsg(dataType string, filter string, msg []byte) error {
-	if dataType == "avm" {
-		// AVM consumer
-	}
-	return nil
 }
