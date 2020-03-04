@@ -40,10 +40,12 @@ func (c *Client) Initialize() error {
 }
 
 // Listen sets a client to listen to the URL for a UNIX Domain socket IPC file
-func (c *Client) Listen(clientType string) {
+func (c *Client) Listen() {
 	var sock mangos.Socket
 	var err error
 	var msg []byte
+
+	clientType := cfg.Viper.GetString("context")
 
 	if sock, err = sub.NewSocket(); err != nil {
 		utils.Die("can't get new sub socket: %s", err.Error())

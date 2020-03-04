@@ -1,6 +1,7 @@
 package avm
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -39,13 +40,14 @@ func (p *AVM) Initialize(log logging.Logger) error {
 	var err error
 	p.log = log
 	p.topic = cfg.Viper.GetString("chainID")
+	log.Info("chainid %s", cfg.Viper.GetString("chainID"))
 	if p.chainID, err = ids.FromString(p.topic); err != nil {
 		return err
 	}
-	var filter map[string]interface{}
-	json.Unmarshal([]byte(cfg.Viper.GetString("filter")), &filter)
+	filter := cfg.Viper.GetStringMap("filter")
 	p.filter = Filter{}
-	if err := p.filter.Initialize(cfg.Viper.GetString("filter")); err != nil {
+	log.Info("filter %s", cfg.Viper.GetStringMap("filter"))
+	if err := p.filter.Initialize(filter); err != nil {
 		return err
 	}
 	p.networkID = cfg.Viper.GetUint32("networkID")
@@ -64,16 +66,17 @@ func (p *AVM) Initialize(log logging.Logger) error {
 		switch {
 		case fxID.Equals(secp256k1fx.ID):
 			fxs = append(fxs, &common.Fx{
-				Fx: secp256k1fx.Fx{},
+				Fx: &secp256k1fx.Fx{},
 				ID: fxID,
 			})
 		default:
 			return fmt.Errorf("Unknown FxID: %s", secp256k1fx.ID)
 		}
 	}
+	p.log.Info("%+v", fxs)
 	p.avm.Initialize(p.ctx, &nodb.Database{}, p.genesisTx.Bytes(), echan, fxs)
 	kconf := cfg.Viper.Sub("kafka")
-	var kafkaConf kafka.ConfigMap
+	kafkaConf := kafka.ConfigMap{}
 	kc := kconf.AllSettings()
 	for k, v := range kc {
 		kafkaConf[k] = v
@@ -98,7 +101,7 @@ func (p *AVM) Events() chan kafka.Event {
 func (p *AVM) makeMessage(msg []byte) (*kafka.Message, error) {
 	var data []byte
 	var err error
-
+	p.log.Info(hex.EncodeToString(msg))
 	topicPartition := kafka.TopicPartition{
 		Topic:     &p.topic,
 		Partition: kafka.PartitionAny,
@@ -139,10 +142,5 @@ func (p *AVM) Produce(msg []byte) error {
 		return err
 	}
 
-	var data map[string]interface{}
-	result := json.Unmarshal(message.Value, &data)
-	p.log.Info("%+v", result)
-
-	//return p.producer.Produce(message, p.Events())
-	return nil
+	return p.producer.Produce(message, nil)
 }
