@@ -1,29 +1,30 @@
 package avm
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
-	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
+	"nanomsg.org/go/mangos/v2/protocol"
 
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/snow"
+	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
 	"github.com/ava-labs/gecko/snow/engine/common"
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/vms/avm"
 	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/utils"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+
+	"github.com/ava-labs/ortelius/cfg"
 )
 
 // AVM produces for the AVM
 type AVM struct {
 	log       logging.Logger
+	sock      protocol.Socket
 	producer  *kafka.Producer
 	filter    Filter
 	topic     string
@@ -36,11 +37,12 @@ type AVM struct {
 }
 
 // Initialize the producer using the configs passed as an argument
-func (p *AVM) Initialize(log logging.Logger) error {
+func (p *AVM) Initialize(log logging.Logger, kafkaConf kafka.ConfigMap, sock protocol.Socket) error {
 	var err error
 	p.log = log
+	p.sock = sock
 	p.topic = cfg.Viper.GetString("chainID")
-	log.Info("chainid %s", cfg.Viper.GetString("chainID"))
+	log.Info("chainID: %s", cfg.Viper.GetString("chainID"))
 	if p.chainID, err = ids.FromString(p.topic); err != nil {
 		return err
 	}
@@ -75,12 +77,7 @@ func (p *AVM) Initialize(log logging.Logger) error {
 	}
 	p.log.Info("%+v", fxs)
 	p.avm.Initialize(p.ctx, &nodb.Database{}, p.genesisTx.Bytes(), echan, fxs)
-	kconf := cfg.Viper.Sub("kafka")
-	kafkaConf := kafka.ConfigMap{}
-	kc := kconf.AllSettings()
-	for k, v := range kc {
-		kafkaConf[k] = v
-	}
+
 	if p.producer, err = kafka.NewProducer(&kafkaConf); err != nil {
 		return err
 	}
@@ -89,8 +86,18 @@ func (p *AVM) Initialize(log logging.Logger) error {
 }
 
 // Close shuts down the producer
-func (p *AVM) Close() {
+func (p *AVM) Close() error {
 	p.producer.Close()
+	return nil
+}
+
+// Accept takes in a message from the IPC socket and writes it to Kafka
+func (p *AVM) Accept() error {
+	txBytes, err := p.sock.Recv()
+	if err != nil {
+		return err
+	}
+	return p.writeTx(txBytes)
 }
 
 // Events returns delivery events channel
@@ -98,49 +105,43 @@ func (p *AVM) Events() chan kafka.Event {
 	return p.producer.Events()
 }
 
-func (p *AVM) makeMessage(msg []byte) (*kafka.Message, error) {
-	var data []byte
-	var err error
-	p.log.Info(hex.EncodeToString(msg))
-	topicPartition := kafka.TopicPartition{
-		Topic:     &p.topic,
-		Partition: kafka.PartitionAny,
-	}
-	var tx snowstorm.Tx
-	if tx, err = p.avm.ParseTx(msg); err != nil {
-		return nil, err
-	}
-
-	if data, err = json.Marshal(tx); err != nil {
-		return nil, err
-	}
-
-	message := utils.Message{
-		Raw:  msg,
-		Key:  tx.ID().Bytes(),
-		Data: data,
-	}
-
-	km := &kafka.Message{
-		TopicPartition: topicPartition,
-		Key:            message.Key,
-		Value:          data,
-	}
-
-	return km, nil
-}
-
-// Produce produces for the topic as an AVM tx
-func (p *AVM) Produce(msg []byte) error {
-	var message *kafka.Message
-	var err error
+// writeTx takes in a serialized tx and writes it to Kafka
+func (p *AVM) writeTx(msg []byte) error {
 	if p.filter.Filter(msg) {
 		return nil // filter returned true, so we filter it
 	}
 
-	if message, err = p.makeMessage(msg); err != nil {
+	message, txID, err := p.makeMessage(msg)
+	if err != nil {
 		return err
 	}
 
+	p.log.Info("Writing tx message: %s", txID.String())
 	return p.producer.Produce(message, nil)
+}
+
+// makeMessage takes in a raw tx and builds a Kafka message for it
+func (p *AVM) makeMessage(msg []byte) (*kafka.Message, ids.ID, error) {
+	var (
+		err  error
+		data []byte
+		tx   snowstorm.Tx
+	)
+
+	if tx, err = p.avm.ParseTx(msg); err != nil {
+		return nil, ids.Empty, err
+	}
+
+	if data, err = json.Marshal(tx); err != nil {
+		return nil, ids.Empty, err
+	}
+
+	return &kafka.Message{
+		Value: data,
+		Key:   tx.ID().Bytes(),
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &p.topic,
+			Partition: kafka.PartitionAny,
+		},
+	}, tx.ID(), nil
 }
