@@ -5,7 +5,6 @@ import (
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/go-redis/redis"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/ava-labs/ortelius/cache"
@@ -16,27 +15,21 @@ var (
 	defaultTimeout = 1 * time.Minute
 )
 
-// AVM consumes for the AVM
+// AVM consumes for the AVM and writes to a cache accumulator
 type AVM struct {
 	log      logging.Logger
 	consumer *kafka.Consumer
 	cache    cache.Accumulator
 	topic    string
-	chainID  ids.ID
 }
 
-// Initialize inits the consumer
-func (c *AVM) Initialize(log logging.Logger, kafkaConfig kafka.ConfigMap) error {
+// Initialize prepares the consumer for listening
+func (c *AVM) Initialize(log logging.Logger, conf *cfg.Config) error {
 	var err error
 	c.log = log
-	c.topic = cfg.Viper.GetString("chainID")
-	log.Info("chainID: %s", cfg.Viper.GetString("chainID"))
-	if c.chainID, err = ids.FromString(c.topic); err != nil {
-		c.log.Error("Invalid chainID: %s", err.Error())
-		return err
-	}
+	c.topic = conf.ChainID.String()
 
-	if c.consumer, err = kafka.NewConsumer(&kafkaConfig); err != nil {
+	if c.consumer, err = kafka.NewConsumer(&conf.Kafka); err != nil {
 		c.log.Error("Error creating consumer: %s", err.Error())
 		return err
 	}
@@ -46,12 +39,7 @@ func (c *AVM) Initialize(log logging.Logger, kafkaConfig kafka.ConfigMap) error 
 		return err
 	}
 
-	// TODO: Put into config
-	c.cache, err = cache.NewRedisBackend(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
+	c.cache, err = cache.NewRedisBackend(&conf.Redis)
 	if err != nil {
 		return err
 	}

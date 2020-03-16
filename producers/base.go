@@ -2,6 +2,7 @@ package producers
 
 import (
 	"github.com/ava-labs/gecko/utils/logging"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/producers/avm"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 	"nanomsg.org/go/mangos/v2/protocol"
@@ -9,7 +10,7 @@ import (
 
 // BaseType is a generic interface for producers
 type BaseType interface {
-	Initialize(logging.Logger, kafka.ConfigMap, protocol.Socket) error
+	Initialize(logging.Logger, *cfg.Config, protocol.Socket) error
 	Accept() error
 	Close() error
 	Events() chan kafka.Event

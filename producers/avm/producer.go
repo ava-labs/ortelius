@@ -14,73 +14,51 @@ import (
 	"github.com/ava-labs/gecko/snow/engine/common"
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/vms/avm"
-	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/ava-labs/ortelius/cfg"
 )
 
-// AVM produces for the AVM
+// AVM produces for the AVM, taking messages from the IPC socket and writing
+// formatting txs to Kafka
 type AVM struct {
-	log       logging.Logger
-	sock      protocol.Socket
-	producer  *kafka.Producer
-	filter    Filter
-	topic     string
-	chainID   ids.ID
-	genesisTx *platformvm.CreateChainTx
-	networkID uint32
-	vmID      ids.ID
-	ctx       *snow.Context
-	avm       *avm.VM
+	avm            *avm.VM
+	log            logging.Logger
+	sock           protocol.Socket
+	filter         Filter
+	topicPartition kafka.TopicPartition
+	producer       *kafka.Producer
 }
 
 // Initialize the producer using the configs passed as an argument
-func (p *AVM) Initialize(log logging.Logger, kafkaConf kafka.ConfigMap, sock protocol.Socket) error {
-	var err error
+func (p *AVM) Initialize(log logging.Logger, conf *cfg.Config, sock protocol.Socket) error {
 	p.log = log
 	p.sock = sock
-	p.topic = cfg.Viper.GetString("chainID")
-	log.Info("chainID: %s", cfg.Viper.GetString("chainID"))
-	if p.chainID, err = ids.FromString(p.topic); err != nil {
-		return err
-	}
-	filter := cfg.Viper.GetStringMap("filter")
-	p.filter = Filter{}
-	log.Info("filter %s", cfg.Viper.GetStringMap("filter"))
-	if err := p.filter.Initialize(filter); err != nil {
-		return err
-	}
-	p.networkID = cfg.Viper.GetUint32("networkID")
-	p.vmID = avm.ID
-	p.genesisTx = genesis.VMGenesis(p.networkID, p.vmID)
-	p.ctx = &snow.Context{
-		NetworkID: p.networkID,
-		ChainID:   p.chainID,
-		Log:       logging.NoLog{},
-	}
-	p.avm = &avm.VM{}
-	echan := make(chan common.Message, 1)
-	fxids := p.genesisTx.FxIDs
-	fxs := []*common.Fx{}
-	for _, fxID := range fxids {
-		switch {
-		case fxID.Equals(secp256k1fx.ID):
-			fxs = append(fxs, &common.Fx{
-				Fx: &secp256k1fx.Fx{},
-				ID: fxID,
-			})
-		default:
-			return fmt.Errorf("Unknown FxID: %s", secp256k1fx.ID)
-		}
-	}
-	p.log.Info("%+v", fxs)
-	p.avm.Initialize(p.ctx, &nodb.Database{}, p.genesisTx.Bytes(), echan, fxs)
 
-	if p.producer, err = kafka.NewProducer(&kafkaConf); err != nil {
+	// Create filter
+	p.filter = Filter{}
+	if err := p.filter.Initialize(conf.Filter); err != nil {
 		return err
 	}
+
+	// Create the AVM for the configured chain
+	var err error
+	if p.avm, err = p.newAVM(conf.ChainID, conf.NetworkID); err != nil {
+		return err
+	}
+
+	// Set the Kafka config and start the producer
+	chainIDStr := conf.ChainID.String()
+	p.topicPartition = kafka.TopicPartition{
+		Topic:     &chainIDStr,
+		Partition: kafka.PartitionAny,
+	}
+	if p.producer, err = kafka.NewProducer(&conf.Kafka); err != nil {
+		return err
+	}
+
+	log.Info("Initialized producer with chainID=%s and filter=%s", conf.ChainID, conf.Filter)
 
 	return nil
 }
@@ -137,11 +115,37 @@ func (p *AVM) makeMessage(msg []byte) (*kafka.Message, ids.ID, error) {
 	}
 
 	return &kafka.Message{
-		Value: data,
-		Key:   tx.ID().Bytes(),
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &p.topic,
-			Partition: kafka.PartitionAny,
-		},
+		Value:          data,
+		Key:            tx.ID().Bytes(),
+		TopicPartition: p.topicPartition,
 	}, tx.ID(), nil
+}
+
+// newAVM creates an AVM instance that we can use to parse txs
+func (p *AVM) newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
+	genesisTX := genesis.VMGenesis(networkID, avm.ID)
+
+	fxIDs := genesisTX.FxIDs
+	fxs := make([]*common.Fx, 0, len(fxIDs))
+	for _, fxID := range fxIDs {
+		switch {
+		case fxID.Equals(secp256k1fx.ID):
+			fxs = append(fxs, &common.Fx{
+				Fx: &secp256k1fx.Fx{},
+				ID: fxID,
+			})
+		default:
+			return nil, fmt.Errorf("Unknown FxID: %s", secp256k1fx.ID)
+		}
+	}
+
+	ctx := &snow.Context{
+		NetworkID: networkID,
+		ChainID:   chainID,
+		Log:       logging.NoLog{},
+	}
+
+	vm := &avm.VM{}
+	vm.Initialize(ctx, &nodb.Database{}, genesisTX.Bytes(), make(chan common.Message, 1), fxs)
+	return vm, nil
 }
