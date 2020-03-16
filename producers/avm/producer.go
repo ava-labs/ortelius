@@ -60,7 +60,7 @@ func (p *AVM) Initialize(log logging.Logger) error {
 	}
 	p.avm = &avm.VM{}
 	echan := make(chan common.Message, 1)
-	fxids := p.genesisTx.FxIDs()
+	fxids := p.genesisTx.FxIDs
 	fxs := []*common.Fx{}
 	for _, fxID := range fxids {
 		switch {
