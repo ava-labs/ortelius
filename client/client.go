@@ -28,7 +28,7 @@ var (
 
 // backend represents the backend producer or consumer for the Client
 type backend interface {
-	Accept() error
+	ProcessNextMessage() error
 	Close() error
 }
 
@@ -70,7 +70,7 @@ func (c *Client) Listen() error {
 
 	// Loop over the backend until it's finished
 	for {
-		if err := backend.Accept(); err != nil {
+		if err := backend.ProcessNextMessage(); err != nil {
 			log.Error("Accept error: %s", err.Error())
 		}
 	}

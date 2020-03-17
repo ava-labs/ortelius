@@ -11,7 +11,7 @@ import (
 // BaseType is a generic interface for producers
 type BaseType interface {
 	Initialize(logging.Logger, *cfg.Config, protocol.Socket) error
-	Accept() error
+	ProcessNextMessage() error
 	Close() error
 	Events() chan kafka.Event
 }

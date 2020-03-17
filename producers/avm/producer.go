@@ -69,8 +69,9 @@ func (p *AVM) Close() error {
 	return nil
 }
 
-// Accept takes in a message from the IPC socket and writes it to Kafka
-func (p *AVM) Accept() error {
+// ProcessNextMessage takes in a message from the IPC socket and writes it to
+// Kafka
+func (p *AVM) ProcessNextMessage() error {
 	txBytes, err := p.sock.Recv()
 	if err != nil {
 		return err

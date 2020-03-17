@@ -52,8 +52,8 @@ func (c *AVM) Close() error {
 	return c.consumer.Close()
 }
 
-// Accept waits for a new message, and if it receives one it and processes it
-func (c *AVM) Accept() error {
+// ProcessNextMessage waits for a new message and adds it to the cache
+func (c *AVM) ProcessNextMessage() error {
 	msg, err := c.consumer.ReadMessage(defaultTimeout)
 	if err != nil {
 		return err
