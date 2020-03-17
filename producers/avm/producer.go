@@ -6,6 +6,7 @@ import (
 
 	"nanomsg.org/go/mangos/v2/protocol"
 
+	"github.com/ava-labs/gecko/database"
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
@@ -146,7 +147,13 @@ func (p *AVM) newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 		Log:       logging.NoLog{},
 	}
 
+	// Initialize an AVM to use for tx parsing
+	// An error is returned about the DB being closed but this is expected because
+	// we're not using a real DB here.
 	vm := &avm.VM{}
-	vm.Initialize(ctx, &nodb.Database{}, genesisTX.Bytes(), make(chan common.Message, 1), fxs)
+	err := vm.Initialize(ctx, &nodb.Database{}, genesisTX.GenesisData, make(chan common.Message, 1), fxs)
+	if err != nil && err != database.ErrClosed {
+		return nil, err
+	}
 	return vm, nil
 }
