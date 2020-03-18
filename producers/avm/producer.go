@@ -96,8 +96,13 @@ func (p *AVM) writeTx(msg []byte) error {
 		return err
 	}
 
-	p.log.Info("Writing tx message: %s", txID.String())
-	return p.producer.Produce(message, nil)
+	err = p.producer.Produce(message, nil)
+	if err != nil {
+		return err
+	}
+
+	p.log.Info("Wrote message: %s", txID.String())
+	return nil
 }
 
 // makeMessage takes in a raw tx and builds a Kafka message for it

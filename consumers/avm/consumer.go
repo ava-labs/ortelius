@@ -7,20 +7,20 @@ import (
 	"github.com/ava-labs/gecko/utils/logging"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
-	"github.com/ava-labs/ortelius/cache"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
 )
 
 var (
 	defaultTimeout = 1 * time.Minute
 )
 
-// AVM consumes for the AVM and writes to a cache accumulator
+// AVM consumes for the AVM and writes to a service accumulator
 type AVM struct {
-	log      logging.Logger
-	consumer *kafka.Consumer
-	cache    cache.Accumulator
-	topic    string
+	log        logging.Logger
+	consumer   *kafka.Consumer
+	serviceAcc services.Accumulator
+	topic      string
 }
 
 // Initialize prepares the consumer for listening
@@ -39,7 +39,7 @@ func (c *AVM) Initialize(log logging.Logger, conf *cfg.Config) error {
 		return err
 	}
 
-	c.cache, err = cache.NewRedisBackend(&conf.Redis)
+	c.serviceAcc, err = services.NewRedisIndex(&conf.Redis)
 	if err != nil {
 		return err
 	}
@@ -52,27 +52,23 @@ func (c *AVM) Close() error {
 	return c.consumer.Close()
 }
 
-// ProcessNextMessage waits for a new message and adds it to the cache
+// ProcessNextMessage waits for a new message and adds it to the services
 func (c *AVM) ProcessNextMessage() error {
 	msg, err := c.consumer.ReadMessage(defaultTimeout)
 	if err != nil {
 		return err
 	}
 
-	return handleMessage(c.cache, msg)
-}
-
-// handleMessage takes in a raw message from Kafka and writes it to the cache
-func handleMessage(cacheAcc cache.Accumulator, msg *kafka.Message) error {
-	id, err := ids.ToID(msg.Key)
+	txID, err := ids.ToID(msg.Key)
 	if err != nil {
 		return err
 	}
 
-	err = cacheAcc.AddTx(id, msg.Value)
+	err = c.serviceAcc.AddTx(txID, msg.Value)
 	if err != nil {
 		return err
 	}
 
+	c.log.Info("Wrote message: %s", txID.String())
 	return nil
 }

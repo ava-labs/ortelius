@@ -1,4 +1,4 @@
-package cache
+package services
 
 import (
 	"github.com/ava-labs/gecko/ids"
@@ -9,13 +9,13 @@ import (
 // recent txs list in redis
 const RedisRecentTxsSize = 100_000
 
-// RedisBackend is an Accumulator and Server backed by a Redis database
-type RedisBackend struct {
+// RedisIndex is an Accumulator and Index backed by redis
+type RedisIndex struct {
 	client *redis.Client
 }
 
-// NewRedisBackend creates a new RedisBackend for the given config
-func NewRedisBackend(opts *redis.Options) (*RedisBackend, error) {
+// NewRedisIndex creates a new RedisIndex for the given config
+func NewRedisIndex(opts *redis.Options) (*RedisIndex, error) {
 	client := redis.NewClient(opts)
 
 	// Perform a liveness check on the backend service
@@ -24,11 +24,11 @@ func NewRedisBackend(opts *redis.Options) (*RedisBackend, error) {
 		return nil, err
 	}
 
-	return &RedisBackend{client: client}, nil
+	return &RedisIndex{client: client}, nil
 }
 
-// AddTx ingests a transaction and adds it to the cache
-func (r *RedisBackend) AddTx(id ids.ID, body []byte) error {
+// AddTx ingests a transaction and adds it to the services
+func (r *RedisIndex) AddTx(id ids.ID, body []byte) error {
 	idStr := id.String()
 	pipe := r.client.TxPipeline()
 
@@ -53,7 +53,7 @@ func (r *RedisBackend) AddTx(id ids.ID, body []byte) error {
 }
 
 // GetTx returns the bytes for the transaction with the given ID
-func (r *RedisBackend) GetTx(id ids.ID) ([]byte, error) {
+func (r *RedisIndex) GetTx(id ids.ID) ([]byte, error) {
 	cmd := r.client.Get(id.String())
 	if err := cmd.Err(); err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (r *RedisBackend) GetTx(id ids.ID) ([]byte, error) {
 }
 
 // GetTxCount returns the number of transactions this Server as seen
-func (r *RedisBackend) GetTxCount() (int64, error) {
+func (r *RedisIndex) GetTxCount() (int64, error) {
 	cmd := r.client.Get("tx_count")
 	if err := cmd.Err(); err != nil {
 		return 0, err
@@ -71,7 +71,7 @@ func (r *RedisBackend) GetTxCount() (int64, error) {
 }
 
 // GetRecentTxs returns a list of the N most recent transactions
-func (r *RedisBackend) GetRecentTxs(n int64) ([]ids.ID, error) {
+func (r *RedisIndex) GetRecentTxs(n int64) ([]ids.ID, error) {
 	cmd := r.client.LRange("recent_txs", 0, n-1)
 	if err := cmd.Err(); err != nil {
 		return nil, err
