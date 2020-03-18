@@ -1,88 +1,120 @@
 package client
 
 import (
-	"github.com/ava-labs/gecko/utils/logging"
+	"errors"
 
+	"github.com/ava-labs/gecko/utils/logging"
 	"nanomsg.org/go/mangos/v2"
+	"nanomsg.org/go/mangos/v2/protocol"
 	"nanomsg.org/go/mangos/v2/protocol/sub"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/consumers"
 	"github.com/ava-labs/ortelius/producers"
-	"github.com/ava-labs/ortelius/utils"
 
 	// register transports
 	_ "nanomsg.org/go/mangos/v2/transport/ipc"
 )
 
-// Client an IPC client
+var (
+	// ErrUnknownDataType is returned when encountering a data type with no known
+	// backend client
+	ErrUnknownDataType = errors.New("unknown data type")
+
+	// ErrUnknownClientType is returned when encountering a client type with no
+	// known implementation
+	ErrUnknownClientType = errors.New("unknown client type")
+)
+
+// backend represents the backend producer or consumer for the Client
+type backend interface {
+	ProcessNextMessage() error
+	Close() error
+}
+
+// Client a Kafka client; a producer or a consumer
 type Client struct {
-	log      logging.Logger
-	sock     mangos.Socket
-	dataType string
+	conf *cfg.Config
 }
 
-// Initialize sets up the client
-func (c *Client) Initialize() error {
-	var err error
-	var conf logging.Config
-	var log logging.Logger
-	if conf, err = logging.DefaultConfig(); err != nil {
-		return err
-	}
-	conf.Directory = cfg.Viper.GetString("logDirectory")
-	if log, err = logging.New(conf); err != nil {
-		return err
-	}
-	c.log = log
-	c.dataType = cfg.Viper.GetString("kafka")
-	return nil
+// New creates a new *Client ready for listening
+func New(conf *cfg.Config) *Client {
+	return &Client{conf: conf}
 }
 
-// Listen sets a client to listen to the URL for a UNIX Domain socket IPC file
-func (c *Client) Listen() {
-	var sock mangos.Socket
-	var err error
-	var msg []byte
+// Listen sets a client to listen for and handle incoming messages
+func (c *Client) Listen() error {
+	// backend instance for the configured context
+	var backend backend
 
-	clientType := cfg.Viper.GetString("context")
-
-	if sock, err = sub.NewSocket(); err != nil {
-		utils.Die("can't get new sub socket: %s", err.Error())
+	// Create a logger for out backend to use
+	log, err := logging.New(c.conf.Logging)
+	if err != nil {
+		return err
 	}
 
-	if err = sock.Dial(cfg.Viper.GetString("ipcURL")); err != nil {
-		utils.Die("can't dial on sub socket: %s", err.Error())
+	// Create a backend producer or consumer based on the config
+	switch c.conf.Context {
+	default:
+		return ErrUnknownClientType
+	case "consumer":
+		backend, err = createConsumer(c.conf, log)
+	case "producer":
+		backend, err = createProducer(c.conf, log)
 	}
-
-	// Empty byte array effectively subscribes to everything
-	err = sock.SetOption(mangos.OptionSubscribe, []byte(""))
 
 	if err != nil {
-		utils.Die("cannot subscribe: %s", err.Error())
+		log.Error("Initialization error: %s", err.Error())
+		return err
 	}
-	dataType := cfg.Viper.GetString("dataType")
-	switch clientType {
-	case "consumer":
-		for {
-			con := consumers.Select(dataType)
-			if msg, err = sock.Recv(); err != nil {
-				utils.Die("Cannot recv: %s", err.Error())
-			}
-			if err := con.ReadMessage(msg); err != nil {
-				c.log.Error(err.Error())
-			}
-		}
-	case "producer":
-		prod := producers.Select(dataType)
-		prod.Initialize(c.log)
-		for {
-			if msg, err = sock.Recv(); err != nil {
-				utils.Die("Cannot recv: %s", err.Error())
-			}
-			if err = prod.Produce(msg); err != nil {
-				c.log.Error(err.Error())
-			}
+
+	// Loop over the backend until it's finished
+	for {
+		if err := backend.ProcessNextMessage(); err != nil {
+			log.Error("Accept error: %s", err.Error())
 		}
 	}
+}
+
+// createConsumer returns a new consumer for the configured data type
+func createConsumer(conf *cfg.Config, log logging.Logger) (backend, error) {
+	c := consumers.Select(conf.DataType)
+	if c == nil {
+		return nil, ErrUnknownDataType
+	}
+	return c, c.Initialize(log, conf)
+}
+
+// createProducer returns a new producer for the configured data type
+func createProducer(conf *cfg.Config, log logging.Logger) (backend, error) {
+	sock, err := createIPCSocket(conf.IPCURL)
+	if err != nil {
+		return nil, err
+	}
+
+	p := producers.Select(conf.DataType)
+	if p == nil {
+		return nil, ErrUnknownDataType
+	}
+	return p, p.Initialize(log, conf, sock)
+}
+
+// createIPCSocket creates a new socket connection to the configured IPC URL
+func createIPCSocket(url string) (protocol.Socket, error) {
+	// Create and open a connection to the IPC socket
+	sock, err := sub.NewSocket()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = sock.Dial(url); err != nil {
+		return nil, err
+	}
+
+	// Subscribe to all topics
+	if err = sock.SetOption(mangos.OptionSubscribe, []byte("")); err != nil {
+		return nil, err
+	}
+
+	return sock, nil
 }

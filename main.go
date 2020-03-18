@@ -5,16 +5,19 @@ import (
 
 	"github.com/ava-labs/ortelius/client"
 	"github.com/ava-labs/ortelius/cmd"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 func main() {
-	cmd.Execute()
-	client := client.Client{}
-	if len(os.Args) > 1 {
-		client.Initialize()
-		client.Listen()
-		os.Exit(0)
+	// Execute root command and obtain the config object to use
+	conf, err := cmd.Execute()
+	if err != nil {
+		utils.Die("Could not execute root command: %s", err.Error())
 	}
-	cmd.RootCmd.Help()
-	os.Exit(1)
+
+	// Start client
+	client := client.New(conf)
+	if err := client.Listen(); err != nil {
+		os.Exit(1)
+	}
 }
