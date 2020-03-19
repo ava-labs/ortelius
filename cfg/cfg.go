@@ -10,8 +10,22 @@ import (
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
+const appName = "ortelius"
+
+var (
+	defaultLogDirectory = "/var/log/ortelius"
+	defaultRedisConf    = map[string]interface{}{
+		"addr":     "redis:6379",
+		"database": 0,
+		"password": "",
+	}
+)
+
 func getConfigViper(file string) (*viper.Viper, error) {
-	v := viper.New()
+	v := viper.NewWithOptions(viper.KeyDelimiter("_"))
+
+	v.SetEnvPrefix(appName)
+	v.AutomaticEnv()
 
 	v.SetConfigFile(file)
 	v.SetConfigType("json")
@@ -36,10 +50,17 @@ func getKafkaConf(conf map[string]interface{}) kafka.ConfigMap {
 }
 
 func getRedisConfig(conf *viper.Viper) (opts redis.Options) {
-	if conf != nil {
-		opts.Addr = conf.GetString("addr")
-		opts.Password = conf.GetString("password")
-		opts.DB = conf.GetInt("db")
+	if conf == nil {
+		return opts
 	}
+
+	redisConf := conf.Sub("redis")
+	redisConf.SetEnvPrefix(appName + "_redis")
+	redisConf.AutomaticEnv()
+
+	opts.Addr = redisConf.GetString("addr")
+	opts.Password = redisConf.GetString("password")
+	opts.DB = redisConf.GetInt("db")
+
 	return opts
 }
