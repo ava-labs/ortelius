@@ -1,0 +1,22 @@
+{
+  "ipcURL": "ipc:///tmp/i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m.ipc",
+  "chainID": "i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m",
+  "topic": "i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m",
+  "dataType": "avm",
+  "networkID": 12345,
+  "logDirectory": "/var/log/ortelius",
+  "filter": {
+    "min": 1073741824,
+    "max": 2147483648
+  },
+  "kafka": {
+    "client.id":          "avm",
+    "group.id":           "0",
+    "enable.idempotence": true,
+    "bootstrap.servers":  "kafka:9092"
+  },
+  "redis": {
+    "db": 0,
+    "addr": "redis:6379"
+  }
+}
