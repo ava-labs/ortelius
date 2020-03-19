@@ -1,79 +1,45 @@
-/*
-Copyright © 2019 AVA Labs <collin@avalabs.org>
-*/
+// (c) 2020, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 
 package cfg
 
 import (
-	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/go-redis/redis"
 	"github.com/spf13/viper"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
-// Config manages configuration data read from a file or the environment
-type Config struct {
-	Context string
-
-	ChainID   ids.ID
-	DataType  string
-	IPCURL    string
-	LogDir    string
-	NetworkID uint32
-	Filter    map[string]interface{}
-
-	Logging logging.Config
-	Kafka   kafka.ConfigMap
-	Redis   redis.Options
-}
-
-// NewConfig returns a *Config populated with data from the given file
-func NewConfig(context string, file string) (*Config, error) {
-	// Parse config file with viper
+func getConfigViper(file string) (*viper.Viper, error) {
 	v := viper.New()
+
 	v.SetConfigFile(file)
 	v.SetConfigType("json")
-	if err := v.ReadInConfig(); err != nil {
-		return nil, err
+
+	return v, v.ReadInConfig()
+}
+
+func getLogConf(dir string) logging.Config {
+	// We ignore the error because it's related to creating the default directory
+	// but we are going to override it anyways
+	logConf, _ := logging.DefaultConfig()
+	logConf.Directory = dir
+	return logConf
+}
+
+func getKafkaConf(conf map[string]interface{}) kafka.ConfigMap {
+	kc := kafka.ConfigMap{}
+	for k, v := range conf {
+		kc[k] = v
 	}
+	return kc
+}
 
-	// Create logging config
-	logConf, err := logging.DefaultConfig()
-	if err != nil {
-		return nil, err
+func getRedisConfig(conf *viper.Viper) (opts redis.Options) {
+	if conf != nil {
+		opts.Addr = conf.GetString("addr")
+		opts.Password = conf.GetString("password")
+		opts.DB = conf.GetInt("db")
 	}
-	logConf.Directory = v.GetString("logDirectory")
-
-	// Parse Kafka config into a kafka.ConfigMap
-	kafkaConf := kafka.ConfigMap{}
-	for k, v := range v.GetStringMap("kafka") {
-		kafkaConf[k] = v
-	}
-
-	// Parse chainID string
-	chainID, err := ids.FromString(v.GetString("chainID"))
-	if err != nil {
-		return nil, err
-	}
-
-	// Collect config data into a Config object
-	redisConf := v.Sub("redis")
-	return &Config{
-		Context: context,
-
-		ChainID:   chainID,
-		DataType:  v.GetString("dataType"),
-		IPCURL:    v.GetString("ipcURL"),
-		NetworkID: v.GetUint32("networkID"),
-		Filter:    v.GetStringMap("filter"),
-
-		Logging: logConf,
-		Kafka:   kafkaConf,
-		Redis: redis.Options{
-			Addr:     redisConf.GetString("addr"),
-			Password: redisConf.GetString("password"),
-			DB:       redisConf.GetInt("db"),
-		},
-	}, nil
+	return opts
 }

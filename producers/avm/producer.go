@@ -33,7 +33,7 @@ type AVM struct {
 }
 
 // Initialize the producer using the configs passed as an argument
-func (p *AVM) Initialize(log logging.Logger, conf *cfg.Config, sock protocol.Socket) error {
+func (p *AVM) Initialize(log logging.Logger, conf *cfg.ClientConfig, sock protocol.Socket) error {
 	p.log = log
 	p.sock = sock
 

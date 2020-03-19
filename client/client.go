@@ -34,11 +34,11 @@ type backend interface {
 
 // Client a Kafka client; a producer or a consumer
 type Client struct {
-	conf *cfg.Config
+	conf *cfg.ClientConfig
 }
 
 // New creates a new *Client ready for listening
-func New(conf *cfg.Config) *Client {
+func New(conf *cfg.ClientConfig) *Client {
 	return &Client{conf: conf}
 }
 
@@ -77,7 +77,7 @@ func (c *Client) Listen() error {
 }
 
 // createConsumer returns a new consumer for the configured data type
-func createConsumer(conf *cfg.Config, log logging.Logger) (backend, error) {
+func createConsumer(conf *cfg.ClientConfig, log logging.Logger) (backend, error) {
 	c := consumers.Select(conf.DataType)
 	if c == nil {
 		return nil, ErrUnknownDataType
@@ -86,7 +86,7 @@ func createConsumer(conf *cfg.Config, log logging.Logger) (backend, error) {
 }
 
 // createProducer returns a new producer for the configured data type
-func createProducer(conf *cfg.Config, log logging.Logger) (backend, error) {
+func createProducer(conf *cfg.ClientConfig, log logging.Logger) (backend, error) {
 	sock, err := createIPCSocket(conf.IPCURL)
 	if err != nil {
 		return nil, err

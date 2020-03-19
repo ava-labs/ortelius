@@ -1,0 +1,9 @@
+{
+    "listenAddr": "localhost:8080",
+    "logDirectory": "/var/lib/ortelius/api",
+    "redis": {
+        "addr":     "localhost:6379",
+        "db":       0,
+        "password": "supersecret"
+    }
+}
