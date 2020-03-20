@@ -1,6 +1,9 @@
 language: go
 sudo: false
 go: 1.14
+cache:
+  directories:
+    - $GOPATH/pkg/mod
 before_install:
 - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add
   -
