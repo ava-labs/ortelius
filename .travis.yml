@@ -1,6 +1,6 @@
 language: go
 sudo: false
-go: 1.13
+go: 1.14
 before_install:
 - wget -qO - https://packages.confluent.io/deb/5.4/archive.key | sudo apt-key add
   -
