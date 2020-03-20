@@ -33,7 +33,7 @@ type AVM struct {
 }
 
 // Initialize the producer using the configs passed as an argument
-func (p *AVM) Initialize(log logging.Logger, conf *cfg.Config, sock protocol.Socket) error {
+func (p *AVM) Initialize(log logging.Logger, conf *cfg.ClientConfig, sock protocol.Socket) error {
 	p.log = log
 	p.sock = sock
 
@@ -117,7 +117,7 @@ func (p *AVM) makeMessage(msg []byte) (*kafka.Message, ids.ID, error) {
 		return nil, ids.Empty, err
 	}
 
-	if data, err = json.Marshal(tx); err != nil {
+	if data, err = json.Marshal(formatTx(tx)); err != nil {
 		return nil, ids.Empty, err
 	}
 

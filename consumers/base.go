@@ -8,7 +8,7 @@ import (
 
 // BaseType is a basic interface for consumers
 type BaseType interface {
-	Initialize(logging.Logger, *cfg.Config) error
+	Initialize(logging.Logger, *cfg.ClientConfig) error
 	ProcessNextMessage() error
 	Close() error
 }

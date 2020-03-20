@@ -24,7 +24,7 @@ type AVM struct {
 }
 
 // Initialize prepares the consumer for listening
-func (c *AVM) Initialize(log logging.Logger, conf *cfg.Config) error {
+func (c *AVM) Initialize(log logging.Logger, conf *cfg.ClientConfig) error {
 	var err error
 	c.log = log
 	c.topic = conf.ChainID.String()
