@@ -1,3 +1,6 @@
+# Secrets
+.ci/set_env_secrets.sh
+
 # IDE configs
 .idea
 
