@@ -1,0 +1,26 @@
+# Create base builder image
+FROM golang:1.14-alpine
+WORKDIR /go/src/github.com/ava-labs/ortelius
+RUN apk add build-base git libc-dev linux-headers && \
+
+    # The librdkafka in the main repos is out of date so we install from edge
+    echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
+    echo "@edgecommunity http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
+    apk add --no-cache alpine-sdk 'librdkafka@edgecommunity>=1.3.0' 'librdkafka-dev@edgecommunity>=1.3.0'
+
+# Build app
+COPY . .
+RUN go get ./... && \
+    GOOS=linux GOARCH=amd64 go build -o /opt/ortelius-client ./client/bin/main.go
+
+# Create base final image
+FROM alpine:edge
+VOLUME /var/log/ortelius
+VOLUME /var/lib/ortelius
+RUN apk add --no-cache librdkafka
+
+# Copy in and wire up app artifacts
+COPY --from=0 /opt/ortelius-client /opt/ortelius-client
+COPY --from=0 /go/src/github.com/ava-labs/ortelius/docker/config.json /var/lib/ortelius/config.json
+ENTRYPOINT ["/opt/ortelius-client"]
+CMD ["producer", "/var/lib/ortelius/config.json"]
