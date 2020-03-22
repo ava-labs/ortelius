@@ -1,6 +1,7 @@
 package avm
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
@@ -8,6 +9,7 @@ import (
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/record"
 	"github.com/ava-labs/ortelius/services"
 )
 
@@ -21,6 +23,7 @@ type AVM struct {
 	consumer   *kafka.Consumer
 	serviceAcc services.Accumulator
 	topic      string
+	txParser   *txParser
 }
 
 // Initialize prepares the consumer for listening
@@ -39,8 +42,11 @@ func (c *AVM) Initialize(log logging.Logger, conf *cfg.ClientConfig) error {
 		return err
 	}
 
-	c.serviceAcc, err = services.NewRedisIndex(&conf.Redis)
-	if err != nil {
+	if c.serviceAcc, err = services.NewRedisIndex(&conf.Redis); err != nil {
+		return err
+	}
+
+	if c.txParser, err = newTXParser(conf.ChainID, conf.NetworkID); err != nil {
 		return err
 	}
 
@@ -54,21 +60,38 @@ func (c *AVM) Close() error {
 
 // ProcessNextMessage waits for a new message and adds it to the services
 func (c *AVM) ProcessNextMessage() error {
+	// Read in a message and parse into a tx object
 	msg, err := c.consumer.ReadMessage(defaultTimeout)
 	if err != nil {
 		return err
 	}
 
-	txID, err := ids.ToID(msg.Key)
+	txBytes, err := record.Unmarshal(msg.Value)
 	if err != nil {
 		return err
 	}
 
-	err = c.serviceAcc.AddTx(txID, msg.Value)
+	tx, err := c.txParser.Parse(txBytes)
 	if err != nil {
 		return err
 	}
 
-	c.log.Info("Wrote message: %s", txID.String())
+	// Serialize as JSON and add to service
+	jsonBytes, err := json.Marshal(tx.UnsignedTx)
+	if err != nil {
+		return err
+	}
+
+	msgID, err := ids.ToID(msg.Key)
+	if err != nil {
+		return err
+	}
+
+	err = c.serviceAcc.AddTx(msgID, jsonBytes)
+	if err != nil {
+		return err
+	}
+
+	c.log.Info("Wrote message: %s", msgID.String())
 	return nil
 }

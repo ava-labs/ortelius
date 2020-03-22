@@ -4,6 +4,8 @@
 package avm
 
 import (
+	"encoding/json"
+
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
 )
@@ -27,4 +29,8 @@ func formatTx(tx snowstorm.Tx) *formattedTx {
 		InputIDs:     tx.InputIDs().List(),
 		Bytes:        tx.Bytes(),
 	}
+}
+
+func formattedTxJSON(tx snowstorm.Tx) ([]byte, error) {
+	return json.Marshal(formatTx(tx))
 }
