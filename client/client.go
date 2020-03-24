@@ -58,7 +58,7 @@ func (c *Client) Listen() error {
 	default:
 		return ErrUnknownClientType
 	case "consumer":
-		backend, err = createConsumer(c.conf, log)
+		backend, err = consumers.NewAccumulatorConsumer(c.conf, log)
 	case "producer":
 		backend, err = createProducer(c.conf, log)
 	}
@@ -74,15 +74,6 @@ func (c *Client) Listen() error {
 			log.Error("Accept error: %s", err.Error())
 		}
 	}
-}
-
-// createConsumer returns a new consumer for the configured data type
-func createConsumer(conf *cfg.ClientConfig, log logging.Logger) (backend, error) {
-	c := consumers.Select(conf.DataType)
-	if c == nil {
-		return nil, ErrUnknownDataType
-	}
-	return c, c.Initialize(log, conf)
 }
 
 // createProducer returns a new producer for the configured data type

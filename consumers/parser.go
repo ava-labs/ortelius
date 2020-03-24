@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm
+package consumers
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/snow"
+	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
 	"github.com/ava-labs/gecko/snow/engine/common"
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/vms/avm"
@@ -19,33 +20,31 @@ import (
 )
 
 var (
-	ErrInvalidTxType = errors.New("invalid tx type")
+	// ErrNoParserForVM is returned when trying to create a parser for a VM that
+	// doesn't exist or has no defined parsers
+	ErrNoParserForVM = errors.New("no parser for VM")
 )
 
-type txParser struct {
-	avm *avm.VM
+// txParser parses a byte slice into a snowstorm.Tx
+type txParser func(b []byte) (snowstorm.Tx, error)
+
+// newParser returns a tx parser for the given vmType
+func newParser(vmType string, chainID ids.ID, networkID uint32) (txParser, error) {
+	switch vmType {
+	case "avm":
+		return newAVMParser(chainID, networkID)
+	}
+	return nil, ErrNoParserForVM
 }
 
-func newTXParser(chainID ids.ID, networkID uint32) (*txParser, error) {
-	a, err := newAVM(chainID, networkID)
+// newAVMParser creates a new ParseFn that parses AVM txs
+func newAVMParser(chainID ids.ID, networkID uint32) (txParser, error) {
+	avm, err := newAVM(chainID, networkID)
 	if err != nil {
 		return nil, err
 	}
-	return &txParser{avm: a}, nil
-}
 
-func (tp *txParser) Parse(b []byte) (*avm.Tx, error) {
-	snowstormTx, err := tp.avm.ParseTx(b)
-	if err != nil {
-		return nil, err
-	}
-
-	uniqueTx, ok := snowstormTx.(*avm.UniqueTx)
-	if !ok {
-		return nil, ErrInvalidTxType
-	}
-
-	return uniqueTx.Tx(), nil
+	return avm.ParseTx, nil
 }
 
 // newAVM creates an AVM instance that we can use to parse txs
