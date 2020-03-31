@@ -5,73 +5,96 @@ package cfg
 
 import (
 	"github.com/ava-labs/gecko/ids"
-	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/go-redis/redis"
-	"github.com/spf13/viper"
-	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
+
+const (
+	configKeysFilter    = "filter"
+	configKeysKafka     = "kafka"
+	configKeysChainID   = "chainID"
+	configKeysDataType  = "dataType"
+	configKeysIPCURL    = "ipcURL"
+	configKeysNetworkID = "networkID"
+)
+
+type FilterConfig struct {
+	Min uint32
+	Max uint32
+}
 
 // ClientConfig manages configuration data for the client app
 type ClientConfig struct {
 	Context string
+	Filter  FilterConfig
 
+	ServiceConfig
+	Kafka *kafka.ConfigMap
+
+	// Chain-specific configs. These tie the client to single chain.
 	ChainID   ids.ID
 	DataType  string
-	IPCURL    string
 	NetworkID uint32
-	Filter    map[string]interface{}
-
-	Logging logging.Config
-	Kafka   kafka.ConfigMap
-	Redis   redis.Options
+	IPCURL    string
 }
 
 // NewClientConfig returns a *ClientConfig populated with data from the given file
 func NewClientConfig(context string, file string) (*ClientConfig, error) {
 	// Parse config file with viper and set defaults
-	v, err := getConfigViper(file)
+	v, err := getConfigViper(file, map[string]interface{}{
+		configKeysIPCURL:    "",
+		configKeysChainID:   "",
+		configKeysDataType:  "avm",
+		configKeysNetworkID: 12345,
+		configKeysFilter: map[string]interface{}{
+			"max": 1073741824,
+			"min": 2147483648,
+		},
+		configKeysKafka: map[string]interface{}{
+			"client.id":          "avm",
+			"enable.idempotence": true,
+			"bootstrap.servers":  "127.0.0.1:9092",
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	setClientDefaults(v)
 
 	// Parse chainID string
-	chainID, err := ids.FromString(v.GetString("chainID"))
+	chainID, err := ids.FromString(v.GetString(configKeysChainID))
 	if err != nil {
 		return nil, err
 	}
+
+	// Get services config
+	serviceConf, err := getServiceConfig(v)
+	if err != nil {
+		return nil, err
+	}
+
+	filterConf := getSubViper(v, configKeysFilter)
 
 	// Collect config data into a ClientConfig object
 	return &ClientConfig{
 		Context: context,
+		Filter: FilterConfig{
+			Min: filterConf.GetUint32("min"),
+			Max: filterConf.GetUint32("min"),
+		},
+
+		ServiceConfig: serviceConf,
+		Kafka:         getKafkaConf(v.GetStringMap(configKeysKafka)),
 
 		ChainID:   chainID,
-		DataType:  v.GetString("dataType"),
-		IPCURL:    v.GetString("ipcURL"),
-		NetworkID: v.GetUint32("networkID"),
-		Filter:    v.GetStringMap("filter"),
-
-		Kafka: getKafkaConf(v.GetStringMap("kafka")),
-
-		Logging: getLogConf(v.GetString("logDirectory")),
-		Redis:   getRedisConfig(v),
+		DataType:  v.GetString(configKeysDataType),
+		IPCURL:    v.GetString(configKeysIPCURL),
+		NetworkID: v.GetUint32(configKeysNetworkID),
 	}, nil
 }
 
-func setClientDefaults(v *viper.Viper) {
-	v.SetDefault("ipcURL", "ipc:///tmp/GJABrZ9A6UQFpwjPU8MDxDd8vuyRoDVeDAXc694wJ5t3zEkhU.ipc")
-	v.SetDefault("chainID", "GJABrZ9A6UQFpwjPU8MDxDd8vuyRoDVeDAXc694wJ5t3zEkhU")
-	v.SetDefault("dataType", "avm")
-	v.SetDefault("networkID", 12345)
-	v.SetDefault("logDirectory", "/var/log/ortelius")
-	v.SetDefault("filter", map[string]interface{}{
-		"max": 1073741824,
-		"min": 2147483648,
-	})
-	v.SetDefault("kafka", map[string]interface{}{
-		"client.id":          "avm",
-		"enable.idempotence": true,
-		"bootstrap.servers":  "kafka:9092",
-	})
-	v.SetDefault("redis", defaultRedisConf)
+func getKafkaConf(conf map[string]interface{}) *kafka.ConfigMap {
+	kc := kafka.ConfigMap{}
+	for k, v := range conf {
+		kc[k] = v
+	}
+	return &kc
 }

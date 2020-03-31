@@ -1,10 +1,12 @@
 package services
 
-import "github.com/ava-labs/gecko/ids"
+import (
+	"github.com/ava-labs/gecko/ids"
+)
 
 // Accumulator takes in txs and adds them to the services backend
 type Accumulator interface {
-	AddTx(ids.ID, []byte) error
+	AddTx(ids.ID, ids.ID, []byte) error
 }
 
 // Index makes data available for simple querying

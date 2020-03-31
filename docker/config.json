@@ -1,10 +1,9 @@
 {
-  "ipcURL": "ipc:///tmp/i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m.ipc",
-  "chainID": "i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m",
-  "topic": "i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m",
+  "ipcURL": "ipc:///tmp/4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH.ipc",
+  "chainID": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
   "dataType": "avm",
   "networkID": 12345,
-  "logDirectory": "/var/log/ortelius",
+  "logDirectory": "/tmp/ortelius/logs",
   "filter": {
     "min": 1073741824,
     "max": 2147483648
@@ -13,10 +12,13 @@
     "client.id":          "avm",
     "group.id":           "0",
     "enable.idempotence": true,
-    "bootstrap.servers":  "kafka:9092"
+    "bootstrap.servers":  "kafka-1:9092,kafka-2:9092"
   },
   "redis": {
     "db": 0,
     "addr": "redis:6379"
+  },
+  "chainAliases": {
+    "x": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH"
   }
 }

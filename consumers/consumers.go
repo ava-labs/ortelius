@@ -24,6 +24,7 @@ var (
 	// ErrNotIndexable is returned when trying to get turn a snowstorm tx into an
 	// Indexable object
 	ErrNotIndexable = errors.New("object is not indexable")
+	ErrTopicPtrNil  = errors.New("topic pointer is nil")
 )
 
 // Consumer is a basic interface for consumers
@@ -61,21 +62,30 @@ func toIndexableBytes(tx snowstorm.Tx) ([]byte, error) {
 
 // readNextTxBytes gets the next tx from the Kafka consumer and returns its id
 // and bytes, or an error
-func readNextTxBytes(c *kafka.Consumer) (ids.ID, []byte, error) {
+func readNextTxBytes(c *kafka.Consumer) (topicID ids.ID, txID ids.ID, txBody []byte, err error) {
+	// Get Kafka message
 	msg, err := c.ReadMessage(defaultKafkaReadTimeout)
 	if err != nil {
-		return ids.Empty, nil, err
+		return topicID, txID, txBody, err
 	}
 
-	msgID, err := ids.ToID(msg.Key)
-	if err != nil {
-		return ids.Empty, nil, err
+	// Extract chainID from topic
+	if msg.TopicPartition.Topic == nil {
+		return topicID, txID, nil, ErrTopicPtrNil
+	}
+	if topicID, err = ids.FromString(*msg.TopicPartition.Topic); err != nil {
+		return topicID, txID, txBody, err
 	}
 
-	bytes, err := record.Unmarshal(msg.Value)
-	if err != nil {
-		return ids.Empty, nil, err
+	// Extract txID from key
+	if txID, err = ids.ToID(msg.Key); err != nil {
+		return topicID, txID, txBody, err
 	}
 
-	return msgID, bytes, nil
+	// Extract tx body from value
+	if txBody, err = record.Unmarshal(msg.Value); err != nil {
+		return topicID, txID, txBody, err
+	}
+
+	return topicID, txID, txBody, nil
 }
