@@ -24,6 +24,7 @@ build_and_deploy() {
   tag_and_push $1 "dev-$(git rev-parse --short HEAD)"
   if [ "$TRAVIS_TAG" != "" ] ; then tag_and_push $1 $TRAVIS_TAG; fi
   if [ "$TRAVIS_BRANCH" == "master" ] ; then tag_and_push $1 "latest"; fi
+  if [ "$TRAVIS_BRANCH" == "staging" ] ; then tag_and_push $1 "staging"; fi
 }
 
 # Install AWSCLI if necessary
