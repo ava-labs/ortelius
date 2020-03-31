@@ -1,28 +1,33 @@
-/*
-"Warning", a haiku by Collin Cusce
-
-This is invalid
-JSON does not parse comments
-You have all been warned
-*/
 {
-    "ipcURL": "ipc:///tmp/GJABrZ9A6UQFpwjPU8MDxDd8vuyRoDVeDAXc694wJ5t3zEkhU.ipc",
-    "chainID": "GJABrZ9A6UQFpwjPU8MDxDd8vuyRoDVeDAXc694wJ5t3zEkhU", // a blockchain ID
-    "dataType": "avm",
-    "networkID": 12345,
-    "logDirectory": "/home/ccusce/dev/logs/ortelius/avm/producer",
-    "filter": {
-        "min": 1073741824, // min amount 0
-        "max": 2147483648  // max amount 2^32 - 1 ... 4294967295
+  "networkID": 12345,
+  "logDirectory": "/tmp/ortelius/logs/client",
+  "ipcRoot": "ipc:///tmp",
+  "chains": {
+    "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
+      "id": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+      "alias": "X",
+      "vmType": "avm"
     },
-    "kafka": { // keys from: https://kafka.apache.org/documentation/#producerconfigs
-        "client.id":          "avm", // "avm" or some string
-        "enable.idempotence": true,  // true probably
-        "bootstrap.servers":  "b-2.kafkaclusterdev.uhplt2.c7.kafka.us-east-1.amazonaws.com:9092,b-3.kafkaclusterdev.uhplt2.c7.kafka.us-east-1.amazonaws.com:9092,b-1.kafkaclusterdev.uhplt2.c7.kafka.us-east-1.amazonaws.com:9092"
-    },
-    "redis": {
-        "addr":     "localhost:6379",
-        "db":       0,
-        "password": "supersecret"
+    "11111111111111111111111111111111LpoYY": {
+      "id": "11111111111111111111111111111111LpoYY",
+      "alias": "P",
+      "vmType": "pvm"
     }
+  },
+  "filter": {
+    "min": 1073741824,
+    "max": 2147483648
+  },
+  "kafka": {
+    "brokers": [
+      "kafka-1:9092",
+      "kafka-2:9092"
+    ],
+    "groupName": "indexer"
+  },
+  "redis": {
+    "addr": "localhost:6379",
+    "db": 0,
+    "password": "supersecret"
+  }
 }

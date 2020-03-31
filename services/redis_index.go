@@ -15,24 +15,16 @@ type RedisIndex struct {
 }
 
 // NewRedisIndex creates a new RedisIndex for the given config
-func NewRedisIndex(opts *redis.Options) (*RedisIndex, error) {
-	client := redis.NewClient(opts)
-
-	// Perform a liveness check on the backend service
-	_, err := client.Ping().Result()
-	if err != nil {
-		return nil, err
-	}
-
-	return &RedisIndex{client: client}, nil
+func NewRedisIndex(client *redis.Client) *RedisIndex {
+	return &RedisIndex{client}
 }
 
 // AddTx ingests a transaction and adds it to the services
-func (r *RedisIndex) AddTx(id ids.ID, body []byte) error {
-	idStr := id.String()
+func (r *RedisIndex) AddTx(_ ids.ID, txID ids.ID, body []byte) error {
+	txIDStr := txID.String()
 	pipe := r.client.TxPipeline()
 
-	if err := pipe.Set(idStr, body, 0).Err(); err != nil {
+	if err := pipe.Set(txIDStr, body, 0).Err(); err != nil {
 		return err
 	}
 
@@ -40,7 +32,7 @@ func (r *RedisIndex) AddTx(id ids.ID, body []byte) error {
 		return err
 	}
 
-	if err := pipe.LPush("recent_txs", idStr).Err(); err != nil {
+	if err := pipe.LPush("recent_txs", txIDStr).Err(); err != nil {
 		return err
 	}
 

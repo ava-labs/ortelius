@@ -3,38 +3,33 @@
 
 package cfg
 
-import (
-	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/go-redis/redis"
-	"github.com/spf13/viper"
+const (
+	configKeysListenAddr = "listenAddr"
 )
 
 // APIConfig manages configuration data for the API app
 type APIConfig struct {
+	Common
 	ListenAddr string
-	Logging    logging.Config
-	Redis      redis.Options
 }
 
 // NewAPIConfig returns a *APIConfig populated with data from the given file
 func NewAPIConfig(file string) (APIConfig, error) {
 	// Parse config file with viper and set the defaults
-	v, err := getConfigViper(file)
+	v, err := getConfigViper(file, map[string]interface{}{
+		configKeysListenAddr: ":8080",
+	})
 	if err != nil {
 		return APIConfig{}, err
 	}
-	setAPIDefaults(v)
 
-	// Collect config data into a APIConfig object
+	common, err := getCommonConfig(v)
+	if err != nil {
+		return APIConfig{}, err
+	}
+
 	return APIConfig{
-		ListenAddr: v.GetString("listenAddr"),
-		Logging:    getLogConf(v.GetString("logDirectory")),
-		Redis:      getRedisConfig(v),
+		Common:     common,
+		ListenAddr: v.GetString(configKeysListenAddr),
 	}, nil
-}
-
-func setAPIDefaults(v *viper.Viper) {
-	v.SetDefault("listenAddr", ":8080")
-	v.SetDefault("logDirectory", defaultLogDirectory)
-	v.SetDefault("redis", defaultRedisConf)
 }
