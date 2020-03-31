@@ -40,7 +40,7 @@ func (p *AVM) Initialize(log logging.Logger, conf *cfg.ClientConfig, sock protoc
 		Partition: kafka.PartitionAny,
 	}
 	var err error
-	if p.producer, err = kafka.NewProducer(&conf.Kafka); err != nil {
+	if p.producer, err = kafka.NewProducer(conf.Kafka); err != nil {
 		return err
 	}
 

@@ -5,5 +5,8 @@
         "addr":     "localhost:6379",
         "db":       0,
         "password": "supersecret"
+    },
+    "chainAliases": {
+        "x": "i8KtK2KwLi1o7WaVBbEKpRLPtAEYayfoptqAFYxfQgrus1g6m"
     }
 }
