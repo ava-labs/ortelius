@@ -5,14 +5,18 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
+	"github.com/gocraft/web"
 
-	"github.com/gorilla/mux"
+	"github.com/ava-labs/ortelius/cfg"
+)
+
+var (
+	ErrXChainIDRequired = errors.New("X-chain ID required")
 )
 
 type Server struct {
@@ -26,7 +30,7 @@ func NewServer(conf cfg.APIConfig) (*Server, error) {
 		return nil, err
 	}
 
-	index, err := services.NewRedisIndex(&conf.Redis)
+	router, err := newRouter(conf.ServiceConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -35,10 +39,10 @@ func NewServer(conf cfg.APIConfig) (*Server, error) {
 		log: log,
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
-			Handler:      newRouter(index),
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  15 * time.Second,
+			Handler:      router,
 		},
 	}, err
 }
@@ -49,17 +53,27 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) Shutdown() error {
+	s.log.Info("Server shutting down")
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFn()
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(index services.Index) *mux.Router {
-	h := newHandlers(index)
-	r := mux.NewRouter()
-	r.HandleFunc("/", h.overview)
-	r.HandleFunc("/tx/{id}", h.getTxByID)
-	r.HandleFunc("/recent_txs", h.getRecentTxs)
-	r.HandleFunc("/tx_count", h.getTxCount)
-	return r
+func newRouter(conf cfg.ServiceConfig) (*web.Router, error) {
+	xChainID, ok := conf.ChainAliasConfig["x"]
+	if !ok {
+		return nil, ErrXChainIDRequired
+	}
+
+	router, err := newRootRouter(conf.ChainAliasConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	err = NewAVMRouter(router, "/x", conf, xChainID)
+	if err != nil {
+		return nil, err
+	}
+
+	return router, nil
 }
