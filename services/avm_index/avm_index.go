@@ -37,7 +37,7 @@ func New(conf cfg.ServiceConfig) (*Index, error) {
 	}, nil
 }
 
-func (i *Index) AddTx(ingestable services.Ingestable) error {
+func (i *Index) Add(ingestable services.Ingestable) error {
 	// Parse into a tx
 	snowstormTx, err := i.txParser(ingestable.Body())
 	if err != nil {

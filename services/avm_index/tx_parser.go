@@ -29,7 +29,7 @@ func newTXParser() (txParser, error) {
 	return avm.ParseTx, nil
 }
 
-// newAVM creates an AVM instance that we can use to parse txs
+// newAVM creates an producer instance that we can use to parse txs
 func newAVM() (*avm.VM, error) {
 	genesisTX := genesis.VMGenesis(12345, avm.ID)
 
@@ -53,7 +53,7 @@ func newAVM() (*avm.VM, error) {
 		Log:       logging.NoLog{},
 	}
 
-	// Initialize an AVM to use for tx parsing
+	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because
 	// we're not using a real DB here.
 	vm := &avm.VM{}

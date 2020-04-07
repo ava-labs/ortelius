@@ -17,10 +17,15 @@ const (
 	configKeysNetworkID = "networkID"
 )
 
+type FilterConfig struct {
+	Min uint32
+	Max uint32
+}
+
 // ClientConfig manages configuration data for the client app
 type ClientConfig struct {
 	Context string
-	Filter  map[string]interface{}
+	Filter  FilterConfig
 
 	ServiceConfig
 	Kafka *kafka.ConfigMap
@@ -66,10 +71,15 @@ func NewClientConfig(context string, file string) (*ClientConfig, error) {
 		return nil, err
 	}
 
+	filterConf := getSubViper(v, configKeysFilter)
+
 	// Collect config data into a ClientConfig object
 	return &ClientConfig{
 		Context: context,
-		Filter:  v.GetStringMap(configKeysFilter),
+		Filter: FilterConfig{
+			Min: filterConf.GetUint32("min"),
+			Max: filterConf.GetUint32("min"),
+		},
 
 		ServiceConfig: serviceConf,
 		Kafka:         getKafkaConf(v.GetStringMap(configKeysKafka)),

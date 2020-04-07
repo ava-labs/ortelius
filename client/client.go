@@ -9,28 +9,16 @@ import (
 	"nanomsg.org/go/mangos/v2/protocol/sub"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/consumers"
-	"github.com/ava-labs/ortelius/producers"
 
 	// register transports
 	_ "nanomsg.org/go/mangos/v2/transport/ipc"
 )
 
 var (
-	// ErrUnknownDataType is returned when encountering a data type with no known
-	// backend client
-	ErrUnknownDataType = errors.New("unknown data type")
-
 	// ErrUnknownClientType is returned when encountering a client type with no
 	// known implementation
 	ErrUnknownClientType = errors.New("unknown client type")
 )
-
-// backend represents the backend producer or consumer for the Client
-type backend interface {
-	ProcessNextMessage() error
-	Close() error
-}
 
 // Client a Kafka client; a producer or a consumer
 type Client struct {
@@ -45,7 +33,10 @@ func New(conf *cfg.ClientConfig) *Client {
 // Listen sets a client to listen for and handle incoming messages
 func (c *Client) Listen() error {
 	// backend instance for the configured context
-	var backend backend
+	var backend interface {
+		ProcessNextMessage() (*message, error)
+		Close() error
+	}
 
 	// Create a logger for out backend to use
 	log, err := logging.New(c.conf.Logging)
@@ -58,36 +49,31 @@ func (c *Client) Listen() error {
 	default:
 		return ErrUnknownClientType
 	case "consumer":
-		backend, err = consumers.NewAccumulatorConsumer(c.conf, log)
+		backend, err = newConsumer(c.conf)
 	case "producer":
-		backend, err = createProducer(c.conf, log)
+		backend, err = newProducer(c.conf)
 	}
-
 	if err != nil {
 		log.Error("Initialization error: %s", err.Error())
 		return err
 	}
+	log.Info("Initialized %s with chainID=%s", c.conf.Context, c.conf.ChainID)
+
+	// Set it to close when we're done
+	defer func() {
+		if err := backend.Close(); err != nil {
+			log.Error("Error closing backend: %s", err.Error())
+		}
+	}()
 
 	// Loop over the backend until it's finished
+	var msg *message
 	for {
-		if err := backend.ProcessNextMessage(); err != nil {
+		if msg, err = backend.ProcessNextMessage(); err != nil {
 			log.Error("Accept error: %s", err.Error())
 		}
+		log.Info("Processed message %s on chain %s", msg.ID(), msg.ChainID())
 	}
-}
-
-// createProducer returns a new producer for the configured data type
-func createProducer(conf *cfg.ClientConfig, log logging.Logger) (backend, error) {
-	sock, err := createIPCSocket(conf.IPCURL)
-	if err != nil {
-		return nil, err
-	}
-
-	p := producers.Select(conf.DataType)
-	if p == nil {
-		return nil, ErrUnknownDataType
-	}
-	return p, p.Initialize(log, conf, sock)
 }
 
 // createIPCSocket creates a new socket connection to the configured IPC URL
