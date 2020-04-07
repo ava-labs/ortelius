@@ -3,6 +3,7 @@ module github.com/ava-labs/ortelius
 go 1.13
 
 require (
+	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/apilayer/freegeoip v3.5.0+incompatible // indirect
 	github.com/aristanetworks/goarista v0.0.0-20200310212843-2da4c1f5881b // indirect
@@ -18,6 +19,10 @@ require (
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/go-redis/redis v6.15.7+incompatible
+	github.com/go-sql-driver/mysql v1.5.0
+	github.com/gocraft/dbr v0.0.0-20190714181702-8114670a83bd
+	github.com/gocraft/health v0.0.0-20170925182251-8675af27fef0
+	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/rpc v1.2.0 // indirect

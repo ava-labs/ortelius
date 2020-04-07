@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/ava-labs/gecko/snow/consensus/snowstorm"
 	"github.com/ava-labs/gecko/utils/logging"
 	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 
@@ -23,8 +22,7 @@ var (
 
 	// ErrNotIndexable is returned when trying to get turn a snowstorm tx into an
 	// Indexable object
-	ErrNotIndexable = errors.New("object is not indexable")
-	ErrTopicPtrNil  = errors.New("topic pointer is nil")
+	ErrTopicPtrNil = errors.New("topic pointer is nil")
 )
 
 // Consumer is a basic interface for consumers
@@ -34,58 +32,48 @@ type Consumer interface {
 	Close() error
 }
 
-// Indexable is the basic interface for objects opting in to being indexed
-type Indexable interface {
-	// IndexableBytes returns the data to be indexed for the object serialized to
-	// binary
-	IndexableBytes() ([]byte, error)
+type message struct {
+	id      ids.ID
+	chainID ids.ID
+	body    []byte
 }
 
-// toIndexable converts a snowtorm.Tx into an Indexable or returns an error if
-// the Tx is not an Indexable
-func toIndexable(tx snowstorm.Tx) (Indexable, error) {
-	indexable, ok := tx.(Indexable)
-	if !ok {
-		return nil, ErrNotIndexable
-	}
-	return indexable, nil
-}
+func (m *message) ID() ids.ID      { return m.id }
+func (m *message) ChainID() ids.ID { return m.chainID }
+func (m *message) Body() []byte    { return m.body }
 
-// toIndexableBytes gets the indexable bytes for the given snowstorm.Tx
-func toIndexableBytes(tx snowstorm.Tx) ([]byte, error) {
-	indexable, err := toIndexable(tx)
-	if err != nil {
-		return nil, err
-	}
-	return indexable.IndexableBytes()
-}
-
-// readNextTxBytes gets the next tx from the Kafka consumer and returns its id
-// and bytes, or an error
-func readNextTxBytes(c *kafka.Consumer) (topicID ids.ID, txID ids.ID, txBody []byte, err error) {
-	// Get Kafka message
+// getNextMessage gets the next message from the Kafka consumer
+func getNextMessage(c *kafka.Consumer) (*message, error) {
+	// Get raw message from Kafka
 	msg, err := c.ReadMessage(defaultKafkaReadTimeout)
 	if err != nil {
-		return topicID, txID, txBody, err
+		return nil, err
 	}
 
 	// Extract chainID from topic
 	if msg.TopicPartition.Topic == nil {
-		return topicID, txID, nil, ErrTopicPtrNil
+		return nil, err
 	}
-	if topicID, err = ids.FromString(*msg.TopicPartition.Topic); err != nil {
-		return topicID, txID, txBody, err
+	chainID, err := ids.FromString(*msg.TopicPartition.Topic)
+	if err != nil {
+		return nil, err
 	}
 
-	// Extract txID from key
-	if txID, err = ids.ToID(msg.Key); err != nil {
-		return topicID, txID, txBody, err
+	// Extract message ID from key
+	id, err := ids.ToID(msg.Key)
+	if err != nil {
+		return nil, err
 	}
 
 	// Extract tx body from value
-	if txBody, err = record.Unmarshal(msg.Value); err != nil {
-		return topicID, txID, txBody, err
+	body, err := record.Unmarshal(msg.Value)
+	if err != nil {
+		return nil, err
 	}
 
-	return topicID, txID, txBody, nil
+	return &message{
+		id:      id,
+		chainID: chainID,
+		body:    body,
+	}, nil
 }
