@@ -20,6 +20,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# Development artifacts
 ortelius
-test.producer.json
-test.consumer.json
+main
+*conf.json
