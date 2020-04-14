@@ -1,0 +1,15 @@
+version: '3.5'
+services:
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: ortelius_test
+
+volumes:
+  mysql-data:

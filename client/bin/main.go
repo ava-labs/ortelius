@@ -4,11 +4,12 @@
 package main
 
 import (
+	"errors"
+	"log"
 	"os"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/client"
-	"github.com/ava-labs/ortelius/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +17,7 @@ func main() {
 	// Execute root command and obtain the config object to use
 	conf, err := Execute()
 	if err != nil {
-		utils.Die("Could not execute root command: %s", err.Error())
+		log.Fatalln("Could not execute root command:", err.Error())
 	}
 
 	// Start client
@@ -27,25 +28,27 @@ func main() {
 }
 
 // Execute runs the root command for ortelius
-func Execute() (conf *cfg.ClientConfig, confErr error) {
+func Execute() (conf *cfg.ClientConfig, err error) {
+	var confErr error
 	rootCmd := &cobra.Command{
 		Use:   "ortelius [context] [configuration file]\nex: ortelius producer /home/ccusce/kafka/avm.json",
 		Short: "A producer/consumer launcher for the explorer backend.",
 		Long:  "A producer/consumer launcher for the explorer backend.",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 2 {
-				if err := cmd.Help(); err != nil {
-					utils.Die("Help generation failed.")
+				if err = cmd.Help(); err != nil {
+					return
 				}
-				utils.Die("Invalid number of arguments.")
+				err = errors.New("Invalid number of arguments.")
+				return
 			}
 			context := args[0]
 			confFile := args[1]
 			conf, confErr = cfg.NewClientConfig(context, confFile)
 		},
 	}
-	if err := rootCmd.Execute(); err != nil {
-		utils.Die("Unable to launch: %s", err.Error())
+	if err = rootCmd.Execute(); err != nil {
+		return nil, err
 	}
 	return conf, confErr
 }
