@@ -18,10 +18,13 @@ check_binaries: ## Ensure the binaries build
 ##
 ## Developer environment
 ##
-.PHONY: dev_env_run
+.PHONY: dev_env_run test_env_run
 
 dev_env_run: ## Start up backing services in dev mode
 	@(cd docker/dev_env && docker-compose up --remove-orphans)
+
+test_env_run: ## Start up backing services in test mode
+	@(cd docker/test_env && docker-compose up --remove-orphans)
 
 ##
 ## Testing
@@ -36,3 +39,19 @@ tests_profile: ## Run tests with coverage profiling
 	go test -i ./...
 	go test -v -coverprofile=coverage.out -coverpkg=./... ./...
 	go tool cover -html=./coverage.out
+
+##
+## Database
+##
+.PHONY: db_install_migrate db_migrate_up db_migrate_down
+
+db_install_migrate: ## Install the migration tool
+	@which migrate || go get -tags 'mysql' github.com/golang-migrate/migrate/cmd/migrate
+
+db_migrate_up: db_install_migrate ## Migrate the database up
+	DSN="${DSN:-mysql://root:password@tcp(127.0.0.1:3306)/ortelius_dev}"
+	${GOPATH}/bin/migrate -source file://services/db/migrations -database "${DSN}" up
+
+db_migrate_down: db_install_migrate ## Migrate the downbase down
+	DSN="${DSN:-mysql://root:password@tcp(127.0.0.1:3306)/ortelius_dev}"
+	${GOPATH}/bin/migrate -source file://services/db/migrations -database "${DSN}" down

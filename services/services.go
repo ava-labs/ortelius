@@ -4,14 +4,27 @@ import (
 	"github.com/ava-labs/gecko/ids"
 )
 
-// Accumulator takes in txs and adds them to the services backend
-type Accumulator interface {
-	AddTx(ids.ID, ids.ID, []byte) error
+type Ingestable interface {
+	ID() ids.ID
+	ChainID() ids.ID
+	Body() []byte
+	Timestamp() uint64
 }
 
-// Index makes data available for simple querying
-type Index interface {
-	GetTx(ids.ID) ([]byte, error)
-	GetTxCount() (int64, error)
-	GetRecentTxs(int64) ([]ids.ID, error)
+// Service takes in Ingestables and adds them to the services backend
+type Service interface {
+	Add(Ingestable) error
+}
+
+// FanOutService takes in items and sends them to multiple backend Services
+type FanOutService []Service
+
+// Add takes in an Ingestable and sends it to all underlying backends
+func (fos FanOutService) Add(i Ingestable) (err error) {
+	for _, service := range fos {
+		if err = service.Add(i); err != nil {
+			return err
+		}
+	}
+	return nil
 }
