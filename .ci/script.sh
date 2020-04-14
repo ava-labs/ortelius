@@ -11,11 +11,11 @@ go get ./...
 go get github.com/alicebob/miniredis
 go get -tags 'mysql' github.com/golang-migrate/migrate/cmd/migrate
 
-# Lint
-$GOPATH/bin/golangci-lint run --deadline=1m
-
 # Build tests
 go test -i ./...
+
+# Lint
+$GOPATH/bin/golangci-lint run --deadline=1m
 
 # Migrate DB
 $GOPATH/bin/migrate \
