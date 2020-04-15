@@ -4,14 +4,22 @@
 package client
 
 import (
+	"context"
 	"encoding/binary"
+	"fmt"
+	"path"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/hashing"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/client/record"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/segmentio/kafka-go"
 	"nanomsg.org/go/mangos/v2/protocol"
+)
+
+var (
+	defaultKafkaWriteTimeout = 10 * time.Second
 )
 
 type binFilterFn func([]byte) bool
@@ -27,49 +35,39 @@ func newBinFilterFn(min uint32, max uint32) binFilterFn {
 // producer produces for the producer, taking messages from the IPC socket and writing
 // formatting txs to Kafka
 type producer struct {
-	sock           protocol.Socket
-	chainID        ids.ID
-	topicPartition kafka.TopicPartition
-
+	chainID     ids.ID
+	sock        protocol.Socket
 	binFilterFn binFilterFn
-	producer    *kafka.Producer
+	writer      *kafka.Writer
 }
 
 // newProducer creates a producer using the given config
-func newProducer(conf *cfg.ClientConfig) (*producer, error) {
-	sock, err := createIPCSocket(conf.IPCURL)
+func newProducer(conf *cfg.ClientConfig, chainID ids.ID) (backend, error) {
+	p := &producer{
+		chainID:     chainID,
+		binFilterFn: newBinFilterFn(conf.FilterConfig.Min, conf.FilterConfig.Max),
+	}
+
+	var err error
+	p.sock, err = createIPCSocket("ipc://" + path.Join(conf.IPCRoot, chainID.String()) + ".ipc")
 	if err != nil {
 		return nil, err
 	}
 
-	kProducer, err := kafka.NewProducer(conf.Kafka)
-	if err != nil {
-		return nil, err
-	}
+	fmt.Println("kafka brokers:", conf.KafkaConfig.Brokers)
+	p.writer = kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  conf.KafkaConfig.Brokers,
+		Topic:    chainID.String(),
+		Balancer: &kafka.LeastBytes{},
+	})
 
-	chainIDStr := conf.ChainID.String()
-	return &producer{
-		sock:    sock,
-		chainID: conf.ChainID,
-		topicPartition: kafka.TopicPartition{
-			Topic:     &chainIDStr,
-			Partition: kafka.PartitionAny,
-		},
-
-		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		producer:    kProducer,
-	}, nil
+	return p, nil
 }
 
 // Close shuts down the producer
 func (p *producer) Close() error {
-	p.producer.Close()
+	p.writer.Close()
 	return nil
-}
-
-// Events returns delivery events channel
-func (p *producer) Events() chan kafka.Event {
-	return p.producer.Events()
 }
 
 // ProcessNextMessage takes in a message from the IPC socket and writes it to
@@ -87,22 +85,25 @@ func (p *producer) ProcessNextMessage() (*message, error) {
 	}
 
 	// Create a message object
-	msgHash := hashing.ComputeHash256Array(rawMsg)
 	msg := &message{
-		id:      ids.NewID(msgHash),
+		id:      ids.NewID(hashing.ComputeHash256Array(rawMsg)),
 		chainID: p.chainID,
 		body:    record.Marshal(rawMsg),
 	}
 
 	// Send message to Kafka
-	err = p.producer.Produce(&kafka.Message{
-		Value:          msg.body,
-		Key:            msg.id.Bytes(),
-		TopicPartition: p.topicPartition,
-	}, nil)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
+	defer cancelFn()
+	err = p.writer.WriteMessages(ctx, kafka.Message{
+		Value: msg.body,
+		Key:   msg.id.Bytes(),
+	})
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("Wrote message to Kafka:", msg.id.String())
+	fmt.Println(rawMsg)
 
 	return msg, err
 }

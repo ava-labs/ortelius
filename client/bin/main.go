@@ -6,11 +6,11 @@ package main
 import (
 	"errors"
 	"log"
-	"os"
+
+	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/client"
-	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -21,9 +21,12 @@ func main() {
 	}
 
 	// Start client
-	client := client.New(conf)
+	client, err := client.New(conf)
+	if err != nil {
+		log.Fatalln("Could not create client:", err.Error())
+	}
 	if err := client.Listen(); err != nil {
-		os.Exit(1)
+		log.Fatalln("Listen error:", err.Error())
 	}
 }
 
@@ -39,7 +42,7 @@ func Execute() (conf *cfg.ClientConfig, err error) {
 				if err = cmd.Help(); err != nil {
 					return
 				}
-				err = errors.New("Invalid number of arguments.")
+				confErr = errors.New("Invalid number of arguments.")
 				return
 			}
 			context := args[0]

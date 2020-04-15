@@ -1,25 +1,33 @@
 {
-    "ipcURL": "ipc:///tmp/4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH.ipc",
-    "chainID": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH", // a blockchain ID
-    "dataType": "avm",
-    "networkID": 12345,
-    "logDirectory": "/tmp/ortelius/logs/client",
-    "filter": {
-        "min": 1073741824,
-        "max": 2147483648
+  "networkID": 12345,
+  "logDirectory": "/tmp/ortelius/logs/client",
+  "ipcRoot": "ipc:///tmp",
+  "chains": {
+    "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
+      "id": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+      "alias": "X",
+      "vmType": "avm"
     },
-    "kafka": {
-        "client.id":          "avm",
-        "group.id":           "0",
-        "enable.idempotence": true,
-        "bootstrap.servers":  "kafka-1:9092,kafka-2:9092"
-    },
-    "redis": {
-        "addr":     "localhost:6379",
-        "db":       0,
-        "password": "supersecret"
-    },
-    "chainAliases": {
-        "x": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH"
+    "11111111111111111111111111111111LpoYY": {
+      "id": "11111111111111111111111111111111LpoYY",
+      "alias": "P",
+      "vmType": "pvm"
     }
+  },
+  "filter": {
+    "min": 1073741824,
+    "max": 2147483648
+  },
+  "kafka": {
+    "brokers": [
+      "kafka-1:9092",
+      "kafka-2:9092"
+    ],
+    "groupName": "indexer"
+  },
+  "redis": {
+    "addr": "localhost:6379",
+    "db": 0,
+    "password": "supersecret"
+  }
 }

@@ -4,18 +4,39 @@
 package cfg
 
 import (
+	"errors"
+
 	"github.com/ava-labs/gecko/ids"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/spf13/viper"
 )
 
 const (
-	configKeysFilter    = "filter"
-	configKeysKafka     = "kafka"
-	configKeysChainID   = "chainID"
-	configKeysDataType  = "dataType"
-	configKeysIPCURL    = "ipcURL"
 	configKeysNetworkID = "networkID"
+	configKeysIPCRoot   = "ipcRoot"
+
+	configKeysFilter    = "filter"
+	configKeysFilterMin = "min"
+	configKeysFilterMax = "max"
+
+	configKeysChains       = "chains"
+	configKeysChainsID     = "id"
+	configKeysChainsAlias  = "alias"
+	configKeysChainsVMType = "vmType"
+
+	configKeysKafka          = "kafka"
+	configKeysKafkaBrokers   = "brokers"
+	configKeysKafkaGroupName = "GroupName"
 )
+
+type ChainConfig struct {
+	Alias  string
+	VMType string
+}
+
+type KafkaConfig struct {
+	Brokers   []string
+	GroupName string
+}
 
 type FilterConfig struct {
 	Min uint32
@@ -25,76 +46,110 @@ type FilterConfig struct {
 // ClientConfig manages configuration data for the client app
 type ClientConfig struct {
 	Context string
-	Filter  FilterConfig
+
+	NetworkID uint32
+	IPCRoot   string
+
+	Chains map[ids.ID]ChainConfig
 
 	ServiceConfig
-	Kafka *kafka.ConfigMap
-
-	// Chain-specific configs. These tie the client to single chain.
-	ChainID   ids.ID
-	DataType  string
-	NetworkID uint32
-	IPCURL    string
+	KafkaConfig
+	FilterConfig
 }
 
 // NewClientConfig returns a *ClientConfig populated with data from the given file
 func NewClientConfig(context string, file string) (*ClientConfig, error) {
 	// Parse config file with viper and set defaults
 	v, err := getConfigViper(file, map[string]interface{}{
-		configKeysIPCURL:    "",
-		configKeysChainID:   "",
-		configKeysDataType:  "avm",
-		configKeysNetworkID: 12345,
+		configKeysNetworkID:    12345,
+		configKeysKafkaBrokers: "127.0.0.1:9092",
+		configKeysChains: map[string]map[string]interface{}{
+			"4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
+				configKeysChainsID:     "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+				configKeysChainsAlias:  "X",
+				configKeysChainsVMType: "avm",
+			},
+			"11111111111111111111111111111111LpoYY": {
+				configKeysChainsID:     "11111111111111111111111111111111LpoYY",
+				configKeysChainsAlias:  "P",
+				configKeysChainsVMType: "pvm",
+			},
+		},
 		configKeysFilter: map[string]interface{}{
 			"max": 1073741824,
 			"min": 2147483648,
-		},
-		configKeysKafka: map[string]interface{}{
-			"client.id":          "avm",
-			"enable.idempotence": true,
-			"bootstrap.servers":  "127.0.0.1:9092",
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse chainID string
-	chainID, err := ids.FromString(v.GetString(configKeysChainID))
-	if err != nil {
-		return nil, err
+	// Parse chains config
+	chainsConf := v.GetStringMap(configKeysChains)
+	chains := make(map[ids.ID]ChainConfig, len(chainsConf))
+	for _, chainConf := range chainsConf {
+		confMap, ok := chainConf.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("Chain config must a string map")
+		}
+
+		idStr, ok := confMap[configKeysChainsID].(string)
+		if !ok {
+			return nil, errors.New("Chain config must a string map")
+		}
+
+		id := ids.Empty
+		if idStr != "11111111111111111111111111111111LpoYY" {
+			id, err = ids.FromString(idStr)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		alias, ok := confMap[configKeysChainsAlias].(string)
+		if !ok {
+			return nil, errors.New("Chain config must a string map")
+		}
+
+		vmType, ok := confMap[configKeysChainsAlias].(string)
+		if !ok {
+			return nil, errors.New("Chain config must a string map")
+		}
+
+		chains[id] = ChainConfig{
+			Alias:  alias,
+			VMType: vmType,
+		}
 	}
 
-	// Get services config
+	// Parse services config
 	serviceConf, err := getServiceConfig(v)
 	if err != nil {
 		return nil, err
 	}
 
-	filterConf := getSubViper(v, configKeysFilter)
-
 	// Collect config data into a ClientConfig object
 	return &ClientConfig{
-		Context: context,
-		Filter: FilterConfig{
-			Min: filterConf.GetUint32("min"),
-			Max: filterConf.GetUint32("min"),
-		},
-
+		Context:       context,
+		Chains:        chains,
 		ServiceConfig: serviceConf,
-		Kafka:         getKafkaConf(v.GetStringMap(configKeysKafka)),
-
-		ChainID:   chainID,
-		DataType:  v.GetString(configKeysDataType),
-		IPCURL:    v.GetString(configKeysIPCURL),
-		NetworkID: v.GetUint32(configKeysNetworkID),
+		NetworkID:     v.GetUint32(configKeysNetworkID),
+		IPCRoot:       v.GetString(configKeysIPCRoot),
+		KafkaConfig:   getKafkaConf(getSubViper(v, configKeysKafka)),
+		FilterConfig:  getFilterConf(getSubViper(v, configKeysFilter)),
 	}, nil
 }
 
-func getKafkaConf(conf map[string]interface{}) *kafka.ConfigMap {
-	kc := kafka.ConfigMap{}
-	for k, v := range conf {
-		kc[k] = v
+func getFilterConf(v *viper.Viper) FilterConfig {
+	return FilterConfig{
+		Min: v.GetUint32(configKeysFilterMin),
+		Max: v.GetUint32(configKeysFilterMax),
 	}
-	return &kc
+}
+
+func getKafkaConf(v *viper.Viper) KafkaConfig {
+	return KafkaConfig{
+		Brokers:   v.GetStringSlice(configKeysKafkaBrokers),
+		GroupName: v.GetString(configKeysKafkaGroupName),
+	}
 }

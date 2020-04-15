@@ -294,3 +294,15 @@ func getRequiredStringParam(w web.ResponseWriter, r *web.Request, name string) (
 	}
 	return addrStr, true
 }
+
+./build/ava --http-port=21000 --staking-port=21001 --public-ip=73.202.190.144 --bootstrap-ips=3.227.207.132:9630,107.23.241.199:9630,54.197.215.186:9630 --snow-sample-size=1 --snow-quorum-size=1 --staking-tls-enabled=false
+
+3.227.207.132
+34.207.133.167
+107.23.241.199
+54.197.215.186
+18.234.153.22
+http port = 21000
+staking port = 21001
+
+./build/ava --log-level=verbo --network-id=cascade --public-ip=73.202.190.144 --bootstrap-ips=3.227.207.132:21001 --bootstrap-ids=NX4zVkuiRJZYe6Nzzav7GXN3TakUet3Co

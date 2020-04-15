@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/ava-labs/ortelius/client/record"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/avm_index"
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -30,72 +31,62 @@ var (
 
 // consumer takes events from Kafka and sends them to a service
 type consumer struct {
-	consumer *kafka.Consumer
-	service  services.FanOutService
+	reader  *kafka.Reader
+	service services.FanOutService
 }
 
 // newConsumer creates an consumer for the given config
-func newConsumer(conf *cfg.ClientConfig) (*consumer, error) {
+func newConsumer(conf *cfg.ClientConfig, chainID ids.ID) (backend, error) {
 	var (
 		err error
 		c   = &consumer{}
 	)
 
 	// Create service backend
-	c.service, err = createServices(conf.ServiceConfig, conf.ChainID)
+	c.service, err = createServices(conf.ServiceConfig, chainID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create consumer for the topic
-	if c.consumer, err = kafka.NewConsumer(conf.Kafka); err != nil {
-		return nil, err
-	}
-	if err = c.consumer.Subscribe(conf.ChainID.String(), nil); err != nil {
-		return nil, err
-	}
+	// Create reader for the topic
+	c.reader = kafka.NewReader(kafka.ReaderConfig{
+		Topic:    chainID.String(),
+		Brokers:  conf.KafkaConfig.Brokers,
+		GroupID:  conf.KafkaConfig.GroupName,
+		MinBytes: 10e3, // 10KB
+		MaxBytes: 10e6, // 10MB
+	})
+
 	return c, nil
 }
 
 // Close closes the consumer
 func (c *consumer) Close() error {
-	return c.consumer.Close()
+	return c.reader.Close()
 }
 
 // ProcessNextMessage waits for a new message and adds it to the services
 func (c *consumer) ProcessNextMessage() (*message, error) {
-	msg, err := getNextMessage(c.consumer)
+	msg, err := getNextMessage(c.reader)
 	if err != nil {
 		return nil, err
 	}
 	return msg, c.service.Add(msg)
 }
 
-type message struct {
-	id        ids.ID
-	chainID   ids.ID
-	body      []byte
-	timestamp uint64
-}
-
-func (m *message) ID() ids.ID        { return m.id }
-func (m *message) ChainID() ids.ID   { return m.chainID }
-func (m *message) Body() []byte      { return m.body }
-func (m *message) Timestamp() uint64 { return m.timestamp }
-
 // getNextMessage gets the next message from the Kafka consumer
-func getNextMessage(c *kafka.Consumer) (*message, error) {
+func getNextMessage(r *kafka.Reader) (*message, error) {
 	// Get raw message from Kafka
-	msg, err := c.ReadMessage(defaultKafkaReadTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
+	defer cancelFn()
+
+	msg, err := r.ReadMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Extract chainID from topic
-	if msg.TopicPartition.Topic == nil {
-		return nil, ErrTopicPtrNil
-	}
-	chainID, err := ids.FromString(*msg.TopicPartition.Topic)
+	chainID, err := ids.FromString(msg.Topic)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +107,7 @@ func getNextMessage(c *kafka.Consumer) (*message, error) {
 		id:        id,
 		chainID:   chainID,
 		body:      body,
-		timestamp: uint64(msg.Timestamp.UTC().Unix()),
+		timestamp: uint64(msg.Time.UTC().Unix()),
 	}, nil
 }
 
