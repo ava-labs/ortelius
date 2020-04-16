@@ -1,16 +1,20 @@
 # Create base builder image
-FROM golang:1.14
+FROM golang:1.14-alpine
 WORKDIR /go/src/github.com/ava-labs/ortelius
-
-# Install deps
-RUN apt-get update && apt-get install -y librdkafka-dev
+RUN apk add git
 
 # Build app
 COPY . .
-RUN go get ./... && \
-    GOOS=linux GOARCH=amd64 go build -o /opt/ortelius-client ./client/bin/main.go
+RUN go get ./client/...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /opt/ortelius-client ./client/bin/main.go
 
-# Wire in app
+# Create base final image
+FROM scratch
 VOLUME /var/log/ortelius
 VOLUME /var/lib/ortelius
+
+# Copy in and wire up app artifacts
+COPY --from=0 /opt/ortelius-client /opt/ortelius-client
+COPY --from=0 /go/src/github.com/ava-labs/ortelius/docker/config.json /var/lib/ortelius/config.json
 ENTRYPOINT ["/opt/ortelius-client"]
+
