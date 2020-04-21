@@ -6,6 +6,7 @@ package avm_index
 import (
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/vms/avm"
@@ -70,22 +71,17 @@ func (i *Index) Add(ingestable services.Ingestable) error {
 }
 
 func (i *Index) GetChainInfo(alias string, networkID uint32) (*chainInfo, error) {
-	assetCount, err := i.db.GetAssetCount()
+	dayAggregates, err := i.db.GetTransactionAggregates(GetTransactionAggregatesParams{
+		StartTime:    time.Now().Add(-24 * time.Hour),
+		IntervalSize: IntervalAll,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	addressCount, err := i.db.GetAddressCount()
-	if err != nil {
-		return nil, err
-	}
-
-	txCount, err := i.db.GetTxCount()
-	if err != nil {
-		return nil, err
-	}
-
-	utxoCount, err := i.db.GetTransactionOutputCount(true)
+	allTimeAggregates, err := i.db.GetTransactionAggregates(GetTransactionAggregatesParams{
+		IntervalSize: IntervalAll,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +92,10 @@ func (i *Index) GetChainInfo(alias string, networkID uint32) (*chainInfo, error)
 		NetworkID: networkID,
 		VM:        VMName,
 
-		AssetCount:       assetCount,
-		AddressCount:     addressCount,
-		TransactionCount: txCount,
-		UTXOCount:        utxoCount,
+		Aggregates: chainInfoAggregates{
+			Day: dayAggregates.Intervals[0].Aggregates,
+			All: allTimeAggregates.Intervals[0].Aggregates,
+		},
 	}, nil
 }
 
@@ -141,4 +137,8 @@ func (i *Index) GetAsset(aliasOrID string) (asset, error) {
 
 func (i *Index) Search(params SearchParams) (*searchResults, error) {
 	return i.db.Search(params)
+}
+
+func (i *Index) GetTransactionAggregatesHistogram(params GetTransactionAggregatesParams) (*TransactionAggregatesHistogram, error) {
+	return i.db.GetTransactionAggregates(params)
 }

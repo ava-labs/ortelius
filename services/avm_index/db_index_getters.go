@@ -5,9 +5,21 @@ package avm_index
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/dbr"
+)
+
+const (
+	MaxAggregateIntervalCount = 20000
+)
+
+var (
+	ErrAggregateIntervalCountTooLarge = errors.New("requesting too many intervals")
 )
 
 func (r *DBIndex) GetTxCount() (count int64, err error) {
@@ -64,7 +76,7 @@ func (r *DBIndex) GetTxsForAddr(addr ids.ShortID, params *ListTxParams) ([]*disp
 func (r *DBIndex) GetTxCountForAddr(addr ids.ShortID) (uint64, error) {
 	builder := r.newDBSession("get_tx_count_for_address").
 		SelectBySql(`
-			SELECT COUNT(DISTINCT(avm_output_addresses))
+			SELECT COUNT(DISTINCT(avm_transactions.id))
 			FROM avm_transactions
 			LEFT JOIN avm_output_addresses AS oa1 ON avm_transactions.id = oa1.transaction_id
 			WHERE
@@ -142,9 +154,9 @@ func (r *DBIndex) GetTXOCountAndValueForAddr(addr ids.ShortID, spent *bool) (uin
 
 	if spent != nil {
 		if *spent {
-			builder = builder.Where("avm_outputs.redemming_signature IS NOT NULL")
+			builder = builder.Where("avm_outputs.redeeming_signature IS NOT NULL")
 		} else {
-			builder = builder.Where("avm_outputs.redemming_signature IS NULL")
+			builder = builder.Where("avm_outputs.redeeming_signature IS NULL")
 		}
 	}
 
@@ -169,6 +181,7 @@ func (r *DBIndex) GetAssetCount() (count int64, err error) {
 }
 
 func (r *DBIndex) GetAssets(params *ListParams) ([]asset, error) {
+	// TODO: Add 24h volume and allow sorting by it
 	assets := []asset{}
 	builder := params.Apply(r.newDBSession("get_assets").
 		Select("*").
@@ -259,34 +272,6 @@ func (r *DBIndex) GetTransactionOutputCount(onlySpent bool) (count int64, err er
 	return count, err
 }
 
-func (r *DBIndex) GetTxCounts(assetID ids.ID) (counts *transactionCounts, err error) {
-	db := r.newDBSession("get_tx_counts")
-	counts = &transactionCounts{}
-
-	if counts.Minute, err = r.getTransactionCountSince(db, 1, assetID); err != nil {
-		return nil, err
-	}
-	if counts.Hour, err = r.getTransactionCountSince(db, 60, assetID); err != nil {
-		return nil, err
-	}
-	if counts.Day, err = r.getTransactionCountSince(db, 1440, assetID); err != nil {
-		return nil, err
-	}
-	if counts.Week, err = r.getTransactionCountSince(db, 10080, assetID); err != nil {
-		return nil, err
-	}
-	if counts.Month, err = r.getTransactionCountSince(db, 43200, assetID); err != nil {
-		return nil, err
-	}
-	if counts.Year, err = r.getTransactionCountSince(db, 525600, assetID); err != nil {
-		return nil, err
-	}
-	if counts.All, err = r.getTransactionCountSince(db, 0, assetID); err != nil {
-		return nil, err
-	}
-	return counts, nil
-}
-
 func (r *DBIndex) getTransactionCountSince(db *dbr.Session, minutes uint64, assetID ids.ID) (count uint64, err error) {
 	builder := db.
 		Select("COUNT(DISTINCT(avm_transactions.id))").
@@ -320,7 +305,7 @@ func (r *DBIndex) Search(params SearchParams) (*searchResults, error) {
 		if err != nil {
 			return nil, err
 		}
-		results.Results[0].ResultType = ResultTypeTx
+		results.Results[0].ResultType = ResultTypeAddress
 		results.Results[0].Data = addr
 		return results, nil
 	}
@@ -346,4 +331,144 @@ func (r *DBIndex) Search(params SearchParams) (*searchResults, error) {
 	}
 
 	return nil, nil
+}
+
+func (r *DBIndex) GetTransactionAggregates(params GetTransactionAggregatesParams) (*TransactionAggregatesHistogram, error) {
+	// Validate params and set defaults if necessary
+	if params.StartTime.IsZero() {
+		var err error
+		params.StartTime, err = r.GetFirstTransactionTime()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if params.EndTime.IsZero() {
+		params.EndTime = time.Now().UTC()
+	}
+
+	// Ensure the interval count requested isn't too large
+	intervalSeconds := int(params.IntervalSize.Seconds())
+	requestedIntervalCount := 0
+	if intervalSeconds != 0 {
+		requestedIntervalCount = int(math.Ceil(params.EndTime.Sub(params.StartTime).Seconds() / params.IntervalSize.Seconds()))
+		if requestedIntervalCount > MaxAggregateIntervalCount {
+			return nil, ErrAggregateIntervalCountTooLarge
+		}
+		if requestedIntervalCount < 1 {
+			requestedIntervalCount = 1
+		}
+	}
+
+	// Build the query
+	db := r.newDBSession("get_transaction_aggregates_histogram")
+
+	columns := []string{
+		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS tx_count",
+		"COALESCE(SUM(avm_outputs.amount), 0) AS tx_volume",
+		"COUNT(avm_outputs.id) AS outputs_count",
+		"COUNT(DISTINCT(avm_output_addresses.address)) AS addr_count",
+		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
+	}
+
+	if requestedIntervalCount > 0 {
+		columns = append(columns, fmt.Sprintf(
+			"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
+			params.StartTime.Unix(),
+			intervalSeconds))
+	}
+
+	builder := db.
+		Select(columns...).
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.transaction_id = avm_outputs.transaction_id and avm_output_addresses.output_index = avm_outputs.output_index").
+		Where("avm_outputs.created_at >= ?", params.StartTime).
+		Where("avm_outputs.created_at < ?", params.EndTime)
+
+	if requestedIntervalCount > 0 {
+		builder.
+			GroupBy("idx").
+			OrderAsc("idx").
+			Limit(uint64(requestedIntervalCount))
+	}
+
+	// Load data. Intervals without any data will not return anything so we pad
+	// our results with empty counts so we're always returning every requested
+	// interval. In production this should have rarely if ever but will be common
+	// in testing/dev/staging scenarios.
+	//
+	// We also add the start and end times of each interval to that interval
+	intervals := []TransactionAggregatesInterval{}
+	_, err := builder.Load(&intervals)
+	if err != nil {
+		return nil, err
+	}
+
+	aggs := &TransactionAggregatesHistogram{
+		StartTime:    params.StartTime,
+		EndTime:      params.EndTime,
+		IntervalSize: params.IntervalSize,
+	}
+
+	// If no intervals were requested we're done
+	if requestedIntervalCount == 0 {
+		if len(intervals) > 0 {
+			aggs.Aggregates = intervals[0].Aggregates
+		}
+		return aggs, nil
+	}
+
+	// Collect the overall counts and pad the intervals to include empty intervals
+	// which are not returned by the db
+	aggs.Aggregates = TransactionAggregates{}
+
+	formatInterval := func(i TransactionAggregatesInterval) TransactionAggregatesInterval {
+		// An interval's start time is its index time the interval size, plus the
+		// starting time. The end time is the interval size - 1 second after the
+		// start time.
+		startTimeTS := int64(intervalSeconds)*int64(i.Idx) + params.StartTime.Unix()
+		i.StartTime = time.Unix(startTimeTS, 0).UTC()
+		i.EndTime = time.Unix(startTimeTS+int64(intervalSeconds)-1, 0).UTC()
+
+		// Add to the overall count
+		aggs.Aggregates.TXCount += i.Aggregates.TXCount
+		aggs.Aggregates.TXVolume += i.Aggregates.TXVolume
+		aggs.Aggregates.OutputCount += i.Aggregates.OutputCount
+		aggs.Aggregates.AddrCount += i.Aggregates.AddrCount
+		aggs.Aggregates.AssetCount += i.Aggregates.AssetCount
+
+		return i
+	}
+
+	padTo := func(slice []TransactionAggregatesInterval, to int) []TransactionAggregatesInterval {
+		for len(slice) < to {
+			slice = append(slice, formatInterval(TransactionAggregatesInterval{
+				Idx: len(slice),
+			}))
+		}
+		return slice
+	}
+
+	// Add each interval, but first pad up to that interval's index
+	aggs.Intervals = make([]TransactionAggregatesInterval, 0, requestedIntervalCount)
+	for _, interval := range intervals {
+		aggs.Intervals = padTo(aggs.Intervals, interval.Idx)
+		aggs.Intervals = append(aggs.Intervals, formatInterval(interval))
+	}
+
+	// Add missing trailing intervals
+	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
+
+	return aggs, nil
+}
+
+func (r *DBIndex) GetFirstTransactionTime() (time.Time, error) {
+	var ts int64
+	err := r.newDBSession("get_first_transaction_time").
+		Select("UNIX_TIMESTAMP(MIN(ingested_at))").
+		From("avm_transactions").
+		LoadOne(&ts)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(ts, 0).UTC(), nil
 }

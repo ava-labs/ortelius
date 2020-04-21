@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/dbr"
@@ -22,18 +23,36 @@ const (
 	TxSortTimestampAsc         = "timestamp-asc"
 	TxSortTimestampDesc        = "timestamp-desc"
 
-	queryParamKeysChainID = "chainID"
-
-	queryParamKeysQuery  = "query"
-	queryParamKeysSortBy = "sort"
-	queryParamKeysLimit  = "limit"
-	queryParamKeysOffset = "offset"
-	queryParamKeysSpent  = "spent"
+	queryParamKeysAssetID      = "assetID"
+	queryParamKeysQuery        = "query"
+	queryParamKeysSortBy       = "sort"
+	queryParamKeysLimit        = "limit"
+	queryParamKeysOffset       = "offset"
+	queryParamKeysSpent        = "spent"
+	queryParamKeysStartTime    = "startTime"
+	queryParamKeysEndTime      = "endTime"
+	queryParamKeysIntervalSize = "intervalSize"
 )
 
 var (
 	ErrUndefinedSort = errors.New("undefined sort")
 )
+
+type TxSort string
+
+func ToTxSort(s string) (TxSort, error) {
+	switch s {
+	case TxSortTimestampAsc:
+		return TxSortTimestampAsc, nil
+	case TxSortTimestampDesc:
+		return TxSortTimestampDesc, nil
+	}
+	return TxSortDefault, ErrUndefinedSort
+}
+
+//
+// Param objects
+//
 
 type ListParams struct {
 	limit  int
@@ -62,18 +81,6 @@ func (p *ListParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	b = b.Limit(uint64(p.limit))
 	b = b.Offset(uint64(p.offset))
 	return b
-}
-
-type TxSort string
-
-func ToTxSort(s string) (TxSort, error) {
-	switch s {
-	case TxSortTimestampAsc:
-		return TxSortTimestampAsc, nil
-	case TxSortTimestampDesc:
-		return TxSortTimestampDesc, nil
-	}
-	return TxSortDefault, ErrUndefinedSort
 }
 
 type ListTxParams struct {
@@ -169,9 +176,49 @@ func (p *ListTXOParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return b
 }
 
+type GetTransactionAggregatesParams struct {
+	AssetID      *ids.ID
+	StartTime    time.Time
+	EndTime      time.Time
+	IntervalSize time.Duration
+}
+
+func GetTransactionAggregatesParamsForHTTPRequest(r *http.Request) (*GetTransactionAggregatesParams, error) {
+	q := r.URL.Query()
+	params := &GetTransactionAggregatesParams{}
+
+	if assetIDStrs, ok := q[queryParamKeysAssetID]; ok || len(assetIDStrs) >= 1 {
+		assetID, err := ids.FromString(assetIDStrs[0])
+		if err != nil {
+			return nil, err
+		}
+		params.AssetID = &assetID
+	}
+
+	var err error
+	params.StartTime, err = getQueryTime(q, queryParamKeysStartTime)
+	if err != nil {
+		return nil, err
+	}
+
+	params.EndTime, err = getQueryTime(q, queryParamKeysEndTime)
+	if err != nil {
+		return nil, err
+	}
+
+	if intervalStrs, ok := q[queryParamKeysIntervalSize]; ok || len(intervalStrs) >= 1 {
+		interval, err := parseInterval(intervalStrs[0])
+		if err != nil {
+			return nil, err
+		}
+		params.IntervalSize = interval
+	}
+
+	return params, nil
+}
+
 type SearchParams struct {
-	Query   string
-	ChainID ids.ID
+	Query string
 }
 
 func SearchParamsForHTTPRequest(r *http.Request) (*SearchParams, error) {
@@ -186,24 +233,34 @@ func SearchParamsForHTTPRequest(r *http.Request) (*SearchParams, error) {
 		return nil, errors.New("query required")
 	}
 
-	chainIDStrs, ok := q[queryParamKeysChainID]
-	if ok || len(chainIDStrs) >= 1 {
-		chainID, err := ids.FromString(chainIDStrs[0])
-		if err != nil {
-			return nil, err
-		}
-		params.ChainID = chainID
-	} else {
-		return nil, errors.New("chainID required")
-	}
-
 	return params, nil
 }
 
+//
+// Query string helpers
+//
 func getQueryInt(q url.Values, key string, defaultVal int) (val int, err error) {
 	strs, ok := q[key]
 	if ok || len(strs) >= 1 {
 		return strconv.Atoi(strs[0])
 	}
 	return defaultVal, err
+}
+
+func getQueryTime(q url.Values, key string) (time.Time, error) {
+	strs, ok := q[key]
+	if !ok || len(strs) < 1 {
+		return time.Time{}, nil
+	}
+
+	timestamp, err := strconv.Atoi(strs[0])
+	if err == nil {
+		return time.Unix(int64(timestamp), 0).UTC(), nil
+	}
+
+	t, err := time.Parse(time.RFC3339, strs[0])
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }

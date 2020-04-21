@@ -44,8 +44,7 @@ func NewAVMRouter(router *web.Router, conf cfg.ServiceConfig, networkID uint32, 
 		// Transaction index
 		Get("/transactions", (*AVMServerContext).GetTxs).
 		Get("/transactions/recent", (*AVMServerContext).GetRecentTxs).
-		Get("/transactions/counts", (*AVMServerContext).GetTxCounts).
-		Get("/transactions/counts/:alias)", (*AVMServerContext).GetTxCounts).
+		Get("/transactions/aggregates", (*AVMServerContext).GetTxAggregates).
 		Get("/transactions/:id", (*AVMServerContext).GetTx).
 
 		// Address index
@@ -195,30 +194,20 @@ func (c *AVMServerContext) GetRecentTxs(w web.ResponseWriter, r *web.Request) {
 	writeObject(w, txIDS)
 }
 
-func (c *AVMServerContext) GetTxCounts(w web.ResponseWriter, r *web.Request) {
-	assetID := ids.Empty
-
-	if err := r.ParseForm(); err != nil {
+func (c *AVMServerContext) GetTxAggregates(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.GetTransactionAggregatesParamsForHTTPRequest(r.Request)
+	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
 
-	if assetIDStr, ok := r.Request.Form["assetID"]; ok && len(assetIDStr) > 0 {
-		var err error
-		assetID, err = ids.FromString(assetIDStr[0])
-		if err != nil {
-			writeErr(w, 400, err.Error())
-			return
-		}
-	}
-
-	counts, err := c.index.GeTxCounts(assetID)
+	aggs, err := c.index.GetTransactionAggregatesHistogram(*params)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}
 
-	writeObject(w, counts)
+	writeObject(w, aggs)
 }
 
 func (c *AVMServerContext) GetTxs(w web.ResponseWriter, r *web.Request) {
