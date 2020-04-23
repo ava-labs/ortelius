@@ -17,13 +17,20 @@ var (
 	OutputTypesSECP2556K1Transfer OutputType = 0x000000ff
 
 	TXTypeBase        TxType = "base"
-	TXTypeCreateAsset        = "create_asset"
-	TXTypeImport             = "import"
-	TXTypeExport             = "export"
+	TXTypeCreateAsset TxType = "create_asset"
+	TXTypeImport      TxType = "import"
+	TXTypeExport      TxType = "export"
+
+	ResultTypeTx      ResultType = "transaction"
+	ResultTypeAsset   ResultType = "asset"
+	ResultTypeAddress ResultType = "address"
+	ResultTypeOutput  ResultType = "output"
 )
 
 type TxType string
 type OutputType uint32
+
+type ResultType string
 
 type Output struct {
 	AssetID string                   `json:"assetID"`
@@ -110,8 +117,8 @@ type transaction struct {
 // output represents a tx output in the db
 type output struct {
 	TransactionID rawID        `json:"transactionID"`
-	OutputIndex   uint16       `json:"outputIndex"`
-	AssetID       rawID        `json:"assetOD"`
+	OutputIndex   uint64       `json:"outputIndex"`
+	AssetID       rawID        `json:"assetID"`
 	OutputType    OutputType   `json:"outputType"`
 	Amount        uint64       `json:"amount"`
 	Locktime      uint64       `json:"locktime"`
@@ -120,6 +127,17 @@ type output struct {
 
 	RedeemingTransactionID []byte `json:"redeemingTransactionID"`
 	RedeemingSignature     []byte `json:"redeemingSignature"`
+}
+
+func (o output) ID() ids.ID {
+	txID := [32]byte{}
+	for i, b := range o.TransactionID {
+		if i >= 32 {
+			break
+		}
+		txID[i] = b
+	}
+	return ids.NewID(txID).Prefix(uint64(o.OutputIndex))
 }
 
 // output represents an address that controls a tx output in the db
@@ -142,26 +160,34 @@ type asset struct {
 	CurrentSupply uint64 `json:"currentSupply"`
 }
 
+type address struct {
+	ID ids.ShortID `json:"id"`
+
+	Pubkey           []byte `json:"pubkey"`
+	TransactionCount uint64 `json:"transactionCount"`
+
+	Balance uint64 `json:"balance"`
+	LTV     uint64 `json:"lifetimeValue"`
+
+	UTXOCount uint64   `json:"utxoCount"`
+	UTXOs     []output `json:"utxos"`
+}
+
 type chainInfo struct {
 	ID        ids.ID `json:"chainID"`
 	Alias     string `json:"chainAlias"`
 	VM        string `json:"vm"`
 	NetworkID uint32 `json:"networkID"`
-
-	AssetCount       int64 `json:"assetCount"`
-	AddressCount     int64 `json:"addressCount"`
-	TransactionCount int64 `json:"transactionCount"`
-	UTXOCount        int64 `json:"utxoCount"`
 }
 
-type transactionCounts struct {
-	Minute uint64 `json:"minute"`
-	Hour   uint64 `json:"hour"`
-	Day    uint64 `json:"day"`
-	Week   uint64 `json:"week"`
-	Month  uint64 `json:"month"`
-	Year   uint64 `json:"year"`
-	All    uint64 `json:"all"`
+type searchResults struct {
+	Count   uint64         `json:"count"`
+	Results []searchResult `json:"results"`
+}
+
+type searchResult struct {
+	ResultType `json:"type"`
+	Data       interface{} `json"data"`
 }
 
 type displayTx struct {

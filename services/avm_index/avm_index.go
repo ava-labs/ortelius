@@ -139,6 +139,6 @@ func (i *Index) GetAsset(aliasOrID string) (asset, error) {
 	return i.db.GetAsset(aliasOrID)
 }
 
-func (i *Index) GeTxCounts(assetID ids.ID) (*transactionCounts, error) {
-	return i.db.GetTxCounts(assetID)
+func (i *Index) Search(params SearchParams) (*searchResults, error) {
+	return i.db.Search(params)
 }

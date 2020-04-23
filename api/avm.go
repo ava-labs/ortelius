@@ -39,6 +39,7 @@ func NewAVMRouter(router *web.Router, conf cfg.ServiceConfig, networkID uint32, 
 			next(w, r)
 		}).
 		Get("/", (*AVMServerContext).Overview).
+		Get("/search", (*AVMServerContext).Search).
 
 		// Transaction index
 		Get("/transactions", (*AVMServerContext).GetTxs).
@@ -127,6 +128,22 @@ func (c *AVMServerContext) Overview(w web.ResponseWriter, _ *web.Request) {
 	}
 
 	writeObject(w, overview)
+}
+
+func (c *AVMServerContext) Search(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.SearchParamsForHTTPRequest(r.Request)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+
+	results, err := c.index.Search(*params)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+
+	writeObject(w, results)
 }
 
 //

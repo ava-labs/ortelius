@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/dbr"
 )
 
@@ -21,6 +22,9 @@ const (
 	TxSortTimestampAsc         = "timestamp-asc"
 	TxSortTimestampDesc        = "timestamp-desc"
 
+	queryParamKeysChainID = "chainID"
+
+	queryParamKeysQuery  = "query"
 	queryParamKeysSortBy = "sort"
 	queryParamKeysLimit  = "limit"
 	queryParamKeysOffset = "offset"
@@ -163,6 +167,37 @@ func (p *ListTXOParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	}
 
 	return b
+}
+
+type SearchParams struct {
+	Query   string
+	ChainID ids.ID
+}
+
+func SearchParamsForHTTPRequest(r *http.Request) (*SearchParams, error) {
+	q := r.URL.Query()
+
+	params := &SearchParams{}
+
+	queryStrs, ok := q[queryParamKeysQuery]
+	if ok || len(queryStrs) >= 1 {
+		params.Query = queryStrs[0]
+	} else {
+		return nil, errors.New("query required")
+	}
+
+	chainIDStrs, ok := q[queryParamKeysChainID]
+	if ok || len(chainIDStrs) >= 1 {
+		chainID, err := ids.FromString(chainIDStrs[0])
+		if err != nil {
+			return nil, err
+		}
+		params.ChainID = chainID
+	} else {
+		return nil, errors.New("chainID required")
+	}
+
+	return params, nil
 }
 
 func getQueryInt(q url.Values, key string, defaultVal int) (val int, err error) {

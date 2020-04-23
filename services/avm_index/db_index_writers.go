@@ -124,7 +124,7 @@ func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alia
 	}
 	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
 
-	outputCount := 0
+	var outputCount uint64
 	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
@@ -204,6 +204,7 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 	if len(redeemOutputsConditions) > 0 {
 		_, err = ctx.db.
 			Update("avm_outputs").
+			Set("redeemed_at", dbr.Now).
 			Set("redeeming_transaction_id", tx.ID().Bytes()).
 			Where(dbr.Or(redeemOutputsConditions...)).
 			Exec()
@@ -235,7 +236,7 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 		if !ok {
 			continue
 		}
-		err = r.ingestOutput(ctx, tx.ID(), idx, out.AssetID(), xOut)
+		err = r.ingestOutput(ctx, tx.ID(), uint64(idx), out.AssetID(), xOut)
 		if err != nil {
 			return err
 		}
@@ -243,14 +244,16 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 	return nil
 }
 
-func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx int, assetID ids.ID, out *secp256k1fx.TransferOutput) error {
+func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) error {
 	_, err := ctx.db.
 		InsertInto("avm_outputs").
+		Pair("id", txID.Prefix(idx).Bytes()).
 		Pair("transaction_id", txID.Bytes()).
 		Pair("output_index", idx).
 		Pair("asset_id", assetID.Bytes()).
 		Pair("output_type", OutputTypesSECP2556K1Transfer).
 		Pair("amount", out.Amount()).
+		Pair("created_at", dbr.Now).
 		// Pair("locktime", out.Output().).
 		// Pair("threshold", out.Output().Threshold).
 		Pair("locktime", 0).

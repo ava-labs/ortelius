@@ -94,7 +94,7 @@ func createTestVectors() (testVectors []testVector) {
 		for i, amount := range amounts {
 			outs[i] = output{
 				TransactionID: txID,
-				OutputIndex:   uint16(i),
+				OutputIndex:   uint64(i),
 				Amount:        amount,
 				AssetID:       testAVAAssetID.Bytes(),
 				OutputType:    OutputTypesSECP2556K1Transfer,
