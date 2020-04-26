@@ -118,9 +118,9 @@ func (p *ListTxParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	applySort = func(b *dbr.SelectBuilder, sort TxSort) *dbr.SelectBuilder {
 		switch sort {
 		case TxSortTimestampAsc:
-			return b.OrderAsc("avm_transactions.ingested_at")
+			return b.OrderAsc("avm_transactions.created_at")
 		case TxSortTimestampDesc:
-			return b.OrderDesc("avm_transactions.ingested_at")
+			return b.OrderDesc("avm_transactions.created_at")
 		}
 		return applySort(b, TxSortDefault)
 	}

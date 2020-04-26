@@ -187,7 +187,7 @@ func (c *AVMServerContext) GetRecentTxs(w web.ResponseWriter, r *web.Request) {
 
 	txIDS := make([]string, len(txs))
 	for i, tx := range txs {
-		id, _ := ids.ToID(tx.ID)
+		id, _ := ids.FromString(string(tx.ID))
 		txIDS[i] = id.String()
 	}
 

@@ -17,10 +17,11 @@ import (
 )
 
 type message struct {
-	id        ids.ID
-	chainID   ids.ID
-	body      []byte
-	timestamp uint64
+	id              ids.ID
+	chainID         ids.ID
+	body            []byte
+	timestamp       uint64
+	timestampOffset uint64
 }
 
 func (m *message) ID() ids.ID        { return m.id }
@@ -69,20 +70,16 @@ func TestIndexBootstrap(t *testing.T) {
 	defer idx.db.db.Close()
 
 	var (
-		txID          = []byte{102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237}
+		txID          = stringIDFromBytes([32]byte{102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237})
 		createAssetTx = []byte{0, 3, 65, 86, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 65, 86, 65, 0, 3, 65, 86, 65, 9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 159, 223, 66, 246, 228, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}
 	)
 
 	db := idx.db.newDBSession("test_index_bootstrap")
 	assertAllTransactionsCorrect(t, db, []transaction{{
 		ID:                     txID,
-		ChainID:                testXChainID.Bytes(),
+		ChainID:                toStringID(testXChainID),
 		CanonicalSerialization: createAssetTx,
-
-		Amount:      45000000000000000,
-		InputCount:  0,
-		OutputCount: 1,
-		CreatedAt:   time.Unix(1572566400, 0),
+		CreatedAt:              time.Unix(1572566400, 0),
 	}})
 }
 
@@ -120,7 +117,7 @@ func assertAllTransactionsCorrect(t *testing.T, db dbr.SessionRunner, expecteds 
 	if _, err := db.
 		Select("*").
 		From("avm_transactions").
-		OrderAsc("internal_id").
+		OrderAsc("created_at").
 		Load(&txs); err != nil {
 		t.Fatal("Failed to get transactions:", err.Error())
 	}
@@ -142,24 +139,12 @@ func assertCorrectTransaction(t *testing.T, expected, actual transaction) {
 		t.Fatal("Wrong id:", actual.ID)
 	}
 
-	if !actual.ChainID.Equals(testXChainID.Bytes()) {
+	if !actual.ChainID.Equals(toStringID(testXChainID)) {
 		t.Fatal("Wrong chain id:", actual.ChainID)
 	}
 
 	if string(actual.CanonicalSerialization) != string(expected.CanonicalSerialization) {
 		t.Fatal("Wrong canonical serialization:", actual.CanonicalSerialization)
-	}
-
-	if actual.InputCount != expected.InputCount {
-		t.Fatal("Wrong input count:", actual.InputCount)
-	}
-
-	if actual.OutputCount != expected.OutputCount {
-		t.Fatal("Wrong output count:", actual.OutputCount)
-	}
-
-	if actual.Amount != expected.Amount {
-		t.Fatal("Wrong amount:", actual.Amount)
 	}
 
 	if !actual.CreatedAt.Equal(expected.CreatedAt) {
@@ -172,7 +157,7 @@ func assertAllOutputsCorrect(t *testing.T, db dbr.SessionRunner, expecteds []out
 	if _, err := db.
 		Select("*").
 		From("avm_outputs").
-		OrderAsc("internal_id").
+		OrderAsc("created_at").
 		Load(&outputs); err != nil {
 		t.Fatal("Failed to get outputs:", err.Error())
 	}
@@ -198,7 +183,7 @@ func assertCorrectOutput(t *testing.T, expected, actual output) {
 		t.Fatal("Wrong output index:", actual.OutputIndex)
 	}
 
-	if !actual.AssetID.Equals(testAVAAssetID.Bytes()) {
+	if !actual.AssetID.Equals(toStringID(testAVAAssetID)) {
 		t.Fatal("Wrong asset id:", actual.AssetID)
 	}
 
@@ -228,9 +213,9 @@ func assertAllOutputAddressesCorrect(t *testing.T, db dbr.SessionRunner, expecte
 	if _, err := db.
 		Select("*").
 		From("avm_output_addresses").
-		OrderAsc("internal_id").
+		OrderAsc("created_at").
 		Load(&outputAddresses); err != nil {
-		t.Fatal("Failed to get output addresses")
+		t.Fatal("Failed to get output addresses:", err.Error())
 	}
 	assertCorrectOutputAddresses(t, expecteds, outputAddresses)
 }
@@ -246,12 +231,8 @@ func assertCorrectOutputAddresses(t *testing.T, expecteds, actuals []outputAddre
 }
 
 func assertCorrectOutputAddress(t *testing.T, expected, actual outputAddress) {
-	if !actual.TransactionID.Equals(expected.TransactionID) {
-		t.Fatal("Wrong transaction id:", actual.TransactionID)
-	}
-
-	if actual.OutputIndex != expected.OutputIndex {
-		t.Fatal("Wrong output index:", actual.OutputIndex)
+	if !actual.OutputID.Equals(expected.OutputID) {
+		t.Fatal("Wrong output id:", actual.OutputID)
 	}
 
 	if !actual.Address.Equals(expected.Address) {

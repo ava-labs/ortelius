@@ -108,35 +108,51 @@ type BaseTx struct {
 	} `json:"credentials"`
 }
 
-// rawID represents an ids.ID in the database
-type rawID []byte
+// stringID represents an ids.ID in the database
+type stringID string
+
+func toStringID(id ids.ID) stringID {
+	return stringID(id.String())
+}
+
+func stringIDFromBytes(b [32]byte) stringID {
+	return toStringID(ids.NewID(b))
+}
 
 // Equals returns true if and only if the two rawIDs represent the same ids.ID
-func (rid rawID) Equals(oRID rawID) bool {
+func (rid stringID) Equals(oRID stringID) bool {
 	return string(rid) == string(oRID)
 }
 
 // MarshalJSON returns a json-marshaled string representing the ID
-func (rid rawID) MarshalJSON() ([]byte, error) {
-	id, err := ids.ToID(rid)
+func (rid stringID) MarshalJSON() ([]byte, error) {
+	id, err := ids.FromString(string(rid))
 	if err != nil {
 		return nil, err
 	}
 	return json.Marshal(id.String())
 }
 
-// rawShortID represents an ids.ShortID in the database
-type rawShortID []byte
+// stringShortID represents an ids.ShortID in the database
+type stringShortID string
 
-// Equals returns true if and only if the two rawShortID represent the same
-// ids.rawShortID
-func (rid rawShortID) Equals(oRID rawShortID) bool {
+func toShortStringID(id ids.ShortID) stringShortID {
+	return stringShortID(id.String())
+}
+
+func stringShortIDFromBytes(b [20]byte) stringShortID {
+	return toShortStringID(ids.NewShortID(b))
+}
+
+// Equals returns true if and only if the two stringShortID represent the same
+// ids.stringShortID
+func (rid stringShortID) Equals(oRID stringShortID) bool {
 	return string(rid) == string(oRID)
 }
 
 // MarshalJSON returns a json-marshaled string representing the ID
-func (rid rawShortID) MarshalJSON() ([]byte, error) {
-	id, err := ids.ToShortID(rid)
+func (rid stringShortID) MarshalJSON() ([]byte, error) {
+	id, err := ids.ShortFromString(string(rid))
 	if err != nil {
 		return nil, err
 	}
@@ -145,63 +161,61 @@ func (rid rawShortID) MarshalJSON() ([]byte, error) {
 
 // transaction represents a tx in the db
 type transaction struct {
-	ID      rawID  `json:"id"`
-	ChainID rawID  `json:"chainID"`
-	Type    string `json:"type"`
+	ID      stringID `json:"id"`
+	ChainID stringID `json:"chainID"`
+	Type    string   `json:"type"`
 
 	CanonicalSerialization []byte `json:"canonicalSerialization"`
 	JSONSerialization      []byte `json:"jsonSerialization",db:"json_serialization"`
 
-	InputCount  uint16    `json:"inputCount"`
-	OutputCount uint16    `json:"outputCount"`
-	Amount      uint64    `json:"amount"`
-	CreatedAt   time.Time `json:"created_at",db:"ingested_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // output represents a tx output in the db
 type output struct {
-	TransactionID rawID        `json:"transactionID"`
-	OutputIndex   uint64       `json:"outputIndex"`
-	AssetID       rawID        `json:"assetID"`
-	OutputType    OutputType   `json:"outputType"`
-	Amount        uint64       `json:"amount"`
-	Locktime      uint64       `json:"locktime"`
-	Threshold     uint64       `json:"threshold"`
-	Addresses     []rawShortID `json:"addresses"`
+	ID            stringID        `json:"id"`
+	TransactionID stringID        `json:"transactionID"`
+	OutputIndex   uint64          `json:"outputIndex"`
+	AssetID       stringID        `json:"assetID"`
+	OutputType    OutputType      `json:"outputType"`
+	Amount        uint64          `json:"amount"`
+	Locktime      uint64          `json:"locktime"`
+	Threshold     uint64          `json:"threshold"`
+	Addresses     []stringShortID `json:"addresses"`
+	CreatedAt     time.Time       `json:"created_at"`
 
-	RedeemingTransactionID []byte `json:"redeemingTransactionID"`
-	RedeemingSignature     []byte `json:"redeemingSignature"`
+	RedeemingTransactionID stringID `json:"redeemingTransactionID"`
+	RedeemingSignature     []byte   `json:"redeemingSignature"`
 }
 
-func (o output) ID() ids.ID {
-	txID := [32]byte{}
-	for i, b := range o.TransactionID {
-		if i >= 32 {
-			break
-		}
-		txID[i] = b
+func (o output) CalculateID() (ids.ID, error) {
+	txID, err := ids.FromString(string(o.TransactionID))
+	if err != nil {
+		return ids.ID{}, err
 	}
-	return ids.NewID(txID).Prefix(uint64(o.OutputIndex))
+
+	return txID.Prefix(o.OutputIndex), nil
 }
 
 // output represents an address that controls a tx output in the db
 type outputAddress struct {
-	TransactionID      rawID
-	OutputIndex        uint16
-	Address            rawShortID
+	OutputID           stringID
+	Address            stringShortID
 	RedeemingSignature dbr.NullString
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type asset struct {
-	ID      rawID `json:"id"`
-	ChainID rawID `json:"chainID"`
+	ID      stringID `json:"id"`
+	ChainID stringID `json:"chainID"`
 
 	Name         string `json:"name"`
 	Symbol       string `json:"symbol"`
 	Alias        string `json:"alias"`
 	Denomination uint8  `json:"denomination"`
 
-	CurrentSupply uint64 `json:"currentSupply"`
+	CurrentSupply uint64    `json:"currentSupply"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type address struct {
@@ -266,8 +280,8 @@ type TransactionAggregatesInterval struct {
 
 type displayTx struct {
 	json.RawMessage `db:"json_serialization"`
-	Timestamp       time.Time `db:"ingested_at" json:"timestamp"`
-	ID              rawID     `json:"id"`
+	CreatedAt       time.Time `json:"timestamp"`
+	ID              stringID  `json:"id"`
 }
 
 func (dt *displayTx) MarshalJSON() ([]byte, error) {
@@ -277,11 +291,6 @@ func (dt *displayTx) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	m["id"] = dt.ID
-	m["timestamp"] = dt.Timestamp.UTC()
+	m["timestamp"] = dt.CreatedAt.UTC()
 	return json.Marshal(m)
-}
-
-type recentTx struct {
-	ID        rawID     `json:"id"`
-	Timestamp time.Time `db:"ingested_at" json:"timestamp"`
 }

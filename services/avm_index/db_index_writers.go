@@ -28,6 +28,10 @@ type ingestCtx struct {
 	canonicalSerialization []byte
 }
 
+func (ic ingestCtx) time() time.Time {
+	return time.Unix(int64(ic.timestamp), 0)
+}
+
 func errIsNotDuplicateEntryError(err error) bool {
 	return strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")
 }
@@ -148,8 +152,8 @@ func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alia
 
 	_, err = ctx.db.
 		InsertInto("avm_assets").
-		Pair("id", txID.Bytes()).
-		Pair("chain_Id", r.chainID.Bytes()).
+		Pair("id", txID.String()).
+		Pair("chain_Id", r.chainID.String()).
 		Pair("name", tx.Name).
 		Pair("symbol", tx.Symbol).
 		Pair("denomination", tx.Denomination).
@@ -162,13 +166,10 @@ func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alia
 
 	_, err = ctx.db.
 		InsertInto("avm_transactions").
-		Pair("id", txID.Bytes()).
-		Pair("chain_id", r.chainID.Bytes()).
+		Pair("id", txID.String()).
+		Pair("chain_id", r.chainID.String()).
 		Pair("type", TXTypeCreateAsset).
-		Pair("amount", amount).
-		Pair("input_count", 0).
-		Pair("output_count", outputCount).
-		Pair("ingested_at", time.Unix(int64(ctx.timestamp), 0)).
+		Pair("created_at", ctx.time()).
 		Pair("canonical_serialization", ctx.canonicalSerialization).
 		Pair("json_serialization", ctx.jsonSerialization).
 		Exec()
@@ -194,7 +195,7 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 		}
 
 		redeemOutputsConditions = append(redeemOutputsConditions, dbr.And(
-			dbr.Expr("transaction_id = ?", in.TxID.Bytes()),
+			dbr.Expr("transaction_id = ?", in.TxID.String()),
 			dbr.Eq("output_index", in.OutputIndex),
 		))
 
@@ -205,7 +206,7 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 		_, err = ctx.db.
 			Update("avm_outputs").
 			Set("redeemed_at", dbr.Now).
-			Set("redeeming_transaction_id", tx.ID().Bytes()).
+			Set("redeeming_transaction_id", tx.ID().String()).
 			Where(dbr.Or(redeemOutputsConditions...)).
 			Exec()
 		if err != nil {
@@ -216,13 +217,10 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 	// Add tx to the table
 	_, err = ctx.db.
 		InsertInto("avm_transactions").
-		Pair("id", tx.ID().Bytes()).
-		Pair("chain_id", tx.BCID.Bytes()).
+		Pair("id", tx.ID().String()).
+		Pair("chain_id", tx.BCID.String()).
 		Pair("type", TXTypeBase).
-		Pair("amount", total).
-		Pair("input_count", len(tx.Ins)).
-		Pair("output_count", len(tx.Outs)).
-		Pair("ingested_at", time.Unix(int64(ctx.timestamp), 0)).
+		Pair("created_at", ctx.time()).
 		Pair("canonical_serialization", ctx.canonicalSerialization).
 		Pair("json_serialization", ctx.jsonSerialization).
 		Exec()
@@ -245,30 +243,36 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, tx *avm.BaseTx) error {
 }
 
 func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) error {
+	outputID := txID.Prefix(idx)
+
 	_, err := ctx.db.
 		InsertInto("avm_outputs").
-		Pair("id", txID.Prefix(idx).Bytes()).
-		Pair("transaction_id", txID.Bytes()).
+		Pair("id", outputID.String()).
+		Pair("transaction_id", txID.String()).
 		Pair("output_index", idx).
-		Pair("asset_id", assetID.Bytes()).
+		Pair("asset_id", assetID.String()).
 		Pair("output_type", OutputTypesSECP2556K1Transfer).
 		Pair("amount", out.Amount()).
-		Pair("created_at", dbr.Now).
-		// Pair("locktime", out.Output().).
-		// Pair("threshold", out.Output().Threshold).
-		Pair("locktime", 0).
-		Pair("threshold", 0).
+		Pair("created_at", ctx.time()).
+		Pair("locktime", out.Locktime).
+		Pair("threshold", out.Threshold).
 		Exec()
 	if err != nil && !errIsNotDuplicateEntryError(err) {
 		return err
 	}
 
 	for _, addr := range out.Addresses() {
+		addrID, err := ids.ToShortID(addr)
+		if err != nil {
+			// log error but don't halt processing
+			r.stream.EventErr("get_addr_id_for_output", err)
+			continue
+		}
 		_, err = ctx.db.
 			InsertInto("avm_output_addresses").
-			Pair("transaction_id", txID.Bytes()).
-			Pair("output_index", idx).
-			Pair("address", addr).
+			Pair("output_id", outputID.String()).
+			Pair("address", addrID.String()).
+			Pair("created_at", ctx.time()).
 			Exec()
 		if err != nil && !errIsNotDuplicateEntryError(err) {
 			return err

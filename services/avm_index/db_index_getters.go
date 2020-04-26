@@ -26,7 +26,7 @@ func (r *DBIndex) GetTxCount() (count int64, err error) {
 	err = r.newDBSession("get_tx_count").
 		Select("COUNT(1)").
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.Bytes()).
+		Where("chain_id = ?", r.chainID.String()).
 		LoadOne(&count)
 	return count, err
 }
@@ -34,7 +34,7 @@ func (r *DBIndex) GetTxCount() (count int64, err error) {
 func (r *DBIndex) GetTx(id ids.ID) (*displayTx, error) {
 	tx := &displayTx{}
 	err := r.newDBSession("get_tx").
-		Select("id", "json_serialization", "ingested_at").
+		Select("id", "json_serialization", "created_at").
 		From("avm_transactions").
 		Where("id = ?", id.Bytes()).
 		Where("chain_id = ?", r.chainID.Bytes()).
@@ -45,7 +45,7 @@ func (r *DBIndex) GetTx(id ids.ID) (*displayTx, error) {
 
 func (r *DBIndex) GetTxs(params *ListTxParams) ([]*displayTx, error) {
 	builder := params.Apply(r.newDBSession("get_txs").
-		Select("id", "json_serialization", "ingested_at").
+		Select("id", "json_serialization", "created_at").
 		From("avm_transactions").
 		Where("chain_id = ?", r.chainID.Bytes()))
 
@@ -57,16 +57,17 @@ func (r *DBIndex) GetTxs(params *ListTxParams) ([]*displayTx, error) {
 func (r *DBIndex) GetTxsForAddr(addr ids.ShortID, params *ListTxParams) ([]*displayTx, error) {
 	builder := params.Apply(r.newDBSession("get_txs_for_address").
 		SelectBySql(`
-			SELECT id, json_serialization, ingested_at
+			SELECT avm_transactions.id, avm_transactions.json_serialization, avm_transactions.created_at
 			FROM avm_transactions
-			LEFT JOIN avm_output_addresses AS oa1 ON avm_transactions.id = oa1.transaction_id
-			LEFT JOIN avm_output_addresses AS oa2 ON avm_transactions.id = oa2.transaction_id
+			LEFT JOIN avm_outputs ao1 ON ao1.transaction_id = avm_transactions.id OR ao1.redeeming_transaction_id = avm_transactions.id
+			LEFT JOIN avm_outputs ao2 ON ao2.transaction_id = ao1.transaction_id
+			LEFT JOIN avm_output_addresses AS aoa ON aoa.output_id = ao1.output_id
 			WHERE
         avm_transactions.chain_id = ?
         AND
 				oa1.output_index < oa2.output_index
 				AND
-				oa1.address = ?`, r.chainID.Bytes(), addr.Bytes()))
+				aoa.address = ?`, r.chainID.String(), addr.String()))
 
 	txs := []*displayTx{}
 	_, err := builder.Load(&txs)
@@ -82,7 +83,7 @@ func (r *DBIndex) GetTxCountForAddr(addr ids.ShortID) (uint64, error) {
 			WHERE
         avm_transactions.chain_id = ?
         AND
-				oa1.address = ?`, r.chainID.Bytes(), addr.Bytes())
+				oa1.address = ?`, r.chainID.String(), addr.String())
 
 	var count uint64
 	err := builder.LoadOne(&count)
@@ -95,16 +96,15 @@ func (r *DBIndex) GetTxsForAsset(assetID ids.ID, params *ListTxParams) ([]json.R
 		SelectBySql(`
 			SELECT avm_transactions.canonical_serialization
 			FROM avm_transactions
-			LEFT JOIN avm_output_addresses AS oa1 ON avm_transactions.id = oa1.transaction_id
-			LEFT JOIN avm_output_addresses AS oa2 ON avm_transactions.id = oa2.transaction_id
-			LEFT JOIN avm_outputs ON avm_outputs.transaction_id = oa1.transaction_id AND avm_outputs.output_index = oa1.output_index
+			LEFT JOIN avm_outputs ao1 ON ao1.transaction_id = avm_transactions.id
+			LEFT JOIN avm_outputs ao2 ON ao2.transaction_id = ao1.transaction_id
 			WHERE
-        avm_outputs.asset_id = ?
-        AND
         avm_transactions.chain_id = ?
+				AND
+        ao1.asset_id = ?
         AND
 				oa1.output_index < oa2.output_index`,
-			assetID.Bytes, r.chainID.Bytes()))
+			assetID.Bytes, r.chainID.String()))
 
 	_, err := builder.Load(&bytes)
 	return bytes, err
@@ -113,7 +113,7 @@ func (r *DBIndex) GetTxsForAsset(assetID ids.ID, params *ListTxParams) ([]json.R
 
 func (r *DBIndex) GetTXO(id ids.ID) (*output, error) {
 	out := &output{}
-	err := r.newDBSession("get_txo").Select("*").From("avm_outputs").Where("id = ?", id.Bytes()).LoadOne(out)
+	err := r.newDBSession("get_txo").Select("*").From("avm_outputs").Where("id = ?", id.String()).LoadOne(out)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +126,8 @@ func (r *DBIndex) GetTXOsForAddr(addr ids.ShortID, params *ListTXOParams) ([]out
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.transaction_id = avm_output_addresses.transaction_id").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_output_addresses.transaction_id").
-		Where("avm_output_addresses.address = ?", addr.Bytes()).
-		Where("avm_transactions.chain_id = ?", r.chainID.Bytes()))
+		Where("avm_output_addresses.address = ?", addr.String()).
+		Where("avm_transactions.chain_id = ?", r.chainID.String()))
 
 	if params.spent != nil {
 		if *params.spent {
@@ -149,8 +149,8 @@ func (r *DBIndex) GetTXOCountAndValueForAddr(addr ids.ShortID, spent *bool) (uin
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.transaction_id = avm_output_addresses.transaction_id").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_output_addresses.transaction_id").
-		Where("avm_output_addresses.address = ?", addr.Bytes()).
-		Where("avm_transactions.chain_id = ?", r.chainID.Bytes())
+		Where("avm_output_addresses.address = ?", addr.String()).
+		Where("avm_transactions.chain_id = ?", r.chainID.String())
 
 	if spent != nil {
 		if *spent {
@@ -175,7 +175,7 @@ func (r *DBIndex) GetAssetCount() (count int64, err error) {
 	err = r.newDBSession("get_asset_count").
 		Select("COUNT(1)").
 		From("avm_assets").
-		Where("chain_id = ?", r.chainID.Bytes()).
+		Where("chain_id = ?", r.chainID.String()).
 		LoadOne(&count)
 	return count, err
 }
@@ -186,7 +186,7 @@ func (r *DBIndex) GetAssets(params *ListParams) ([]asset, error) {
 	builder := params.Apply(r.newDBSession("get_assets").
 		Select("*").
 		From("avm_assets").
-		Where("chain_id = ?", r.chainID.Bytes()))
+		Where("chain_id = ?", r.chainID.String()))
 	_, err := builder.Load(&assets)
 	return assets, err
 }
@@ -196,14 +196,14 @@ func (r *DBIndex) GetAsset(aliasOrID string) (asset, error) {
 	query := r.newDBSession("get_asset").
 		Select("*").
 		From("avm_assets").
-		Where("chain_id = ?", r.chainID.Bytes()).
+		Where("chain_id = ?", r.chainID.String()).
 		Limit(1)
 
 	id, err := ids.FromString(aliasOrID)
 	if err != nil {
 		query = query.Where("alias = ?", aliasOrID)
 	} else {
-		query = query.Where("id = ?", id.Bytes())
+		query = query.Where("id = ?", id.String())
 	}
 
 	err = query.LoadOne(&a)
@@ -215,7 +215,7 @@ func (r *DBIndex) GetAddressCount() (count int64, err error) {
 		Select("COUNT(DISTINCT(address))").
 		From("avm_output_addresses").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_output_addresses.transaction_id").
-		Where("chain_id = ?", r.chainID.Bytes()).
+		Where("chain_id = ?", r.chainID.String()).
 		LoadOne(&count)
 	return count, err
 }
@@ -262,7 +262,7 @@ func (r *DBIndex) GetTransactionOutputCount(onlySpent bool) (count int64, err er
 		Select("COUNT(1)").
 		From("avm_outputs").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
-		Where("avm_transactions.chain_id = ?", r.chainID.Bytes())
+		Where("avm_transactions.chain_id = ?", r.chainID.String())
 
 	if onlySpent {
 		builder = builder.Where("avm_outputs.redeeming_transaction_id IS NULL")
@@ -276,16 +276,16 @@ func (r *DBIndex) getTransactionCountSince(db *dbr.Session, minutes uint64, asse
 	builder := db.
 		Select("COUNT(DISTINCT(avm_transactions.id))").
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.Bytes())
+		Where("chain_id = ?", r.chainID.String())
 
 	if minutes > 0 {
-		builder = builder.Where("ingested_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)", minutes)
+		builder = builder.Where("created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)", minutes)
 	}
 
 	if !assetID.Equals(ids.Empty) {
 		builder = builder.
 			LeftJoin("avm_outputs", "avm_outputs.transaction_id = avm_transactions.id").
-			Where("avm_outputs.asset_id = ?", assetID.Bytes())
+			Where("avm_outputs.asset_id = ?", assetID.String())
 	}
 
 	err = builder.LoadOne(&count)
@@ -380,7 +380,7 @@ func (r *DBIndex) GetTransactionAggregates(params GetTransactionAggregatesParams
 	builder := db.
 		Select(columns...).
 		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.transaction_id = avm_outputs.transaction_id and avm_output_addresses.output_index = avm_outputs.output_index").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 		Where("avm_outputs.created_at >= ?", params.StartTime).
 		Where("avm_outputs.created_at < ?", params.EndTime)
 
@@ -464,7 +464,7 @@ func (r *DBIndex) GetTransactionAggregates(params GetTransactionAggregatesParams
 func (r *DBIndex) GetFirstTransactionTime() (time.Time, error) {
 	var ts int64
 	err := r.newDBSession("get_first_transaction_time").
-		Select("UNIX_TIMESTAMP(MIN(ingested_at))").
+		Select("UNIX_TIMESTAMP(MIN(created_at))").
 		From("avm_transactions").
 		LoadOne(&ts)
 	if err != nil {
