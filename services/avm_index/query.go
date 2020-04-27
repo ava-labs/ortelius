@@ -23,6 +23,8 @@ const (
 	TxSortTimestampAsc         = "timestamp-asc"
 	TxSortTimestampDesc        = "timestamp-desc"
 
+	queryParamKeysID           = "id"
+	queryParamKeysAddress      = "address"
 	queryParamKeysAssetID      = "assetID"
 	queryParamKeysQuery        = "query"
 	queryParamKeysSortBy       = "sort"
@@ -86,6 +88,9 @@ func (p *ListParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 type ListTxParams struct {
 	*ListParams
 	Sort TxSort
+
+	ID        *ids.ID
+	Addresses []ids.ShortID
 }
 
 func ListTxParamForHTTPRequest(r *http.Request) (*ListTxParams, error) {
@@ -104,6 +109,24 @@ func ListTxParamForHTTPRequest(r *http.Request) (*ListTxParams, error) {
 	sortBys, ok := q[queryParamKeysSortBy]
 	if ok && len(sortBys) >= 1 {
 		params.Sort, _ = ToTxSort(sortBys[0])
+	}
+
+	idStr := getQueryString(q, queryParamKeysID, "")
+	if idStr != "" {
+		id, err := ids.FromString(idStr)
+		if err != nil {
+			return nil, err
+		}
+		params.ID = &id
+	}
+
+	addressStrs := q[queryParamKeysAddress]
+	for _, addressStr := range addressStrs {
+		addr, err := ids.ShortFromString(addressStr)
+		if err != nil {
+			return nil, err
+		}
+		params.Addresses = append(params.Addresses, addr)
 	}
 
 	return params, nil
@@ -240,11 +263,19 @@ func SearchParamsForHTTPRequest(r *http.Request) (*SearchParams, error) {
 // Query string helpers
 //
 func getQueryInt(q url.Values, key string, defaultVal int) (val int, err error) {
-	strs, ok := q[key]
-	if ok || len(strs) >= 1 {
+	strs := q[key]
+	if len(strs) >= 1 {
 		return strconv.Atoi(strs[0])
 	}
 	return defaultVal, err
+}
+
+func getQueryString(q url.Values, key string, defaultVal string) string {
+	strs := q[key]
+	if len(strs) >= 1 {
+		return strs[0]
+	}
+	return defaultVal
 }
 
 func getQueryTime(q url.Values, key string) (time.Time, error) {
