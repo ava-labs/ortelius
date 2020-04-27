@@ -2,16 +2,16 @@
 
 ## X Chain API
 
-| Name                      | Route                                  |
-|---------------------------|----------------------------------------|
-| [Search](#search---xsearch)                    | /x/search                              |
-| [List Transactions](#list-transactions---xtransactions)         | /x/transactions                        |
-| [Get Transaction](#get-transaction---xtransactionsid)           | /x/transactions/:id                    |
-| [Aggregate Transactions](#aggregate-transactions---xtransactionsaggregates)    | /x/transactions/aggregates             |
-| [List Assets](#list-assets---xassets)               | /x/assets                              |
-| [Get Asset](#get-asset---xassetsalias_or_id)                 | /x/assets/:alias_or_id                 |
-| [List Address Transactions](#list-address-transactions---xaddressesaddrtransactions) | /x/addresses/:addr/transactions        |
-| [List Address Outputs](#list-address-outputs---xaddressesaddrtransaction_outputsspenttrue)      | /x/addresses/:addr/transaction_outputs |
+| Name                                                                        | Route                                    |
+|---------------------------                                                 | ----------------------------------------|
+| [Search](#search---xsearch)                                                 | /x/search                                |
+| [List Transactions](#list-transactions---xtransactions)                     | /x/transactions                          |
+| [Get Transaction](#get-transaction---xtransactionsid)                       | /x/transactions/:id                      |
+| [Aggregate Transactions](#aggregate-transactions---xaggregatetransactions) | /x/transactions/aggregate                 |
+| [List Assets](#list-assets---xassets)                                       | /x/assets                                |
+| [Get Asset](#get-asset---xassetsalias_or_id)                                | /x/assets/:alias_or_id                   |
+| [List Addresses](#list-addresses---xaddresses)                              | /x/addresses                             |
+| [Get Address](#get-address---xaddressesid)                                  | /x/addresses/:id                         |
 
 ### Search - /x/search
 
@@ -116,28 +116,55 @@ Array of asset objects
 
 Array of asset objects
 
-### List Address Transactions - /x/addresses/:addr/transactions
+### List Addresses - /x/addresses
 
 #### Params:
 
-`addr` - The base58-encoded address to show transactions for.
+<pagination params>
 
 #### Response:
 
-Array of transaction objects
+Array of Address objects
 
-### List Address Outputs - /x/addresses/:addr/transaction_outputs?spent=true
+```json
+[
+  {
+    "address": "2poot6VNEurx99o5WZigk2ic3ssj2T5Fz",
+    "publicKey": null,
+    "transactionCount": 2,
+    "balance": 0,
+    "lifetimeValue": 26000,
+    "utxoCount": 0
+  },
+  {
+    "address": "6cesTteH62Y5mLoDBUASaBvCXuL2AthL",
+    "publicKey": null,
+    "transactionCount": 186,
+    "balance": 0,
+    "lifetimeValue": 8369999998480180000,
+    "utxoCount": 0
+  }
+]
+```
+
+### Get Address - /x/addresses/:address
 
 #### Params:
 
-`addr` - The base58-encoded address to show transactions for.
-
-`spent` - Boolean. If supplied it will filter outputs to either spent or unspent.
+`address` - The base58-encoded Address to show.
 
 #### Response:
 
-Array of transaction output objects
-
+```json
+{
+  "address": "6Y3kysjF9jnHnYkdS9yGAuoHyae2eNmeV",
+  "publicKey": null,
+  "transactionCount": 1,
+  "balance": 0,
+  "lifetimeValue": 45000000000000000,
+  "utxoCount": 0
+}
+```
 ## P Chain API (Not yet implemented)
 
 ## C Chain API (Not yet implemented)

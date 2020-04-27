@@ -21,9 +21,9 @@ type testVector struct {
 }
 
 type testVectorExpecteds struct {
-	txs      []transaction
-	outs     []output
-	outAddrs []outputAddress
+	txs      []Transaction
+	outs     []Output
+	outAddrs []OutputAddress
 }
 
 func copyTestVectorExpecteds(e1 testVectorExpecteds) testVectorExpecteds {
@@ -34,20 +34,20 @@ func copyTestVectorExpecteds(e1 testVectorExpecteds) testVectorExpecteds {
 	}
 }
 
-func copyTxSlice(s1 []transaction) []transaction {
-	s2 := make([]transaction, len(s1))
+func copyTxSlice(s1 []Transaction) []Transaction {
+	s2 := make([]Transaction, len(s1))
 	copy(s2, s1)
 	return s2
 }
 
-func copyOutputSlice(s1 []output) []output {
-	s2 := make([]output, len(s1))
+func copyOutputSlice(s1 []Output) []Output {
+	s2 := make([]Output, len(s1))
 	copy(s2, s1)
 	return s2
 }
 
-func copyOutputAddrSlice(s1 []outputAddress) []outputAddress {
-	s2 := make([]outputAddress, len(s1))
+func copyOutputAddrSlice(s1 []OutputAddress) []OutputAddress {
+	s2 := make([]OutputAddress, len(s1))
 	copy(s2, s1)
 	return s2
 }
@@ -60,10 +60,10 @@ func createTestVectors() (testVectors []testVector) {
 		{0, 0, 0, 0, 0, 0, 48, 57, 7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120, 0, 0, 0, 2, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 39, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 179, 119, 16, 234, 139, 2, 253, 149, 92, 137, 22, 102, 229, 228, 138, 84, 235, 170, 118, 26, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 7, 0, 0, 0, 0, 0, 1, 95, 143, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156, 0, 0, 0, 1, 50, 96, 126, 151, 94, 2, 115, 191, 120, 172, 106, 118, 195, 165, 202, 214, 0, 67, 248, 107, 138, 123, 212, 98, 132, 24, 249, 28, 22, 12, 153, 33, 0, 0, 0, 0, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 134, 160, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 9, 0, 0, 0, 1, 221, 116, 200, 183, 174, 182, 181, 35, 176, 9, 20, 150, 78, 142, 18, 90, 30, 210, 95, 238, 239, 101, 249, 179, 58, 129, 141, 14, 32, 33, 148, 59, 100, 185, 245, 63, 23, 198, 231, 180, 92, 71, 228, 223, 103, 226, 215, 127, 81, 231, 235, 63, 236, 18, 145, 27, 81, 12, 178, 135, 205, 186, 62, 1, 1},
 		{0, 0, 0, 0, 0, 0, 48, 57, 7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120, 0, 0, 0, 2, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 78, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 208, 187, 155, 197, 193, 255, 200, 81, 99, 172, 211, 188, 182, 225, 70, 109, 145, 253, 209, 84, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 7, 0, 0, 0, 0, 0, 1, 17, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156, 0, 0, 0, 1, 7, 151, 72, 227, 47, 221, 46, 7, 44, 223, 120, 174, 147, 94, 133, 159, 83, 131, 254, 226, 253, 11, 247, 197, 81, 187, 79, 62, 122, 88, 72, 182, 0, 0, 0, 1, 102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237, 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 95, 143, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 9, 0, 0, 0, 1, 37, 196, 43, 82, 5, 28, 233, 240, 135, 66, 39, 20, 21, 6, 82, 243, 139, 215, 41, 133, 75, 41, 19, 238, 255, 43, 57, 204, 2, 33, 114, 223, 38, 0, 17, 85, 47, 74, 161, 147, 73, 194, 28, 6, 185, 156, 199, 225, 26, 177, 163, 156, 81, 199, 175, 225, 197, 212, 117, 232, 162, 97, 104, 88, 1},
 	}
-	addr1 := stringShortIDFromBytes([20]byte{64, 177, 3, 184, 26, 190, 164, 125, 106, 5, 97, 48, 21, 75, 207, 96, 252, 106, 9, 169})
-	addr2 := stringShortIDFromBytes([20]byte{179, 119, 16, 234, 139, 2, 253, 149, 92, 137, 22, 102, 229, 228, 138, 84, 235, 170, 118, 26})
-	addr3 := stringShortIDFromBytes([20]byte{208, 187, 155, 197, 193, 255, 200, 81, 99, 172, 211, 188, 182, 225, 70, 109, 145, 253, 209, 84})
-	addrChange := stringShortIDFromBytes([20]byte{60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156})
+	addr1 := toShortStringID(ids.NewShortID([20]byte{64, 177, 3, 184, 26, 190, 164, 125, 106, 5, 97, 48, 21, 75, 207, 96, 252, 106, 9, 169}))
+	addr2 := toShortStringID(ids.NewShortID([20]byte{179, 119, 16, 234, 139, 2, 253, 149, 92, 137, 22, 102, 229, 228, 138, 84, 235, 170, 118, 26}))
+	addr3 := toShortStringID(ids.NewShortID([20]byte{208, 187, 155, 197, 193, 255, 200, 81, 99, 172, 211, 188, 182, 225, 70, 109, 145, 253, 209, 84}))
+	addrChange := toShortStringID(ids.NewShortID([20]byte{60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}))
 
 	// Create helpers for building the set of expected objects
 	var txID stringID
@@ -78,18 +78,27 @@ func createTestVectors() (testVectors []testVector) {
 		i += 1
 	}
 
-	nextTx := func(amount uint64) transaction {
-		return transaction{
+	nextTx := func(amount uint64) Transaction {
+		return Transaction{
 			ID:                     txID,
 			CanonicalSerialization: testVectorSerializedTxs[i],
 			CreatedAt:              time.Unix(i+1, 0),
 		}
 	}
 
-	outsFor := func(amounts ...uint64) []output {
-		outs := make([]output, len(amounts))
+	calculateOutputID := func(txIDStr stringID, idx uint64) (ids.ID, error) {
+		txID, err := ids.FromString(string(txIDStr))
+		if err != nil {
+			return ids.ID{}, err
+		}
+
+		return txID.Prefix(idx), nil
+	}
+
+	outsFor := func(amounts ...uint64) []Output {
+		outs := make([]Output, len(amounts))
 		for i, amount := range amounts {
-			outs[i] = output{
+			outs[i] = Output{
 				TransactionID: txID,
 				OutputIndex:   uint64(i),
 				Amount:        amount,
@@ -98,17 +107,17 @@ func createTestVectors() (testVectors []testVector) {
 				Threshold:     1,
 			}
 
-			outID, _ := outs[i].CalculateID()
+			outID, _ := calculateOutputID(outs[i].TransactionID, outs[i].OutputIndex)
 			outs[i].ID = toStringID(outID)
 		}
 		return outs
 	}
 
-	outAddrsFor := func(addr stringShortID) []outputAddress {
-		outID1, _ := output{TransactionID: txID, OutputIndex: 0}.CalculateID()
-		outID2, _ := output{TransactionID: txID, OutputIndex: 1}.CalculateID()
+	outAddrsFor := func(addr stringShortID) []OutputAddress {
+		outID1, _ := calculateOutputID(txID, 0)
+		outID2, _ := calculateOutputID(txID, 1)
 
-		return []outputAddress{{
+		return []OutputAddress{{
 			OutputID: toStringID(outID1),
 			Address:  addr,
 		}, {

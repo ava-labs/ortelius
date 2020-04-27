@@ -16,9 +16,22 @@ import (
 	"github.com/ava-labs/gecko/utils/hashing"
 	"github.com/ava-labs/gecko/utils/math"
 	"github.com/ava-labs/gecko/vms/avm"
+	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
+)
+
+const (
+	// MaxSerializationLen is the maximum number of bytes a canonically
+	// serialized tx can be stored as in the database.
+	MaxSerializationLen = 16_384
+)
+
+var (
+	// ErrSerializationTooLong is returned when trying to ingest data with a
+	// serialization larger than our max
+	ErrSerializationTooLong = errors.New("serialization is too long")
 )
 
 type ingestCtx struct {
@@ -40,19 +53,27 @@ func errIsDuplicateEntryError(err error) bool {
 }
 
 func (i *Index) Bootstrap() error {
-	g, err := genesis.VMGenesis(12345, avm.ID)
+	platformGenesisBytes, err := genesis.Genesis(i.networkID)
 	if err != nil {
+		return err
+	}
+
+	platformGenesis := &platformvm.Genesis{}
+	if err = platformvm.Codec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+		return err
+	}
+	if err = platformGenesis.Initialize(); err != nil {
 		return err
 	}
 
 	avmGenesis := &avm.Genesis{}
-	if err := i.vm.Codec().Unmarshal(g.GenesisData, avmGenesis); err != nil {
-		return err
-	}
-
-	timestamp, err := platformGenesisTimestamp()
-	if err != nil {
-		return err
+	for _, chain := range platformGenesis.Chains {
+		if chain.VMID.Equals(avm.ID) {
+			if err := i.vm.Codec().Unmarshal(chain.GenesisData, avmGenesis); err != nil {
+				return err
+			}
+			break
+		}
 	}
 
 	for _, tx := range avmGenesis.Txs {
@@ -61,7 +82,7 @@ func (i *Index) Bootstrap() error {
 			return err
 		}
 		utx := &avm.UniqueTx{TxState: &avm.TxState{Tx: &avm.Tx{UnsignedTx: tx, Creds: nil}}}
-		if err := i.db.AddTx(utx, timestamp, txBytes); err != nil {
+		if err := i.db.AddTx(utx, platformGenesis.Timestamp, txBytes); err != nil {
 			return err
 		}
 	}
@@ -69,8 +90,8 @@ func (i *Index) Bootstrap() error {
 	return nil
 }
 
-// AddTx ingests a transaction and adds it to the services
-func (r *DBIndex) AddTx(tx *avm.UniqueTx, ts uint64, canonicalSerialization []byte) error {
+// AddTx ingests a Transaction and adds it to the services
+func (r *DB) AddTx(tx *avm.UniqueTx, ts uint64, canonicalSerialization []byte) error {
 	job := r.stream.NewJob("add_tx")
 	sess := r.db.NewSession(job)
 
@@ -95,7 +116,7 @@ func (r *DBIndex) AddTx(tx *avm.UniqueTx, ts uint64, canonicalSerialization []by
 	return dbTx.Commit()
 }
 
-func (r *DBIndex) ingestTx(ctx ingestCtx, tx *avm.UniqueTx) error {
+func (r *DB) ingestTx(ctx ingestCtx, tx *avm.UniqueTx) error {
 	// Create the JSON serialization that we'll
 	var err error
 	ctx.jsonSerialization, err = json.Marshal(tx)
@@ -127,7 +148,7 @@ func (r *DBIndex) ingestTx(ctx ingestCtx, tx *avm.UniqueTx) error {
 	return nil
 }
 
-func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alias string) error {
+func (r *DB) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alias string) error {
 	wrappedTxBytes, err := r.codec.Marshal(&avm.Tx{UnsignedTx: tx})
 	if err != nil {
 		return err
@@ -142,7 +163,7 @@ func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alia
 
 			xOut, ok := out.(*secp256k1fx.TransferOutput)
 			if !ok {
-				_ = ctx.job.EventErr("assertion_to_secp256k1fx_transfer_output", errors.New("output is not a *secp256k1fx.TransferOutput"))
+				_ = ctx.job.EventErr("assertion_to_secp256k1fx_transfer_output", errors.New("Output is not a *secp256k1fx.TransferOutput"))
 				continue
 			}
 
@@ -185,10 +206,7 @@ func (r *DBIndex) ingestCreateAssetTx(ctx ingestCtx, tx *avm.CreateAssetTx, alia
 	return nil
 }
 
-func (r *DBIndex) ingestBaseTx(ctx ingestCtx, uniqueTx *avm.UniqueTx, baseTx *avm.BaseTx) error {
-	// Process baseTx inputs by calculating the baseTx volume and marking the outpoints
-	// as Spent
-
+func (r *DB) ingestBaseTx(ctx ingestCtx, uniqueTx *avm.UniqueTx, baseTx *avm.BaseTx) error {
 	var (
 		err   error
 		total uint64 = 0
@@ -207,10 +225,9 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, uniqueTx *avm.UniqueTx, baseTx *av
 			return err
 		}
 
-		redeemOutputsConditions = append(redeemOutputsConditions, dbr.And(
-			dbr.Expr("transaction_id = ?", in.TxID.String()),
-			dbr.Eq("output_index", in.OutputIndex),
-		))
+		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
+
+		redeemOutputsConditions = append(redeemOutputsConditions, dbr.Eq("id", inputID.String()))
 
 		// Abort this iteration if no credentials were supplied
 		if i > len(creds) {
@@ -220,21 +237,13 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, uniqueTx *avm.UniqueTx, baseTx *av
 		// For each signature we recover the public key and the data to the db
 		cred := creds[i].(*secp256k1fx.Credential)
 		for _, sig := range cred.Sigs {
-			publicKey, err := r.eccFactory.RecoverPublicKey(unsignedTxBytes, sig[:])
+			publicKey, err := r.ecdsaRecoveryFactory.RecoverPublicKey(unsignedTxBytes, sig[:])
 			if err != nil {
 				return err
 			}
 
-			// This is our only chance to get pre-images for addresses so save it
 			r.ingestAddressFromPublicKey(ctx, publicKey)
-
-			// Upsert this output/address combination's spend
-			r.ingestOutputAddress(
-				ctx,
-				in.TxID.Prefix(uint64(in.OutputIndex)),
-				publicKey.Address(),
-				sig[:],
-			)
+			r.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 		}
 	}
 
@@ -275,7 +284,7 @@ func (r *DBIndex) ingestBaseTx(ctx ingestCtx, uniqueTx *avm.UniqueTx, baseTx *av
 	return nil
 }
 
-func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+func (r *DB) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) {
 	outputID := txID.Prefix(idx)
 
 	_, err := ctx.db.
@@ -294,7 +303,7 @@ func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID i
 		_ = r.stream.EventErr("ingest_output", err)
 	}
 
-	// Ingest each output address
+	// Ingest each Output Address
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
@@ -302,7 +311,7 @@ func (r *DBIndex) ingestOutput(ctx ingestCtx, txID ids.ID, idx uint64, assetID i
 	}
 }
 
-func (r *DBIndex) ingestAddressFromPublicKey(ctx ingestCtx, publicKey crypto.PublicKey) {
+func (r *DB) ingestAddressFromPublicKey(ctx ingestCtx, publicKey crypto.PublicKey) {
 	_, err := ctx.db.
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
@@ -314,7 +323,7 @@ func (r *DBIndex) ingestAddressFromPublicKey(ctx ingestCtx, publicKey crypto.Pub
 	}
 }
 
-func (r *DBIndex) ingestOutputAddress(ctx ingestCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
+func (r *DB) ingestOutputAddress(ctx ingestCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
 	builder := ctx.db.
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).

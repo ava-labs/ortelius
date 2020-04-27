@@ -9,6 +9,11 @@ import (
 	"net/http"
 )
 
+type ErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 func writeJSON(w http.ResponseWriter, msg []byte) {
 	w.WriteHeader(200)
 	fmt.Fprint(w, string(msg))
@@ -24,10 +29,7 @@ func writeObject(w http.ResponseWriter, obj interface{}) {
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
-	errBytes, err := json.Marshal(&struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	}{
+	errBytes, err := json.Marshal(&ErrorResponse{
 		Code:    code,
 		Message: msg,
 	})

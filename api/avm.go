@@ -4,11 +4,8 @@
 package api
 
 import (
-	"sync"
-
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/web"
-	"github.com/gorilla/websocket"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/avm_index"
@@ -38,85 +35,28 @@ func NewAVMRouter(router *web.Router, conf cfg.ServiceConfig, networkID uint32, 
 
 			next(w, r)
 		}).
+
+		// General routes
 		Get("/", (*AVMServerContext).Overview).
 		Get("/search", (*AVMServerContext).Search).
+		Get("/aggregates", (*AVMServerContext).Aggregate).
+		Get("/transactions/aggregates", (*AVMServerContext).Aggregate). // DEPRECATED
 
-		// Transaction index
-		Get("/transactions", (*AVMServerContext).GetTxs).
-		Get("/transactions/recent", (*AVMServerContext).GetRecentTxs).
-		Get("/transactions/aggregates", (*AVMServerContext).GetTxAggregates).
-		Get("/transactions/:id", (*AVMServerContext).GetTx).
-
-		// Address index
-		Get("/addresses/:addr/transactions", (*AVMServerContext).GetTxsForAddr).
-		Get("/addresses/:addr/transaction_outputs", (*AVMServerContext).GetTXOsForAddr).
-
-		// Asset index
-		Get("/assets", (*AVMServerContext).GetAssets).
+		// List and Get routes
+		Get("/transactions", (*AVMServerContext).ListTransactions).
+		Get("/transactions/:id", (*AVMServerContext).GetTransaction).
+		Get("/assets", (*AVMServerContext).ListAssets).
 		Get("/assets/:alias_or_id", (*AVMServerContext).GetAsset).
-		Get("/assets/:alias_or_id/transactions", (*AVMServerContext).GetTxsForAsset)
+		Get("/addresses", (*AVMServerContext).ListAddresses).
+		Get("/addresses/:id", (*AVMServerContext).GetAddress).
+		Get("/outputs", (*AVMServerContext).ListOutputs).
+		Get("/outputs/:id", (*AVMServerContext).GetOutput)
 
 	return nil
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
-type Notifier struct {
-	mu        *sync.RWMutex
-	id        uint64
-	listeners map[uint64]chan string
-}
-
-func newNotifier() *Notifier {
-	return &Notifier{
-		mu:        &sync.RWMutex{},
-		listeners: map[uint64]chan string{},
-	}
-}
-
-func (n *Notifier) register() (chan string, func()) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	id := n.id
-	n.id++
-
-	ch := make(chan string)
-	n.listeners[id] = ch
-
-	return ch, func() {
-		n.mu.Lock()
-		defer n.mu.Unlock()
-		delete(n.listeners, id)
-	}
-}
-
-var notifier = newNotifier()
-
-func (c *AVMServerContext) NotificationsTransactions(w web.ResponseWriter, r *web.Request) {
-	conn, err := upgrader.Upgrade(w, r.Request, nil)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-
-	notifCh, unregisterFn := notifier.register()
-	defer unregisterFn()
-
-	for {
-		notif := <-notifCh
-		if err = conn.WriteJSON(notif); err != nil {
-			writeErr(w, 500, err.Error())
-			return
-		}
-	}
-}
-
 //
-// Routes
+// General routes
 //
 
 func (c *AVMServerContext) Overview(w web.ResponseWriter, _ *web.Request) {
@@ -145,63 +85,14 @@ func (c *AVMServerContext) Search(w web.ResponseWriter, r *web.Request) {
 	writeObject(w, results)
 }
 
-//
-// Transaction index
-//
-
-func (c *AVMServerContext) GetTx(w web.ResponseWriter, r *web.Request) {
-	txIDStr, present := getRequiredStringParam(w, r, "id")
-	if !present {
-		return
-	}
-
-	txID, err := ids.FromString(txIDStr)
+func (c *AVMServerContext) Aggregate(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.GetAggregateTransactionsParamsForHTTPRequest(r.Request)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
 
-	tx, err := c.index.GetTx(txID)
-	if err != nil {
-		writeErr(w, 404, err.Error())
-		return
-	}
-
-	writeObject(w, tx)
-}
-
-func (c *AVMServerContext) GetRecentTxs(w web.ResponseWriter, r *web.Request) {
-	params, err := avm_index.ListTxParamForHTTPRequest(r.Request)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	params.Sort = avm_index.TxSortTimestampDesc
-
-	txs, err := c.index.GetTxs(params)
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-
-	txIDS := make([]string, len(txs))
-	for i, tx := range txs {
-		id, _ := ids.FromString(string(tx.ID))
-		txIDS[i] = id.String()
-	}
-
-	writeObject(w, txIDS)
-}
-
-func (c *AVMServerContext) GetTxAggregates(w web.ResponseWriter, r *web.Request) {
-	params, err := avm_index.GetTransactionAggregatesParamsForHTTPRequest(r.Request)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	aggs, err := c.index.GetTransactionAggregatesHistogram(*params)
+	aggs, err := c.index.Aggregate(*params)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -210,14 +101,18 @@ func (c *AVMServerContext) GetTxAggregates(w web.ResponseWriter, r *web.Request)
 	writeObject(w, aggs)
 }
 
-func (c *AVMServerContext) GetTxs(w web.ResponseWriter, r *web.Request) {
-	params, err := avm_index.ListTxParamForHTTPRequest(r.Request)
+//
+// List and Get routes
+//
+
+func (c *AVMServerContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.ListTransactionsParamsForHTTPRequest(r.Request)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
 
-	txs, err := c.index.GetTxs(params)
+	txs, err := c.index.ListTransactions(params)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -226,99 +121,28 @@ func (c *AVMServerContext) GetTxs(w web.ResponseWriter, r *web.Request) {
 	writeObject(w, txs)
 }
 
-func (c *AVMServerContext) GetTxsForAddr(w web.ResponseWriter, r *web.Request) {
-	addrStr, present := getRequiredStringParam(w, r, "addr")
-	if !present {
-		return
-	}
-
-	addr, err := ids.ShortFromString(addrStr)
+func (c *AVMServerContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
+	id, err := ids.FromString(r.PathParams["id"])
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-
-	params, err := avm_index.ListTxParamForHTTPRequest(r.Request)
+	tx, err := c.index.GetTransaction(id)
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErr(w, 404, err.Error())
 		return
 	}
-
-	txs, err := c.index.GetTxsForAddr(addr, params)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	writeObject(w, txs)
+	writeObject(w, tx)
 }
 
-func (c *AVMServerContext) GetTxsForAsset(w web.ResponseWriter, r *web.Request) {
-	aliasOrID, present := getRequiredStringParam(w, r, "alias_or_id")
-	if !present {
-		return
-	}
-
-	assetID, err := ids.FromString(aliasOrID)
+func (c *AVMServerContext) ListAssets(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.ListAssetsParamsForHTTPRequest(r.Request)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
 
-	params, err := avm_index.ListTxParamForHTTPRequest(r.Request)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	txs, err := c.index.GetTxsForAsset(assetID, params)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	writeObject(w, txs)
-}
-
-func (c *AVMServerContext) GetTXOsForAddr(w web.ResponseWriter, r *web.Request) {
-	addrStr, present := getRequiredStringParam(w, r, "addr")
-	if !present {
-		return
-	}
-
-	addr, err := ids.ShortFromString(addrStr)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	params, err := avm_index.ListTXOParamForHTTPRequest(r.Request)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	txos, err := c.index.GetTXOsForAddr(addr, params)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	writeObject(w, txos)
-}
-
-//
-// Transaction index
-//
-
-func (c *AVMServerContext) GetAssets(w web.ResponseWriter, r *web.Request) {
-	params, err := avm_index.ListParamForHTTPRequest(r.Request)
-	if err != nil {
-		writeErr(w, 400, err.Error())
-		return
-	}
-
-	assets, err := c.index.GetAssets(params)
+	assets, err := c.index.ListAssets(params)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -328,12 +152,7 @@ func (c *AVMServerContext) GetAssets(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *AVMServerContext) GetAsset(w web.ResponseWriter, r *web.Request) {
-	aliasOrID, present := getRequiredStringParam(w, r, "alias_or_id")
-	if !present {
-		return
-	}
-
-	assets, err := c.index.GetAsset(aliasOrID)
+	assets, err := c.index.GetAsset(r.PathParams["alias_or_id"])
 	if err != nil {
 		writeErr(w, 404, err.Error())
 		return
@@ -342,11 +161,64 @@ func (c *AVMServerContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 	writeObject(w, assets)
 }
 
-func getRequiredStringParam(w web.ResponseWriter, r *web.Request, name string) (string, bool) {
-	addrStr := r.PathParams[name]
-	if addrStr == "" {
-		writeErr(w, 400, name+" is required")
-		return "", false
+func (c *AVMServerContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.ListAddressesParamsForHTTPRequest(r.Request)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
 	}
-	return addrStr, true
+
+	assets, err := c.index.ListAddresses(params)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+
+	writeObject(w, assets)
+}
+
+func (c *AVMServerContext) GetAddress(w web.ResponseWriter, r *web.Request) {
+	id, err := ids.ShortFromString(r.PathParams["id"])
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	addr, err := c.index.GetAddress(id)
+	if err != nil {
+		writeErr(w, 404, err.Error())
+		return
+	}
+
+	writeObject(w, addr)
+}
+
+func (c *AVMServerContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
+	params, err := avm_index.ListOutputsParamsForHTTPRequest(r.Request)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+
+	assets, err := c.index.ListOutputs(params)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+
+	writeObject(w, assets)
+}
+
+func (c *AVMServerContext) GetOutput(w web.ResponseWriter, r *web.Request) {
+	id, err := ids.FromString(r.PathParams["id"])
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	addr, err := c.index.GetOutput(id)
+	if err != nil {
+		writeErr(w, 404, err.Error())
+		return
+	}
+
+	writeObject(w, addr)
 }
