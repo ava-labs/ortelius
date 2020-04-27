@@ -112,7 +112,7 @@ func (i *Index) GetTx(txID ids.ID) (*displayTx, error) {
 }
 
 func (i *Index) GetTxs(params *ListTxParams) ([]*displayTx, error) {
-	return i.db.GetTxs(params)
+	return i.db.GetTransactions(params)
 }
 
 func (i *Index) GetTxsForAddr(addr ids.ShortID, params *ListTxParams) ([]*displayTx, error) {

@@ -32,26 +32,141 @@ func (r *DBIndex) GetTxCount() (count int64, err error) {
 }
 
 func (r *DBIndex) GetTx(id ids.ID) (*displayTx, error) {
-	tx := &displayTx{}
-	err := r.newDBSession("get_tx").
-		Select("id", "json_serialization", "created_at").
-		From("avm_transactions").
-		Where("id = ?", id.Bytes()).
-		Where("chain_id = ?", r.chainID.Bytes()).
-		Limit(1).
-		LoadOne(tx)
-	return tx, err
+	txs, err := r.GetTransactions(&ListTxParams{ID: &id})
+	if len(txs) > 0 {
+		return txs[0], nil
+	}
+	return nil, err
 }
 
-func (r *DBIndex) GetTxs(params *ListTxParams) ([]*displayTx, error) {
-	builder := params.Apply(r.newDBSession("get_txs").
-		Select("id", "json_serialization", "created_at").
-		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.Bytes()))
+func (r *DBIndex) GetTransactions(params *ListTxParams) ([]*displayTx, error) {
+	db := r.newDBSession("get_transactions")
 
+	// Load the base transactions
 	txs := []*displayTx{}
+	builder := db.
+		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at", "avm_transactions.json_serialization AS raw_message").
+		From("avm_transactions").
+		Where("chain_id = ?", r.chainID.String())
+
+	if params.ID != nil {
+		builder = builder.
+			Where("id = ?", params.ID.String()).
+			Limit(1)
+	}
+
+	if len(params.Addresses) > 0 {
+		addrs := make([]string, len(params.Addresses))
+		for i, id := range params.Addresses {
+			addrs[i] = id.String()
+		}
+		builder = builder.
+			LeftJoin("avm_outputs", "avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id").
+			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+			Where("avm_output_addresses.address IN ?", addrs)
+	}
+
 	_, err := builder.Load(&txs)
-	return txs, err
+	if err != nil {
+		return nil, err
+	}
+
+	txIDs := make([]stringID, len(txs))
+	for i, tx := range txs {
+		txIDs[i] = tx.ID
+	}
+
+	// Load each transaction output for the tx, both inputs and outputs
+	outputs := []*output{}
+	_, err = db.
+		Select("*").
+		From("avm_outputs").
+		Where("avm_outputs.transaction_id IN ? OR avm_outputs.redeeming_transaction_id IN ?", txIDs, txIDs).
+		Load(&outputs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load all output addresses for this transaction
+	outputAddresses := make([]outputAddress, 0, 2)
+	_, err = db.
+		Select(
+			"avm_output_addresses.output_id AS output_id",
+			"avm_output_addresses.address AS address",
+			"addresses.public_key AS public_key",
+			"avm_output_addresses.redeeming_signature AS signature",
+		).
+		From("avm_output_addresses").
+		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
+		Where("avm_outputs.redeeming_transaction_id IN ? OR avm_outputs.transaction_id IN ?", txIDs, txIDs).
+		Load(&outputAddresses)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create maps for all transaction outputs and input transaction outputs
+	outputMap := map[stringID]*output{}
+	txOutputMaps := map[stringID]map[stringID]*output{}
+	txInputMaps := map[stringID]map[stringID]*input{}
+	for _, out := range outputs {
+		outputMap[out.ID] = out
+
+		txInputMap, ok := txInputMaps[out.RedeemingTransactionID]
+		if !ok {
+			txInputMap = map[stringID]*input{}
+			txInputMaps[out.RedeemingTransactionID] = txInputMap
+		}
+		txInputMap[out.ID] = &input{Output: out}
+
+		txOutputMap, ok := txOutputMaps[out.TransactionID]
+		if !ok {
+			txOutputMap = map[stringID]*output{}
+			txOutputMaps[out.TransactionID] = txOutputMap
+		}
+		txOutputMap[out.ID] = out
+	}
+
+	// Collect the addresses into a list on each output
+	for _, outputAddress := range outputAddresses {
+		output, ok := outputMap[outputAddress.OutputID]
+		if !ok {
+			continue
+		}
+		output.Addresses = append(output.Addresses, outputAddress.Address)
+
+		// If this address didn't sign any txs then we're done
+		if len(outputAddress.Signature) == 0 {
+			continue
+		}
+
+		inputMap, ok := txInputMaps[output.RedeemingTransactionID]
+		if !ok {
+			continue
+		}
+
+		// Get the input and add the credentials for this address
+		input, ok := inputMap[outputAddress.OutputID]
+		if !ok {
+			continue
+		}
+		input.Creds = append(input.Creds, inputCred{
+			Address:   outputAddress.Address,
+			PublicKey: outputAddress.PublicKey,
+			Signature: outputAddress.Signature,
+		})
+	}
+
+	for i, txID := range txIDs {
+		for _, input := range txInputMaps[txID] {
+			txs[i].Inputs = append(txs[i].Inputs, *input)
+		}
+		for _, output := range txOutputMaps[txID] {
+			txs[i].Outputs = append(txs[i].Outputs, *output)
+		}
+	}
+
+	return txs, nil
 }
 
 func (r *DBIndex) GetTxsForAddr(addr ids.ShortID, params *ListTxParams) ([]*displayTx, error) {

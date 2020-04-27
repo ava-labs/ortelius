@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/gocraft/dbr"
 )
 
 var (
@@ -126,6 +125,9 @@ func (rid stringID) Equals(oRID stringID) bool {
 
 // MarshalJSON returns a json-marshaled string representing the ID
 func (rid stringID) MarshalJSON() ([]byte, error) {
+	if string(rid) == "" {
+		return json.Marshal(nil)
+	}
 	id, err := ids.FromString(string(rid))
 	if err != nil {
 		return nil, err
@@ -165,10 +167,16 @@ type transaction struct {
 	ChainID stringID `json:"chainID"`
 	Type    string   `json:"type"`
 
-	CanonicalSerialization []byte `json:"canonicalSerialization"`
-	JSONSerialization      []byte `json:"jsonSerialization",db:"json_serialization"`
+	Inputs  []input  `json:"inputs"`
+	Outputs []output `json:"outputs"`
 
-	CreatedAt time.Time `json:"created_at"`
+	CanonicalSerialization []byte    `json:"canonicalSerialization,omitempty"`
+	CreatedAt              time.Time `json:"timestamp"`
+}
+
+type input struct {
+	Output *output     `json:"output"`
+	Creds  []inputCred `json:"credentials"`
 }
 
 // output represents a tx output in the db
@@ -182,10 +190,9 @@ type output struct {
 	Locktime      uint64          `json:"locktime"`
 	Threshold     uint64          `json:"threshold"`
 	Addresses     []stringShortID `json:"addresses"`
-	CreatedAt     time.Time       `json:"created_at"`
+	CreatedAt     time.Time       `json:"timestamp"`
 
 	RedeemingTransactionID stringID `json:"redeemingTransactionID"`
-	RedeemingSignature     []byte   `json:"redeemingSignature"`
 }
 
 func (o output) CalculateID() (ids.ID, error) {
@@ -197,12 +204,20 @@ func (o output) CalculateID() (ids.ID, error) {
 	return txID.Prefix(o.OutputIndex), nil
 }
 
+type inputCred struct {
+	Address   stringShortID `json:"address"`
+	PublicKey []byte        `json:"public_key"`
+	Signature []byte        `json:"signature"`
+}
+
 // output represents an address that controls a tx output in the db
 type outputAddress struct {
-	OutputID           stringID
-	Address            stringShortID
-	RedeemingSignature dbr.NullString
-	CreatedAt          time.Time `json:"created_at"`
+	OutputID  stringID      `json:"output_id"`
+	Address   stringShortID `json:"address"`
+	Signature []byte        `json:"signature"`
+	CreatedAt time.Time     `json:"timestamp"`
+	PublicKey []byte        `json:"-"`
+	// Signature          []byte         `json:"signature"`
 }
 
 type asset struct {
@@ -215,7 +230,7 @@ type asset struct {
 	Denomination uint8  `json:"denomination"`
 
 	CurrentSupply uint64    `json:"currentSupply"`
-	CreatedAt     time.Time `json:"created_at"`
+	CreatedAt     time.Time `json:"timestamp"`
 }
 
 type address struct {
@@ -279,18 +294,23 @@ type TransactionAggregatesInterval struct {
 }
 
 type displayTx struct {
-	json.RawMessage `db:"json_serialization"`
-	CreatedAt       time.Time `json:"timestamp"`
-	ID              stringID  `json:"id"`
+	transaction
+	json.RawMessage
 }
 
 func (dt *displayTx) MarshalJSON() ([]byte, error) {
 	m := map[string]interface{}{}
-	err := json.Unmarshal(dt.RawMessage, &m)
+	if err := json.Unmarshal(dt.RawMessage, &m); err != nil {
+		return nil, err
+	}
+
+	txJson, err := json.Marshal(&dt.transaction)
 	if err != nil {
 		return nil, err
 	}
-	m["id"] = dt.ID
-	m["timestamp"] = dt.CreatedAt.UTC()
+
+	if err = json.Unmarshal(txJson, &m); err != nil {
+		return nil, err
+	}
 	return json.Marshal(m)
 }

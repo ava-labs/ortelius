@@ -239,7 +239,7 @@ func assertCorrectOutputAddress(t *testing.T, expected, actual outputAddress) {
 		t.Fatal("Wrong address:", actual.Address)
 	}
 
-	if actual.RedeemingSignature.String != expected.RedeemingSignature.String {
-		t.Fatal("Wrong redeeming signature:", actual.RedeemingSignature)
+	if actual.Signature.String != expected.Signature.String {
+		t.Fatal("Wrong redeeming signature:", actual.Signature)
 	}
 }
