@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/crypto"
 	"github.com/ava-labs/gecko/vms/components/codec"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr"
@@ -27,19 +28,23 @@ var (
 
 // DBIndex is a services.Accumulator backed by redis
 type DBIndex struct {
-	chainID ids.ID
-	codec   codec.Codec
-	stream  *health.Stream
-	db      *dbr.Connection
+	chainID    ids.ID
+	codec      codec.Codec
+	eccFactory crypto.FactorySECP256K1R
+
+	stream *health.Stream
+	db     *dbr.Connection
 }
 
 // NewDBIndex creates a new DBIndex for the given config
 func NewDBIndex(stream *health.Stream, db *dbr.Connection, chainID ids.ID, codec codec.Codec) *DBIndex {
 	return &DBIndex{
-		chainID: chainID,
-		codec:   codec,
-		stream:  stream,
-		db:      db,
+		chainID:    chainID,
+		codec:      codec,
+		eccFactory: crypto.FactorySECP256K1R{},
+
+		stream: stream,
+		db:     db,
 	}
 }
 
