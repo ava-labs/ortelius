@@ -154,6 +154,9 @@ type ListTransactionsParams struct {
 	Addresses []ids.ShortID
 	AssetID   *ids.ID
 
+	StartTime time.Time
+	EndTime   time.Time
+
 	Sort TransactionSort
 }
 
@@ -193,6 +196,16 @@ func ListTransactionsParamsForHTTPRequest(r *http.Request) (*ListTransactionsPar
 		params.Addresses = append(params.Addresses, addr)
 	}
 
+	params.StartTime, err = getQueryTime(q, queryParamKeysStartTime)
+	if err != nil {
+		return nil, err
+	}
+
+	params.EndTime, err = getQueryTime(q, queryParamKeysEndTime)
+	if err != nil {
+		return nil, err
+	}
+
 	return params, nil
 }
 
@@ -227,6 +240,13 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		b = b.
 			Where("INSTR(avm_transactions.id, ?) > 0", p.Query).
 			OrderAsc("score")
+	}
+
+	if !p.StartTime.IsZero() {
+		b = b.Where("created_at >= ?", p.StartTime)
+	}
+	if !p.EndTime.IsZero() {
+		b = b.Where("created_at <= ?", p.EndTime)
 	}
 
 	var applySort func(b *dbr.SelectBuilder, sort TransactionSort) *dbr.SelectBuilder
