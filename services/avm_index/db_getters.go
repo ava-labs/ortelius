@@ -251,10 +251,18 @@ func (r *DB) ListTransactions(params *ListTransactionsParams) (*TransactionList,
 
 	// Load the base transactions
 	txs := []*Transaction{}
-	_, err := params.Apply(db.
+	builder := params.Apply(db.
 		Select(columns...).
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.String())).Load(&txs)
+		Where("chain_id = ?", r.chainID.String()))
+
+	if params.Query != "" {
+		builder = builder.
+			Where("INSTR(avm_transactions.id, ?) > 0", params.Query).
+			OrderAsc("score")
+	}
+
+	_, err := builder.Load(&txs)
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +305,13 @@ func (r *DB) ListAssets(params *ListAssetsParams) (*AssetList, error) {
 		Select(columns...).
 		From("avm_assets").
 		Where("chain_id = ?", r.chainID.String()))
+
+	if params.Query != "" {
+		builder = builder.
+			Where("INSTR(avm_assets.id, ?) > 0", builder.Query).
+			OrderAsc("score")
+	}
+
 	_, err := builder.Load(&assets)
 
 	count := uint64(params.Offset) + uint64(len(assets))
@@ -319,18 +334,18 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 	db := r.newSession("list_addresses")
 
 	columns := []string{
-		"avm_output_addresses.Address",
+		"avm_output_addresses.address",
 		"addresses.public_key",
 
 		"COUNT(avm_transactions.id) AS transaction_count",
-		"SUM(avm_outputs.amount) AS total_received",
-		"SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END) AS total_sent",
-		"SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END) AS balance",
-		"SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END) AS utxo_count",
+		"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
 	}
 
 	if params.Query != "" {
-		scoreColumn, err := r.newScoreColumnString("avm_output_addresses.Address", params.Query)
+		scoreColumn, err := r.newScoreColumnString("avm_output_addresses.address", params.Query)
 		if err != nil {
 			return nil, err
 		}
@@ -338,15 +353,21 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 	}
 
 	addresses := []*Address{}
-	_, err := params.Apply(db.
+	builder := params.Apply(db.
 		Select(columns...).
 		From("avm_output_addresses").
-		LeftJoin("addresses", "addresses.Address = avm_output_addresses.Address").
-		LeftJoin(dbr.I("avm_outputs").As("all_outputs"), "avm_output_addresses.output_id = all_outputs.id").
-		LeftJoin("avm_transactions", "all_outputs.transaction_id = avm_transactions.id OR all_outputs.redeeming_transaction_id = avm_transactions.id").
-		LeftJoin(dbr.I("avm_outputs").As("unspent_outputs"), "avm_output_addresses.output_id = unspent_outputs.id AND unspent_outputs.redeeming_transaction_id IS NULL").
-		GroupBy("avm_output_addresses.Address")).
-		Load(&addresses)
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
+		LeftJoin("avm_outputs", "avm_output_addresses.output_id = avm_outputs.id").
+		LeftJoin("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id").
+		GroupBy("avm_output_addresses.address"))
+
+	if params.Query != "" {
+		builder = builder.
+			Where("INSTR(avm_output_addresses.Address, ?) > 0", params.Query).
+			OrderAsc("score")
+	}
+
+	_, err := builder.Load(&addresses)
 	if err != nil {
 		return nil, err
 	}
@@ -388,6 +409,12 @@ func (r *DB) ListOutputs(params *ListOutputsParams) (*OutputList, error) {
 		From("avm_outputs").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
 		Where("avm_transactions.chain_id = ?", r.chainID.String()))
+
+	if params.Query != "" {
+		builder = builder.
+			Where("INSTR(avm_outputs.id, ?) > 0", params.Query).
+			OrderAsc("score")
+	}
 
 	outputs := []*Output{}
 	_, err := builder.Load(&outputs)
@@ -504,13 +531,13 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 	_, err = db.
 		Select(
 			"avm_output_addresses.output_id AS output_id",
-			"avm_output_addresses.Address AS Address",
+			"avm_output_addresses.address AS address",
 			"addresses.public_key AS public_key",
 			"avm_output_addresses.redeeming_signature AS signature",
 		).
 		From("avm_output_addresses").
 		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.Address = avm_output_addresses.Address").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
 		Where("avm_outputs.redeeming_transaction_id IN ? OR avm_outputs.transaction_id IN ?", txIDs, txIDs).
 		Load(&outputAddresses)
 	if err != nil {
@@ -519,38 +546,40 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 
 	// Create maps for all Transaction outputs and Input Transaction outputs
 	outputMap := map[stringID]*Output{}
-	outputsByOutputIDByTxID := map[stringID]map[stringID]*Output{}
-	inputsByOutputIDByTxID := map[stringID]map[stringID]*Input{}
 
-	outputTotalsByTxID := map[stringID]AssetTokenCounts{}
-	inputTotalsByTxID := map[stringID]AssetTokenCounts{}
+	inputsMap := map[stringID][]*Input{}
+	inputTotalsMap := map[stringID]AssetTokenCounts{}
+
+	outputsMap := map[stringID][]*Output{}
+	outputTotalsMap := map[stringID]AssetTokenCounts{}
 
 	for _, out := range outputs {
 		outputMap[out.ID] = out
 
-		if _, ok := inputsByOutputIDByTxID[out.RedeemingTransactionID]; !ok {
-			inputsByOutputIDByTxID[out.RedeemingTransactionID] = map[stringID]*Input{}
+		if _, ok := inputsMap[out.RedeemingTransactionID]; !ok {
+			inputsMap[out.RedeemingTransactionID] = []*Input{}
 		}
 
-		if _, ok := inputTotalsByTxID[out.RedeemingTransactionID]; !ok {
-			inputTotalsByTxID[out.RedeemingTransactionID] = AssetTokenCounts{}
+		if _, ok := inputTotalsMap[out.RedeemingTransactionID]; !ok {
+			inputTotalsMap[out.RedeemingTransactionID] = AssetTokenCounts{}
 		}
-		if _, ok := outputsByOutputIDByTxID[out.TransactionID]; !ok {
-			outputsByOutputIDByTxID[out.TransactionID] = map[stringID]*Output{}
-		}
-
-		if _, ok := outputTotalsByTxID[out.TransactionID]; !ok {
-			outputTotalsByTxID[out.TransactionID] = AssetTokenCounts{}
+		if _, ok := outputsMap[out.TransactionID]; !ok {
+			outputsMap[out.TransactionID] = []*Output{}
 		}
 
-		inputsByOutputIDByTxID[out.RedeemingTransactionID][out.ID] = &Input{Output: out}
-		inputTotalsByTxID[out.RedeemingTransactionID][out.AssetID] += out.Amount
+		if _, ok := outputTotalsMap[out.TransactionID]; !ok {
+			outputTotalsMap[out.TransactionID] = AssetTokenCounts{}
+		}
 
-		outputsByOutputIDByTxID[out.TransactionID][out.ID] = out
-		outputTotalsByTxID[out.TransactionID][out.AssetID] += out.Amount
+		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: out})
+		inputTotalsMap[out.RedeemingTransactionID][out.AssetID] += out.Amount
+
+		outputsMap[out.TransactionID] = append(outputsMap[out.TransactionID], out)
+		outputTotalsMap[out.TransactionID][out.AssetID] += out.Amount
 	}
 
 	// Collect the addresses into a list on each Output
+	var input *Input
 	for _, outputAddress := range outputAddresses {
 		output, ok := outputMap[outputAddress.OutputID]
 		if !ok {
@@ -563,34 +592,30 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 			continue
 		}
 
-		inputMap, ok := inputsByOutputIDByTxID[output.RedeemingTransactionID]
+		inputs, ok := inputsMap[output.RedeemingTransactionID]
 		if !ok {
 			continue
 		}
 
 		// Get the Input and add the credentials for this Address
-		input, ok := inputMap[outputAddress.OutputID]
-		if !ok {
-			continue
+		for _, input = range inputs {
+			if input.Output.ID.Equals(outputAddress.OutputID) {
+				input.Creds = append(input.Creds, InputCredentials{
+					Address:   outputAddress.Address,
+					PublicKey: outputAddress.PublicKey,
+					Signature: outputAddress.Signature,
+				})
+				break
+			}
 		}
-		input.Creds = append(input.Creds, InputCredentials{
-			Address:   outputAddress.Address,
-			PublicKey: outputAddress.PublicKey,
-			Signature: outputAddress.Signature,
-		})
 	}
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
-		for _, input := range inputsByOutputIDByTxID[tx.ID] {
-			tx.Inputs = append(tx.Inputs, *input)
-		}
-		for _, output := range outputsByOutputIDByTxID[tx.ID] {
-			tx.Outputs = append(tx.Outputs, *output)
-		}
-
-		tx.InputTotals = inputTotalsByTxID[tx.ID]
-		tx.OutputTotals = outputTotalsByTxID[tx.ID]
+		tx.InputTotals = inputTotalsMap[tx.ID]
+		tx.OutputTotals = outputTotalsMap[tx.ID]
+		tx.Inputs = append(tx.Inputs, inputsMap[tx.ID]...)
+		tx.Outputs = append(tx.Outputs, outputsMap[tx.ID]...)
 	}
 
 	// for i, txID := range txIDs {
@@ -601,8 +626,8 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 	// 		txs[i].Outputs = append(txs[i].Outputs, *output)
 	// 	}
 	//
-	// 	txs[i].InputTotals = inputTotalsByTxID[txID]
-	// 	txs[i].OutputTotals = outputTotalsByTxID[txID]
+	// 	txs[i].InputTotals = inputTotalsMap[txID]
+	// 	txs[i].OutputTotals = outputTotalsMap[txID]
 	// }
 
 	return nil

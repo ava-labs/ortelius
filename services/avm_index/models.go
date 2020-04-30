@@ -52,8 +52,8 @@ type Transaction struct {
 	ChainID stringID `json:"chainID"`
 	Type    string   `json:"type"`
 
-	Inputs  []Input  `json:"inputs"`
-	Outputs []Output `json:"outputs"`
+	Inputs  []*Input  `json:"inputs"`
+	Outputs []*Output `json:"outputs"`
 
 	InputTotals         AssetTokenCounts `json:"inputTotals"`
 	OutputTotals        AssetTokenCounts `json:"outputTotals"`

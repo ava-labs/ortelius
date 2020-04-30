@@ -187,6 +187,15 @@ func ListTransactionsParamsForHTTPRequest(r *http.Request) (*ListTransactionsPar
 		params.ID = &id
 	}
 
+	assetIDStr := getQueryString(q, queryParamKeysAssetID, "")
+	if assetIDStr != "" {
+		id, err := ids.FromString(assetIDStr)
+		if err != nil {
+			return nil, err
+		}
+		params.AssetID = &id
+	}
+
 	addressStrs := q[queryParamKeysAddress]
 	for _, addressStr := range addressStrs {
 		addr, err := ids.ShortFromString(addressStr)
@@ -234,12 +243,6 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	if p.AssetID != nil {
 		b = b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
-	}
-
-	if p.Query != "" {
-		b = b.
-			Where("INSTR(avm_transactions.id, ?) > 0", p.Query).
-			OrderAsc("score")
 	}
 
 	if !p.StartTime.IsZero() {
@@ -308,12 +311,6 @@ func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 			Where("alias = ?", p.Alias)
 	}
 
-	if p.Query != "" {
-		b = b.
-			Where("INSTR(avm_assets.id, ?) > 0", p.Query).
-			OrderAsc("score")
-	}
-
 	return b
 }
 
@@ -350,12 +347,6 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		b = b.
 			Where("avm_output_addresses.address = ?", p.Address.String()).
 			Limit(1)
-	}
-
-	if p.Query != "" {
-		b = b.
-			Where("INSTR(avm_output_addresses.Address, ?) > 0", p.Query).
-			OrderAsc("score")
 	}
 
 	return b
@@ -420,12 +411,6 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		b = b.
 			Where("id = ?", p.ID.String()).
 			Limit(1)
-	}
-
-	if p.Query != "" {
-		b = b.
-			Where("INSTR(avm_outputs.id, ?) > 0", p.Query).
-			OrderAsc("score")
 	}
 
 	return b
