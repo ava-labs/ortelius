@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +15,9 @@ import (
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/stream"
+
+	// Register service plugins
+	_ "github.com/ava-labs/ortelius/services/avm_index"
 )
 
 const (
@@ -30,13 +34,76 @@ const (
 	streamProducerCmdDesc = "Runs the stream producer daemon"
 )
 
-func main() {
-	// Execute root command and obtain the listenCloser to use
-	lc, err := execute()
-	if err != nil {
-		log.Fatalln(err)
-	}
+// listenCloser listens for messages until it's asked to close
+type listenCloser interface {
+	Listen() error
+	Close() error
+}
 
+func main() {
+	if err := execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+// Execute runs the root command for ortelius
+func execute() error {
+	var (
+		cmdErr   error
+		runLCCmd = func(lc listenCloser, err error) {
+			if err != nil {
+				cmdErr = err
+			}
+			runListenCloser(lc)
+		}
+
+		rootCmd = &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc}
+	)
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   apiCmdUse,
+		Short: apiCmdDescription,
+		Long:  apiCmdDescription,
+		Run: func(_ *cobra.Command, args []string) {
+			config, err := cfg.NewAPIConfig(append(args, "")[0])
+			if err != nil {
+				cmdErr = err
+				return
+			}
+			lc, err := api.NewServer(config)
+			runLCCmd(lc, err)
+		},
+	})
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   streamConsumerCmdUse,
+		Short: streamConsumerCmdDesc,
+		Long:  streamConsumerCmdDesc,
+		Run: func(_ *cobra.Command, args []string) {
+			lc, err := getStreamProcessor(stream.NewConsumer, args)
+			runLCCmd(lc, err)
+		},
+	})
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   streamProducerCmdUse,
+		Short: streamProducerCmdDesc,
+		Long:  streamProducerCmdDesc,
+		Run: func(_ *cobra.Command, args []string) {
+			lc, err := getStreamProcessor(stream.NewProducer, args)
+			runLCCmd(lc, err)
+		},
+	})
+
+	if err := rootCmd.Execute(); err != nil {
+		return err
+	}
+	return cmdErr
+}
+
+// runListenCloser runs the listenCloser until signaled to stop
+func runListenCloser(lc listenCloser) {
 	// Start listening in the background
 	go func() {
 		if err := lc.Listen(); err != nil {
@@ -55,56 +122,9 @@ func main() {
 	}
 }
 
-type listenCloser interface {
-	Listen() error
-	Close() error
-}
-
-// Execute runs the root command for ortelius
-func execute() (listenCloser, error) {
-	rootCmd := &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc}
-
-	var err error
-	var lc listenCloser
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   apiCmdUse,
-		Short: apiCmdDescription,
-		Long:  apiCmdDescription,
-		Run: func(_ *cobra.Command, args []string) {
-			var config cfg.APIConfig
-			config, err = cfg.NewAPIConfig(append(args, "")[0])
-			if err != nil {
-				return
-			}
-			lc, err = api.NewServer(config)
-		},
-	})
-
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   streamConsumerCmdUse,
-		Short: streamConsumerCmdDesc,
-		Long:  streamConsumerCmdDesc,
-		Run: func(_ *cobra.Command, args []string) {
-			lc, err = runStreamProcessorCmd(stream.NewConsumer, args)
-		},
-	})
-
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   streamProducerCmdUse,
-		Short: streamProducerCmdDesc,
-		Long:  streamProducerCmdDesc,
-		Run: func(_ *cobra.Command, args []string) {
-			lc, err = runStreamProcessorCmd(stream.NewProducer, args)
-		},
-	})
-
-	if runErr := rootCmd.Execute(); runErr != nil {
-		return nil, runErr
-	}
-	return lc, err
-}
-
-func runStreamProcessorCmd(factory streamProcessorFactory, args []string) (listenCloser, error) {
+// getStreamProcessor gets a StreamProcessor as a listenCloser based on the cmd
+// arguments
+func getStreamProcessor(factory streamProcessorFactory, args []string) (listenCloser, error) {
 	config, err := cfg.NewClientConfig("", append(args, "")[0])
 	if err != nil {
 		return nil, err

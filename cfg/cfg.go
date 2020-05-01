@@ -65,6 +65,7 @@ type Common struct {
 }
 
 type ChainConfig struct {
+	ID     ids.ID
 	Alias  string
 	VMType string
 }
@@ -174,6 +175,7 @@ func getChainsConfig(v *viper.Viper) (ChainsConfig, error) {
 		}
 
 		chains[id] = ChainConfig{
+			ID:     id,
 			Alias:  alias,
 			VMType: vmType,
 		}

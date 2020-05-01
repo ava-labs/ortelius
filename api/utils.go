@@ -14,21 +14,21 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-func writeJSON(w http.ResponseWriter, msg []byte) {
+func WriteJSON(w http.ResponseWriter, msg []byte) {
 	w.WriteHeader(200)
 	fmt.Fprint(w, string(msg))
 }
 
-func writeObject(w http.ResponseWriter, obj interface{}) {
+func WriteObject(w http.ResponseWriter, obj interface{}) {
 	bytes, err := json.Marshal(obj)
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		WriteErr(w, 400, err.Error())
 		return
 	}
-	writeJSON(w, bytes)
+	WriteJSON(w, bytes)
 }
 
-func writeErr(w http.ResponseWriter, code int, msg string) {
+func WriteErr(w http.ResponseWriter, code int, msg string) {
 	errBytes, err := json.Marshal(&ErrorResponse{
 		Code:    code,
 		Message: msg,

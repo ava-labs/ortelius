@@ -620,18 +620,6 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 		tx.Outputs = append(tx.Outputs, outputsMap[tx.ID]...)
 	}
 
-	// for i, txID := range txIDs {
-	// 	for _, input := range inputsByOutputIDByTxID[txID] {
-	// 		txs[i].Inputs = append(txs[i].Inputs, *input)
-	// 	}
-	// 	for _, output := range outputsByOutputIDByTxID[txID] {
-	// 		txs[i].Outputs = append(txs[i].Outputs, *output)
-	// 	}
-	//
-	// 	txs[i].InputTotals = inputTotalsMap[txID]
-	// 	txs[i].OutputTotals = outputTotalsMap[txID]
-	// }
-
 	return nil
 }
 

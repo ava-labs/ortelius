@@ -17,9 +17,14 @@ import (
 	"github.com/ava-labs/gecko/vms/nftfx"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 
+	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 )
+
+func init() {
+	api.RegisterRouter(VMName, NewAPIRouter, APIContext{})
+}
 
 type Index struct {
 	networkID uint32

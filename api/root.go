@@ -62,5 +62,5 @@ func (*RootRequestContext) setHeaders(w web.ResponseWriter, r *web.Request, next
 }
 
 func (*RootRequestContext) notFoundHandler(w web.ResponseWriter, r *web.Request) {
-	writeErr(w, 404, "Not Found")
+	WriteErr(w, 404, "Not Found")
 }
