@@ -335,6 +335,7 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 
 	columns := []string{
 		"avm_output_addresses.address",
+		"MIN(avm_transactions.chain_id) AS chain_id",
 		"addresses.public_key",
 
 		"COUNT(avm_transactions.id) AS transaction_count",
@@ -359,6 +360,7 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
 		LeftJoin("avm_outputs", "avm_output_addresses.output_id = avm_outputs.id").
 		LeftJoin("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id").
+		Where("avm_transactions.chain_id = ?", r.chainID.String()).
 		GroupBy("avm_output_addresses.address"))
 
 	if params.Query != "" {

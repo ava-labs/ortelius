@@ -119,6 +119,7 @@ type Asset struct {
 
 type Address struct {
 	Address stringShortID `json:"address"`
+	ChainID stringID      `json:"chainID"`
 
 	PublicKey        []byte `json:"publicKey"`
 	TransactionCount uint64 `json:"transactionCount"`

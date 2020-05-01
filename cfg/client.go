@@ -70,6 +70,9 @@ func NewClientConfig(context string, file string) (*ClientConfig, error) {
 }
 
 func getFilterConf(v *viper.Viper) FilterConfig {
+	if v == nil {
+		return FilterConfig{}
+	}
 	return FilterConfig{
 		Min: v.GetUint32(configKeysFilterMin),
 		Max: v.GetUint32(configKeysFilterMax),
@@ -77,6 +80,9 @@ func getFilterConf(v *viper.Viper) FilterConfig {
 }
 
 func getKafkaConf(v *viper.Viper) KafkaConfig {
+	if v == nil {
+		return KafkaConfig{}
+	}
 	return KafkaConfig{
 		Brokers:   v.GetStringSlice(configKeysKafkaBrokers),
 		GroupName: v.GetString(configKeysKafkaGroupName),

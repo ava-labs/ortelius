@@ -55,7 +55,7 @@ func (s *Server) Listen() error {
 	return s.server.ListenAndServe()
 }
 
-func (s *Server) Shutdown() error {
+func (s *Server) Close() error {
 	s.log.Info("Server shutting down")
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFn()

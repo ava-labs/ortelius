@@ -5,15 +5,15 @@ RUN apk add git
 
 # Build app
 COPY . .
-RUN go get ./api/...
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /opt/ortelius-api ./api/bin/main.go
+RUN go get ./cmd/...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /opt/orteliusd ./cmd/orteliusd/*.go
 
 # Create base final image
 FROM scratch
 VOLUME /var/log/ortelius
 VOLUME /var/lib/ortelius
 
-# Copy in and wire up app artifacts
-COPY --from=0 /opt/ortelius-api /opt/ortelius-api
+# Copy in and wire up build artifacts
+COPY --from=0 /opt/orteliusd /opt/orteliusd
 COPY --from=0 /go/src/github.com/ava-labs/ortelius/docker/config.json /var/lib/ortelius/config.json
-ENTRYPOINT ["/opt/ortelius-api"]
+ENTRYPOINT ["/opt/orteliusd"]

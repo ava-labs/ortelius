@@ -7,7 +7,7 @@ import "errors"
 
 const (
 	// defaultSchema sets the schema to use for new records
-	defaultSchema schemaID = rawGeckoCodecV1
+	defaultSchema = rawGeckoCodecV1
 
 	// rawGeckoCodecV1 is a raw binary blob from the initial Gecko Codec
 	// format

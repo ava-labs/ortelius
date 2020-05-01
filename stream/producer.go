@@ -1,39 +1,25 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package client
+package stream
 
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"path"
-	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/hashing"
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/client/record"
 	"github.com/segmentio/kafka-go"
+	"nanomsg.org/go/mangos/v2"
 	"nanomsg.org/go/mangos/v2/protocol"
+	"nanomsg.org/go/mangos/v2/protocol/sub"
+
+	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/stream/record"
 )
 
-var (
-	defaultKafkaWriteTimeout = 10 * time.Second
-)
-
-type binFilterFn func([]byte) bool
-
-// newBinFilterFn returns a binFilterFn with the given range
-func newBinFilterFn(min uint32, max uint32) binFilterFn {
-	return func(input []byte) bool {
-		value := binary.LittleEndian.Uint32(input[:4])
-		return !(value < min || value > max)
-	}
-}
-
-// producer produces for the producer, taking messages from the IPC socket and writing
-// formatting txs to Kafka
+// producer reads from the socket and writes to the event stream
 type producer struct {
 	chainID     ids.ID
 	sock        protocol.Socket
@@ -41,8 +27,8 @@ type producer struct {
 	writer      *kafka.Writer
 }
 
-// newProducer creates a producer using the given config
-func newProducer(conf *cfg.ClientConfig, _ uint32, chainID ids.ID) (backend, error) {
+// NewProducer creates a producer using the given config
+func NewProducer(conf *cfg.ClientConfig, _ uint32, chainID ids.ID) (Processor, error) {
 	p := &producer{
 		chainID:     chainID,
 		binFilterFn: newBinFilterFn(conf.FilterConfig.Min, conf.FilterConfig.Max),
@@ -54,7 +40,6 @@ func newProducer(conf *cfg.ClientConfig, _ uint32, chainID ids.ID) (backend, err
 		return nil, err
 	}
 
-	fmt.Println("kafka brokers:", conf.KafkaConfig.Brokers)
 	p.writer = kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  conf.KafkaConfig.Brokers,
 		Topic:    chainID.String(),
@@ -66,13 +51,12 @@ func newProducer(conf *cfg.ClientConfig, _ uint32, chainID ids.ID) (backend, err
 
 // Close shuts down the producer
 func (p *producer) Close() error {
-	p.writer.Close()
-	return nil
+	return p.writer.Close()
 }
 
-// ProcessNextMessage takes in a message from the IPC socket and writes it to
+// ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *producer) ProcessNextMessage() (*message, error) {
+func (p *producer) ProcessNextMessage() (*Message, error) {
 	// Get bytes from IPC
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
@@ -84,14 +68,14 @@ func (p *producer) ProcessNextMessage() (*message, error) {
 		return nil, nil
 	}
 
-	// Create a message object
-	msg := &message{
+	// Create a Message object
+	msg := &Message{
 		id:      ids.NewID(hashing.ComputeHash256Array(rawMsg)),
 		chainID: p.chainID,
 		body:    record.Marshal(rawMsg),
 	}
 
-	// Send message to Kafka
+	// Send Message to Kafka
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
 	defer cancelFn()
 	err = p.writer.WriteMessages(ctx, kafka.Message{
@@ -102,8 +86,35 @@ func (p *producer) ProcessNextMessage() (*message, error) {
 		return nil, err
 	}
 
-	fmt.Println("Wrote message to Kafka:", msg.id.String())
-	fmt.Println(rawMsg)
-
 	return msg, err
+}
+
+// createIPCSocket creates a new socket connection to the configured IPC URL
+func createIPCSocket(url string) (protocol.Socket, error) {
+	// Create and open a connection to the IPC socket
+	sock, err := sub.NewSocket()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = sock.Dial(url); err != nil {
+		return nil, err
+	}
+
+	// Subscribe to all topics
+	if err = sock.SetOption(mangos.OptionSubscribe, []byte("")); err != nil {
+		return nil, err
+	}
+
+	return sock, nil
+}
+
+type binFilterFn func([]byte) bool
+
+// newBinFilterFn returns a binFilterFn with the given range
+func newBinFilterFn(min uint32, max uint32) binFilterFn {
+	return func(input []byte) bool {
+		value := binary.LittleEndian.Uint32(input[:4])
+		return !(value < min || value > max)
+	}
 }

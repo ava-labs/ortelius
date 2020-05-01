@@ -1,32 +1,18 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package client
+package stream
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/segmentio/kafka-go"
+
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/client/record"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/avm_index"
-	"github.com/segmentio/kafka-go"
-)
-
-var (
-	// defaultKafkaReadTimeout is the amount of time to wait for a Kafka message
-	// before hanging up
-	defaultKafkaReadTimeout = 1 * time.Minute
-
-	// ErrTopicPtrNil is returned when Kafka gives us a nil topic pointer
-	ErrTopicPtrNil = errors.New("topic pointer is nil")
-
-	// ErrTimeTooFar is returned when encountering a timestamp too far in the
-	// future for us to handle internally.
-	ErrTimeTooFar = errors.New("timestamp too far in the future")
+	"github.com/ava-labs/ortelius/stream/record"
 )
 
 // consumer takes events from Kafka and sends them to a service
@@ -35,8 +21,8 @@ type consumer struct {
 	service services.FanOutService
 }
 
-// newConsumer creates an consumer for the given config
-func newConsumer(conf *cfg.ClientConfig, networkID uint32, chainID ids.ID) (backend, error) {
+// NewConsumer creates a consumer for the given config
+func NewConsumer(conf *cfg.ClientConfig, networkID uint32, chainID ids.ID) (Processor, error) {
 	var (
 		err error
 		c   = &consumer{}
@@ -65,8 +51,8 @@ func (c *consumer) Close() error {
 	return c.reader.Close()
 }
 
-// ProcessNextMessage waits for a new message and adds it to the services
-func (c *consumer) ProcessNextMessage() (*message, error) {
+// ProcessNextMessage waits for a new Message and adds it to the services
+func (c *consumer) ProcessNextMessage() (*Message, error) {
 	msg, err := getNextMessage(c.reader)
 	if err != nil {
 		return nil, err
@@ -74,9 +60,9 @@ func (c *consumer) ProcessNextMessage() (*message, error) {
 	return msg, c.service.Add(msg)
 }
 
-// getNextMessage gets the next message from the Kafka consumer
-func getNextMessage(r *kafka.Reader) (*message, error) {
-	// Get raw message from Kafka
+// getNextMessage gets the next Message from the Kafka consumer
+func getNextMessage(r *kafka.Reader) (*Message, error) {
+	// Get raw Message from Kafka
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
 	defer cancelFn()
 
@@ -91,7 +77,7 @@ func getNextMessage(r *kafka.Reader) (*message, error) {
 		return nil, err
 	}
 
-	// Extract message ID from key
+	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
 		return nil, err
@@ -103,7 +89,7 @@ func getNextMessage(r *kafka.Reader) (*message, error) {
 		return nil, err
 	}
 
-	return &message{
+	return &Message{
 		id:        id,
 		chainID:   chainID,
 		body:      body,
