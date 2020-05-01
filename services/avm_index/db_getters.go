@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
@@ -240,13 +241,15 @@ func (r *DB) ListTransactions(params *ListTransactionsParams) (*TransactionList,
 	db := r.newSession("get_transactions")
 
 	columns := []string{"avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at", "avm_transactions.json_serialization AS raw_message"}
+	scoreExpression, err := r.newScoreExpressionForFields(params.Query, []string{
+		"avm_transactions.id",
+	}...)
+	if err != nil {
+		return nil, err
+	}
 
 	if params.Query != "" {
-		scoreColumn, err := r.newScoreColumnString("avm_transactions.id", params.Query)
-		if err != nil {
-			return nil, err
-		}
-		columns = append(columns, scoreColumn)
+		columns = append(columns, scoreExpression+" AS score")
 	}
 
 	// Load the base transactions
@@ -256,14 +259,11 @@ func (r *DB) ListTransactions(params *ListTransactionsParams) (*TransactionList,
 		From("avm_transactions").
 		Where("chain_id = ?", r.chainID.String()))
 
-	if params.Query != "" {
-		builder = builder.
-			Where("INSTR(avm_transactions.id, ?) > 0", params.Query).
-			OrderAsc("score")
+	if scoreExpression != "" {
+		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	_, err := builder.Load(&txs)
-	if err != nil {
+	if _, err = builder.Load(&txs); err != nil {
 		return nil, err
 	}
 
@@ -291,12 +291,17 @@ func (r *DB) ListTransactions(params *ListTransactionsParams) (*TransactionList,
 func (r *DB) ListAssets(params *ListAssetsParams) (*AssetList, error) {
 	columns := []string{"avm_assets.*"}
 
+	scoreExpression, err := r.newScoreExpressionForFields(params.Query, []string{
+		"avm_assets.symbol",
+		"avm_assets.name",
+		"avm_assets.id",
+	}...)
+	if err != nil {
+		return nil, err
+	}
+
 	if params.Query != "" {
-		scoreColumn, err := r.newScoreColumnString("avm_assets.id", params.Query)
-		if err != nil {
-			return nil, err
-		}
-		columns = append(columns, scoreColumn)
+		columns = append(columns, scoreExpression+" AS score")
 	}
 
 	db := r.newSession("list_assets")
@@ -306,13 +311,13 @@ func (r *DB) ListAssets(params *ListAssetsParams) (*AssetList, error) {
 		From("avm_assets").
 		Where("chain_id = ?", r.chainID.String()))
 
-	if params.Query != "" {
-		builder = builder.
-			Where("INSTR(avm_assets.id, ?) > 0", builder.Query).
-			OrderAsc("score")
+	if scoreExpression != "" {
+		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	_, err := builder.Load(&assets)
+	if _, err = builder.Load(&assets); err != nil {
+		return nil, err
+	}
 
 	count := uint64(params.Offset) + uint64(len(assets))
 	if len(assets) >= params.Limit {
@@ -345,12 +350,15 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
 	}
 
+	scoreExpression, err := r.newScoreExpressionForFields(params.Query, []string{
+		"avm_output_addresses.address",
+	}...)
+	if err != nil {
+		return nil, err
+	}
+
 	if params.Query != "" {
-		scoreColumn, err := r.newScoreColumnString("avm_output_addresses.address", params.Query)
-		if err != nil {
-			return nil, err
-		}
-		columns = append(columns, scoreColumn)
+		columns = append(columns, scoreExpression+" AS score")
 	}
 
 	addresses := []*Address{}
@@ -363,14 +371,11 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 		Where("avm_transactions.chain_id = ?", r.chainID.String()).
 		GroupBy("avm_output_addresses.address"))
 
-	if params.Query != "" {
-		builder = builder.
-			Where("INSTR(avm_output_addresses.Address, ?) > 0", params.Query).
-			OrderAsc("score")
+	if scoreExpression != "" {
+		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	_, err := builder.Load(&addresses)
-	if err != nil {
+	if _, err = builder.Load(&addresses); err != nil {
 		return nil, err
 	}
 
@@ -397,12 +402,15 @@ func (r *DB) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
 func (r *DB) ListOutputs(params *ListOutputsParams) (*OutputList, error) {
 	columns := []string{"avm_outputs.*"}
 
+	scoreExpression, err := r.newScoreExpressionForFields(params.Query, []string{
+		"avm_outputs.id",
+	}...)
+	if err != nil {
+		return nil, err
+	}
+
 	if params.Query != "" {
-		scoreColumn, err := r.newScoreColumnString("avm_outputs.id", params.Query)
-		if err != nil {
-			return nil, err
-		}
-		columns = append(columns, scoreColumn)
+		columns = append(columns, scoreExpression+" AS score")
 	}
 
 	db := r.newSession("list_transaction_outputs")
@@ -412,15 +420,12 @@ func (r *DB) ListOutputs(params *ListOutputsParams) (*OutputList, error) {
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
 		Where("avm_transactions.chain_id = ?", r.chainID.String()))
 
-	if params.Query != "" {
-		builder = builder.
-			Where("INSTR(avm_outputs.id, ?) > 0", params.Query).
-			OrderAsc("score")
+	if scoreExpression != "" {
+		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
 	outputs := []*Output{}
-	_, err := builder.Load(&outputs)
-	if err != nil {
+	if _, err = builder.Load(&outputs); err != nil {
 		return nil, err
 	}
 
@@ -624,5 +629,20 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 }
 
 func (r *DB) newScoreColumnString(column string, q string) (string, error) {
+	if q == "" {
+		return "", nil
+	}
+
 	return dbr.InterpolateForDialect("INSTR("+column+", ?) AS score", []interface{}{q}, r.db.Dialect)
+}
+
+func (r *DB) newScoreExpressionForFields(q string, fields ...string) (string, error) {
+	if q == "" {
+		return "", nil
+	}
+
+	return dbr.InterpolateForDialect(
+		fmt.Sprintf("INSTR(CONCAT(%s), ?)", strings.Join(fields, ",")),
+		[]interface{}{q},
+		r.db.Dialect)
 }
