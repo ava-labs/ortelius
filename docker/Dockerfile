@@ -5,8 +5,8 @@ RUN apk add git
 
 # Build app
 COPY . .
-RUN go get ./cmd/...
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /opt/orteliusd ./cmd/orteliusd/*.go
+RUN go get ./cmds/...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /opt/orteliusd ./cmds/orteliusd/*.go
 
 # Create base final image
 FROM scratch

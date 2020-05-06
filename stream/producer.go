@@ -28,7 +28,7 @@ type producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf *cfg.ClientConfig, _ uint32, chainID ids.ID) (Processor, error) {
+func NewProducer(conf cfg.ClientConfig, _ uint32, chainID ids.ID) (Processor, error) {
 	p := &producer{
 		chainID:     chainID,
 		binFilterFn: newBinFilterFn(conf.FilterConfig.Min, conf.FilterConfig.Max),

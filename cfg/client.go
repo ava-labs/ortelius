@@ -40,7 +40,7 @@ type FilterConfig struct {
 }
 
 // NewClientConfig returns a *ClientConfig populated with data from the given file
-func NewClientConfig(context string, file string) (*ClientConfig, error) {
+func NewClientConfig(context string, file string) (ClientConfig, error) {
 	// Parse config file with viper and set defaults
 	v, err := getConfigViper(file, map[string]interface{}{
 		configKeysKafkaBrokers: "127.0.0.1:9092",
@@ -50,16 +50,16 @@ func NewClientConfig(context string, file string) (*ClientConfig, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return ClientConfig{}, err
 	}
 
 	common, err := getCommonConfig(v)
 	if err != nil {
-		return nil, err
+		return ClientConfig{}, err
 	}
 
 	// Collect config data into a ClientConfig object
-	return &ClientConfig{
+	return ClientConfig{
 		Common: common,
 
 		Context:      context,

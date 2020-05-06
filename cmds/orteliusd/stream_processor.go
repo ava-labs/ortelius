@@ -20,18 +20,18 @@ var (
 	ErrUnknownStreamProcessorType = errors.New("unknown stream processor type")
 )
 
-type streamProcessorFactory func(*cfg.ClientConfig, uint32, ids.ID) (stream.Processor, error)
+type streamProcessorFactory func(cfg.ClientConfig, uint32, ids.ID) (stream.Processor, error)
 
 // StreamProcessorManager reads or writes from/to the event stream backend
 type StreamProcessorManager struct {
-	conf    *cfg.ClientConfig
+	conf    cfg.ClientConfig
 	factory streamProcessorFactory
 	quitCh  chan struct{}
 	doneCh  chan struct{}
 }
 
 // newStreamProcessorManager creates a new *StreamProcessorManager ready for listening
-func newStreamProcessorManager(conf *cfg.ClientConfig, factory streamProcessorFactory) *StreamProcessorManager {
+func newStreamProcessorManager(conf cfg.ClientConfig, factory streamProcessorFactory) *StreamProcessorManager {
 	return &StreamProcessorManager{
 		conf:    conf,
 		factory: factory,
@@ -54,7 +54,6 @@ func (c *StreamProcessorManager) Listen() error {
 	for chainID := range c.conf.ChainsConfig {
 		backend, err := c.factory(c.conf, c.conf.NetworkID, chainID)
 		if err != nil {
-			log.Error("Initialization error: %s", err.Error())
 			return err
 		}
 		log.Info("Initialized %s with chainID=%s", c.conf.Context, chainID)
