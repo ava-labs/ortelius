@@ -76,7 +76,7 @@ type Output struct {
 	OutputIndex   uint64          `json:"outputIndex"`
 	AssetID       stringID        `json:"assetID"`
 	OutputType    OutputType      `json:"outputType"`
-	Amount        uint64          `json:"amount"`
+	Amount        tokenAmount     `json:"amount"`
 	Locktime      uint64          `json:"locktime"`
 	Threshold     uint64          `json:"threshold"`
 	Addresses     []stringShortID `json:"addresses"`
@@ -110,8 +110,8 @@ type Asset struct {
 	Alias        string `json:"alias"`
 	Denomination uint8  `json:"denomination"`
 
-	CurrentSupply uint64    `json:"currentSupply"`
-	CreatedAt     time.Time `json:"timestamp"`
+	CurrentSupply tokenAmount `json:"currentSupply"`
+	CreatedAt     time.Time   `json:"timestamp"`
 
 	Score uint64 `json:"-"`
 }
@@ -123,10 +123,10 @@ type Address struct {
 	PublicKey        []byte `json:"publicKey"`
 	TransactionCount uint64 `json:"transactionCount"`
 
-	Balance       uint64 `json:"balance"`
-	TotalReceived uint64 `json:"totalReceived"`
-	TotalSent     uint64 `json:"totalSent"`
-	UTXOCount     uint64 `json:"utxoCount"`
+	Balance       tokenAmount `json:"balance"`
+	TotalReceived tokenAmount `json:"totalReceived"`
+	TotalSent     tokenAmount `json:"totalSent"`
+	UTXOCount     uint64      `json:"utxoCount"`
 
 	Score uint64 `json:"-"`
 }

@@ -5,6 +5,8 @@ package avm_index
 
 import "github.com/ava-labs/gecko/ids"
 
+type tokenAmount string
+
 // TransactionType represents a sub class of Transaction
 type TransactionType string
 
@@ -36,5 +38,5 @@ func (rid stringShortID) Equals(oRID stringShortID) bool {
 	return string(rid) == string(oRID)
 }
 
-// AssetTokenCounts maps asset IDs to an amount of tokens of that asset
-type AssetTokenCounts map[stringID]uint64
+// AssetTokenCounts maps asset IDs to a tokenAmount for that asset
+type AssetTokenCounts map[stringID]tokenAmount
