@@ -2,6 +2,7 @@
   "networkID": 12345,
   "logDirectory": "/tmp/ortelius/logs/client",
   "ipcRoot": "ipc:///tmp",
+  "listenAddr": "localhost:8080",
   "chains": {
     "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
       "id": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",

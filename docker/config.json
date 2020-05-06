@@ -1,24 +1,18 @@
 {
-  "ipcURL": "ipc:///tmp/4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH.ipc",
-  "chainID": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
-  "dataType": "avm",
   "networkID": 12345,
-  "logDirectory": "/tmp/ortelius/logs",
-  "filter": {
-    "min": 1073741824,
-    "max": 2147483648
-  },
-  "kafka": {
-    "client.id":          "avm",
-    "group.id":           "0",
-    "enable.idempotence": true,
-    "bootstrap.servers":  "kafka-1:9092,kafka-2:9092"
-  },
-  "redis": {
-    "db": 0,
-    "addr": "redis:6379"
-  },
-  "chainAliases": {
-    "x": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH"
+  "logDirectory": "/tmp/ortelius/logs/client",
+  "ipcRoot": "ipc:///tmp",
+  "listenAddr": "localhost:8080",
+  "chains": {
+    "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
+      "id": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+      "alias": "X",
+      "vmType": "avm"
+    },
+    "11111111111111111111111111111111LpoYY": {
+      "id": "11111111111111111111111111111111LpoYY",
+      "alias": "P",
+      "vmType": "pvm"
+    }
   }
 }
