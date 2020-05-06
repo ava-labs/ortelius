@@ -21,11 +21,11 @@ import (
 )
 
 const (
-	rootCmdUse  = "orteliusd [comamnd] [configuration file]\nex: ortelius producer config.json"
-	rootCmdDesc = "Processor daemons for Ortelius."
+	rootCmdUse  = "orteliusd [command]\nex: orteliusd api"
+	rootCmdDesc = "Daemons for Ortelius."
 
-	apiCmdUse         = "api"
-	apiCmdDescription = "Runs the API damon"
+	apiCmdUse  = "api"
+	apiCmdDesc = "Runs the API daemon"
 
 	streamConsumerCmdUse  = "stream-consumer"
 	streamConsumerCmdDesc = "Runs the stream consumer daemon"
@@ -50,29 +50,36 @@ func main() {
 // Execute runs the root command for ortelius
 func execute() error {
 	var (
-		cmdErr   error
-		runLCCmd = func(lc listenCloser, err error) {
-			if err != nil {
-				cmdErr = err
-			}
-			runListenCloser(lc)
+		runErr     error
+		configFile string
+		rootCmd    = &cobra.Command{
+			Use:   rootCmdUse,
+			Short: rootCmdDesc,
+			Long:  rootCmdDesc,
 		}
-
-		rootCmd = &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc}
 	)
 
+	// Add flags
+	rootCmd.
+		PersistentFlags().
+		StringVarP(&configFile, "config", "c", "config.json", "Config file location")
+
+	// Add commands
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   apiCmdUse,
-		Short: apiCmdDescription,
-		Long:  apiCmdDescription,
+		Short: apiCmdDesc,
+		Long:  apiCmdDesc,
+		Args:  cobra.NoArgs,
 		Run: func(_ *cobra.Command, args []string) {
-			config, err := cfg.NewAPIConfig(append(args, "")[0])
-			if err != nil {
-				cmdErr = err
+			var config cfg.APIConfig
+			var lc listenCloser
+			if config, runErr = cfg.NewAPIConfig(configFile); runErr != nil {
 				return
 			}
-			lc, err := api.NewServer(config)
-			runLCCmd(lc, err)
+			if lc, runErr = api.NewServer(config); runErr != nil {
+				return
+			}
+			runListenCloser(lc)
 		},
 	})
 
@@ -80,26 +87,21 @@ func execute() error {
 		Use:   streamConsumerCmdUse,
 		Short: streamConsumerCmdDesc,
 		Long:  streamConsumerCmdDesc,
-		Run: func(_ *cobra.Command, args []string) {
-			lc, err := getStreamProcessor(stream.NewConsumer, args)
-			runLCCmd(lc, err)
-		},
+		Run:   streamProcessorCmdRunFn(configFile, &runErr, stream.NewConsumer),
 	})
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run: func(_ *cobra.Command, args []string) {
-			lc, err := getStreamProcessor(stream.NewProducer, args)
-			runLCCmd(lc, err)
-		},
+		Run:   streamProcessorCmdRunFn(configFile, &runErr, stream.NewProducer),
 	})
 
+	// Execute the command and return the runErr to the caller
 	if err := rootCmd.Execute(); err != nil {
 		return err
 	}
-	return cmdErr
+	return runErr
 }
 
 // runListenCloser runs the listenCloser until signaled to stop
@@ -122,13 +124,13 @@ func runListenCloser(lc listenCloser) {
 	}
 }
 
-// getStreamProcessor gets a StreamProcessor as a listenCloser based on the cmd
-// arguments
-func getStreamProcessor(factory streamProcessorFactory, args []string) (listenCloser, error) {
-	config, err := cfg.NewClientConfig("", append(args, "")[0])
-	if err != nil {
-		return nil, err
+func streamProcessorCmdRunFn(configFile string, runErr *error, factory streamProcessorFactory) func(_ *cobra.Command, _ []string) {
+	return func(_ *cobra.Command, _ []string) {
+		config, err := cfg.NewClientConfig("", configFile)
+		if err != nil {
+			*runErr = err
+			return
+		}
+		runListenCloser(newStreamProcessorManager(config, factory))
 	}
-
-	return newStreamProcessorManager(config, factory), nil
 }

@@ -22,7 +22,7 @@ type consumer struct {
 }
 
 // NewConsumer creates a consumer for the given config
-func NewConsumer(conf *cfg.ClientConfig, networkID uint32, chainID ids.ID) (Processor, error) {
+func NewConsumer(conf cfg.ClientConfig, networkID uint32, chainID ids.ID) (Processor, error) {
 	var (
 		err error
 		c   = &consumer{}
