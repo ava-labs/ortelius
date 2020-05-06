@@ -33,11 +33,6 @@ var (
 	defaultCommon = map[string]interface{}{
 		configKeysNetworkID:   12345,
 		configKeyLogDirectory: "/tmp/ortelius/logs",
-		configKeysRedis: map[string]interface{}{
-			"addr":     "127.0.0.1:6379",
-			"database": 0,
-			"password": "",
-		},
 		configKeysDB: map[string]interface{}{
 			"driver": "mysql",
 			"dsn":    "root:password@tcp(127.0.0.1:3306)/ortelius_dev",
