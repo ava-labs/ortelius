@@ -1,0 +1,16 @@
+version: '3'
+services:
+  stream-producer: &ortelius-app
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    command: ["stream-producer", "/config.json"]
+    volumes:
+      - /tmp:/tmp
+      - ./config.json:/config.json
+  stream-consumer:
+    <<: *ortelius-app
+    command: ["stream-consumer", "/config.json"]
+  api:
+    <<: *ortelius-app
+    command: ["api", "/config.json"]
