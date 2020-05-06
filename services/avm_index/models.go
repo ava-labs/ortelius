@@ -99,7 +99,6 @@ type OutputAddress struct {
 	Signature []byte        `json:"signature"`
 	CreatedAt time.Time     `json:"timestamp"`
 	PublicKey []byte        `json:"-"`
-	// Signature          []byte         `json:"signature"`
 }
 
 type Asset struct {
