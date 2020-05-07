@@ -161,6 +161,10 @@ func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
 		Where("avm_outputs.created_at >= ?", params.StartTime).
 		Where("avm_outputs.created_at < ?", params.EndTime)
 
+	if params.AssetID != nil {
+		builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
+	}
+
 	if requestedIntervalCount > 0 {
 		builder.
 			GroupBy("idx").
