@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ const (
 
 var (
 	ErrAggregateIntervalCountTooLarge = errors.New("requesting too many intervals")
+	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
 )
 
 func (r *DB) Search(params SearchParams) (*SearchResults, error) {
@@ -121,7 +123,7 @@ func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
 	}
 
 	// Ensure the interval count requested isn't too large
-	intervalSeconds := int(params.IntervalSize.Seconds())
+	intervalSeconds := int64(params.IntervalSize.Seconds())
 	requestedIntervalCount := 0
 	if intervalSeconds != 0 {
 		requestedIntervalCount = int(math.Ceil(params.EndTime.Sub(params.StartTime).Seconds() / params.IntervalSize.Seconds()))
@@ -133,7 +135,7 @@ func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
 		}
 	}
 
-	// Build the query
+	// Build the query and load the base data
 	db := r.newSession("get_transaction_aggregates_histogram")
 
 	columns := []string{
@@ -166,72 +168,88 @@ func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
 			Limit(uint64(requestedIntervalCount))
 	}
 
-	// Load data. Intervals without any data will not return anything so we pad
-	// our results with empty counts so we're always returning every requested
-	// interval. In production this should have rarely if ever but will be common
-	// in testing/dev/staging scenarios.
-	//
-	// We also add the start and end times of each interval to that interval
 	intervals := []Aggregates{}
 	_, err := builder.Load(&intervals)
 	if err != nil {
 		return nil, err
 	}
 
-	aggs := &AggregatesHistogram{
-		IntervalSize: params.IntervalSize,
-	}
-
-	// If no intervals were requested we're done
+	// If no intervals were requested then the total aggregate is equal to the
+	// first (and only) interval, and we're done
 	if requestedIntervalCount == 0 {
+		// This check should never fail if the SQL query is correct, but added for
+		// robustness to prevent panics if the invariant does not hold.
 		if len(intervals) > 0 {
-			aggs.Aggregates = intervals[0]
+			intervals[0].StartTime = params.StartTime
+			intervals[0].EndTime = params.EndTime
+			return &AggregatesHistogram{Aggregates: intervals[0]}, nil
 		}
-		return aggs, nil
+		return &AggregatesHistogram{}, nil
 	}
 
-	// Collect the overall counts and pad the intervals to include empty intervals
-	// which are not returned by the db
-	aggs.Aggregates = Aggregates{
-		StartTime: params.StartTime,
-		EndTime:   params.EndTime,
-	}
+	// We need to return multiple intervals so build them now.
+	// Intervals without any data will not return anything so we pad our results
+	// with empty aggregates.
+	//
+	// We also add the start and end times of each interval to that interval
+	aggs := &AggregatesHistogram{IntervalSize: params.IntervalSize}
 
-	formatInterval := func(iAgg Aggregates) Aggregates {
+	var startTS int64
+	timesForInterval := func(intervalIdx int) (time.Time, time.Time) {
 		// An interval's start time is its index time the interval size, plus the
-		// starting time. The end time is the interval size - 1 second after the
+		// starting time. The end time is (interval size - 1) seconds after the
 		// start time.
-		startTimeTS := int64(intervalSeconds)*int64(iAgg.Idx) + params.StartTime.Unix()
-		iAgg.StartTime = time.Unix(startTimeTS, 0).UTC()
-		iAgg.EndTime = time.Unix(startTimeTS+int64(intervalSeconds)-1, 0).UTC()
-
-		// Add to the overall count
-		aggs.Aggregates.TransactionCount += iAgg.TransactionCount
-		aggs.Aggregates.TransactionVolume += iAgg.TransactionVolume
-		aggs.Aggregates.OutputCount += iAgg.OutputCount
-		aggs.Aggregates.AddressCount += iAgg.AddressCount
-		aggs.Aggregates.AssetCount += iAgg.AssetCount
-
-		return iAgg
+		startTS = params.StartTime.Unix() + (int64(intervalIdx) * intervalSeconds)
+		return time.Unix(startTS, 0).UTC(),
+			time.Unix(startTS+intervalSeconds-1, 0).UTC()
 	}
 
 	padTo := func(slice []Aggregates, to int) []Aggregates {
-		for len(slice) < to {
-			slice = append(slice, formatInterval(Aggregates{
-				Idx: len(slice),
-			}))
+		for i := len(slice); i < to; i = len(slice) {
+			slice = append(slice, Aggregates{Idx: i})
+			slice[i].StartTime, slice[i].EndTime = timesForInterval(i)
 		}
 		return slice
 	}
 
+	// Collect the overall counts and pad the intervals to include empty intervals
+	// which are not returned by the db
+	aggs.Aggregates = Aggregates{StartTime: params.StartTime, EndTime: params.EndTime}
+	var (
+		bigIntFromStringOK bool
+		totalVolume        = big.NewInt(0)
+		intervalVolume     = big.NewInt(0)
+	)
+
 	// Add each interval, but first pad up to that interval's index
 	aggs.Intervals = make([]Aggregates, 0, requestedIntervalCount)
 	for _, interval := range intervals {
+		// Pad up to this interval's position
 		aggs.Intervals = padTo(aggs.Intervals, interval.Idx)
-		aggs.Intervals = append(aggs.Intervals, formatInterval(interval))
-	}
 
-	// Add missing trailing intervals
+		// Format this interval
+		interval.StartTime, interval.EndTime = timesForInterval(interval.Idx)
+
+		// Parse volume into a big.Int
+		_, bigIntFromStringOK = intervalVolume.SetString(string(interval.TransactionVolume), 10)
+		if !bigIntFromStringOK {
+			return nil, ErrFailedToParseStringAsBigInt
+		}
+
+		// Add to the overall aggregates counts
+		totalVolume.Add(totalVolume, intervalVolume)
+		aggs.Aggregates.TransactionCount += interval.TransactionCount
+		aggs.Aggregates.OutputCount += interval.OutputCount
+		aggs.Aggregates.AddressCount += interval.AddressCount
+		aggs.Aggregates.AssetCount += interval.AssetCount
+
+		// Add to the list of intervals
+		aggs.Intervals = append(aggs.Intervals, interval)
+	}
+	// Add total aggregated token amounts
+	aggs.Aggregates.TransactionVolume = tokenAmount(totalVolume.String())
+
+	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
 
 	return aggs, nil
