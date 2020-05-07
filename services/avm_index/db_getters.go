@@ -520,7 +520,7 @@ func (r *DB) getTransactionCountSince(db *dbr.Session, minutes uint64, assetID i
 func (r *DB) getFirstTransactionTime() (time.Time, error) {
 	var ts int64
 	err := r.newSession("get_first_transaction_time").
-		Select("UNIX_TIMESTAMP(MIN(created_at))").
+		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions").
 		LoadOne(&ts)
 	if err != nil {
