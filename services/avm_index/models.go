@@ -215,7 +215,7 @@ type Aggregates struct {
 	StartTime time.Time `json:"startTime"`
 	EndTime   time.Time `json:"endTime"`
 
-	TransactionVolume uint64 `json:"transactionVolume"`
+	TransactionVolume tokenAmount `json:"transactionVolume"`
 
 	TransactionCount uint64 `json:"transactionCount"`
 	AddressCount     uint64 `json:"addressCount"`

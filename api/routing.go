@@ -7,8 +7,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ava-labs/ortelius/cfg"
 	"github.com/gocraft/web"
+
+	"github.com/ava-labs/ortelius/cfg"
 )
 
 var (
@@ -74,9 +75,13 @@ func newRouter(conf cfg.APIConfig) (*web.Router, error) {
 		}
 
 		// Create a Router for the chainID and one for the alias if an alias exists
-		createRouterAtPath(chainID.String())
+		if err = createRouterAtPath(chainID.String()); err != nil {
+			return nil, err
+		}
 		if chainConfig.Alias != "" {
-			createRouterAtPath(chainConfig.Alias)
+			if err = createRouterAtPath(chainConfig.Alias); err != nil {
+				return nil, err
+			}
 		}
 	}
 
