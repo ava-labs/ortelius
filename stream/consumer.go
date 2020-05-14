@@ -52,8 +52,8 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage() (*Message, error) {
-	msg, err := getNextMessage(c.reader)
+func (c *consumer) ProcessNextMessage(ctx context.Context) (*Message, error) {
+	msg, err := getNextMessage(ctx, c.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +61,8 @@ func (c *consumer) ProcessNextMessage() (*Message, error) {
 }
 
 // getNextMessage gets the next Message from the Kafka consumer
-func getNextMessage(r *kafka.Reader) (*Message, error) {
+func getNextMessage(ctx context.Context, r *kafka.Reader) (*Message, error) {
 	// Get raw Message from Kafka
-	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
-	defer cancelFn()
-
 	msg, err := r.ReadMessage(ctx)
 	if err != nil {
 		return nil, err

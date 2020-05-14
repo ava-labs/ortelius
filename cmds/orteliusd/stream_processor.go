@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/logging"
+	"github.com/segmentio/kafka-go"
+	"nanomsg.org/go/mangos/v2"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/stream"
@@ -15,6 +19,8 @@ import (
 )
 
 var (
+	streamReadTimeout = 10 * time.Second
+
 	// ErrUnknownStreamProcessorType is returned when encountering a client type with no
 	// known implementation
 	ErrUnknownStreamProcessorType = errors.New("unknown stream processor type")
@@ -60,6 +66,7 @@ func (c *StreamProcessorManager) Listen() error {
 		go startWorker(backend, log, wg, c.quitCh)
 	}
 	wg.Wait()
+	log.Debug("All workers stopped")
 	close(c.doneCh)
 
 	return nil
@@ -75,27 +82,46 @@ func (c *StreamProcessorManager) Close() error {
 // startWorker starts the processing loop for the backend and closes it when
 // finished
 func startWorker(backend stream.Processor, log *logging.Log, wg *sync.WaitGroup, quitCh chan struct{}) {
-	var err error
-	var msg *stream.Message
+	var (
+		err      error
+		msg      *stream.Message
+		ctx      context.Context
+		cancelFn context.CancelFunc
+
+		processNextMessage = func() {
+			ctx, cancelFn = context.WithTimeout(context.Background(), streamReadTimeout)
+			defer cancelFn()
+
+			msg, err = backend.ProcessNextMessage(ctx)
+
+			switch err {
+			case nil:
+				log.Info("Processed message %s on chain %s", msg.ID(), msg.ChainID())
+			case mangos.ErrRecvTimeout:
+				log.Debug("IPC socket timeout")
+			case kafka.RequestTimedOut:
+				log.Debug("Kafka timeout")
+			default:
+				log.Error("Unknown error:", err.Error())
+			}
+		}
+	)
 
 	for {
-		// Handle shutdown when requested
 		select {
+
+		// If a shutdown has been requested then stop now
 		case <-quitCh:
+			log.Debug("Worker shutting down")
 			if err := backend.Close(); err != nil {
 				log.Error("Error closing backend: %s", err.Error())
 			}
 			wg.Done()
 			return
-		default:
-		}
 
-		// Process next message
-		msg, err = backend.ProcessNextMessage()
-		if err != nil {
-			log.Error("Accept error: %s", err.Error())
-			continue
+		// If no shutdown is requested then try to process the next message
+		default:
+			processNextMessage()
 		}
-		log.Info("Processed message %s on chain %s", msg.ID(), msg.ChainID())
 	}
 }

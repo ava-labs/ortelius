@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"path"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/hashing"
@@ -56,8 +57,15 @@ func (p *producer) Close() error {
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *producer) ProcessNextMessage() (*Message, error) {
+func (p *producer) ProcessNextMessage(ctx context.Context) (*Message, error) {
+	deadline, _ := ctx.Deadline()
+
 	// Get bytes from IPC
+	err := p.sock.SetOption(mangos.OptionRecvDeadline, deadline.Sub(time.Now()))
+	if err != nil {
+		return nil, err
+	}
+
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
 		return nil, err
@@ -76,8 +84,6 @@ func (p *producer) ProcessNextMessage() (*Message, error) {
 	}
 
 	// Send Message to Kafka
-	ctx, cancelFn := context.WithTimeout(context.Background(), defaultKafkaReadTimeout)
-	defer cancelFn()
 	err = p.writer.WriteMessages(ctx, kafka.Message{
 		Value: msg.body,
 		Key:   msg.id.Bytes(),

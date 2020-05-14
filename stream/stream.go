@@ -4,21 +4,14 @@
 package stream
 
 import (
-	"time"
+	"context"
 
 	"github.com/ava-labs/gecko/ids"
 )
 
-var (
-	// defaultKafkaReadTimeout is the amount of time to wait for a Kafka Message
-	// before hanging up
-	defaultKafkaReadTimeout  = 1 * time.Minute
-	defaultKafkaWriteTimeout = 10 * time.Second
-)
-
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
-	ProcessNextMessage() (*Message, error)
+	ProcessNextMessage(context.Context) (*Message, error)
 	Close() error
 }
 
