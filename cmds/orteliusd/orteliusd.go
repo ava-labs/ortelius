@@ -4,6 +4,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -34,6 +35,10 @@ const (
 	streamProducerCmdDesc = "Runs the stream producer daemon"
 )
 
+type params struct {
+	configFile string
+}
+
 // listenCloser listens for messages until it's asked to close
 type listenCloser interface {
 	Listen() error
@@ -50,30 +55,20 @@ func main() {
 // Execute runs the root command for ortelius
 func execute() error {
 	var (
-		runErr     error
-		configFile string
-		rootCmd    = &cobra.Command{
-			Use:   rootCmdUse,
-			Short: rootCmdDesc,
-			Long:  rootCmdDesc,
-		}
+		runErr  error
+		rootCmd = &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc}
+		params  = parseParams(rootCmd)
 	)
-
-	// Add flags
-	rootCmd.
-		PersistentFlags().
-		StringVarP(&configFile, "config", "c", "config.json", "Config file location")
 
 	// Add commands
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   apiCmdUse,
 		Short: apiCmdDesc,
 		Long:  apiCmdDesc,
-		Args:  cobra.NoArgs,
 		Run: func(_ *cobra.Command, args []string) {
 			var config cfg.APIConfig
 			var lc listenCloser
-			if config, runErr = cfg.NewAPIConfig(configFile); runErr != nil {
+			if config, runErr = cfg.NewAPIConfig(params.configFile); runErr != nil {
 				return
 			}
 			if lc, runErr = api.NewServer(config); runErr != nil {
@@ -87,14 +82,14 @@ func execute() error {
 		Use:   streamConsumerCmdUse,
 		Short: streamConsumerCmdDesc,
 		Long:  streamConsumerCmdDesc,
-		Run:   streamProcessorCmdRunFn(configFile, &runErr, stream.NewConsumer),
+		Run:   streamProcessorCmdRunFn(params.configFile, &runErr, stream.NewConsumer),
 	})
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   streamProcessorCmdRunFn(configFile, &runErr, stream.NewProducer),
+		Run:   streamProcessorCmdRunFn(params.configFile, &runErr, stream.NewProducer),
 	})
 
 	// Execute the command and return the runErr to the caller
@@ -102,6 +97,22 @@ func execute() error {
 		return err
 	}
 	return runErr
+}
+
+func parseParams(cmd *cobra.Command) (p params) {
+	cmd.
+		PersistentFlags().
+		StringVarP(&p.configFile, "config", "c", "config.json", "Config file location")
+
+	switch cmd.PersistentFlags().Parse(os.Args[2:]) {
+	case flag.ErrHelp:
+		os.Exit(0)
+	case nil:
+	default:
+		os.Exit(0)
+	}
+
+	return p
 }
 
 // runListenCloser runs the listenCloser until signaled to stop
