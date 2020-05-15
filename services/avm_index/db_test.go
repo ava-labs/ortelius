@@ -15,6 +15,7 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/models"
 )
 
 type message struct {
@@ -123,14 +124,14 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	var (
-		txID          = toStringID(ids.NewID([32]byte{102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237}))
+		txID          = models.ToStringID(ids.NewID([32]byte{102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237}))
 		createAssetTx = []byte{0, 3, 65, 86, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 65, 86, 65, 0, 3, 65, 86, 65, 9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 159, 223, 66, 246, 228, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}
 	)
 
 	db := idx.db.newSession("test_index_bootstrap")
 	assertAllTransactionsCorrect(t, db, []Transaction{{
 		ID:                     txID,
-		ChainID:                toStringID(testXChainID),
+		ChainID:                models.ToStringID(testXChainID),
 		CanonicalSerialization: createAssetTx,
 		CreatedAt:              time.Unix(1572566400, 0),
 	}})
@@ -147,7 +148,7 @@ func TestIndexVectors(t *testing.T) {
 	assertAllOutputsCorrect(t, db, nil)
 
 	// Add each test vector tx
-	acc := services.FanOutService{idx}
+	acc := services.FanOutIndexer{idx}
 	for i, v := range createTestVectors() {
 		err := acc.Add(&message{
 			id:        ids.NewID(hashing.ComputeHash256Array(v.serializedTx)),
@@ -192,7 +193,7 @@ func assertCorrectTransaction(t *testing.T, expected, actual Transaction) {
 		t.Fatal("Wrong id:", actual.ID)
 	}
 
-	if !actual.ChainID.Equals(toStringID(testXChainID)) {
+	if !actual.ChainID.Equals(models.ToStringID(testXChainID)) {
 		t.Fatal("Wrong chain id:", actual.ChainID)
 	}
 
@@ -236,7 +237,7 @@ func assertCorrectOutput(t *testing.T, expected, actual Output) {
 		t.Fatal("Wrong Output index:", actual.OutputIndex)
 	}
 
-	if !actual.AssetID.Equals(toStringID(testAVAAssetID)) {
+	if !actual.AssetID.Equals(models.ToStringID(testAVAAssetID)) {
 		t.Fatal("Wrong Asset id:", actual.AssetID)
 	}
 

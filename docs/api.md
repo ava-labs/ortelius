@@ -61,11 +61,11 @@ The transaction object
 
 #### Params:
 
-`startTime` - The time to start calculating from. Defaults to the time of the first known transaction. Valid values are unix timestamps (in seconds) or RFC3339 datetime strings.
+`startTime` - The Time to start calculating from. Defaults to the Time of the first known transaction. Valid values are unix timestamps (in seconds) or RFC3339 datetime strings.
 
-`endTime` - The time to end calculating to. Defaults to the current time. Valid values are unix timestamps (in seconds) or RFC3339 datetime strings.
+`endTime` - The Time to end calculating to. Defaults to the current Time. Valid values are unix timestamps (in seconds) or RFC3339 datetime strings.
 
-`intervalSize` - If given, a list of intervals of the given size from startTime to endTime will be returned, with the aggregates for each interval. Valid values are `minute`, `hour`, `day`, `week`, `month`, `year`, or a valid Go duration string as described here: https://golang.org/pkg/time/#ParseDuration 
+`intervalSize` - If given, a list of intervals of the given size from startTime to endTime will be returned, with the aggregates for each interval. Valid values are `minute`, `hour`, `day`, `week`, `month`, `year`, or a valid Go duration string as described here: https://golang.org/pkg/Time/#ParseDuration 
 
 #### Response:
 

@@ -142,6 +142,13 @@ func streamProcessorCmdRunFn(configFile string, runErr *error, factory streamPro
 			*runErr = err
 			return
 		}
-		runListenCloser(newStreamProcessorManager(config, factory))
+
+		processor, err := newStreamProcessorManager(config, factory)
+		if err != nil {
+			*runErr = err
+			return
+		}
+
+		runListenCloser(processor)
 	}
 }

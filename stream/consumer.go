@@ -12,31 +12,37 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/avm_index"
+	"github.com/ava-labs/ortelius/services/pvm_index"
 	"github.com/ava-labs/ortelius/stream/record"
 )
 
 // consumer takes events from Kafka and sends them to a service
 type consumer struct {
 	reader  *kafka.Reader
-	service services.FanOutService
+	indexer services.Indexer
 }
 
 // NewConsumer creates a consumer for the given config
-func NewConsumer(conf cfg.ClientConfig, networkID uint32, chainID ids.ID) (Processor, error) {
+func NewConsumer(conf cfg.ClientConfig, networkID uint32, chainConfig cfg.ChainConfig) (Processor, error) {
 	var (
 		err error
 		c   = &consumer{}
 	)
 
 	// Create service backend
-	c.service, err = createServices(conf.ServiceConfig, networkID, chainID)
+	c.indexer, err = createIndexer(conf.ServiceConfig, networkID, chainConfig)
 	if err != nil {
+		return nil, err
+	}
+
+	// Bootstrap our index
+	if err = c.indexer.Bootstrap(); err != nil {
 		return nil, err
 	}
 
 	// Create reader for the topic
 	c.reader = kafka.NewReader(kafka.ReaderConfig{
-		Topic:    chainID.String(),
+		Topic:    chainConfig.ID.String(),
 		Brokers:  conf.KafkaConfig.Brokers,
 		GroupID:  conf.KafkaConfig.GroupName,
 		MinBytes: 10e3, // 10KB
@@ -57,7 +63,7 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	return msg, c.service.Add(msg)
+	return msg, c.indexer.Index(msg)
 }
 
 // getNextMessage gets the next Message from the Kafka consumer
@@ -90,21 +96,18 @@ func getNextMessage(ctx context.Context, r *kafka.Reader) (*Message, error) {
 		id:        id,
 		chainID:   chainID,
 		body:      body,
-		timestamp: uint64(msg.Time.UTC().Unix()),
+		timestamp: msg.Time.UTC().Unix(),
 	}, nil
 }
 
-func createServices(conf cfg.ServiceConfig, networkID uint32, chainID ids.ID) (services.FanOutService, error) {
-	// Create and bootstrap an AVMIndex
-	avmIndex, err := avm_index.New(conf, networkID, chainID)
-	if err != nil {
-		return nil, err
+func createIndexer(conf cfg.ServiceConfig, networkID uint32, chainConfig cfg.ChainConfig) (indexer services.Indexer, err error) {
+	switch chainConfig.VMType {
+	case avm_index.VMName:
+		indexer, err = avm_index.New(conf, networkID, chainConfig.ID)
+	case pvm_index.VMName:
+		indexer, err = pvm_index.New(conf, networkID, chainConfig.ID)
+	default:
+		return nil, ErrUnknownVM
 	}
-
-	err = avmIndex.Bootstrap()
-	if err != nil {
-		return nil, err
-	}
-
-	return services.FanOutService{avmIndex}, nil
+	return indexer, err
 }

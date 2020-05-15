@@ -29,21 +29,21 @@ type producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.ClientConfig, _ uint32, chainID ids.ID) (Processor, error) {
+func NewProducer(conf cfg.ClientConfig, _ uint32, chainConfig cfg.ChainConfig) (Processor, error) {
 	p := &producer{
-		chainID:     chainID,
+		chainID:     chainConfig.ID,
 		binFilterFn: newBinFilterFn(conf.FilterConfig.Min, conf.FilterConfig.Max),
 	}
 
 	var err error
-	p.sock, err = createIPCSocket("ipc://" + path.Join(conf.IPCRoot, chainID.String()) + ".ipc")
+	p.sock, err = createIPCSocket("ipc://" + path.Join(conf.IPCRoot, chainConfig.ID.String()) + ".ipc")
 	if err != nil {
 		return nil, err
 	}
 
 	p.writer = kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  conf.KafkaConfig.Brokers,
-		Topic:    chainID.String(),
+		Topic:    chainConfig.ID.String(),
 		Balancer: &kafka.LeastBytes{},
 	})
 

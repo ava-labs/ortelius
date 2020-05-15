@@ -8,6 +8,8 @@ import (
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/go-redis/redis"
+
+	"github.com/ava-labs/ortelius/services"
 )
 
 // RecentTxsSize is the number of transactions we want to keep cached in the
@@ -32,16 +34,16 @@ func NewRedisIndex(client *redis.Client, chainID ids.ID) *Redis {
 }
 
 // AddTx ingests a Transaction and adds it to the services
-func (r *Redis) AddTx(txID ids.ID, body []byte) error {
+func (r *Redis) Index(i services.Indexable) error {
 	var (
 		pipe = r.client.TxPipeline()
 
-		txByIDKey    = redisIndexKeysTxByID(r.chainID, txID)
+		txByIDKey    = redisIndexKeysTxByID(r.chainID, i.ID())
 		txCountKey   = redisIndexKeysTxCount(r.chainID)
 		recentTxsKey = redisIndexKeysRecentTxs(r.chainID)
 	)
 
-	if err := pipe.Set(txByIDKey, body, 0).Err(); err != nil {
+	if err := pipe.Set(txByIDKey, i.Body(), 0).Err(); err != nil {
 		return err
 	}
 
@@ -49,7 +51,7 @@ func (r *Redis) AddTx(txID ids.ID, body []byte) error {
 		return err
 	}
 
-	if err := pipe.LPush(recentTxsKey, txID.String()).Err(); err != nil {
+	if err := pipe.LPush(recentTxsKey, i.ID().String()).Err(); err != nil {
 		return err
 	}
 

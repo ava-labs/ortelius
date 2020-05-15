@@ -4,8 +4,6 @@
 package avm_index
 
 import (
-	"errors"
-
 	"github.com/ava-labs/gecko/database"
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
@@ -15,11 +13,13 @@ import (
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/vms/avm"
 	"github.com/ava-labs/gecko/vms/nftfx"
+	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/models"
 )
 
 func init() {
@@ -29,7 +29,6 @@ func init() {
 type Index struct {
 	networkID uint32
 	chainID   ids.ID
-	vm        *avm.VM
 	db        *DB
 	cache     *Redis
 }
@@ -49,31 +48,41 @@ func newForConnections(conns *services.Connections, networkID uint32, chainID id
 	}
 
 	return &Index{
-		vm:        vm,
 		networkID: networkID,
 		chainID:   chainID,
 		db:        NewDB(conns.Stream(), conns.DB(), chainID, vm.Codec()),
 	}, nil
 }
 
-func (i *Index) Add(ingestable services.Ingestable) error {
-	// Parse into a tx
-	snowstormTx, err := i.vm.ParseTx(ingestable.Body())
+func (i *Index) Bootstrap() error {
+	platformGenesisBytes, err := genesis.Genesis(i.networkID)
 	if err != nil {
 		return err
 	}
 
-	tx, ok := snowstormTx.(*avm.UniqueTx)
-	if !ok {
-		return errors.New("tx must be an UniqueTx")
+	platformGenesis := &platformvm.Genesis{}
+	if err = platformvm.Codec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+		return err
+	}
+	if err = platformGenesis.Initialize(); err != nil {
+		return err
 	}
 
-	if err := i.db.AddTx(tx, ingestable.Timestamp(), ingestable.Body()); err != nil {
+	for _, chain := range platformGenesis.Chains {
+		if chain.VMID.Equals(avm.ID) {
+			return i.bootstrap(chain.GenesisData)
+		}
+	}
+	return nil
+}
+
+func (i *Index) Index(ingestable services.Indexable) error {
+	if err := i.db.Index(ingestable); err != nil {
 		return err
 	}
 
 	if i.cache != nil {
-		if err := i.cache.AddTx(ingestable.ID(), ingestable.Body()); err != nil {
+		if err := i.cache.Index(ingestable); err != nil {
 			return err
 		}
 	}
@@ -82,8 +91,8 @@ func (i *Index) Add(ingestable services.Ingestable) error {
 
 }
 
-func (i *Index) GetChainInfo(alias string, networkID uint32) (*ChainInfo, error) {
-	return &ChainInfo{
+func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo, error) {
+	return &models.ChainInfo{
 		ID:        i.chainID,
 		Alias:     alias,
 		NetworkID: networkID,
@@ -166,6 +175,10 @@ func (i *Index) GetOutput(id ids.ID) (*Output, error) {
 		return outputList.Outputs[0], nil
 	}
 	return nil, err
+}
+
+func (i *Index) bootstrap(genesisBytes []byte) error {
+	return i.db.bootstrap(genesisBytes)
 }
 
 // newAVM creates an producer instance that we can use to parse txs
