@@ -24,7 +24,7 @@ const (
 	txDBDriverName = "txdb"
 )
 
-func New(stream *health.Stream, conf cfg.DBConfig) (*dbr.Connection, error) {
+func New(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
 	var (
 		err error
 
@@ -70,7 +70,7 @@ func New(stream *health.Stream, conf cfg.DBConfig) (*dbr.Connection, error) {
 
 var registerTxDBOnce = sync.Once{}
 
-func registerTxDB(c cfg.DBConfig) {
+func registerTxDB(c cfg.DB) {
 	registerTxDBOnce.Do(func() {
 		txdb.Register(txDBDriverName, c.Driver, c.DSN)
 	})

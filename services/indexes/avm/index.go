@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
 	"github.com/ava-labs/gecko/database"
@@ -28,12 +28,12 @@ func init() {
 
 type Index struct {
 	networkID uint32
-	chainID   ids.ID
+	chainID   string
 	db        *DB
 	cache     *Redis
 }
 
-func New(conf cfg.ServiceConfig, networkID uint32, chainID ids.ID) (*Index, error) {
+func New(conf cfg.Services, networkID uint32, chainID string) (*Index, error) {
 	conns, err := services.NewConnectionsFromConfig(conf)
 	if err != nil {
 		return nil, err
@@ -41,8 +41,13 @@ func New(conf cfg.ServiceConfig, networkID uint32, chainID ids.ID) (*Index, erro
 	return newForConnections(conns, networkID, chainID)
 }
 
-func newForConnections(conns *services.Connections, networkID uint32, chainID ids.ID) (*Index, error) {
-	vm, err := newAVM(chainID, networkID)
+func newForConnections(conns *services.Connections, networkID uint32, chainID string) (*Index, error) {
+	id, err := ids.FromString(chainID)
+	if err != nil {
+		return nil, err
+	}
+
+	vm, err := newAVM(id, networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +58,8 @@ func newForConnections(conns *services.Connections, networkID uint32, chainID id
 		db:        NewDB(conns.Stream(), conns.DB(), chainID, vm.Codec()),
 	}, nil
 }
+
+func (i *Index) Name() string { return "avm-index" }
 
 func (i *Index) Bootstrap() error {
 	platformGenesisBytes, err := genesis.Genesis(i.networkID)
@@ -76,7 +83,7 @@ func (i *Index) Bootstrap() error {
 	return nil
 }
 
-func (i *Index) Index(ingestable services.Indexable) error {
+func (i *Index) Consume(ingestable services.Consumable) error {
 	if err := i.db.Index(ingestable); err != nil {
 		return err
 	}
@@ -93,7 +100,7 @@ func (i *Index) Index(ingestable services.Indexable) error {
 
 func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo, error) {
 	return &models.ChainInfo{
-		ID:        i.chainID,
+		ID:        models.StringID(i.chainID),
 		Alias:     alias,
 		NetworkID: networkID,
 		VM:        VMName,

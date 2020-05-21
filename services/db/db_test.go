@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewErrors(t *testing.T) {
-	conn, err := New(nil, cfg.DBConfig{
+	conn, err := New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "---",
 	})
@@ -20,7 +20,7 @@ func TestNewErrors(t *testing.T) {
 		t.Fatal("Expected an invalid DSN error")
 	}
 
-	conn, err = New(nil, cfg.DBConfig{
+	conn, err = New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "::a.a.a.a.a.a.a.a::",
 	})
@@ -32,7 +32,7 @@ func TestNewErrors(t *testing.T) {
 		t.Fatal("Expected an invalid URI")
 	}
 
-	conn, err = New(nil, cfg.DBConfig{
+	conn, err = New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "a:b@tcp(1.2.3.4)/foo",
 	})

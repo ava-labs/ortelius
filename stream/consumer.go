@@ -5,51 +5,72 @@ package stream
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/avm_index"
-	"github.com/ava-labs/ortelius/services/pvm_index"
 	"github.com/ava-labs/ortelius/stream/record"
 )
 
-// consumer takes events from Kafka and sends them to a service
+type serviceConsumerFactory func(cfg.Config, uint32, string, string) (services.Consumer, error)
+
+// consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	reader  *kafka.Reader
-	indexer services.Indexer
+	reader   *kafka.Reader
+	consumer services.Consumer
 }
 
-// NewConsumer creates a consumer for the given config
-func NewConsumer(conf cfg.ClientConfig, networkID uint32, chainConfig cfg.ChainConfig) (Processor, error) {
-	var (
-		err error
-		c   = &consumer{}
-	)
+// NewConsumerFactory returns a processorFactory for the given service consumer
+func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
+	return func(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
+		var (
+			err error
+			c   = &consumer{}
+		)
 
-	// Create service backend
-	c.indexer, err = createIndexer(conf.ServiceConfig, networkID, chainConfig)
-	if err != nil {
-		return nil, err
+		// Create consumer backend
+		c.consumer, err = factory(conf, networkID, chainVM, chainID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Bootstrap our service
+		if err = c.consumer.Bootstrap(); err != nil {
+			return nil, err
+		}
+
+		// Setup config
+		groupName := conf.Consumer.GroupName
+		if groupName == "" {
+			groupName = c.consumer.Name()
+		}
+		if !conf.Consumer.StartTime.IsZero() {
+			groupName = ""
+		}
+
+		// Create reader for the topic
+		c.reader = kafka.NewReader(kafka.ReaderConfig{
+			Topic:    chainID,
+			Brokers:  conf.Kafka.Brokers,
+			GroupID:  groupName,
+			MaxBytes: 10e6,
+		})
+
+		// If the start time is set then seek to the correct offset
+		if !conf.Consumer.StartTime.IsZero() {
+			ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(readTimeout))
+			defer cancelFn()
+
+			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
+				return nil, err
+			}
+		}
+
+		return c, nil
 	}
-
-	// Bootstrap our index
-	if err = c.indexer.Bootstrap(); err != nil {
-		return nil, err
-	}
-
-	// Create reader for the topic
-	c.reader = kafka.NewReader(kafka.ReaderConfig{
-		Topic:    chainConfig.ID.String(),
-		Brokers:  conf.KafkaConfig.Brokers,
-		GroupID:  conf.KafkaConfig.GroupName,
-		MinBytes: 10e3, // 10KB
-		MaxBytes: 10e6, // 10MB
-	})
-
-	return c, nil
 }
 
 // Close closes the consumer
@@ -58,15 +79,15 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context) (*Message, error) {
+func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	msg, err := getNextMessage(ctx, c.reader)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return msg, c.indexer.Index(msg)
+	return c.consumer.Consume(msg)
 }
 
-// getNextMessage gets the next Message from the Kafka consumer
+// getNextMessage gets the next Message from the Kafka Indexer
 func getNextMessage(ctx context.Context, r *kafka.Reader) (*Message, error) {
 	// Get raw Message from Kafka
 	msg, err := r.ReadMessage(ctx)
@@ -93,21 +114,9 @@ func getNextMessage(ctx context.Context, r *kafka.Reader) (*Message, error) {
 	}
 
 	return &Message{
-		id:        id,
-		chainID:   chainID,
+		id:        id.String(),
+		chainID:   chainID.String(),
 		body:      body,
 		timestamp: msg.Time.UTC().Unix(),
 	}, nil
-}
-
-func createIndexer(conf cfg.ServiceConfig, networkID uint32, chainConfig cfg.ChainConfig) (indexer services.Indexer, err error) {
-	switch chainConfig.VMType {
-	case avm_index.VMName:
-		indexer, err = avm_index.New(conf, networkID, chainConfig.ID)
-	case pvm_index.VMName:
-		indexer, err = pvm_index.New(conf, networkID, chainConfig.ID)
-	default:
-		return nil, ErrUnknownVM
-	}
-	return indexer, err
 }

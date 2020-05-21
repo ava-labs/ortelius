@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
 	"errors"
@@ -282,7 +282,7 @@ func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, erro
 	builder := p.Apply(db.
 		Select(columns...).
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.String()))
+		Where("chain_id = ?", r.chainID))
 
 	if scoreExpression != "" {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
@@ -298,7 +298,7 @@ func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, erro
 		err = p.Apply(db.
 			Select("COUNT(avm_transactions.id)").
 			From("avm_transactions").
-			Where("chain_id = ?", r.chainID.String())).
+			Where("chain_id = ?", r.chainID)).
 			LoadOne(&count)
 		if err != nil {
 			return nil, err
@@ -334,7 +334,7 @@ func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
 	builder := p.Apply(db.
 		Select(columns...).
 		From("avm_assets").
-		Where("chain_id = ?", r.chainID.String()))
+		Where("chain_id = ?", r.chainID))
 
 	if scoreExpression != "" {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
@@ -350,7 +350,7 @@ func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
 		err = p.Apply(db.
 			Select("COUNT(avm_assets.id)").
 			From("avm_assets").
-			Where("chain_id = ?", r.chainID.String())).
+			Where("chain_id = ?", r.chainID)).
 			LoadOne(&count)
 		if err != nil {
 			return nil, err
@@ -393,7 +393,7 @@ func (r *DB) ListAddresses(p *ListAddressesParams) (*AddressList, error) {
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
 		LeftJoin("avm_outputs", "avm_output_addresses.output_id = avm_outputs.id").
 		LeftJoin("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id").
-		Where("avm_transactions.chain_id = ?", r.chainID.String()).
+		Where("avm_transactions.chain_id = ?", r.chainID).
 		GroupBy("avm_output_addresses.address"))
 
 	if scoreExpression != "" {
@@ -443,7 +443,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 		Select(columns...).
 		From("avm_outputs").
 		LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
-		Where("avm_transactions.chain_id = ?", r.chainID.String()))
+		Where("avm_transactions.chain_id = ?", r.chainID))
 
 	if scoreExpression != "" {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
@@ -490,7 +490,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 			Select("COUNT(avm_outputs.id)").
 			From("avm_outputs").
 			LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
-			Where("avm_transactions.chain_id = ?", r.chainID.String())).
+			Where("avm_transactions.chain_id = ?", r.chainID)).
 			LoadOne(&count)
 		if err != nil {
 			return nil, err
@@ -508,7 +508,7 @@ func (r *DB) getTransactionCountSince(db *dbr.Session, minutes uint64, assetID i
 	builder := db.
 		Select("COUNT(DISTINCT(avm_transactions.id))").
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID.String())
+		Where("chain_id = ?", r.chainID)
 
 	if minutes > 0 {
 		builder = builder.Where("created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)", minutes)

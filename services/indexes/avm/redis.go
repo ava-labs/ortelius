@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
 	"strings"
@@ -22,7 +22,7 @@ const (
 	redisKeyPrefixesRecentTxs = "recent_txs"
 )
 
-// Redis is an Accumulator and Index backed by redis
+// Redis is an Accumulator and Consume backed by redis
 type Redis struct {
 	chainID ids.ID
 	client  *redis.Client
@@ -34,13 +34,13 @@ func NewRedisIndex(client *redis.Client, chainID ids.ID) *Redis {
 }
 
 // AddTx ingests a Transaction and adds it to the services
-func (r *Redis) Index(i services.Indexable) error {
+func (r *Redis) Index(i services.Consumable) error {
 	var (
 		pipe = r.client.TxPipeline()
 
-		txByIDKey    = redisIndexKeysTxByID(r.chainID, i.ID())
-		txCountKey   = redisIndexKeysTxCount(r.chainID)
-		recentTxsKey = redisIndexKeysRecentTxs(r.chainID)
+		txByIDKey    = redisIndexKeysTxByID(r.chainID.String(), i.ID())
+		txCountKey   = redisIndexKeysTxCount(r.chainID.String())
+		recentTxsKey = redisIndexKeysRecentTxs(r.chainID.String())
 	)
 
 	if err := pipe.Set(txByIDKey, i.Body(), 0).Err(); err != nil {
@@ -51,7 +51,7 @@ func (r *Redis) Index(i services.Indexable) error {
 		return err
 	}
 
-	if err := pipe.LPush(recentTxsKey, i.ID().String()).Err(); err != nil {
+	if err := pipe.LPush(recentTxsKey, i.ID()).Err(); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func (r *Redis) Index(i services.Indexable) error {
 
 // GetTransaction returns the bytes for the Transaction with the given ID
 func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
-	cmd := r.client.Get(redisIndexKeysTxByID(r.chainID, txID))
+	cmd := r.client.Get(redisIndexKeysTxByID(r.chainID.String(), txID.String()))
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
 
 // GetTransactionCount returns the number of transactions this Server as seen
 func (r *Redis) GetTxCount() (uint64, error) {
-	cmd := r.client.Get(redisIndexKeysTxCount(r.chainID))
+	cmd := r.client.Get(redisIndexKeysTxCount(r.chainID.String()))
 	if err := cmd.Err(); err != nil {
 		return 0, err
 	}
@@ -83,7 +83,7 @@ func (r *Redis) GetTxCount() (uint64, error) {
 
 // GetRecentTransactions returns a list of the N most recent transactions
 func (r *Redis) GetRecentTransactions(n int64) ([]ids.ID, error) {
-	cmd := r.client.LRange(redisIndexKeysRecentTxs(r.chainID), 0, n-1)
+	cmd := r.client.LRange(redisIndexKeysRecentTxs(r.chainID.String()), 0, n-1)
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
@@ -101,21 +101,21 @@ func (r *Redis) GetRecentTransactions(n int64) ([]ids.ID, error) {
 	return idObjs, nil
 }
 
-func redisIndexKeysTxByID(chainID ids.ID, txID ids.ID) string {
-	return redisIndexKey(chainID, redisKeyPrefixesTxByID, txID.String())
+func redisIndexKeysTxByID(chainID string, txID string) string {
+	return redisIndexKey(chainID, redisKeyPrefixesTxByID, txID)
 }
 
-func redisIndexKeysTxCount(chainID ids.ID) string {
+func redisIndexKeysTxCount(chainID string) string {
 	return redisIndexKey(chainID, redisKeyPrefixesTxCount)
 }
 
-func redisIndexKeysRecentTxs(chainID ids.ID) string {
+func redisIndexKeysRecentTxs(chainID string) string {
 	return redisIndexKey(chainID, redisKeyPrefixesRecentTxs)
 }
 
-func redisIndexKey(chainID ids.ID, keyName string, extra ...string) string {
+func redisIndexKey(chainID string, keyName string, extra ...string) string {
 	return strings.Join(append([]string{
-		chainID.String(),
+		chainID,
 		keyName,
 	}, extra...), "|")
 }

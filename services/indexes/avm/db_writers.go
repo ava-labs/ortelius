@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
 	"errors"
@@ -48,7 +48,7 @@ func (db *DB) bootstrap(genesisBytes []byte) error {
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	ctx := services.NewIndexerContext(job, dbTx, time.Now().Unix())
+	ctx := services.NewConsumerContext(job, dbTx, time.Now().Unix())
 	for _, tx := range avmGenesis.Txs {
 		txBytes, err := db.codec.Marshal(tx)
 		if err != nil {
@@ -64,7 +64,7 @@ func (db *DB) bootstrap(genesisBytes []byte) error {
 }
 
 // AddTx ingests a Transaction and adds it to the services
-func (r *DB) Index(i services.Indexable) error {
+func (r *DB) Index(i services.Consumable) error {
 	job := r.stream.NewJob("index")
 	sess := r.db.NewSession(job)
 
@@ -76,14 +76,14 @@ func (r *DB) Index(i services.Indexable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = r.ingestTx(services.NewIndexerContext(job, dbTx, i.Timestamp()), i.Body())
+	err = r.ingestTx(services.NewConsumerContext(job, dbTx, i.Timestamp()), i.Body())
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (r *DB) ingestTx(ctx services.IndexerCtx, txBytes []byte) error {
+func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Validate that the serializations aren't too long
 	if len(txBytes) > MaxSerializationLen {
 		return ErrSerializationTooLong
@@ -110,7 +110,7 @@ func (r *DB) ingestTx(ctx services.IndexerCtx, txBytes []byte) error {
 	return nil
 }
 
-func (r *DB) ingestCreateAssetTx(ctx services.IndexerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
+func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
 	wrappedTxBytes, err := r.codec.Marshal(&avm.Tx{UnsignedTx: tx})
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.IndexerCtx, txBytes []byte, tx *av
 	_, err = ctx.DB().
 		InsertInto("avm_assets").
 		Pair("id", txID.String()).
-		Pair("chain_Id", r.chainID.String()).
+		Pair("chain_Id", r.chainID).
 		Pair("name", tx.Name).
 		Pair("symbol", tx.Symbol).
 		Pair("denomination", tx.Denomination).
@@ -156,7 +156,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.IndexerCtx, txBytes []byte, tx *av
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", txID.String()).
-		Pair("chain_id", r.chainID.String()).
+		Pair("chain_id", r.chainID).
 		Pair("type", TXTypeCreateAsset).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
@@ -167,7 +167,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.IndexerCtx, txBytes []byte, tx *av
 	return nil
 }
 
-func (r *DB) ingestBaseTx(ctx services.IndexerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx) error {
+func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx) error {
 	var (
 		err   error
 		total uint64 = 0
@@ -244,7 +244,7 @@ func (r *DB) ingestBaseTx(ctx services.IndexerCtx, txBytes []byte, uniqueTx *avm
 	return nil
 }
 
-func (r *DB) ingestOutput(ctx services.IndexerCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) {
 	outputID := txID.Prefix(idx)
 
 	_, err := ctx.DB().
@@ -271,7 +271,7 @@ func (r *DB) ingestOutput(ctx services.IndexerCtx, txID ids.ID, idx uint64, asse
 	}
 }
 
-func (r *DB) ingestAddressFromPublicKey(ctx services.IndexerCtx, publicKey crypto.PublicKey) {
+func (r *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) {
 	_, err := ctx.DB().
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
@@ -283,7 +283,7 @@ func (r *DB) ingestAddressFromPublicKey(ctx services.IndexerCtx, publicKey crypt
 	}
 }
 
-func (r *DB) ingestOutputAddress(ctx services.IndexerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
+func (r *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).

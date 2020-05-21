@@ -4,29 +4,29 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 )
 
-type Indexable interface {
-	ID() ids.ID
-	ChainID() ids.ID
+type Consumable interface {
+	ID() string
+	ChainID() string
 	Body() []byte
 	Timestamp() int64
 }
 
-// Indexer takes in Indexables and adds them to the services backend
-type Indexer interface {
+// Consumer takes in Consumables and adds them to the service's backend
+type Consumer interface {
+	Name() string
 	Bootstrap() error
-	Index(Indexable) error
+	Consume(Consumable) error
 }
 
-// FanOutIndexer takes in items and sends them to multiple backend Indexers
-type FanOutIndexer []Indexer
+// FanOutConsumer takes in items and sends them to multiple backend Indexers
+type FanOutConsumer []Consumer
 
 // Bootstrap initializes all underlying backends
-func (fos FanOutIndexer) Bootstrap() (err error) {
+func (fos FanOutConsumer) Bootstrap() (err error) {
 	for _, service := range fos {
 		if err = service.Bootstrap(); err != nil {
 			return err
@@ -35,18 +35,18 @@ func (fos FanOutIndexer) Bootstrap() (err error) {
 	return nil
 }
 
-// Index takes in an Indexable and sends it to all underlying indexers
-func (fos FanOutIndexer) Index(i Indexable) (err error) {
-	for _, service := range fos {
-		if err = service.Index(i); err != nil {
+// Consume takes in a Consumable and sends it to all underlying indexers
+func (foc FanOutConsumer) Consume(c Consumable) (err error) {
+	for _, consumer := range foc {
+		if err = consumer.Consume(c); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// IndexerCtx
-type IndexerCtx struct {
+// ConsumerCtx
+type ConsumerCtx struct {
 	ctx context.Context
 	job *health.Job
 	db  dbr.SessionRunner
@@ -54,15 +54,15 @@ type IndexerCtx struct {
 	time time.Time
 }
 
-func NewIndexerContext(job *health.Job, db dbr.SessionRunner, ts int64) IndexerCtx {
-	return IndexerCtx{
+func NewConsumerContext(job *health.Job, db dbr.SessionRunner, ts int64) ConsumerCtx {
+	return ConsumerCtx{
 		job:  job,
 		db:   db,
 		time: time.Unix(ts, 0),
 	}
 }
 
-func (ic IndexerCtx) Time() time.Time          { return ic.time }
-func (ic IndexerCtx) Job() *health.Job         { return ic.job }
-func (ic IndexerCtx) DB() dbr.SessionRunner    { return ic.db }
-func (ic IndexerCtx) Context() context.Context { return ic.ctx }
+func (ic ConsumerCtx) Time() time.Time          { return ic.time }
+func (ic ConsumerCtx) Job() *health.Job         { return ic.job }
+func (ic ConsumerCtx) DB() dbr.SessionRunner    { return ic.db }
+func (ic ConsumerCtx) Context() context.Context { return ic.ctx }

@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
 	"encoding/hex"
@@ -50,7 +50,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Index, func(
 	conf.Redis.Addr = s.Addr()
 
 	// Create index
-	idx, err := New(conf.ServiceConfig, networkID, chainID)
+	idx, err := New(conf.Services, networkID, chainID)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
@@ -148,7 +148,7 @@ func TestIndexVectors(t *testing.T) {
 	assertAllOutputsCorrect(t, db, nil)
 
 	// Add each test vector tx
-	acc := services.FanOutIndexer{idx}
+	acc := services.FanOutConsumer{idx}
 	for i, v := range createTestVectors() {
 		err := acc.Add(&message{
 			id:        ids.NewID(hashing.ComputeHash256Array(v.serializedTx)),

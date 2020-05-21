@@ -4,31 +4,22 @@
 package stream
 
 import (
-	"context"
 	"errors"
-
-	"github.com/ava-labs/gecko/ids"
 )
 
 var (
 	ErrUnknownVM = errors.New("Unknown VM")
 )
 
-// Processor handles writing and reading to/from the event stream
-type Processor interface {
-	ProcessNextMessage(context.Context) (*Message, error)
-	Close() error
-}
-
 // Message is a message on the event stream
 type Message struct {
-	id        ids.ID
-	chainID   ids.ID
+	id        string
+	chainID   string
 	body      []byte
 	timestamp int64
 }
 
-func (m *Message) ID() ids.ID       { return m.id }
-func (m *Message) ChainID() ids.ID  { return m.chainID }
+func (m *Message) ID() string       { return m.id }
+func (m *Message) ChainID() string  { return m.chainID }
 func (m *Message) Body() []byte     { return m.body }
 func (m *Message) Timestamp() int64 { return m.timestamp }

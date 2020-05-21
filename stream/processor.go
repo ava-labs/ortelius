@@ -1,4 +1,7 @@
-package main
+// (c) 2020, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package stream
 
 import (
 	"context"
@@ -11,27 +14,30 @@ import (
 	"nanomsg.org/go/mangos/v2"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/stream"
-
-	// register transports
-	_ "nanomsg.org/go/mangos/v2/transport/ipc"
 )
 
 var (
-	streamReadTimeout = 10 * time.Second
+	readTimeout  = 10 * time.Second
+	writeTimeout = 10 * time.Second
 
-	// ErrUnknownStreamProcessorType is returned when encountering a client type with no
+	// ErrUnknownProcessorType is returned when encountering a client type with no
 	// known implementation
-	ErrUnknownStreamProcessorType = errors.New("unknown stream processor type")
+	ErrUnknownProcessorType = errors.New("unknown processor type")
 )
 
-type streamProcessorFactory func(cfg.ClientConfig, uint32, cfg.ChainConfig) (stream.Processor, error)
+type ProcessorFactory func(cfg.Config, uint32, string, string) (Processor, error)
 
-// StreamProcessorManager reads or writes from/to the event stream backend
-type StreamProcessorManager struct {
-	conf    cfg.ClientConfig
+// Processor handles writing and reading to/from the event stream
+type Processor interface {
+	ProcessNextMessage(context.Context) error
+	Close() error
+}
+
+// ProcessorManager reads or writes from/to the event stream backend
+type ProcessorManager struct {
+	conf    cfg.Config
 	log     *logging.Log
-	factory streamProcessorFactory
+	factory ProcessorFactory
 
 	// Concurrency control
 	workerWG *sync.WaitGroup
@@ -39,14 +45,20 @@ type StreamProcessorManager struct {
 	doneCh   chan struct{}
 }
 
-// newStreamProcessorManager creates a new *StreamProcessorManager ready for listening
-func newStreamProcessorManager(conf cfg.ClientConfig, factory streamProcessorFactory) (*StreamProcessorManager, error) {
-	log, err := logging.New(conf.Logging)
+// NewProcessorManager creates a new *ProcessorManager ready for listening
+func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorManager, error) {
+	loggingConf, err := logging.DefaultConfig()
+	if err != nil {
+		return nil, err
+	}
+	loggingConf.Directory = conf.LogDirectory
+
+	log, err := logging.New(loggingConf)
 	if err != nil {
 		return nil, err
 	}
 
-	return &StreamProcessorManager{
+	return &ProcessorManager{
 		conf:    conf,
 		log:     log,
 		factory: factory,
@@ -58,17 +70,17 @@ func newStreamProcessorManager(conf cfg.ClientConfig, factory streamProcessorFac
 }
 
 // Listen sets a client to listen for and handle incoming messages
-func (c *StreamProcessorManager) Listen() error {
+func (c *ProcessorManager) Listen() error {
 	// Create a backend for each chain we want to watch and wait for them to exit
 	workerManagerWG := &sync.WaitGroup{}
-	for _, chainConfig := range c.conf.ChainsConfig {
+	for _, chainConfig := range c.conf.Chains {
 		workerManagerWG.Add(1)
-		go func(chainConfig cfg.ChainConfig) {
+		go func(chainConfig cfg.Chain) {
 			defer workerManagerWG.Done()
 			c.log.Info("Started worker manager for chain %s", chainConfig.ID)
 
 			// Keep running the worker until it exits without an error
-			for err := c.runWorker(chainConfig); err != nil; err = c.runWorker(chainConfig) {
+			for err := c.runProcessor(chainConfig); err != nil; err = c.runProcessor(chainConfig) {
 				c.log.Error("Error running worker: %s", err.Error())
 				<-time.After(10 * time.Second)
 			}
@@ -78,20 +90,20 @@ func (c *StreamProcessorManager) Listen() error {
 
 	// Wait for all workers to finish without an error
 	workerManagerWG.Wait()
-	c.log.Debug("All workers stopped")
+	c.log.Info("All workers stopped")
 	close(c.doneCh)
 
 	return nil
 }
 
 // Close tells the workers to shutdown and waits for them to all stop
-func (c *StreamProcessorManager) Close() error {
+func (c *ProcessorManager) Close() error {
 	close(c.quitCh)
 	<-c.doneCh
 	return nil
 }
 
-func (c *StreamProcessorManager) isStopping() bool {
+func (c *ProcessorManager) isStopping() bool {
 	select {
 	case <-c.quitCh:
 		return true
@@ -100,9 +112,9 @@ func (c *StreamProcessorManager) isStopping() bool {
 	}
 }
 
-// runWorker starts the processing loop for the backend and closes it when
+// runProcessor starts the processing loop for the backend and closes it when
 // finished
-func (c *StreamProcessorManager) runWorker(chainConfig cfg.ChainConfig) error {
+func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	if c.isStopping() {
 		c.log.Info("Not starting worker for chain %s because we're stopping", chainConfig.ID)
 		return nil
@@ -112,7 +124,7 @@ func (c *StreamProcessorManager) runWorker(chainConfig cfg.ChainConfig) error {
 	defer c.log.Info("Exiting worker for chain %s", chainConfig.ID)
 
 	// Create a backend to get messages from
-	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig)
+	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
 	if err != nil {
 		// panic(err)
 		return err
@@ -120,19 +132,17 @@ func (c *StreamProcessorManager) runWorker(chainConfig cfg.ChainConfig) error {
 
 	// Create a closure that processes the next message from the backend
 	var (
-		msg      *stream.Message
 		ctx      context.Context
 		cancelFn context.CancelFunc
 
 		processNextMessage = func() {
-			ctx, cancelFn = context.WithTimeout(context.Background(), streamReadTimeout)
+			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
-			msg, err = backend.ProcessNextMessage(ctx)
-
+			err = backend.ProcessNextMessage(ctx)
 			switch err {
 			case nil:
-				c.log.Info("Processed message %s on chain %s", msg.ID(), msg.ChainID())
+				c.log.Info("Processed message on chain %s", chainConfig.ID)
 			case mangos.ErrRecvTimeout:
 				c.log.Debug("IPC socket timeout")
 			case kafka.RequestTimedOut:

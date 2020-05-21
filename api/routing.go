@@ -28,8 +28,8 @@ type RouterFactory func(RouterFactoryParams) error
 type RouterFactoryParams struct {
 	Router        *web.Router
 	NetworkID     uint32
-	ChainConfig   cfg.ChainConfig
-	ServiceConfig cfg.ServiceConfig
+	ChainConfig   cfg.Chain
+	ServiceConfig cfg.Services
 }
 
 func RegisterRouter(name string, factory RouterFactory, ctx interface{}) {
@@ -48,16 +48,16 @@ func routerFactoryForVM(name string) (*registeredRouter, error) {
 	return nil, ErrUnregisteredVM
 }
 
-func newRouter(conf cfg.APIConfig) (*web.Router, error) {
+func newRouter(conf cfg.Config) (*web.Router, error) {
 	// Create a root Router that does the work common to all requests and provides
 	// chain-agnostic endpoints
-	router, err := newRootRouter(conf.ChainsConfig)
+	router, err := newRootRouter(conf.Chains)
 	if err != nil {
 		return nil, err
 	}
 
 	// Instantiate a Router for each chain
-	for chainID, chainConfig := range conf.ChainsConfig {
+	for chainID, chainConfig := range conf.Chains {
 		// Get the registered Router factory for this VM
 		vmRouterFactory, err := routerFactoryForVM(chainConfig.VMType)
 		if err != nil {
@@ -70,12 +70,12 @@ func newRouter(conf cfg.APIConfig) (*web.Router, error) {
 				Router:        router.Subrouter(vmRouterFactory.ctx, "/"+path),
 				NetworkID:     conf.NetworkID,
 				ChainConfig:   chainConfig,
-				ServiceConfig: conf.ServiceConfig,
+				ServiceConfig: conf.Services,
 			})
 		}
 
 		// Create a Router for the chainID and one for the alias if an alias exists
-		if err = createRouterAtPath(chainID.String()); err != nil {
+		if err = createRouterAtPath(chainID); err != nil {
 			return nil, err
 		}
 		if chainConfig.Alias != "" {

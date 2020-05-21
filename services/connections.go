@@ -20,7 +20,7 @@ type Connections struct {
 	db     *dbr.Connection
 }
 
-func NewConnectionsFromConfig(conf cfg.ServiceConfig) (*Connections, error) {
+func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 	stream := NewStream()
 
 	var (
@@ -29,7 +29,11 @@ func NewConnectionsFromConfig(conf cfg.ServiceConfig) (*Connections, error) {
 		redisClient *redis.Client
 	)
 	if conf.Redis != nil {
-		redisClient, err = newRedisConn(conf.Redis)
+		redisClient, err = newRedisConn(&redis.Options{
+			DB:       conf.Redis.DB,
+			Addr:     conf.Redis.Addr,
+			Password: conf.Redis.Password,
+		})
 		if err != nil {
 			return nil, err
 		}

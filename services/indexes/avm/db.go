@@ -1,10 +1,9 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm_index
+package avm
 
 import (
-	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/crypto"
 	"github.com/ava-labs/gecko/vms/components/codec"
 	_ "github.com/go-sql-driver/mysql"
@@ -14,7 +13,7 @@ import (
 
 // DB is a services.Accumulator backed by redis
 type DB struct {
-	chainID ids.ID
+	chainID string
 	codec   codec.Codec
 	stream  *health.Stream
 	db      *dbr.Connection
@@ -23,7 +22,7 @@ type DB struct {
 }
 
 // NewDB creates a new DB for the given config
-func NewDB(stream *health.Stream, db *dbr.Connection, chainID ids.ID, codec codec.Codec) *DB {
+func NewDB(stream *health.Stream, db *dbr.Connection, chainID string, codec codec.Codec) *DB {
 	return &DB{
 		db:      db,
 		codec:   codec,

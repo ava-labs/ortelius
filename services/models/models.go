@@ -3,13 +3,9 @@
 
 package models
 
-import (
-	"github.com/ava-labs/gecko/ids"
-)
-
 type ChainInfo struct {
-	ID        ids.ID `json:"chainID"`
-	Alias     string `json:"chainAlias"`
-	VM        string `json:"vm"`
-	NetworkID uint32 `json:"networkID"`
+	ID        StringID `json:"chainID"`
+	Alias     string   `json:"chainAlias"`
+	VM        string   `json:"vm"`
+	NetworkID uint32   `json:"networkID"`
 }
