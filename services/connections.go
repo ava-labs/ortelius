@@ -4,9 +4,11 @@
 package services
 
 import (
+	"context"
 	"os"
+	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 
@@ -70,7 +72,10 @@ func NewStream() *health.Stream {
 func newRedisConn(opts *redis.Options) (*redis.Client, error) {
 	client := redis.NewClient(opts)
 
-	_, err := client.Ping().Result()
+	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelFn()
+
+	_, err := client.Ping(ctx).Result()
 	if err != nil {
 		return nil, err
 	}

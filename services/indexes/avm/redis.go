@@ -4,10 +4,12 @@
 package avm
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 
 	"github.com/ava-labs/ortelius/services"
 )
@@ -20,6 +22,10 @@ const (
 	redisKeyPrefixesTxByID    = "txs_by_id"
 	redisKeyPrefixesTxCount   = "tx_count"
 	redisKeyPrefixesRecentTxs = "recent_txs"
+)
+
+var (
+	redisTimeout = 10 * time.Second
 )
 
 // Redis is an Accumulator and Consume backed by redis
@@ -41,31 +47,37 @@ func (r *Redis) Index(i services.Consumable) error {
 		txByIDKey    = redisIndexKeysTxByID(r.chainID.String(), i.ID())
 		txCountKey   = redisIndexKeysTxCount(r.chainID.String())
 		recentTxsKey = redisIndexKeysRecentTxs(r.chainID.String())
+
+		ctx, cancelFn = context.WithTimeout(context.Background(), redisTimeout)
 	)
+	defer cancelFn()
 
-	if err := pipe.Set(txByIDKey, i.Body(), 0).Err(); err != nil {
+	if err := pipe.Set(ctx, txByIDKey, i.Body(), 0).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.Incr(txCountKey).Err(); err != nil {
+	if err := pipe.Incr(ctx, txCountKey).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.LPush(recentTxsKey, i.ID()).Err(); err != nil {
+	if err := pipe.LPush(ctx, recentTxsKey, i.ID()).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.LTrim(recentTxsKey, 0, redisRecentTxsSize-1).Err(); err != nil {
+	if err := pipe.LTrim(ctx, recentTxsKey, 0, redisRecentTxsSize-1).Err(); err != nil {
 		return err
 	}
 
-	_, err := pipe.Exec()
+	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // GetTransaction returns the bytes for the Transaction with the given ID
 func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
-	cmd := r.client.Get(redisIndexKeysTxByID(r.chainID.String(), txID.String()))
+	ctx, cancelFn := context.WithTimeout(context.Background(), redisTimeout)
+	defer cancelFn()
+
+	cmd := r.client.Get(ctx, redisIndexKeysTxByID(r.chainID.String(), txID.String()))
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
@@ -74,7 +86,10 @@ func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
 
 // GetTransactionCount returns the number of transactions this Server as seen
 func (r *Redis) GetTxCount() (uint64, error) {
-	cmd := r.client.Get(redisIndexKeysTxCount(r.chainID.String()))
+	ctx, cancelFn := context.WithTimeout(context.Background(), redisTimeout)
+	defer cancelFn()
+
+	cmd := r.client.Get(ctx, redisIndexKeysTxCount(r.chainID.String()))
 	if err := cmd.Err(); err != nil {
 		return 0, err
 	}
@@ -83,7 +98,10 @@ func (r *Redis) GetTxCount() (uint64, error) {
 
 // GetRecentTransactions returns a list of the N most recent transactions
 func (r *Redis) GetRecentTransactions(n int64) ([]ids.ID, error) {
-	cmd := r.client.LRange(redisIndexKeysRecentTxs(r.chainID.String()), 0, n-1)
+	ctx, cancelFn := context.WithTimeout(context.Background(), redisTimeout)
+	defer cancelFn()
+
+	cmd := r.client.LRange(ctx, redisIndexKeysRecentTxs(r.chainID.String()), 0, n-1)
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
