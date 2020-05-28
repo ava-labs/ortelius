@@ -265,7 +265,7 @@ func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
 func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, error) {
 	db := r.newSession("get_transactions")
 
-	columns := []string{"avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at", "avm_transactions.json_serialization AS raw_message"}
+	columns := []string{"avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at"}
 	scoreExpression, err := r.newScoreExpressionForFields(p.Query, []string{
 		"avm_transactions.id",
 	}...)
