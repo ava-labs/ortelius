@@ -28,7 +28,7 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 		dbConn      *dbr.Connection
 		redisClient *redis.Client
 	)
-	if conf.Redis != nil {
+	if conf.Redis != nil && conf.Redis.Addr != "" {
 		redisClient, err = newRedisConn(&redis.Options{
 			DB:       conf.Redis.DB,
 			Addr:     conf.Redis.Addr,
