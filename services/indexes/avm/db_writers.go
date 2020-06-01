@@ -102,8 +102,14 @@ func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 		return r.ingestCreateAssetTx(ctx, txBytes, castTx, "")
 	case *avm.OperationTx:
 		// 	r.ingestOperationTx(ctx, tx)
+	case *avm.ImportTx:
+		castTx.BaseTx.Ins = append(castTx.BaseTx.Ins, castTx.Ins...)
+		return r.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
+	case *avm.ExportTx:
+		castTx.BaseTx.Outs = append(castTx.BaseTx.Outs, castTx.Outs...)
+		return r.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
 	case *avm.BaseTx:
-		return r.ingestBaseTx(ctx, txBytes, tx, castTx)
+		return r.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
 	default:
 		return errors.New("unknown tx type")
 	}
@@ -167,7 +173,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 	return nil
 }
 
-func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx) error {
+func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx, txType TransactionType) error {
 	var (
 		err   error
 		total uint64 = 0
@@ -225,7 +231,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		InsertInto("avm_transactions").
 		Pair("id", baseTx.ID().String()).
 		Pair("chain_id", baseTx.BCID.String()).
-		Pair("type", TXTypeBase).
+		Pair("type", txType).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
 		Exec()
