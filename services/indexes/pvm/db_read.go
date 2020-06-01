@@ -24,7 +24,7 @@ func (db *DB) ListBlocks(params ListBlocksParams) (*BlockList, error) {
 func (db *DB) ListSubnets(params ListSubnetsParams) (*SubnetList, error) {
 	subnets := []*Subnet{}
 	_, err := params.Apply(db.newSession("list_subnets").
-		Select("id", "transaction_id", "network_id", "threshold", "created_at").
+		Select("id", "network_id", "threshold", "created_at").
 		From("pvm_subnets")).
 		Load(&subnets)
 	if err != nil {
