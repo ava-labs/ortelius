@@ -51,7 +51,6 @@ create table avm_transactions
     type                    varchar(255)     not null,
 
     canonical_serialization varbinary(16384) not null,
-    json_serialization      varbinary(16384) not null,
 
     created_at              timestamp        not null default current_timestamp
 );
