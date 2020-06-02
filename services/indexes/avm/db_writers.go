@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/gecko/vms/components/codec"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 	"github.com/gocraft/dbr"
+	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
 )
@@ -33,24 +34,38 @@ var (
 )
 
 func (db *DB) bootstrap(genesisBytes []byte) error {
+	var (
+		err  error
+		job  = db.stream.NewJob("bootstrap")
+		sess = db.db.NewSession(job)
+	)
+	job.KeyValue("chain_id", db.chainID)
+
+	defer func() {
+		if err != nil {
+			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			return
+		}
+		job.Complete(health.Success)
+	}()
+
 	avmGenesis := &avm.Genesis{}
-	if err := db.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	if err = db.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
 		return err
 	}
 
-	job := db.stream.NewJob("bootstrap")
-	sess := db.db.NewSession(job)
-
 	// Create db tx
-	dbTx, err := sess.Begin()
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
 	if err != nil {
 		return err
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
+	var txBytes []byte
 	ctx := services.NewConsumerContext(job, dbTx, time.Now().Unix())
 	for _, tx := range avmGenesis.Txs {
-		txBytes, err := db.codec.Marshal(tx)
+		txBytes, err = db.codec.Marshal(tx)
 		if err != nil {
 			return err
 		}
@@ -60,16 +75,35 @@ func (db *DB) bootstrap(genesisBytes []byte) error {
 		}
 	}
 
-	return dbTx.Commit()
+	err = dbTx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // AddTx ingests a Transaction and adds it to the services
 func (r *DB) Index(i services.Consumable) error {
-	job := r.stream.NewJob("index")
-	sess := r.db.NewSession(job)
+	var (
+		err  error
+		job  = r.stream.NewJob("index")
+		sess = r.db.NewSession(job)
+	)
+	job.KeyValue("id", i.ID())
+	job.KeyValue("chain_id", i.ChainID())
+
+	defer func() {
+		if err != nil {
+			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			return
+		}
+		job.Complete(health.Success)
+	}()
 
 	// Create db tx
-	dbTx, err := sess.Begin()
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
 	if err != nil {
 		return err
 	}
@@ -80,7 +114,13 @@ func (r *DB) Index(i services.Consumable) error {
 	if err != nil {
 		return err
 	}
-	return dbTx.Commit()
+
+	err = dbTx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
