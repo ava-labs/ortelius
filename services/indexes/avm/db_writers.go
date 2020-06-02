@@ -123,7 +123,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 	}
 	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
 
-	var outputCount uint64
+	var outputCount uint32
 	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
@@ -193,16 +193,23 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		}
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
-
 		redeemOutputsConditions = append(redeemOutputsConditions, dbr.Eq("id", inputID.String()))
 
-		// Abort this iteration if no credentials were supplied
-		if i > len(creds) {
-			continue
-		}
+		// Upsert this input as an output in case we haven't seen the parent tx
+		r.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
+			Amt:      in.In.Amount(),
+			Locktime: 0,
+			OutputOwners: secp256k1fx.OutputOwners{
+				// We leave Addrs blank because we ingested them above with their signatures
+				Addrs: []ids.ShortID{},
+			},
+		})
 
 		// For each signature we recover the public key and the data to the db
-		cred := creds[i].(*secp256k1fx.Credential)
+		cred, ok := creds[i].(*secp256k1fx.Credential)
+		if !ok {
+			return nil
+		}
 		for _, sig := range cred.Sigs {
 			publicKey, err := r.ecdsaRecoveryFactory.RecoverPublicKey(unsignedTxBytes, sig[:])
 			if err != nil {
@@ -214,6 +221,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		}
 	}
 
+	// Mark all inputs as redeemed
 	if len(redeemOutputsConditions) > 0 {
 		_, err = ctx.DB().
 			Update("avm_outputs").
@@ -245,13 +253,13 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		if !ok {
 			continue
 		}
-		r.ingestOutput(ctx, baseTx.ID(), uint64(idx), out.AssetID(), xOut)
+		r.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut)
 	}
 	return nil
 }
 
-func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint64, assetID ids.ID, out *secp256k1fx.TransferOutput) {
-	outputID := txID.Prefix(idx)
+func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+	outputID := txID.Prefix(uint64(idx))
 
 	_, err := ctx.DB().
 		InsertInto("avm_outputs").
