@@ -19,7 +19,8 @@ Running the full stack requires Gecko, Kafka, and a database such as MySQL or Po
 ### Download
 
 ```shell script
-git checkout https://github.com/ava-labs/ortelius.git $GOPATH/github.com/ava-labs/ortelius
+cd $GOPATH/github.com/ava-labs
+git clone https://github.com/ava-labs/ortelius.git
 cd $GOPATH/github.com/ava-labs/ortelius
 ```
 
