@@ -44,7 +44,7 @@ ava --api-ipcs-enabled=true
 In a new tab or window we tell Gecko to publish events to an IPC socket and then start up the Ortelius apps to watch and handle those events:
 
 ```shell script
-curl -X POST --data '{"jsonrpc": "2.0","method": "ipcs.publishBlockchain","params":{"blockchainID":"4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH"},"id": 1}' -H 'content-type:application/json;' 127.0.0.1:9650/ext/ipcs
+curl -X POST --data '{"jsonrpc": "2.0","method": "ipcs.publishBlockchain","params":{"blockchainID":"rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L"},"id": 1}' -H 'content-type:application/json;' 127.0.0.1:9650/ext/ipcs
 curl -X POST --data '{"jsonrpc": "2.0","method": "ipcs.publishBlockchain","params":{"blockchainID":"11111111111111111111111111111111LpoYY"},"id": 1}' -H 'content-type:application/json;' 127.0.0.1:9650/ext/ipcs
 
 docker-compose -f docker/docker-compose.yml up

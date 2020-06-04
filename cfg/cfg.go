@@ -39,8 +39,8 @@ var (
 			"txDB":   false,
 		},
 		configKeysChains: map[string]map[string]interface{}{
-			"4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
-				configKeysChainsID:     "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+			"rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L": {
+				configKeysChainsID:     "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L",
 				configKeysChainsAlias:  "X",
 				configKeysChainsVMType: "avm",
 			},
