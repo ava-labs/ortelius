@@ -35,7 +35,7 @@ var (
 		configKeyLogDirectory: "/tmp/ortelius/logs",
 		configKeysDB: map[string]interface{}{
 			"driver": "mysql",
-			"dsn":    "root:password@tcp(127.0.0.1:3306)/ortelius_dev",
+			"dsn":    "root:password@tcp(127.0.0.1:3306)/ortelius",
 			"txDB":   false,
 		},
 		configKeysChains: map[string]map[string]interface{}{

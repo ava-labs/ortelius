@@ -71,6 +71,7 @@ func execute() error {
 		Long:  apiCmdDesc,
 		Args:  cobra.NoArgs,
 		Run: func(_ *cobra.Command, args []string) {
+
 			var config cfg.APIConfig
 			var lc listenCloser
 			if config, runErr = cfg.NewAPIConfig(configFile); runErr != nil {
@@ -83,7 +84,8 @@ func execute() error {
 		},
 	})
 
-	rootCmd.AddCommand(&cobra.Command{
+
+   	rootCmd.AddCommand(&cobra.Command{
 		Use:   streamConsumerCmdUse,
 		Short: streamConsumerCmdDesc,
 		Long:  streamConsumerCmdDesc,
@@ -97,10 +99,10 @@ func execute() error {
 		Run:   streamProcessorCmdRunFn(configFile, &runErr, stream.NewProducer),
 	})
 
-	// Execute the command and return the runErr to the caller
 	if err := rootCmd.Execute(); err != nil {
 		return err
 	}
+
 	return runErr
 }
 
@@ -127,6 +129,7 @@ func runListenCloser(lc listenCloser) {
 func streamProcessorCmdRunFn(configFile string, runErr *error, factory streamProcessorFactory) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		config, err := cfg.NewClientConfig("", configFile)
+
 		if err != nil {
 			*runErr = err
 			return

@@ -5,7 +5,6 @@ package avm_index
 
 import (
 	"errors"
-
 	"github.com/ava-labs/gecko/database"
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
@@ -35,7 +34,9 @@ type Index struct {
 }
 
 func New(conf cfg.ServiceConfig, networkID uint32, chainID ids.ID) (*Index, error) {
+
 	conns, err := services.NewConnectionsFromConfig(conf)
+
 	if err != nil {
 		return nil, err
 	}

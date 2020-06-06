@@ -1,16 +1,84 @@
 version: '3'
 services:
+
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: ortelius
+      
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.0.0
+    ports:
+      - 2181
+    environment:
+      - ZOOKEEPER_SERVER_ID=1
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_SERVERS=zookeeper:4182:5181
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data/
+      - zookeeper-log:/var/lib/zookeeper/log/
+    healthcheck:
+      test: /bin/sh -c '[ \"imok\" = \"$$(echo ruok | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
+      interval: 1m
+
+  kafka:
+    image: confluentinc/cp-kafka:5.0.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    env_file:
+      - kafka.env
+    volumes:
+      - kafka-data:/var/lib/kafka/data/
+
+  redis:
+    image: "redis"
+    command: redis-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/var/lib/redis
+
   stream-producer: &ortelius-app
     build:
       context: ..
       dockerfile: ./docker/Dockerfile
     command: ["stream-producer", "-c", "/config.json"]
+
+    depends_on:
+      - mysql
+      - zookeeper
+      - kafka
+      - redis
+
     volumes:
       - /tmp:/tmp
       - ./config.json:/config.json
+      
   stream-consumer:
+    depends_on:
+      - stream-producer    
     <<: *ortelius-app
     command: ["stream-consumer", "-c", "/config.json"]
+    
   api:
+    depends_on:
+      - stream-producer    
+      - stream-consumer  
     <<: *ortelius-app
     command: ["api", "-c", "/config.json"]
+
+volumes:
+  zookeeper-data:
+  zookeeper-log:
+  kafka-data:
+  redis-data:
+  mysql-data:

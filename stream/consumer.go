@@ -5,7 +5,6 @@ package stream
 
 import (
 	"context"
-
 	"github.com/ava-labs/gecko/ids"
 	"github.com/segmentio/kafka-go"
 
@@ -23,6 +22,7 @@ type consumer struct {
 
 // NewConsumer creates a consumer for the given config
 func NewConsumer(conf cfg.ClientConfig, networkID uint32, chainID ids.ID) (Processor, error) {
+
 	var (
 		err error
 		c   = &consumer{}
@@ -99,6 +99,7 @@ func getNextMessage(r *kafka.Reader) (*Message, error) {
 
 func createServices(conf cfg.ServiceConfig, networkID uint32, chainID ids.ID) (services.FanOutService, error) {
 	// Create and bootstrap an AVMIndex
+
 	avmIndex, err := avm_index.New(conf, networkID, chainID)
 	if err != nil {
 		return nil, err

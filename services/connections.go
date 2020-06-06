@@ -64,9 +64,11 @@ func NewStream() *health.Stream {
 }
 
 func newRedisConn(opts *redis.Options) (*redis.Client, error) {
+
 	client := redis.NewClient(opts)
 
 	_, err := client.Ping(client.Context()).Result()
+
 	if err != nil {
 		return nil, err
 	}

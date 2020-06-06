@@ -1,7 +1,7 @@
 {
   "networkID": 12345,
   "logDirectory": "/tmp/ortelius/logs/client",
-  "ipcRoot": "ipc:///tmp",
+  "ipcRoot": "/tmp",
   "listenAddr": "localhost:8080",
   "chains": {
     "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L": {
@@ -14,5 +14,20 @@
       "alias": "P",
       "vmType": "pvm"
     }
+  },
+  "filter": {
+    "min": 1073741824,
+    "max": 2147483648
+  },
+  "kafka": {
+    "brokers": [
+      "kafka:9092"
+    ],
+    "groupName": "indexer"
+  },
+  "redis": {
+    "addr": "redis:6379",
+    "db": 0,
+    "password": ""
   }
 }

@@ -4,6 +4,7 @@
 package avm_index
 
 import (
+	"context"
 	"strings"
 
 	"github.com/ava-labs/gecko/ids"
@@ -41,29 +42,34 @@ func (r *Redis) AddTx(txID ids.ID, body []byte) error {
 		recentTxsKey = redisIndexKeysRecentTxs(r.chainID)
 	)
 
-	if err := pipe.Set(r.client.Context(), txByIDKey, body, 0).Err(); err != nil {
+	var ctx context.Context
+
+	if err := pipe.Set(ctx, txByIDKey, body, 0).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.Incr(r.client.Context(), txCountKey).Err(); err != nil {
+	if err := pipe.Incr(ctx, txCountKey).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.LPush(r.client.Context(), recentTxsKey, txID.String()).Err(); err != nil {
+	if err := pipe.LPush(ctx, recentTxsKey, txID.String()).Err(); err != nil {
 		return err
 	}
 
-	if err := pipe.LTrim(r.client.Context(), recentTxsKey, 0, redisRecentTxsSize-1).Err(); err != nil {
+	if err := pipe.LTrim(ctx, recentTxsKey, 0, redisRecentTxsSize-1).Err(); err != nil {
 		return err
 	}
 
-	_, err := pipe.Exec(r.client.Context())
+	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // GetTransaction returns the bytes for the Transaction with the given ID
 func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
-	cmd := r.client.Get(r.client.Context(), redisIndexKeysTxByID(r.chainID, txID))
+
+	var ctx context.Context
+
+	cmd := r.client.Get(ctx, redisIndexKeysTxByID(r.chainID, txID))
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
@@ -72,7 +78,10 @@ func (r *Redis) GetTx(txID ids.ID) ([]byte, error) {
 
 // GetTransactionCount returns the number of transactions this Server as seen
 func (r *Redis) GetTxCount() (uint64, error) {
-	cmd := r.client.Get(r.client.Context(), redisIndexKeysTxCount(r.chainID))
+
+	var ctx context.Context
+
+	cmd := r.client.Get(ctx, redisIndexKeysTxCount(r.chainID))
 	if err := cmd.Err(); err != nil {
 		return 0, err
 	}
@@ -81,7 +90,10 @@ func (r *Redis) GetTxCount() (uint64, error) {
 
 // GetRecentTransactions returns a list of the N most recent transactions
 func (r *Redis) GetRecentTransactions(n int64) ([]ids.ID, error) {
-	cmd := r.client.LRange(r.client.Context(), redisIndexKeysRecentTxs(r.chainID), 0, n-1)
+
+	var ctx context.Context
+
+	cmd := r.client.LRange(ctx, redisIndexKeysRecentTxs(r.chainID), 0, n-1)
 	if err := cmd.Err(); err != nil {
 		return nil, err
 	}
