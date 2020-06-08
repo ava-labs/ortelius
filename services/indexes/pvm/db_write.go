@@ -152,40 +152,40 @@ func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, proposal
 	switch tx := proposalTx.(type) {
 	case platformvm.TimedTx:
 		return db.indexTimedTx(ctx, blockID, tx)
-	case *platformvm.AdvanceTimeTx:
+		// case *platformvm.AdvanceTimeTx:
 		// return db.indexTimedTx(ctx, blockID, tx)
-	case *platformvm.RewardValidatorTx:
+		// case *platformvm.RewardValidatorTx:
 		// return db.indexTimedTx(ctx, blockID, tx)
 	}
 	return nil
 }
 
 func (db *DB) indexTimedTx(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.TimedTx) error {
-	var (
-		nonce    uint64
-		sig      [65]byte
-		txType   TransactionType
-		shares   uint32
-		subnetID ids.ID
-		dv       platformvm.DurationValidator
-	)
-
-	switch tx := tx.(type) {
-	case *platformvm.AddDefaultSubnetDelegatorTx:
-		nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, platformvm.NumberOfShares, ids.Empty, TransactionTypeAddDefaultSubnetDelegator
-	case *platformvm.AddDefaultSubnetValidatorTx:
-		nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, tx.Shares, ids.Empty, TransactionTypeAddDefaultSubnetValidator
-	case *platformvm.AddNonDefaultSubnetValidatorTx:
-		nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.PayerSig, tx.DurationValidator, 0, tx.Subnet, TransactionTypeAddNonDefaultSubnetValidator
-	}
-
-	if err := db.indexValidator(ctx, tx.ID(), dv, ids.ShortEmpty, shares, subnetID); err != nil {
-		return err
-	}
-
-	if err := db.indexTransaction(ctx, blockID, txType, tx.ID(), nonce, sig); err != nil {
-		return err
-	}
+	// var (
+	// 	nonce    uint64
+	// 	sig      [65]byte
+	// 	txType   TransactionType
+	// 	shares   uint32
+	// 	subnetID ids.ID
+	// 	dv       platformvm.DurationValidator
+	// )
+	//
+	// switch tx := tx.(type) {
+	// case *platformvm.AddDefaultSubnetDelegatorTx:
+	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, platformvm.NumberOfShares, ids.Empty, TransactionTypeAddDefaultSubnetDelegator
+	// case *platformvm.AddDefaultSubnetValidatorTx:
+	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, tx.Shares, ids.Empty, TransactionTypeAddDefaultSubnetValidator
+	// case *platformvm.AddNonDefaultSubnetValidatorTx:
+	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.PayerSig, tx.DurationValidator, 0, tx.Subnet, TransactionTypeAddNonDefaultSubnetValidator
+	// }
+	//
+	// if err := db.indexValidator(ctx, tx.ID(), dv, ids.ShortEmpty, shares, subnetID); err != nil {
+	// 	return err
+	// }
+	//
+	// if err := db.indexTransaction(ctx, blockID, txType, tx.ID(), nonce, sig); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
