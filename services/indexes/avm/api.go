@@ -83,17 +83,18 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
-	params, err := GetAggregateTransactionsParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
-		return
-	}
+	// params, err := GetAggregateTransactionsParamsForHTTPRequest(r.Request)
+	// if err != nil {
+	// 	api.WriteErr(w, 400, err.Error())
+	// 	return
+	// }
 
-	aggs, err := c.index.Aggregate(*params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
+	aggs := &AggregatesHistogram{}
+	// aggs, err := c.index.Aggregate(*params)
+	// if err != nil {
+	// 	api.WriteErr(w, 500, err.Error())
+	// 	return
+	// }
 
 	api.WriteObject(w, aggs)
 }
@@ -159,19 +160,21 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
-	params, err := ListAddressesParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
-		return
-	}
+	// params, err := ListAddressesParamsForHTTPRequest(r.Request)
+	// if err != nil {
+	// 	api.WriteErr(w, 400, err.Error())
+	// 	return
+	// }
+	//
+	// addrs, err := c.index.ListAddresses(params)
+	// if err != nil {
+	// 	api.WriteErr(w, 500, err.Error())
+	// 	return
+	// }
 
-	assets, err := c.index.ListAddresses(params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
+	addrs := &AddressList{}
 
-	api.WriteObject(w, assets)
+	api.WriteObject(w, addrs)
 }
 
 func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {

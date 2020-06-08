@@ -46,13 +46,15 @@ func (r *DB) Search(p SearchParams) (*SearchResults, error) {
 		return nil, err
 	}
 
-	addressResults, err := r.ListAddresses(&ListAddressesParams{
-		ListParams: p.ListParams,
-		Query:      p.Query,
-	})
-	if err != nil {
-		return nil, err
-	}
+	// Disable until we can improve performance
+	addressResults := &AddressList{}
+	// addressResults, err := r.ListAddresses(&ListAddressesParams{
+	// 	ListParams: p.ListParams,
+	// 	Query:      p.Query,
+	// })
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	outputResults, err := r.ListOutputs(&ListOutputsParams{
 		ListParams: p.ListParams,
