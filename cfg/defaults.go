@@ -18,9 +18,7 @@ const defaultJSON = `{
   },
   "stream": {
     "kafka": {
-      "brokers": [
-        "127.0.0.1:29092"
-      ]
+      "brokers": []
     },
     "filter": {
       "min": 1073741824,
