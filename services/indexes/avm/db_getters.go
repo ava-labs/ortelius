@@ -572,7 +572,7 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 		From("avm_output_addresses").
 		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-		Where("avm_outputs.redeeming_transaction_id IN ? OR avm_outputs.transaction_id IN ?", txIDs, txIDs).
+		Where("avm_outputs.transaction_id IN ?", txIDs).
 		Load(&outputAddresses)
 	if err != nil {
 		return err
