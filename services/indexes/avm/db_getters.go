@@ -365,20 +365,11 @@ func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addres
 	db := r.newSession("list_addresses")
 
 	columns := []string{
-		"avm_output_addresses.address",
-		"MIN(avm_transactions.chain_id) AS chain_id",
+		"DISTINCT(avm_output_addresses.address)",
 		"addresses.public_key",
-
-		"COUNT(avm_transactions.id) AS transaction_count",
-		"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-		"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
 	}
 
-	scoreExpression, err := r.newScoreExpressionForFields(p.Query, []string{
-		"avm_output_addresses.address",
-	}...)
+	scoreExpression, err := r.newScoreExpressionForFields(p.Query, "avm_output_addresses.address")
 	if err != nil {
 		return nil, err
 	}
@@ -392,10 +383,8 @@ func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addres
 		Select(columns...).
 		From("avm_output_addresses").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-		LeftJoin("avm_outputs", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id").
-		Where("avm_transactions.chain_id = ?", r.chainID).
-		GroupBy("avm_output_addresses.address"))
+		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
+		Where("avm_outputs.chain_id = ?", r.chainID))
 
 	if scoreExpression != "" {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
@@ -409,17 +398,19 @@ func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addres
 	if len(addresses) >= p.Limit {
 		p.ListParams = params.ListParams{}
 		err = p.Apply(db.
-			Select("COUNT(avm_output_addresses.address)").
+			Select("COUNT(1)").
 			From("avm_output_addresses").
-			LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-			LeftJoin(dbr.I("avm_outputs").As("all_outputs"), "avm_output_addresses.output_id = all_outputs.id").
-			LeftJoin("avm_transactions", "all_outputs.transaction_id = avm_transactions.id OR all_outputs.redeeming_transaction_id = avm_transactions.id").
-			LeftJoin(dbr.I("avm_outputs").As("unspent_outputs"), "avm_output_addresses.output_id = unspent_outputs.id AND unspent_outputs.redeeming_transaction_id IS NULL").
-			GroupBy("avm_output_addresses.address")).
+			LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
+			Where("avm_outputs.chain_id = ?", r.chainID)).
 			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Add all the addition information we might want
+	if err = r.dressAddresses(ctx, db, addresses); err != nil {
+		return nil, err
 	}
 
 	return &AddressList{ListMetadata{count}, addresses}, nil
@@ -649,6 +640,58 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 		tx.OutputTotals = outputTotalsMap[tx.ID]
 		tx.Inputs = append(tx.Inputs, inputsMap[tx.ID]...)
 		tx.Outputs = append(tx.Outputs, outputsMap[tx.ID]...)
+	}
+
+	return nil
+}
+
+func (r *DB) dressAddresses(ctx context.Context, db dbr.SessionRunner, addrs []*Address) error {
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	// Create a list of ids for querying, and a map for accumulating results later
+	addrIDs := make([]models.StringShortID, len(addrs))
+	addrsByID := make(map[models.StringShortID]*Address, len(addrs))
+	for i, addr := range addrs {
+		addrIDs[i] = addr.Address
+		addrsByID[addr.Address] = addr
+
+		addr.Assets = make(map[models.StringID]AssetInfo, 1)
+	}
+
+	// Load each Transaction Output for the tx, both inputs and outputs
+	rows := []*struct {
+		Address models.StringShortID `json:"address"`
+		AssetInfo
+	}{}
+
+	_, err := db.
+		Select(
+			"avm_output_addresses.address",
+			"avm_outputs.asset_id",
+			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
+		).
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		Where("avm_outputs.chain_id = ? AND avm_output_addresses.address IN ?", r.chainID, addrIDs).
+		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return err
+	}
+
+	// Accumulate rows into addresses
+	for _, row := range rows {
+		addr, ok := addrsByID[row.Address]
+		if !ok {
+			continue
+		}
+		addr.Assets[row.AssetID] = row.AssetInfo
 	}
 
 	return nil

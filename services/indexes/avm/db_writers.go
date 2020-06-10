@@ -305,6 +305,7 @@ func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, ass
 	_, err := ctx.DB().
 		InsertInto("avm_outputs").
 		Pair("id", outputID.String()).
+		Pair("chain_id", r.chainID).
 		Pair("transaction_id", txID.String()).
 		Pair("output_index", idx).
 		Pair("asset_id", assetID.String()).

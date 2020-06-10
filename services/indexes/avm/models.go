@@ -99,18 +99,22 @@ type Asset struct {
 }
 
 type Address struct {
-	Address models.StringShortID `json:"address"`
-	ChainID models.StringID      `json:"chainID"`
+	Address   models.StringShortID `json:"address"`
+	PublicKey []byte               `json:"publicKey"`
 
-	PublicKey        []byte `json:"publicKey"`
-	TransactionCount uint64 `json:"transactionCount"`
-
-	Balance       TokenAmount `json:"balance"`
-	TotalReceived TokenAmount `json:"totalReceived"`
-	TotalSent     TokenAmount `json:"totalSent"`
-	UTXOCount     uint64      `json:"utxoCount"`
+	Assets map[models.StringID]AssetInfo `json:"assets"`
 
 	Score uint64 `json:"-"`
+}
+
+type AssetInfo struct {
+	AssetID models.StringID `json:"id"`
+
+	TransactionCount uint64      `json:"transactionCount"`
+	UTXOCount        uint64      `json:"utxoCount"`
+	Balance          TokenAmount `json:"balance"`
+	TotalReceived    TokenAmount `json:"totalReceived"`
+	TotalSent        TokenAmount `json:"totalSent"`
 }
 
 //

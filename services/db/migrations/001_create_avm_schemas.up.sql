@@ -17,6 +17,7 @@ create table avm_assets
 create table avm_outputs
 (
     id                       varchar(50)       not null primary key,
+    chain_id       varchar(50)       not null,
 
     transaction_id           varchar(50)       not null,
     output_index             smallint unsigned not null,
@@ -32,6 +33,7 @@ create table avm_outputs
     created_at               timestamp         not null default current_timestamp
 );
 create index avm_outputs_asset_id ON avm_outputs (asset_id);
+create index avm_outputs_chain_id_id ON avm_outputs (chain_id, id);
 create unique index avm_outputs_tx_id_output_idx ON avm_outputs (transaction_id, output_index);
 
 create table avm_output_addresses
