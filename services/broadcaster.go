@@ -4,6 +4,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -19,9 +20,9 @@ func NewBroadcaster(c cfg.Config, chainVM string, chainID string) *Broadcaster {
 
 func (*Broadcaster) Name() string { return "broadcaster" }
 
-func (*Broadcaster) Bootstrap() error { return nil }
+func (*Broadcaster) Bootstrap(context.Context) error { return nil }
 
-func (*Broadcaster) Consume(c Consumable) error {
+func (*Broadcaster) Consume(_ context.Context, c Consumable) error {
 	fmt.Println("Record", c.ChainID(), c.ID(), c.Timestamp())
 	return nil
 }

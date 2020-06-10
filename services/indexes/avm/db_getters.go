@@ -4,6 +4,7 @@
 package avm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -28,9 +29,9 @@ var (
 	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
 )
 
-func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
+func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error) {
 	// Get search results for each class of object
-	transactionResults, err := r.ListTransactions(&ListTransactionsParams{
+	transactionResults, err := r.ListTransactions(ctx, &ListTransactionsParams{
 		ListParams: p.ListParams,
 		Query:      p.Query,
 	})
@@ -38,7 +39,7 @@ func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
 		return nil, err
 	}
 
-	assetResults, err := r.ListAssets(&ListAssetsParams{
+	assetResults, err := r.ListAssets(ctx, &ListAssetsParams{
 		ListParams: p.ListParams,
 		Query:      p.Query,
 	})
@@ -46,7 +47,7 @@ func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
 		return nil, err
 	}
 
-	addressResults, err := r.ListAddresses(&ListAddressesParams{
+	addressResults, err := r.ListAddresses(ctx, &ListAddressesParams{
 		ListParams: p.ListParams,
 		Query:      p.Query,
 	})
@@ -54,7 +55,7 @@ func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
 		return nil, err
 	}
 
-	outputResults, err := r.ListOutputs(&ListOutputsParams{
+	outputResults, err := r.ListOutputs(ctx, &ListOutputsParams{
 		ListParams: p.ListParams,
 		Query:      p.Query,
 	})
@@ -112,11 +113,11 @@ func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
 	return results, nil
 }
 
-func (r *DB) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
+func (r *DB) Aggregate(ctx context.Context, params *AggregateParams) (*AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
-		params.StartTime, err = r.getFirstTransactionTime()
+		params.StartTime, err = r.getFirstTransactionTime(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +177,7 @@ func (r *DB) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
 	}
 
 	intervals := []Aggregates{}
-	_, err := builder.Load(&intervals)
+	_, err := builder.LoadContext(ctx, &intervals)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +263,7 @@ func (r *DB) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
 	return aggs, nil
 }
 
-func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, error) {
+func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
 	db := r.newSession("get_transactions")
 
 	columns := []string{"avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at"}
@@ -288,7 +289,7 @@ func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, erro
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	if _, err = builder.Load(&txs); err != nil {
+	if _, err = builder.LoadContext(ctx, &txs); err != nil {
 		return nil, err
 	}
 
@@ -299,21 +300,21 @@ func (r *DB) ListTransactions(p *ListTransactionsParams) (*TransactionList, erro
 			Select("COUNT(avm_transactions.id)").
 			From("avm_transactions").
 			Where("chain_id = ?", r.chainID)).
-			LoadOne(&count)
+			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressTransactions(db, txs); err != nil {
+	if err = r.dressTransactions(ctx, db, txs); err != nil {
 		return nil, err
 	}
 
 	return &TransactionList{ListMetadata{count}, txs}, nil
 }
 
-func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
+func (r *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, error) {
 	columns := []string{"avm_assets.*"}
 
 	scoreExpression, err := r.newScoreExpressionForFields(p.Query, []string{
@@ -340,7 +341,7 @@ func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	if _, err = builder.Load(&assets); err != nil {
+	if _, err = builder.LoadContext(ctx, &assets); err != nil {
 		return nil, err
 	}
 
@@ -351,7 +352,7 @@ func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
 			Select("COUNT(avm_assets.id)").
 			From("avm_assets").
 			Where("chain_id = ?", r.chainID)).
-			LoadOne(&count)
+			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
 		}
@@ -360,7 +361,7 @@ func (r *DB) ListAssets(p *ListAssetsParams) (*AssetList, error) {
 	return &AssetList{ListMetadata{count}, assets}, err
 }
 
-func (r *DB) ListAddresses(p *ListAddressesParams) (*AddressList, error) {
+func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*AddressList, error) {
 	db := r.newSession("list_addresses")
 
 	columns := []string{
@@ -400,7 +401,7 @@ func (r *DB) ListAddresses(p *ListAddressesParams) (*AddressList, error) {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
 	}
 
-	if _, err = builder.Load(&addresses); err != nil {
+	if _, err = builder.LoadContext(ctx, &addresses); err != nil {
 		return nil, err
 	}
 
@@ -415,7 +416,7 @@ func (r *DB) ListAddresses(p *ListAddressesParams) (*AddressList, error) {
 			LeftJoin("avm_transactions", "all_outputs.transaction_id = avm_transactions.id OR all_outputs.redeeming_transaction_id = avm_transactions.id").
 			LeftJoin(dbr.I("avm_outputs").As("unspent_outputs"), "avm_output_addresses.output_id = unspent_outputs.id AND unspent_outputs.redeeming_transaction_id IS NULL").
 			GroupBy("avm_output_addresses.address")).
-			LoadOne(&count)
+			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
 		}
@@ -424,7 +425,7 @@ func (r *DB) ListAddresses(p *ListAddressesParams) (*AddressList, error) {
 	return &AddressList{ListMetadata{count}, addresses}, nil
 }
 
-func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
+func (r *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList, error) {
 	columns := []string{"avm_outputs.*"}
 
 	scoreExpression, err := r.newScoreExpressionForFields(p.Query, []string{
@@ -450,7 +451,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 	}
 
 	outputs := []*Output{}
-	if _, err = builder.Load(&outputs); err != nil {
+	if _, err = builder.LoadContext(ctx, &outputs); err != nil {
 		return nil, err
 	}
 
@@ -470,7 +471,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 		Select("*").
 		From("avm_output_addresses").
 		Where("output_id IN ?", outputIDs).
-		Load(&addresses)
+		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +492,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 			From("avm_outputs").
 			LeftJoin("avm_transactions", "avm_transactions.id = avm_outputs.transaction_id").
 			Where("avm_transactions.chain_id = ?", r.chainID)).
-			LoadOne(&count)
+			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
 		}
@@ -504,7 +505,7 @@ func (r *DB) ListOutputs(p *ListOutputsParams) (*OutputList, error) {
 // Helpers
 //
 
-func (r *DB) getTransactionCountSince(db *dbr.Session, minutes uint64, assetID ids.ID) (count uint64, err error) {
+func (r *DB) getTransactionCountSince(ctx context.Context, db *dbr.Session, minutes uint64, assetID ids.ID) (count uint64, err error) {
 	builder := db.
 		Select("COUNT(DISTINCT(avm_transactions.id))").
 		From("avm_transactions").
@@ -520,23 +521,23 @@ func (r *DB) getTransactionCountSince(db *dbr.Session, minutes uint64, assetID i
 			Where("avm_outputs.asset_id = ?", assetID.String())
 	}
 
-	err = builder.LoadOne(&count)
+	err = builder.LoadOneContext(ctx, &count)
 	return count, err
 }
 
-func (r *DB) getFirstTransactionTime() (time.Time, error) {
+func (r *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	var ts int64
 	err := r.newSession("get_first_transaction_time").
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions").
-		LoadOne(&ts)
+		LoadOneContext(ctx, &ts)
 	if err != nil {
 		return time.Time{}, err
 	}
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
+func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []*Transaction) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -553,7 +554,7 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 		Select("*").
 		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ? OR avm_outputs.redeeming_transaction_id IN ?", txIDs, txIDs).
-		Load(&outputs)
+		LoadContext(ctx, &outputs)
 	if err != nil {
 		return err
 	}
@@ -571,7 +572,7 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
 		Where("avm_outputs.transaction_id IN ?", txIDs).
-		Load(&outputAddresses)
+		LoadContext(ctx, &outputAddresses)
 	if err != nil {
 		return err
 	}

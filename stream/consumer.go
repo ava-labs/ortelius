@@ -38,7 +38,9 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		// Bootstrap our service
-		if err = c.consumer.Bootstrap(); err != nil {
+		ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelFn()
+		if err = c.consumer.Bootstrap(ctx); err != nil {
 			return nil, err
 		}
 
@@ -84,7 +86,7 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.consumer.Consume(msg)
+	return c.consumer.Consume(ctx, msg)
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

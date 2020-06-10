@@ -4,6 +4,8 @@
 package avm
 
 import (
+	"context"
+
 	"github.com/ava-labs/gecko/database"
 	"github.com/ava-labs/gecko/database/nodb"
 	"github.com/ava-labs/gecko/genesis"
@@ -30,7 +32,6 @@ type Index struct {
 	networkID uint32
 	chainID   string
 	db        *DB
-	cache     *Redis
 }
 
 func New(conf cfg.Services, networkID uint32, chainID string) (*Index, error) {
@@ -61,7 +62,7 @@ func newForConnections(conns *services.Connections, networkID uint32, chainID st
 
 func (i *Index) Name() string { return "avm-index" }
 
-func (i *Index) Bootstrap() error {
+func (i *Index) Bootstrap(ctx context.Context) error {
 	platformGenesisBytes, err := genesis.Genesis(i.networkID)
 	if err != nil {
 		return err
@@ -77,21 +78,15 @@ func (i *Index) Bootstrap() error {
 
 	for _, chain := range platformGenesis.Chains {
 		if chain.VMID.Equals(avm.ID) {
-			return i.bootstrap(chain.GenesisData)
+			return i.bootstrap(ctx, chain.GenesisData)
 		}
 	}
 	return nil
 }
 
-func (i *Index) Consume(ingestable services.Consumable) error {
-	if err := i.db.Index(ingestable); err != nil {
+func (i *Index) Consume(ctx context.Context, ingestable services.Consumable) error {
+	if err := i.db.Index(ctx, ingestable); err != nil {
 		return err
-	}
-
-	if i.cache != nil {
-		if err := i.cache.Index(ingestable); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -107,20 +102,20 @@ func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo,
 	}, nil
 }
 
-func (i *Index) Search(params *SearchParams) (*SearchResults, error) {
-	return i.db.Search(params)
+func (i *Index) Search(ctx context.Context, params *SearchParams) (*SearchResults, error) {
+	return i.db.Search(ctx, params)
 }
 
-func (i *Index) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
-	return i.db.Aggregate(params)
+func (i *Index) Aggregate(ctx context.Context, params *AggregateParams) (*AggregatesHistogram, error) {
+	return i.db.Aggregate(ctx, params)
 }
 
-func (i *Index) ListTransactions(params *ListTransactionsParams) (*TransactionList, error) {
-	return i.db.ListTransactions(params)
+func (i *Index) ListTransactions(ctx context.Context, params *ListTransactionsParams) (*TransactionList, error) {
+	return i.db.ListTransactions(ctx, params)
 }
 
-func (i *Index) GetTransaction(id ids.ID) (*Transaction, error) {
-	txList, err := i.db.ListTransactions(&ListTransactionsParams{ID: &id})
+func (i *Index) GetTransaction(ctx context.Context, id ids.ID) (*Transaction, error) {
+	txList, err := i.db.ListTransactions(ctx, &ListTransactionsParams{ID: &id})
 	if err != nil {
 		return nil, err
 	}
@@ -130,11 +125,11 @@ func (i *Index) GetTransaction(id ids.ID) (*Transaction, error) {
 	return nil, nil
 }
 
-func (i *Index) ListAssets(params *ListAssetsParams) (*AssetList, error) {
-	return i.db.ListAssets(params)
+func (i *Index) ListAssets(ctx context.Context, params *ListAssetsParams) (*AssetList, error) {
+	return i.db.ListAssets(ctx, params)
 }
 
-func (i *Index) GetAsset(idStrOrAlias string) (*Asset, error) {
+func (i *Index) GetAsset(ctx context.Context, idStrOrAlias string) (*Asset, error) {
 	params := &ListAssetsParams{}
 
 	id, err := ids.FromString(idStrOrAlias)
@@ -144,7 +139,7 @@ func (i *Index) GetAsset(idStrOrAlias string) (*Asset, error) {
 		params.Alias = idStrOrAlias
 	}
 
-	assetList, err := i.db.ListAssets(params)
+	assetList, err := i.db.ListAssets(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -154,12 +149,12 @@ func (i *Index) GetAsset(idStrOrAlias string) (*Asset, error) {
 	return nil, err
 }
 
-func (i *Index) ListAddresses(params *ListAddressesParams) (*AddressList, error) {
-	return i.db.ListAddresses(params)
+func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) (*AddressList, error) {
+	return i.db.ListAddresses(ctx, params)
 }
 
-func (i *Index) GetAddress(id ids.ShortID) (*Address, error) {
-	addressList, err := i.db.ListAddresses(&ListAddressesParams{Address: &id})
+func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*Address, error) {
+	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id})
 	if err != nil {
 		return nil, err
 	}
@@ -169,12 +164,12 @@ func (i *Index) GetAddress(id ids.ShortID) (*Address, error) {
 	return nil, err
 }
 
-func (i *Index) ListOutputs(params *ListOutputsParams) (*OutputList, error) {
-	return i.db.ListOutputs(params)
+func (i *Index) ListOutputs(ctx context.Context, params *ListOutputsParams) (*OutputList, error) {
+	return i.db.ListOutputs(ctx, params)
 }
 
-func (i *Index) GetOutput(id ids.ID) (*Output, error) {
-	outputList, err := i.db.ListOutputs(&ListOutputsParams{ID: &id})
+func (i *Index) GetOutput(ctx context.Context, id ids.ID) (*Output, error) {
+	outputList, err := i.db.ListOutputs(ctx, &ListOutputsParams{ID: &id})
 	if err != nil {
 		return nil, err
 	}
@@ -184,8 +179,8 @@ func (i *Index) GetOutput(id ids.ID) (*Output, error) {
 	return nil, err
 }
 
-func (i *Index) bootstrap(genesisBytes []byte) error {
-	return i.db.bootstrap(genesisBytes)
+func (i *Index) bootstrap(ctx context.Context, genesisBytes []byte) error {
+	return i.db.bootstrap(ctx, genesisBytes)
 }
 
 // newAVM creates an producer instance that we can use to parse txs

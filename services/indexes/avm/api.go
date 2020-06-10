@@ -4,6 +4,8 @@
 package avm
 
 import (
+	"context"
+
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/web"
 
@@ -82,8 +84,8 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("search", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.Search(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.Search(ctx, p)
 		},
 	})
 }
@@ -97,8 +99,8 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("aggregate", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.Aggregate(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.Aggregate(ctx, p)
 		},
 	})
 }
@@ -112,8 +114,8 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("list_transactions", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.ListTransactions(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.ListTransactions(ctx, p)
 		},
 	})
 }
@@ -127,8 +129,8 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
-		CachableFn: func() (interface{}, error) {
-			return c.index.GetTransaction(id)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.GetTransaction(ctx, id)
 		},
 	})
 }
@@ -141,8 +143,8 @@ func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
 	}
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("list_assets", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.ListAssets(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.ListAssets(ctx, p)
 		},
 	})
 }
@@ -151,8 +153,8 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 	id := r.PathParams["id"]
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_address", id),
-		CachableFn: func() (interface{}, error) {
-			return c.index.GetAsset(id)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.GetAsset(ctx, id)
 		},
 	})
 }
@@ -166,8 +168,8 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("list_addresses", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.ListAddresses(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.ListAddresses(ctx, p)
 		},
 	})
 }
@@ -181,8 +183,8 @@ func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
-		CachableFn: func() (interface{}, error) {
-			return c.index.GetAddress(id)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.GetAddress(ctx, id)
 		},
 	})
 }
@@ -196,8 +198,8 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("list_outputs", p),
-		CachableFn: func() (interface{}, error) {
-			return c.index.ListOutputs(p)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.ListOutputs(ctx, p)
 		},
 	})
 }
@@ -211,8 +213,8 @@ func (c *APIContext) GetOutput(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_output", r.PathParams["id"]),
-		CachableFn: func() (interface{}, error) {
-			return c.index.GetOutput(id)
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.index.GetOutput(ctx, id)
 		},
 	})
 }

@@ -18,17 +18,17 @@ type Consumable interface {
 // Consumer takes in Consumables and adds them to the service's backend
 type Consumer interface {
 	Name() string
-	Bootstrap() error
-	Consume(Consumable) error
+	Bootstrap(context.Context) error
+	Consume(context.Context, Consumable) error
 }
 
 // FanOutConsumer takes in items and sends them to multiple backend Indexers
 type FanOutConsumer []Consumer
 
 // Bootstrap initializes all underlying backends
-func (fos FanOutConsumer) Bootstrap() (err error) {
+func (fos FanOutConsumer) Bootstrap(ctx context.Context) (err error) {
 	for _, service := range fos {
-		if err = service.Bootstrap(); err != nil {
+		if err = service.Bootstrap(ctx); err != nil {
 			return err
 		}
 	}
@@ -36,9 +36,9 @@ func (fos FanOutConsumer) Bootstrap() (err error) {
 }
 
 // Consume takes in a Consumable and sends it to all underlying indexers
-func (foc FanOutConsumer) Consume(c Consumable) (err error) {
+func (foc FanOutConsumer) Consume(ctx context.Context, c Consumable) (err error) {
 	for _, consumer := range foc {
-		if err = consumer.Consume(c); err != nil {
+		if err = consumer.Consume(ctx, c); err != nil {
 			return err
 		}
 	}
@@ -54,15 +54,16 @@ type ConsumerCtx struct {
 	time time.Time
 }
 
-func NewConsumerContext(job *health.Job, db dbr.SessionRunner, ts int64) ConsumerCtx {
+func NewConsumerContext(ctx context.Context, job *health.Job, db dbr.SessionRunner, ts int64) ConsumerCtx {
 	return ConsumerCtx{
+		ctx:  ctx,
 		job:  job,
 		db:   db,
 		time: time.Unix(ts, 0),
 	}
 }
 
-func (ic ConsumerCtx) Time() time.Time          { return ic.time }
-func (ic ConsumerCtx) Job() *health.Job         { return ic.job }
-func (ic ConsumerCtx) DB() dbr.SessionRunner    { return ic.db }
-func (ic ConsumerCtx) Context() context.Context { return ic.ctx }
+func (ic ConsumerCtx) Time() time.Time       { return ic.time }
+func (ic ConsumerCtx) Job() *health.Job      { return ic.job }
+func (ic ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
+func (ic ConsumerCtx) Ctx() context.Context  { return ic.ctx }

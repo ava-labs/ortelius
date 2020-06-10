@@ -4,6 +4,9 @@
 package pvm
 
 import (
+	"context"
+
+	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/vms/platformvm"
 
 	"github.com/ava-labs/ortelius/api"
@@ -46,11 +49,51 @@ func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo,
 	}, nil
 }
 
-func (i *Index) Consume(ingestable services.Consumable) error         { return i.db.Consume(ingestable) }
-func (i *Index) Bootstrap() error                                     { return i.db.Bootstrap() }
-func (i *Index) ListBlocks(p ListBlocksParams) (*BlockList, error)    { return i.db.ListBlocks(p) }
-func (i *Index) ListSubnets(p ListSubnetsParams) (*SubnetList, error) { return i.db.ListSubnets(p) }
-func (i *Index) ListChains(p ListChainsParams) (*ChainList, error)    { return i.db.ListChains(p) }
-func (i *Index) ListValidators(p ListValidatorsParams) (*ValidatorList, error) {
-	return i.db.ListValidators(p)
+func (i *Index) Consume(ctx context.Context, ingestable services.Consumable) error {
+	return i.db.Consume(ctx, ingestable)
+}
+func (i *Index) Bootstrap(ctx context.Context) error { return i.db.Bootstrap(ctx) }
+func (i *Index) ListBlocks(ctx context.Context, p ListBlocksParams) (*BlockList, error) {
+	return i.db.ListBlocks(ctx, p)
+}
+func (i *Index) ListSubnets(ctx context.Context, p ListSubnetsParams) (*SubnetList, error) {
+	return i.db.ListSubnets(ctx, p)
+}
+func (i *Index) ListChains(ctx context.Context, p ListChainsParams) (*ChainList, error) {
+	return i.db.ListChains(ctx, p)
+}
+func (i *Index) ListValidators(ctx context.Context, p ListValidatorsParams) (*ValidatorList, error) {
+	return i.db.ListValidators(ctx, p)
+}
+
+func (i *Index) GetBlock(ctx context.Context, id ids.ID) (*Block, error) {
+	list, err := i.db.ListBlocks(ctx, ListBlocksParams{ID: &id})
+	if err != nil || len(list.Blocks) == 0 {
+		return nil, err
+	}
+	return list.Blocks[0], nil
+}
+
+func (i *Index) GetSubnet(ctx context.Context, id ids.ID) (*Subnet, error) {
+	list, err := i.db.ListSubnets(ctx, ListSubnetsParams{ID: &id})
+	if err != nil || len(list.Subnets) == 0 {
+		return nil, err
+	}
+	return list.Subnets[0], nil
+}
+
+func (i *Index) GetChain(ctx context.Context, id ids.ID) (*Chain, error) {
+	list, err := i.db.ListChains(ctx, ListChainsParams{ID: &id})
+	if err != nil || len(list.Chains) == 0 {
+		return nil, err
+	}
+	return list.Chains[0], nil
+}
+
+func (i *Index) GetValidator(ctx context.Context, id ids.ID) (*Validator, error) {
+	list, err := i.ListValidators(ctx, ListValidatorsParams{ID: &id})
+	if err != nil || len(list.Validators) == 0 {
+		return nil, err
+	}
+	return list.Validators[0], nil
 }

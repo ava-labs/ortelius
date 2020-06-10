@@ -4,6 +4,7 @@
 package avm
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ var (
 	ErrSerializationTooLong = errors.New("serialization is too long")
 )
 
-func (db *DB) bootstrap(genesisBytes []byte) error {
+func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte) error {
 	var (
 		err  error
 		job  = db.stream.NewJob("bootstrap")
@@ -63,13 +64,13 @@ func (db *DB) bootstrap(genesisBytes []byte) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	var txBytes []byte
-	ctx := services.NewConsumerContext(job, dbTx, time.Now().Unix())
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, time.Now().Unix())
 	for _, tx := range avmGenesis.Txs {
 		txBytes, err = db.codec.Marshal(tx)
 		if err != nil {
 			return err
 		}
-		err = db.ingestCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, tx.Alias)
+		err = db.ingestCreateAssetTx(cCtx, txBytes, &tx.CreateAssetTx, tx.Alias)
 		if err != nil {
 			return err
 		}
@@ -84,7 +85,7 @@ func (db *DB) bootstrap(genesisBytes []byte) error {
 }
 
 // AddTx ingests a Transaction and adds it to the services
-func (r *DB) Index(i services.Consumable) error {
+func (r *DB) Index(ctx context.Context, i services.Consumable) error {
 	var (
 		err  error
 		job  = r.stream.NewJob("index")
@@ -110,7 +111,7 @@ func (r *DB) Index(i services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = r.ingestTx(services.NewConsumerContext(job, dbTx, i.Timestamp()), i.Body())
+	err = r.ingestTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp()), i.Body())
 	if err != nil {
 		return err
 	}
@@ -194,7 +195,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 		Pair("denomination", tx.Denomination).
 		Pair("alias", alias).
 		Pair("current_supply", amount).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return err
 	}
@@ -206,7 +207,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 		Pair("type", TXTypeCreateAsset).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return err
 	}
@@ -268,7 +269,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 			Set("redeemed_at", dbr.Now).
 			Set("redeeming_transaction_id", baseTx.ID().String()).
 			Where(dbr.Or(redeemOutputsConditions...)).
-			Exec()
+			ExecContext(ctx.Ctx())
 		if err != nil {
 			return err
 		}
@@ -282,7 +283,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		Pair("type", txType).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return err
 	}
@@ -312,7 +313,7 @@ func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, ass
 		Pair("created_at", ctx.Time()).
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		_ = r.stream.EventErr("ingest_output", err)
 	}
@@ -330,7 +331,7 @@ func (r *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey cryp
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
 		Pair("public_key", publicKey.Bytes()).
-		Exec()
+		ExecContext(ctx.Ctx())
 
 	if err != nil && !errIsDuplicateEntryError(err) {
 		_ = ctx.Job().EventErr("ingest_address_from_public_key", err)
@@ -347,7 +348,7 @@ func (r *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, addr
 		builder = builder.Pair("redeeming_signature", sig)
 	}
 
-	_, err := builder.Exec()
+	_, err := builder.ExecContext(ctx.Ctx())
 	switch {
 	case err == nil:
 		return
@@ -362,7 +363,7 @@ func (r *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, addr
 		Update("avm_output_addresses").
 		Set("redeeming_signature", sig).
 		Where("output_id = ? and address = ?", outputID.String(), address.String()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil {
 		_ = ctx.Job().EventErr("ingest_output_address", err)
 		return

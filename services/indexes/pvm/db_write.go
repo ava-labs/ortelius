@@ -4,6 +4,7 @@
 package pvm
 
 import (
+	"context"
 	"strings"
 
 	"github.com/ava-labs/gecko/genesis"
@@ -13,7 +14,7 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
-func (db *DB) Consume(i services.Consumable) error {
+func (db *DB) Consume(ctx context.Context, c services.Consumable) error {
 	job := db.stream.NewJob("index")
 	sess := db.db.NewSession(job)
 
@@ -25,14 +26,14 @@ func (db *DB) Consume(i services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = db.indexBlock(services.NewConsumerContext(job, dbTx, i.Timestamp()), i.Body())
+	err = db.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp()), c.Body())
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (db *DB) Bootstrap() error {
+func (db *DB) Bootstrap(ctx context.Context) error {
 	pvmGenesisBytes, err := genesis.Genesis(db.networkID)
 	if err != nil {
 		return err
@@ -56,18 +57,18 @@ func (db *DB) Bootstrap() error {
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	ctx := services.NewConsumerContext(job, dbTx, int64(pvmGenesis.Timestamp))
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, int64(pvmGenesis.Timestamp))
 	blockID := ids.NewID([32]byte{})
 
 	for _, createChainTx := range pvmGenesis.Chains {
-		err = db.indexCreateChainTx(ctx, blockID, createChainTx)
+		err = db.indexCreateChainTx(cCtx, blockID, createChainTx)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, addValidatorTx := range pvmGenesis.Validators.Txs {
-		err = db.indexTimedTx(ctx, blockID, addValidatorTx)
+		err = db.indexTimedTx(cCtx, blockID, addValidatorTx)
 		if err != nil {
 			return err
 		}
@@ -115,7 +116,7 @@ func (db *DB) indexCommonBlock(ctx services.ConsumerCtx, blkType BlockType, blk 
 		Pair("chain_id", db.chainID).
 		Pair("serialization", blockBytes).
 		Pair("created_at", ctx.Time()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_common_block.upsert_block", err)
 	}
@@ -131,7 +132,7 @@ func (db *DB) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, txType 
 		Pair("nonce", nonce).
 		Pair("signature", sig[:]).
 		Pair("created_at", ctx.Time()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_transaction.upsert_transaction", err)
 	}
@@ -214,7 +215,7 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 		Pair("vm_id", tx.VMID.String()).
 		Pair("genesis_data", tx.GenesisData).
 		Pair("created_at", ctx.Time()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain", err)
 	}
@@ -227,7 +228,7 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 		for _, fxID := range tx.FxIDs {
 			builder.Values(db.chainID, fxID.String())
 		}
-		_, err = builder.Exec()
+		_, err = builder.ExecContext(ctx.Ctx())
 		if err != nil && !errIsDuplicateEntryError(err) {
 			return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_fx_ids", err)
 		}
@@ -241,7 +242,7 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 		for _, sig := range tx.ControlSigs {
 			builder.Values(db.chainID, sig[:])
 		}
-		_, err = builder.Exec()
+		_, err = builder.ExecContext(ctx.Ctx())
 		if err != nil && !errIsDuplicateEntryError(err) {
 			return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_control_sigs", err)
 		}
@@ -263,7 +264,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 		Pair("chain_id", db.chainID).
 		Pair("threshold", tx.Threshold).
 		Pair("created_at", ctx.Time()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_create_subnet_tx.upsert_subnet", err)
 	}
@@ -275,7 +276,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 	for _, address := range tx.ControlKeys {
 		builder.Values(db.chainID, address.String())
 	}
-	_, err = builder.Exec()
+	_, err = builder.ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
 	}
@@ -293,7 +294,7 @@ func (db *DB) indexValidator(ctx services.ConsumerCtx, txID ids.ID, dv platformv
 		Pair("destination", destination.String()).
 		Pair("shares", shares).
 		Pair("subnet_id", subnetID.String()).
-		Exec()
+		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_validator.upsert_validator", err)
 	}

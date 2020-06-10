@@ -4,7 +4,6 @@
 package pvm
 
 import (
-	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
@@ -67,21 +66,13 @@ func (c *APIContext) ListBlocks(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListBlocks(ListBlocksParams{ListParams: *p})
+	blocks, err := c.index.ListBlocks(c.Ctx(), ListBlocksParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
 	}
 
 	api.WriteObject(w, blocks)
-}
-
-func (i *Index) GetBlock(id ids.ID) (*Block, error) {
-	list, err := i.db.ListBlocks(ListBlocksParams{ID: &id})
-	if err != nil || len(list.Blocks) == 0 {
-		return nil, err
-	}
-	return list.Blocks[0], nil
 }
 
 func (c *APIContext) ListSubnets(w web.ResponseWriter, r *web.Request) {
@@ -91,21 +82,13 @@ func (c *APIContext) ListSubnets(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListSubnets(ListSubnetsParams{ListParams: *p})
+	blocks, err := c.index.ListSubnets(c.Ctx(), ListSubnetsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
 	}
 
 	api.WriteObject(w, blocks)
-}
-
-func (i *Index) GetSubnet(id ids.ID) (*Subnet, error) {
-	list, err := i.db.ListSubnets(ListSubnetsParams{ID: &id})
-	if err != nil || len(list.Subnets) == 0 {
-		return nil, err
-	}
-	return list.Subnets[0], nil
 }
 
 func (c *APIContext) ListValidators(w web.ResponseWriter, r *web.Request) {
@@ -115,21 +98,13 @@ func (c *APIContext) ListValidators(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListValidators(ListValidatorsParams{ListParams: *p})
+	blocks, err := c.index.ListValidators(c.Ctx(), ListValidatorsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
 	}
 
 	api.WriteObject(w, blocks)
-}
-
-func (i *Index) GetValidator(id ids.ID) (*Validator, error) {
-	list, err := i.db.ListValidators(ListValidatorsParams{ID: &id})
-	if err != nil || len(list.Validators) == 0 {
-		return nil, err
-	}
-	return list.Validators[0], nil
 }
 
 func (c *APIContext) ListChains(w web.ResponseWriter, r *web.Request) {
@@ -139,19 +114,11 @@ func (c *APIContext) ListChains(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListChains(ListChainsParams{ListParams: *p})
+	blocks, err := c.index.ListChains(c.Ctx(), ListChainsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
 	}
 
 	api.WriteObject(w, blocks)
-}
-
-func (i *Index) GetChain(id ids.ID) (*Chain, error) {
-	list, err := i.db.ListChains(ListChainsParams{ID: &id})
-	if err != nil || len(list.Chains) == 0 {
-		return nil, err
-	}
-	return list.Chains[0], nil
 }

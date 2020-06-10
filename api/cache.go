@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/ortelius/services/cache"
 )
 
-type CachableFn func() (interface{}, error)
+type CachableFn func(context.Context) (interface{}, error)
 
 type Cachable struct {
 	Key        []string
@@ -30,7 +30,7 @@ func cacheKey(networkID uint32, parts ...string) string {
 }
 
 func updateCachable(ctx context.Context, cache cacher, key string, cachableFn CachableFn) ([]byte, error) {
-	obj, err := cachableFn()
+	obj, err := cachableFn(ctx)
 	if err != nil {
 		return nil, err
 	}

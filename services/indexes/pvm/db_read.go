@@ -4,16 +4,18 @@
 package pvm
 
 import (
+	"context"
+
 	"github.com/ava-labs/ortelius/services/models"
 )
 
-func (db *DB) ListBlocks(params ListBlocksParams) (*BlockList, error) {
+func (db *DB) ListBlocks(ctx context.Context, params ListBlocksParams) (*BlockList, error) {
 	blocks := []*Block{}
 
 	_, err := params.Apply(db.newSession("list_blocks").
 		Select("id", "type", "parent_id", "chain_id", "created_at").
 		From("pvm_blocks")).
-		Load(&blocks)
+		LoadContext(ctx, &blocks)
 
 	if err != nil {
 		return nil, err
@@ -21,30 +23,30 @@ func (db *DB) ListBlocks(params ListBlocksParams) (*BlockList, error) {
 	return &BlockList{Blocks: blocks}, nil
 }
 
-func (db *DB) ListSubnets(params ListSubnetsParams) (*SubnetList, error) {
+func (db *DB) ListSubnets(ctx context.Context, params ListSubnetsParams) (*SubnetList, error) {
 	subnets := []*Subnet{}
 	_, err := params.Apply(db.newSession("list_subnets").
 		Select("id", "network_id", "threshold", "created_at").
 		From("pvm_subnets")).
-		Load(&subnets)
+		LoadContext(ctx, &subnets)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = db.loadControlKeys(subnets); err != nil {
+	if err = db.loadControlKeys(ctx, subnets); err != nil {
 		return nil, err
 	}
 
 	return &SubnetList{Subnets: subnets}, nil
 }
 
-func (db *DB) ListValidators(params ListValidatorsParams) (*ValidatorList, error) {
+func (db *DB) ListValidators(ctx context.Context, params ListValidatorsParams) (*ValidatorList, error) {
 	validators := []*Validator{}
 
 	_, err := params.Apply(db.newSession("list_blocks").
 		Select("transaction_id", "node_id", "weight", "start_time", "end_time", "destination", "shares", "subnet_id").
 		From("pvm_validators")).
-		Load(&validators)
+		LoadContext(ctx, &validators)
 
 	if err != nil {
 		return nil, err
@@ -52,28 +54,28 @@ func (db *DB) ListValidators(params ListValidatorsParams) (*ValidatorList, error
 	return &ValidatorList{Validators: validators}, nil
 }
 
-func (db *DB) ListChains(params ListChainsParams) (*ChainList, error) {
+func (db *DB) ListChains(ctx context.Context, params ListChainsParams) (*ChainList, error) {
 	chains := []*Chain{}
 
 	_, err := params.Apply(db.newSession("list_chains").
 		Select("id", "network_id", "subnet_id", "name", "vm_id", "genesis_data", "created_at").
 		From("pvm_chains")).
-		Load(&chains)
+		LoadContext(ctx, &chains)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = db.loadFXIDs(chains); err != nil {
+	if err = db.loadFXIDs(ctx, chains); err != nil {
 		return nil, err
 	}
-	if err = db.loadControlSignatures(chains); err != nil {
+	if err = db.loadControlSignatures(ctx, chains); err != nil {
 		return nil, err
 	}
 
 	return &ChainList{Chains: chains}, nil
 }
 
-func (db *DB) loadControlKeys(subnets []*Subnet) error {
+func (db *DB) loadControlKeys(ctx context.Context, subnets []*Subnet) error {
 	if len(subnets) < 1 {
 		return nil
 	}
@@ -94,7 +96,7 @@ func (db *DB) loadControlKeys(subnets []*Subnet) error {
 		Select("subnet_id", "address", "public_key").
 		From("pvm_subnet_control_keys").
 		Where("pvm_subnet_control_keys.subnet_id IN ?", ids).
-		Load(&keys)
+		LoadContext(ctx, &keys)
 	if err != nil {
 		return err
 	}
@@ -108,7 +110,7 @@ func (db *DB) loadControlKeys(subnets []*Subnet) error {
 	return nil
 }
 
-func (db *DB) loadControlSignatures(chains []*Chain) error {
+func (db *DB) loadControlSignatures(ctx context.Context, chains []*Chain) error {
 	if len(chains) < 1 {
 		return nil
 	}
@@ -129,7 +131,7 @@ func (db *DB) loadControlSignatures(chains []*Chain) error {
 		Select("chain_id", "signature").
 		From("pvm_chains_control_signatures").
 		Where("pvm_chains_control_signatures.chain_id IN ?", ids).
-		Load(&sigs)
+		LoadContext(ctx, &sigs)
 	if err != nil {
 		return err
 	}
@@ -143,7 +145,7 @@ func (db *DB) loadControlSignatures(chains []*Chain) error {
 	return nil
 }
 
-func (db *DB) loadFXIDs(chains []*Chain) error {
+func (db *DB) loadFXIDs(ctx context.Context, chains []*Chain) error {
 	if len(chains) < 1 {
 		return nil
 	}
@@ -164,7 +166,7 @@ func (db *DB) loadFXIDs(chains []*Chain) error {
 		Select("chain_id", "fx_id").
 		From("pvm_chains_fx_ids").
 		Where("pvm_chains_fx_ids.chain_id IN ?", ids).
-		Load(&fxIDs)
+		LoadContext(ctx, &fxIDs)
 	if err != nil {
 		return err
 	}
