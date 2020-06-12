@@ -48,7 +48,7 @@ type Transaction struct {
 }
 
 type Input struct {
-	Output Output             `json:"output"`
+	Output *Output            `json:"output"`
 	Creds  []InputCredentials `json:"credentials"`
 }
 

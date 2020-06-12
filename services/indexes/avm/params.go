@@ -195,7 +195,7 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	if p.ID != nil {
 		b = b.
-			Where("id = ?", p.ID.String()).
+			Where("avm_transactions.id = ?", p.ID.String()).
 			Limit(1)
 	}
 
@@ -218,10 +218,10 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	}
 
 	if !p.StartTime.IsZero() {
-		b = b.Where("created_at >= ?", p.StartTime)
+		b = b.Where("avm_transactions.created_at >= ?", p.StartTime)
 	}
 	if !p.EndTime.IsZero() {
-		b = b.Where("created_at <= ?", p.EndTime)
+		b = b.Where("avm_transactions.created_at <= ?", p.EndTime)
 	}
 
 	var applySort func(b *dbr.SelectBuilder, sort TransactionSort) *dbr.SelectBuilder

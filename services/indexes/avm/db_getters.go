@@ -283,7 +283,7 @@ func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*
 	builder := p.Apply(db.
 		Select(columns...).
 		From("avm_transactions").
-		Where("chain_id = ?", r.chainID))
+		Where("avm_transactions.chain_id = ?", r.chainID))
 
 	if scoreExpression != "" {
 		builder.Where(scoreExpression + " > 0").OrderAsc("score")
@@ -299,7 +299,7 @@ func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*
 		err = p.Apply(db.
 			Select("COUNT(avm_transactions.id)").
 			From("avm_transactions").
-			Where("chain_id = ?", r.chainID)).
+			Where("avm_transactions.chain_id = ?", r.chainID)).
 			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
@@ -562,7 +562,7 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 		From("avm_output_addresses").
 		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-		Where("avm_outputs.transaction_id IN ?", txIDs).
+		Where("avm_outputs.transaction_id IN ? OR avm_outputs.redeeming_transaction_id IN ?", txIDs, txIDs).
 		LoadContext(ctx, &outputAddresses)
 	if err != nil {
 		return err
@@ -580,6 +580,8 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 	for _, out := range outputs {
 		outputMap[out.ID] = out
 
+		out.Addresses = []models.StringShortID{}
+
 		if _, ok := inputsMap[out.RedeemingTransactionID]; !ok {
 			inputsMap[out.RedeemingTransactionID] = []*Input{}
 		}
@@ -595,7 +597,7 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 			outputTotalsMap[out.TransactionID] = AssetTokenCounts{}
 		}
 
-		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: *out})
+		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: out})
 		inputTotalsMap[out.RedeemingTransactionID][out.AssetID] += out.Amount
 
 		outputsMap[out.TransactionID] = append(outputsMap[out.TransactionID], out)
