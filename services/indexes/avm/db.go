@@ -4,8 +4,8 @@
 package avm
 
 import (
+	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/ava-labs/gecko/utils/crypto"
-	"github.com/ava-labs/gecko/vms/components/codec"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"

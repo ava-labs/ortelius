@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/ava-labs/gecko/utils/crypto"
 	"github.com/ava-labs/gecko/utils/hashing"
 	"github.com/ava-labs/gecko/utils/math"
 	"github.com/ava-labs/gecko/vms/avm"
-	"github.com/ava-labs/gecko/vms/components/codec"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"

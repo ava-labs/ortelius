@@ -6,7 +6,7 @@ package pvm
 import (
 	"errors"
 
-	"github.com/ava-labs/gecko/vms/components/codec"
+	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 )
