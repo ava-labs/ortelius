@@ -5,13 +5,20 @@ package pvm
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/hashing"
+	"github.com/ava-labs/gecko/utils/wrappers"
 	"github.com/ava-labs/gecko/vms/platformvm"
 
 	"github.com/ava-labs/ortelius/services"
+)
+
+var (
+	ErrUnknownBlockType = errors.New("unknown block type")
 )
 
 func (db *DB) Consume(ctx context.Context, c services.Consumable) error {
@@ -34,6 +41,8 @@ func (db *DB) Consume(ctx context.Context, c services.Consumable) error {
 }
 
 func (db *DB) Bootstrap(ctx context.Context) error {
+	ctx = context.Background()
+
 	pvmGenesisBytes, err := genesis.Genesis(db.networkID)
 	if err != nil {
 		return err
@@ -68,7 +77,7 @@ func (db *DB) Bootstrap(ctx context.Context) error {
 	}
 
 	for _, addValidatorTx := range pvmGenesis.Validators.Txs {
-		err = db.indexTimedTx(cCtx, blockID, addValidatorTx)
+		err = db.indexProposalTx(cCtx, blockID, addValidatorTx)
 		if err != nil {
 			return err
 		}
@@ -84,33 +93,43 @@ func (db *DB) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	}
 
 	switch blk := block.(type) {
-	case *platformvm.Abort:
-	case *platformvm.Commit:
 	case *platformvm.ProposalBlock:
-		if err := db.indexProposalTx(ctx, blk.ID(), blk.Tx); err != nil {
-			return err
-		}
-		return db.indexCommonBlock(ctx, BlockTypeProposal, blk.CommonBlock, blockBytes)
-	case *platformvm.AtomicBlock:
-		if err := db.indexAtomicTx(ctx, blk.ID(), blk.Tx); err != nil {
-			return err
-		}
-		return db.indexCommonBlock(ctx, BlockTypeAtomic, blk.CommonBlock, blockBytes)
+		errs := wrappers.Errs{}
+		errs.Add(
+			db.indexCommonBlock(ctx, BlockTypeProposal, blk.CommonBlock, blockBytes),
+			db.indexProposalTx(ctx, blk.ID(), blk.Tx),
+		)
+		return errs.Err
 	case *platformvm.StandardBlock:
+		blockErr := db.indexCommonBlock(ctx, BlockTypeStandard, blk.CommonBlock, blockBytes)
 		for _, tx := range blk.Txs {
 			if err := db.indexDecisionTx(ctx, blk.ID(), tx); err != nil {
 				return err
 			}
 		}
-		return db.indexCommonBlock(ctx, BlockTypeStandard, blk.CommonBlock, blockBytes)
+		return blockErr
+	case *platformvm.AtomicBlock:
+		blockErr := db.indexCommonBlock(ctx, BlockTypeAtomic, blk.CommonBlock, blockBytes)
+		if err := db.indexAtomicTx(ctx, blk.ID(), blk.Tx); err != nil {
+			return err
+		}
+		return blockErr
+	case *platformvm.Abort:
+		return db.indexCommonBlock(ctx, BlockTypeAbort, blk.CommonBlock, blockBytes)
+	case *platformvm.Commit:
+		return db.indexCommonBlock(ctx, BlockTypeCommit, blk.CommonBlock, blockBytes)
+	default:
+		ctx.Job().EventErr("index_block", ErrUnknownBlockType)
 	}
 	return nil
 }
 
 func (db *DB) indexCommonBlock(ctx services.ConsumerCtx, blkType BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
+	blkID := ids.NewID(hashing.ComputeHash256Array(blockBytes))
+
 	_, err := ctx.DB().
 		InsertInto("pvm_blocks").
-		Pair("id", blk.ID().String()).
+		Pair("id", blkID.String()).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
 		Pair("chain_id", db.chainID).
@@ -149,72 +168,87 @@ func (db *DB) indexDecisionTx(ctx services.ConsumerCtx, blockID ids.ID, dTx plat
 	return nil
 }
 
-func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, proposalTx platformvm.ProposalTx) error {
-	switch tx := proposalTx.(type) {
-	case platformvm.TimedTx:
-		return db.indexTimedTx(ctx, blockID, tx)
-		// case *platformvm.AdvanceTimeTx:
-		// return db.indexTimedTx(ctx, blockID, tx)
-		// case *platformvm.RewardValidatorTx:
-		// return db.indexTimedTx(ctx, blockID, tx)
-	}
-	return nil
-}
-
-func (db *DB) indexTimedTx(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.TimedTx) error {
+func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.ProposalTx) error {
 	// var (
-	// 	nonce    uint64
-	// 	sig      [65]byte
-	// 	txType   TransactionType
-	// 	shares   uint32
-	// 	subnetID ids.ID
-	// 	dv       platformvm.DurationValidator
+	// 	nonce       uint64
+	// 	sig         [65]byte
+	// 	txType      TransactionType
+	// 	shares      uint32
+	// 	subnetID    ids.ID
+	// 	dv          platformvm.DurationValidator
+	// 	destination ids.ShortID
 	// )
 	//
 	// switch tx := tx.(type) {
+	// case *platformvm.RewardValidatorTx:
+	// 	// return db.indexRewardValidatorTx(ctx, blockID, tx)
+	// 	return nil
+	// case *platformvm.AdvanceTimeTx:
+	// 	// return db.indexRewardValidatorTx(ctx, blockID, tx)
+	// 	return nil
 	// case *platformvm.AddDefaultSubnetDelegatorTx:
-	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, platformvm.NumberOfShares, ids.Empty, TransactionTypeAddDefaultSubnetDelegator
+	// 	nonce, sig, dv, shares, subnetID, txType, destination = tx.Nonce, tx.Sig, tx.DurationValidator, platformvm.NumberOfShares, ids.Empty, TransactionTypeAddDefaultSubnetDelegator, tx.Destination
 	// case *platformvm.AddDefaultSubnetValidatorTx:
-	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.Sig, tx.DurationValidator, tx.Shares, ids.Empty, TransactionTypeAddDefaultSubnetValidator
+	// 	nonce, sig, dv, shares, subnetID, txType, destination = tx.Nonce, tx.Sig, tx.DurationValidator, tx.Shares, ids.Empty, TransactionTypeAddDefaultSubnetValidator, tx.Destination
 	// case *platformvm.AddNonDefaultSubnetValidatorTx:
-	// 	nonce, sig, dv, shares, subnetID, txType = tx.Nonce, tx.PayerSig, tx.DurationValidator, 0, tx.Subnet, TransactionTypeAddNonDefaultSubnetValidator
+	// 	nonce, sig, dv, shares, subnetID, txType, destination = tx.Nonce, tx.PayerSig, tx.DurationValidator, 0, tx.Subnet, TransactionTypeAddNonDefaultSubnetValidator, ids.ShortEmpty
+	// default:
+	// 	ctx.Job().Event("unknown_transaction_type")
+	// 	return nil
 	// }
 	//
-	// if err := db.indexValidator(ctx, tx.ID(), dv, ids.ShortEmpty, shares, subnetID); err != nil {
+	// txBytes, err := db.codec.Marshal(tx)
+	// if err != nil {
 	// 	return err
 	// }
 	//
-	// if err := db.indexTransaction(ctx, blockID, txType, tx.ID(), nonce, sig); err != nil {
+	// if err := db.indexValidator(ctx, ids.NewID(hashing.ComputeHash256Array(txBytes)), dv, destination, shares, subnetID); err != nil {
+	// 	return err
+	// }
+	//
+	// if err := db.indexTransaction(ctx, blockID, txType, ids.NewID(hashing.ComputeHash256Array(txBytes)), nonce, sig); err != nil {
 	// 	return err
 	// }
 	return nil
 }
 
 func (db *DB) indexAtomicTx(ctx services.ConsumerCtx, blockID ids.ID, atomicTx platformvm.AtomicTx) error {
+	txBytes, err := db.codec.Marshal(atomicTx)
+	if err != nil {
+		return err
+	}
+
 	switch tx := atomicTx.(type) {
 	case *platformvm.ImportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeImport, tx.ID(), tx.Nonce, tx.Sig)
+		return db.indexTransaction(ctx, blockID, TransactionTypeImport, ids.NewID(hashing.ComputeHash256Array(txBytes)), tx.Nonce, tx.Sig)
 	case *platformvm.ExportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeExport, tx.ID(), tx.Nonce, tx.Sig)
+		return db.indexTransaction(ctx, blockID, TransactionTypeExport, ids.NewID(hashing.ComputeHash256Array(txBytes)), tx.Nonce, tx.Sig)
 	}
 	return nil
 }
 
 func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.CreateChainTx) error {
-	err := db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, tx.ID(), tx.Nonce, [65]byte{})
+	txBytes, err := db.codec.Marshal(tx)
 	if err != nil {
 		return err
 	}
+
+	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
+
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, txID, tx.Nonce, [65]byte{})
+	if err != nil {
+		return err
+	}
+
 	// Add chain
 	_, err = ctx.DB().
 		InsertInto("pvm_chains").
-		Pair("id", tx.ID().String()).
+		Pair("id", txID.String()).
 		Pair("network_id", tx.NetworkID).
 		Pair("subnet_id", tx.SubnetID.String()).
 		Pair("name", tx.ChainName).
 		Pair("vm_id", tx.VMID.String()).
 		Pair("genesis_data", tx.GenesisData).
-		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain", err)
@@ -251,7 +285,14 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 }
 
 func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.CreateSubnetTx) error {
-	err := db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, tx.ID(), tx.Nonce, tx.Sig)
+	txBytes, err := db.codec.Marshal(tx)
+	if err != nil {
+		return err
+	}
+
+	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
+
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, txID, tx.Nonce, tx.Sig)
 	if err != nil {
 		return err
 	}
@@ -259,7 +300,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 	// Add subnet
 	_, err = ctx.DB().
 		InsertInto("pvm_subnets").
-		Pair("id", tx.ID()).
+		Pair("id", txID.String()).
 		Pair("network_id", tx.NetworkID).
 		Pair("chain_id", db.chainID).
 		Pair("threshold", tx.Threshold).
@@ -270,16 +311,19 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 	}
 
 	// Add control keys
-	builder := ctx.DB().
-		InsertInto("pvm_subnet_control_keys").
-		Columns("subnet_id", "address")
-	for _, address := range tx.ControlKeys {
-		builder.Values(db.chainID, address.String())
+	if len(tx.ControlKeys) > 0 {
+		builder := ctx.DB().
+			InsertInto("pvm_subnet_control_keys").
+			Columns("subnet_id", "address")
+		for _, address := range tx.ControlKeys {
+			builder.Values(txID.String(), address.String())
+		}
+		_, err = builder.ExecContext(ctx.Ctx())
+		if err != nil && !errIsDuplicateEntryError(err) {
+			return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
+		}
 	}
-	_, err = builder.ExecContext(ctx.Ctx())
-	if err != nil && !errIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
-	}
+
 	return nil
 }
 
