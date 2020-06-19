@@ -140,9 +140,11 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			defer cancelFn()
 
 			err = backend.ProcessNextMessage(ctx)
+			if err == nil {
+				return
+			}
+
 			switch err {
-			case nil:
-				c.log.Info("Processed message on chain %s", chainConfig.ID)
 			case mangos.ErrRecvTimeout:
 				c.log.Debug("IPC socket timeout")
 			case kafka.RequestTimedOut:
