@@ -34,6 +34,6 @@ func NewDBIndex(stream *health.Stream, db *dbr.Connection, networkID uint32, cha
 	}
 }
 
-func (i *DB) newSession(name string) *dbr.Session {
-	return i.db.NewSession(i.stream.NewJob(name))
+func (db *DB) newSession(name string) *dbr.Session {
+	return db.db.NewSession(db.stream.NewJob(name))
 }
