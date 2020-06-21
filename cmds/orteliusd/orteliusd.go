@@ -160,8 +160,12 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 				return
 			}
 
-			_, err = p.Write(rawMsg)
-			if err != nil {
+			if _, err = p.Write(rawMsg); err != nil {
+				*runErr = err
+				return
+			}
+
+			if err = p.Close(); err != nil {
 				*runErr = err
 				return
 			}
