@@ -5,7 +5,8 @@ package params
 
 import (
 	"errors"
-	"net/http"
+	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/gocraft/dbr"
@@ -46,24 +47,53 @@ var (
 		"year":   IntervalYear,
 		"all":    IntervalAll,
 	}
+
+	ErrUndefinedSort = errors.New("undefined sort")
+
+	// Ensure params types satisfy the interface
+	_ Param = &ListParams{}
 )
 
+type Param interface {
+	ForValues(url.Values) error
+	CacheKey() []string
+}
+
+func CacheKey(name string, val interface{}) string {
+	return fmt.Sprintf("%s=%v", name, val)
+}
+
+func RoundTime(t time.Time, precision time.Duration) time.Time {
+	ts := t.Unix()
+	ts = ts - (ts % int64(precision.Seconds()))
+	return time.Unix(ts, 0)
+}
+
+//
+// Global params
+//
 type ListParams struct {
 	Limit  int
 	Offset int
 }
 
-func ListParamsForHTTPRequest(r *http.Request) (params ListParams, err error) {
-	q := r.URL.Query()
-	params.Limit, err = GetQueryInt(q, KeyLimit, PaginationDefaultLimit)
+func (p *ListParams) ForValues(q url.Values) (err error) {
+	p.Limit, err = GetQueryInt(q, KeyLimit, PaginationDefaultLimit)
 	if err != nil {
-		return params, err
+		return err
 	}
-	params.Offset, err = GetQueryInt(q, KeyOffset, PaginationDefaultOffset)
+	p.Offset, err = GetQueryInt(q, KeyOffset, PaginationDefaultOffset)
 	if err != nil {
-		return params, err
+		return err
 	}
-	return params, nil
+	return nil
+}
+
+func (p *ListParams) CacheKey() []string {
+	return []string{
+		CacheKey(KeyLimit, p.Limit),
+		CacheKey(KeyOffset, p.Offset),
+	}
 }
 
 func (p ListParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
@@ -78,7 +108,3 @@ func (p ListParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	}
 	return b
 }
-
-var (
-	ErrUndefinedSort = errors.New("undefined sort")
-)

@@ -17,6 +17,8 @@ import (
 var (
 	ErrUndefinedRouterFactory = errors.New("undefined Router factory")
 	ErrUnimplemented          = errors.New("unimplemented Router factory")
+
+	RequestTimeout = 2 * time.Minute
 )
 
 type Server struct {

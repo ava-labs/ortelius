@@ -5,7 +5,7 @@ package avm
 
 import (
 	"errors"
-	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -21,33 +21,38 @@ const (
 	TransactionSortTimestampDesc                 = "timestamp-desc"
 )
 
-//
-// General route params
-//
+var (
+	_ params.Param = &SearchParams{}
+	_ params.Param = &AggregateParams{}
+	_ params.Param = &ListTransactionsParams{}
+	_ params.Param = &ListAssetsParams{}
+	_ params.Param = &ListAddressesParams{}
+	_ params.Param = &ListOutputsParams{}
+)
 
 type SearchParams struct {
 	params.ListParams
 	Query string
 }
 
-func SearchParamsForHTTPRequest(r *http.Request) (*SearchParams, error) {
-	q := r.URL.Query()
-
-	listParams, err := params.ListParamsForHTTPRequest(r)
+func (p *SearchParams) ForValues(q url.Values) error {
+	err := p.ListParams.ForValues(q)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	p := &SearchParams{ListParams: listParams}
 
 	queryStrs, ok := q[params.KeySearchQuery]
 	if ok || len(queryStrs) >= 1 {
 		p.Query = queryStrs[0]
 	} else {
-		return nil, errors.New("query required")
+		return errors.New("query required")
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *SearchParams) CacheKey() []string {
+	return append(p.ListParams.CacheKey(), params.CacheKey(params.KeySearchQuery, p.Query))
 }
 
 type AggregateParams struct {
@@ -57,35 +62,44 @@ type AggregateParams struct {
 	IntervalSize time.Duration
 }
 
-func GetAggregateTransactionsParamsForHTTPRequest(r *http.Request) (*AggregateParams, error) {
-	q := r.URL.Query()
-	p := &AggregateParams{}
-
-	if assetIDStrs, ok := q[params.KeyAssetID]; ok || len(assetIDStrs) >= 1 {
-		assetID, err := ids.FromString(assetIDStrs[0])
-		if err != nil {
-			return nil, err
-		}
-		p.AssetID = &assetID
+func (p *AggregateParams) ForValues(q url.Values) (err error) {
+	p.AssetID, err = params.GetQueryID(q, params.KeyAssetID)
+	if err != nil {
+		return err
 	}
 
-	var err error
 	p.StartTime, err = params.GetQueryTime(q, params.KeyStartTime)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p.EndTime, err = params.GetQueryTime(q, params.KeyEndTime)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p.IntervalSize, err = params.GetQueryInterval(q, params.KeyIntervalSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *AggregateParams) CacheKey() []string {
+	k := make([]string, 0, 4)
+
+	if p.AssetID != nil {
+		k = append(k, params.CacheKey(params.KeyAssetID, p.AssetID.String()))
+	}
+
+	k = append(k,
+		params.CacheKey(params.KeyStartTime, params.RoundTime(p.StartTime, time.Hour).Unix()),
+		params.CacheKey(params.KeyEndTime, params.RoundTime(p.EndTime, time.Hour).Unix()),
+		params.CacheKey(params.KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+	)
+
+	return k
 }
 
 //
@@ -108,62 +122,72 @@ type ListTransactionsParams struct {
 	Sort TransactionSort
 }
 
-func ListTransactionsParamsForHTTPRequest(r *http.Request) (*ListTransactionsParams, error) {
-	q := r.URL.Query()
-
-	listParams, err := params.ListParamsForHTTPRequest(r)
+func (p *ListTransactionsParams) ForValues(q url.Values) error {
+	err := p.ListParams.ForValues(q)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	p := &ListTransactionsParams{
-		Sort:       TransactionSortDefault,
-		ListParams: listParams,
-	}
-
+	p.Sort = TransactionSortDefault
 	sortBys, ok := q[params.KeySortBy]
 	if ok && len(sortBys) >= 1 {
 		p.Sort, _ = toTransactionSort(sortBys[0])
 	}
 
-	idStr := params.GetQueryString(q, params.KeyID, "")
-	if idStr != "" {
-		id, err := ids.FromString(idStr)
-		if err != nil {
-			return nil, err
-		}
-		p.ID = &id
+	p.ID, err = params.GetQueryID(q, params.KeyID)
+	if err != nil {
+		return err
 	}
 
-	assetIDStr := params.GetQueryString(q, params.KeyAssetID, "")
-	if assetIDStr != "" {
-		id, err := ids.FromString(assetIDStr)
-		if err != nil {
-			return nil, err
-		}
-		p.AssetID = &id
+	p.AssetID, err = params.GetQueryID(q, params.KeyAssetID)
+	if err != nil {
+		return err
 	}
 
 	addressStrs := q[params.KeyAddress]
 	for _, addressStr := range addressStrs {
 		addr, err := ids.ShortFromString(addressStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		p.Addresses = append(p.Addresses, addr)
 	}
 
 	p.StartTime, err = params.GetQueryTime(q, params.KeyStartTime)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	p.EndTime, err = params.GetQueryTime(q, params.KeyEndTime)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *ListTransactionsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+	k = append(k, params.CacheKey(params.KeySortBy, p.Sort))
+
+	if p.ID != nil {
+		k = append(k, params.CacheKey(params.KeyID, p.ID.String()))
+	}
+
+	if p.AssetID != nil {
+		k = append(k, params.CacheKey(params.KeyAssetID, p.AssetID.String()))
+	}
+
+	for _, address := range p.Addresses {
+		k = append(k, params.CacheKey(params.KeyAddress, address.String()))
+	}
+
+	k = append(k,
+		params.CacheKey(params.KeyStartTime, params.RoundTime(p.StartTime, time.Hour).Unix()),
+		params.CacheKey(params.KeyEndTime, params.RoundTime(p.EndTime, time.Hour).Unix()),
+	)
+
+	return k
 }
 
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
@@ -225,24 +249,28 @@ type ListAssetsParams struct {
 	Alias string
 }
 
-func ListAssetsParamsForHTTPRequest(r *http.Request) (*ListAssetsParams, error) {
-	q := r.URL.Query()
-
-	listParams, err := params.ListParamsForHTTPRequest(r)
+func (p *ListAssetsParams) ForValue(q url.Values) error {
+	err := p.ListParams.ForValues(q)
 	if err != nil {
-		return nil, err
-	}
-
-	p := &ListAssetsParams{
-		ListParams: listParams,
+		return err
 	}
 
 	p.ID, err = params.GetQueryID(q, params.KeyID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *ListAssetsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+
+	if p.ID != nil {
+		k = append(k, params.CacheKey(params.KeyID, p.ID.String()))
+	}
+
+	return k
 }
 
 func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
@@ -268,24 +296,28 @@ type ListAddressesParams struct {
 	Query   string
 }
 
-func ListAddressesParamsForHTTPRequest(r *http.Request) (*ListAddressesParams, error) {
-	q := r.URL.Query()
-
-	listParams, err := params.ListParamsForHTTPRequest(r)
+func (p *ListAddressesParams) ForValues(q url.Values) error {
+	err := p.ListParams.ForValues(q)
 	if err != nil {
-		return nil, err
-	}
-
-	p := &ListAddressesParams{
-		ListParams: listParams,
+		return err
 	}
 
 	p.Address, err = params.GetQueryShortID(q, params.KeyAddress)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *ListAddressesParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+
+	if p.Address != nil {
+		k = append(k, params.CacheKey(params.KeyAddress, p.Address.String()))
+	}
+
+	return k
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
@@ -302,37 +334,64 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 type ListOutputsParams struct {
 	params.ListParams
-	ID    *ids.ID
-	Query string
-
+	ID        *ids.ID
 	Addresses []ids.ShortID
 	Spent     *bool
+	Query     string
 }
 
-func ListOutputsParamsForHTTPRequest(r *http.Request) (*ListOutputsParams, error) {
-	q := r.URL.Query()
-
-	listParams, err := params.ListParamsForHTTPRequest(r)
+func (p *ListOutputsParams) ForValues(q url.Values) error {
+	err := p.ListParams.ForValues(q)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var b *bool
-	p := &ListOutputsParams{
-		Spent:      b,
-		ListParams: listParams,
+	p.ID, err = params.GetQueryID(q, params.KeyID)
+	if err != nil {
+		return err
+	}
+
+	addressStrs := q[params.KeyAddress]
+	for _, addressStr := range addressStrs {
+		addr, err := ids.ShortFromString(addressStr)
+		if err != nil {
+			return err
+		}
+		p.Addresses = append(p.Addresses, addr)
 	}
 
 	spentStrs, ok := q[params.KeySpent]
 	if ok || len(spentStrs) >= 1 {
 		b, err := strconv.ParseBool(spentStrs[0])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		p.Spent = &b
 	}
 
-	return p, nil
+	return nil
+}
+
+func (p *ListOutputsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+
+	if p.ID != nil {
+		k = append(k, params.CacheKey(params.KeyID, p.ID.String()))
+	}
+
+	for _, address := range p.Addresses {
+		k = append(k, params.CacheKey(params.KeyAddress, address.String()))
+	}
+
+	if p.Spent != nil {
+		k = append(k, params.CacheKey(params.KeySpent, *p.Spent))
+	}
+
+	if p.Query != "" {
+		k = append(k, params.CacheKey(params.KeySearchQuery, p.Query))
+	}
+
+	return k
 }
 
 func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {

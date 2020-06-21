@@ -48,7 +48,7 @@ type Transaction struct {
 }
 
 type Input struct {
-	Output *Output            `json:"output"`
+	Output Output             `json:"output"`
 	Creds  []InputCredentials `json:"credentials"`
 }
 
@@ -156,7 +156,7 @@ type SearchResults struct {
 
 type SearchResultSet []SearchResult
 
-func (srs SearchResultSet) Len() int         { return len(srs) }
+func (s SearchResultSet) Len() int           { return len(s) }
 func (s SearchResultSet) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s SearchResultSet) Less(i, j int) bool { return s[i].Score < s[j].Score }
 

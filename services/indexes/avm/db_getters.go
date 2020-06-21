@@ -28,7 +28,7 @@ var (
 	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
 )
 
-func (r *DB) Search(p SearchParams) (*SearchResults, error) {
+func (r *DB) Search(p *SearchParams) (*SearchResults, error) {
 	// Get search results for each class of object
 	transactionResults, err := r.ListTransactions(&ListTransactionsParams{
 		ListParams: p.ListParams,
@@ -46,15 +46,13 @@ func (r *DB) Search(p SearchParams) (*SearchResults, error) {
 		return nil, err
 	}
 
-	// Disable until we can improve performance
-	addressResults := &AddressList{}
-	// addressResults, err := r.ListAddresses(&ListAddressesParams{
-	// 	ListParams: p.ListParams,
-	// 	Query:      p.Query,
-	// })
-	// if err != nil {
-	// 	return nil, err
-	// }
+	addressResults, err := r.ListAddresses(&ListAddressesParams{
+		ListParams: p.ListParams,
+		Query:      p.Query,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	outputResults, err := r.ListOutputs(&ListOutputsParams{
 		ListParams: p.ListParams,
@@ -114,7 +112,7 @@ func (r *DB) Search(p SearchParams) (*SearchResults, error) {
 	return results, nil
 }
 
-func (r *DB) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
+func (r *DB) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
@@ -605,7 +603,7 @@ func (r *DB) dressTransactions(db dbr.SessionRunner, txs []*Transaction) error {
 			outputTotalsMap[out.TransactionID] = AssetTokenCounts{}
 		}
 
-		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: out})
+		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: *out})
 		inputTotalsMap[out.RedeemingTransactionID][out.AssetID] += out.Amount
 
 		outputsMap[out.TransactionID] = append(outputsMap[out.TransactionID], out)

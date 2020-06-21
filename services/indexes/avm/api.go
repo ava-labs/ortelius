@@ -8,18 +8,23 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
+	"github.com/ava-labs/ortelius/services/cache"
+	"github.com/ava-labs/ortelius/services/params"
 )
 
 type APIContext struct {
 	*api.RootRequestContext
 
 	index      *Index
-	networkID  uint32
+	chainID    string
 	chainAlias string
+
+	cache *cache.Cache
+	rw    web.ResponseWriter
 }
 
-func NewAPIRouter(params api.RouterFactoryParams) error {
-	index, err := New(params.ServiceConfig, params.NetworkID, params.ChainConfig.ID)
+func NewAPIRouter(params api.RouterParams) error {
+	index, err := newForConnections(params.Connections, params.NetworkID, params.ChainConfig.ID)
 	if err != nil {
 		return err
 	}
@@ -28,8 +33,11 @@ func NewAPIRouter(params api.RouterFactoryParams) error {
 		// Setup the context for each request
 		Middleware(func(c *APIContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 			c.index = index
-			c.networkID = params.NetworkID
+			c.chainID = params.ChainConfig.ID
 			c.chainAlias = params.ChainConfig.Alias
+
+			c.rw = w
+
 			next(w, r)
 		}).
 
@@ -43,7 +51,7 @@ func NewAPIRouter(params api.RouterFactoryParams) error {
 		Get("/transactions", (*APIContext).ListTransactions).
 		Get("/transactions/:id", (*APIContext).GetTransaction).
 		Get("/assets", (*APIContext).ListAssets).
-		Get("/assets/:alias_or_id", (*APIContext).GetAsset).
+		Get("/assets/:id", (*APIContext).GetAsset).
 		Get("/addresses", (*APIContext).ListAddresses).
 		Get("/addresses/:id", (*APIContext).GetAddress).
 		Get("/outputs", (*APIContext).ListOutputs).
@@ -57,168 +65,162 @@ func NewAPIRouter(params api.RouterFactoryParams) error {
 //
 
 func (c *APIContext) Overview(w web.ResponseWriter, _ *web.Request) {
-	overview, err := c.index.GetChainInfo(c.chainAlias, c.networkID)
+	overview, err := c.index.GetChainInfo(c.chainAlias, c.NetworkID())
 	if err != nil {
-		api.WriteErr(w, 500, err.Error())
+		c.WriteErr(w, 500, err)
 		return
 	}
-
 	api.WriteObject(w, overview)
 }
 
 func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
-	params, err := SearchParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
+	p := &SearchParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	results, err := c.index.Search(*params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
-
-	api.WriteObject(w, results)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("search", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.Search(p)
+		},
+	})
 }
 
 func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
-	// params, err := GetAggregateTransactionsParamsForHTTPRequest(r.Request)
-	// if err != nil {
-	// 	api.WriteErr(w, 400, err.Error())
-	// 	return
-	// }
+	p := &AggregateParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
 
-	aggs := &AggregatesHistogram{}
-	// aggs, err := c.index.Aggregate(*params)
-	// if err != nil {
-	// 	api.WriteErr(w, 500, err.Error())
-	// 	return
-	// }
-
-	api.WriteObject(w, aggs)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("aggregate", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.Aggregate(p)
+		},
+	})
 }
 
-//
-// List and Get routes
-//
-
 func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
-	params, err := ListTransactionsParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
+	p := &ListTransactionsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	txs, err := c.index.ListTransactions(params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
-
-	api.WriteObject(w, txs)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("list_transactions", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.ListTransactions(p)
+		},
+	})
 }
 
 func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 	id, err := ids.FromString(r.PathParams["id"])
 	if err != nil {
-		api.WriteErr(w, 400, err.Error())
+		c.WriteErr(w, 400, err)
 		return
 	}
-	tx, err := c.index.GetTransaction(id)
-	if err != nil {
-		api.WriteErr(w, 404, err.Error())
-		return
-	}
-	api.WriteObject(w, tx)
+
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
+		CachableFn: func() (interface{}, error) {
+			return c.index.GetTransaction(id)
+		},
+	})
 }
 
 func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
-	params, err := ListAssetsParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
+	p := &ListAssetsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
 		return
 	}
-
-	assets, err := c.index.ListAssets(params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
-
-	api.WriteObject(w, assets)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("list_assets", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.ListAssets(p)
+		},
+	})
 }
 
 func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
-	assets, err := c.index.GetAsset(r.PathParams["alias_or_id"])
-	if err != nil {
-		api.WriteErr(w, 404, err.Error())
-		return
-	}
-
-	api.WriteObject(w, assets)
+	id := r.PathParams["id"]
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForID("get_address", id),
+		CachableFn: func() (interface{}, error) {
+			return c.index.GetAsset(id)
+		},
+	})
 }
 
 func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
-	// params, err := ListAddressesParamsForHTTPRequest(r.Request)
-	// if err != nil {
-	// 	api.WriteErr(w, 400, err.Error())
-	// 	return
-	// }
-	//
-	// addrs, err := c.index.ListAddresses(params)
-	// if err != nil {
-	// 	api.WriteErr(w, 500, err.Error())
-	// 	return
-	// }
+	p := &ListAddressesParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
 
-	addrs := &AddressList{}
-
-	api.WriteObject(w, addrs)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("list_addresses", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.ListAddresses(p)
+		},
+	})
 }
 
 func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 	id, err := ids.ShortFromString(r.PathParams["id"])
 	if err != nil {
-		api.WriteErr(w, 400, err.Error())
-		return
-	}
-	addr, err := c.index.GetAddress(id)
-	if err != nil {
-		api.WriteErr(w, 404, err.Error())
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	api.WriteObject(w, addr)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
+		CachableFn: func() (interface{}, error) {
+			return c.index.GetAddress(id)
+		},
+	})
 }
 
 func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
-	params, err := ListOutputsParamsForHTTPRequest(r.Request)
-	if err != nil {
-		api.WriteErr(w, 400, err.Error())
+	p := &ListOutputsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	assets, err := c.index.ListOutputs(params)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
-		return
-	}
-
-	api.WriteObject(w, assets)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForParams("list_outputs", p),
+		CachableFn: func() (interface{}, error) {
+			return c.index.ListOutputs(p)
+		},
+	})
 }
 
 func (c *APIContext) GetOutput(w web.ResponseWriter, r *web.Request) {
 	id, err := ids.FromString(r.PathParams["id"])
 	if err != nil {
-		api.WriteErr(w, 400, err.Error())
-		return
-	}
-	addr, err := c.index.GetOutput(id)
-	if err != nil {
-		api.WriteErr(w, 404, err.Error())
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	api.WriteObject(w, addr)
+	c.WriteCacheable(w, api.Cachable{
+		Key: c.cacheKeyForID("get_output", r.PathParams["id"]),
+		CachableFn: func() (interface{}, error) {
+			return c.index.GetOutput(id)
+		},
+	})
+}
+
+func (c *APIContext) cacheKeyForID(name string, id string) []string {
+	return []string{"avm", c.chainID, name, params.CacheKey("id", id)}
+}
+
+func (c *APIContext) cacheKeyForParams(name string, p params.Param) []string {
+	return append([]string{"avm", c.chainID, name}, p.CacheKey()...)
 }

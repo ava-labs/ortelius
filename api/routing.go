@@ -10,6 +10,7 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
 )
 
 var (
@@ -24,9 +25,11 @@ type registeredRouter struct {
 	ctx interface{}
 }
 
-type RouterFactory func(RouterFactoryParams) error
-type RouterFactoryParams struct {
-	Router        *web.Router
+type RouterFactory func(RouterParams) error
+type RouterParams struct {
+	Router      *web.Router
+	Connections *services.Connections
+
 	NetworkID     uint32
 	ChainConfig   cfg.Chain
 	ServiceConfig cfg.Services
@@ -49,15 +52,30 @@ func routerFactoryForVM(name string) (*registeredRouter, error) {
 }
 
 func newRouter(conf cfg.Config) (*web.Router, error) {
+	connections, err := services.NewConnectionsFromConfig(conf.Services)
+	if err != nil {
+		return nil, err
+	}
+
+	baseParams := RouterParams{
+		Connections:   connections,
+		ServiceConfig: conf.Services,
+		NetworkID:     conf.NetworkID,
+	}
+
 	// Create a root Router that does the work common to all requests and provides
 	// chain-agnostic endpoints
-	router, err := newRootRouter(conf.Chains)
+	router, err := newRootRouter(baseParams, conf.Chains)
 	if err != nil {
 		return nil, err
 	}
 
 	// Instantiate a Router for each chain
 	for chainID, chainConfig := range conf.Chains {
+		// Copy params and set specifics for this chain
+		params := baseParams
+		params.ChainConfig = chainConfig
+
 		// Get the registered Router factory for this VM
 		vmRouterFactory, err := routerFactoryForVM(chainConfig.VMType)
 		if err != nil {
@@ -66,12 +84,8 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 
 		// Create a helper to instantiate a Router at a given path
 		createRouterAtPath := func(path string) error {
-			return vmRouterFactory.RouterFactory(RouterFactoryParams{
-				Router:        router.Subrouter(vmRouterFactory.ctx, "/"+path),
-				NetworkID:     conf.NetworkID,
-				ChainConfig:   chainConfig,
-				ServiceConfig: conf.Services,
-			})
+			params.Router = router.Subrouter(vmRouterFactory.ctx, "/"+path)
+			return vmRouterFactory.RouterFactory(params)
 		}
 
 		// Create a Router for the chainID and one for the alias if an alias exists

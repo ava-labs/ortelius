@@ -19,7 +19,7 @@ type APIContext struct {
 	chainAlias string
 }
 
-func NewAPIRouter(params api.RouterFactoryParams) error {
+func NewAPIRouter(params api.RouterParams) error {
 	index, err := New(params.ServiceConfig, params.NetworkID, params.ChainConfig.ID)
 	if err != nil {
 		return err
@@ -61,13 +61,13 @@ func (c *APIContext) Overview(w web.ResponseWriter, _ *web.Request) {
 }
 
 func (c *APIContext) ListBlocks(w web.ResponseWriter, r *web.Request) {
-	p, err := params.ListParamsForHTTPRequest(r.Request)
-	if err != nil {
+	p := &params.ListParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
 		api.WriteErr(w, 400, err.Error())
 		return
 	}
 
-	blocks, err := c.index.ListBlocks(ListBlocksParams{ListParams: p})
+	blocks, err := c.index.ListBlocks(ListBlocksParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -85,13 +85,13 @@ func (i *Index) GetBlock(id ids.ID) (*Block, error) {
 }
 
 func (c *APIContext) ListSubnets(w web.ResponseWriter, r *web.Request) {
-	p, err := params.ListParamsForHTTPRequest(r.Request)
-	if err != nil {
+	p := &params.ListParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
 		api.WriteErr(w, 400, err.Error())
 		return
 	}
 
-	blocks, err := c.index.ListSubnets(ListSubnetsParams{ListParams: p})
+	blocks, err := c.index.ListSubnets(ListSubnetsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -109,13 +109,13 @@ func (i *Index) GetSubnet(id ids.ID) (*Subnet, error) {
 }
 
 func (c *APIContext) ListValidators(w web.ResponseWriter, r *web.Request) {
-	p, err := params.ListParamsForHTTPRequest(r.Request)
-	if err != nil {
+	p := &params.ListParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
 		api.WriteErr(w, 400, err.Error())
 		return
 	}
 
-	blocks, err := c.index.ListValidators(ListValidatorsParams{ListParams: p})
+	blocks, err := c.index.ListValidators(ListValidatorsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -133,13 +133,13 @@ func (i *Index) GetValidator(id ids.ID) (*Validator, error) {
 }
 
 func (c *APIContext) ListChains(w web.ResponseWriter, r *web.Request) {
-	p, err := params.ListParamsForHTTPRequest(r.Request)
-	if err != nil {
+	p := &params.ListParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
 		api.WriteErr(w, 400, err.Error())
 		return
 	}
 
-	blocks, err := c.index.ListChains(ListChainsParams{ListParams: p})
+	blocks, err := c.index.ListChains(ListChainsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return

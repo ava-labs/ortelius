@@ -13,13 +13,16 @@ import (
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/db"
 )
 
 type Connections struct {
-	redis  *redis.Client
 	stream *health.Stream
 	db     *dbr.Connection
+
+	redis *redis.Client
+	cache *cache.Cache
 }
 
 func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
@@ -31,7 +34,7 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 		redisClient *redis.Client
 	)
 	if conf.Redis != nil && conf.Redis.Addr != "" {
-		redisClient, err = newRedisConn(&redis.Options{
+		redisClient, err = NewRedisConn(&redis.Options{
 			DB:       conf.Redis.DB,
 			Addr:     conf.Redis.Addr,
 			Password: conf.Redis.Password,
@@ -52,16 +55,23 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 }
 
 func NewConnections(stream *health.Stream, dbConn *dbr.Connection, redisClient *redis.Client) *Connections {
+	var c *cache.Cache
+	if redisClient != nil {
+		c = cache.New(redisClient)
+	}
+
 	return &Connections{
 		stream: stream,
 		db:     dbConn,
 		redis:  redisClient,
+		cache:  c,
 	}
 }
 
-func (c Connections) Redis() *redis.Client   { return c.redis }
 func (c Connections) Stream() *health.Stream { return c.stream }
 func (c Connections) DB() *dbr.Connection    { return c.db }
+func (c Connections) Redis() *redis.Client   { return c.redis }
+func (c Connections) Cache() *cache.Cache    { return c.cache }
 
 func NewStream() *health.Stream {
 	s := health.NewStream()
@@ -69,7 +79,7 @@ func NewStream() *health.Stream {
 	return s
 }
 
-func newRedisConn(opts *redis.Options) (*redis.Client, error) {
+func NewRedisConn(opts *redis.Options) (*redis.Client, error) {
 	client := redis.NewClient(opts)
 
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)

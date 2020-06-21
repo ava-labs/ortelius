@@ -107,11 +107,11 @@ func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo,
 	}, nil
 }
 
-func (i *Index) Search(params SearchParams) (*SearchResults, error) {
+func (i *Index) Search(params *SearchParams) (*SearchResults, error) {
 	return i.db.Search(params)
 }
 
-func (i *Index) Aggregate(params AggregateParams) (*AggregatesHistogram, error) {
+func (i *Index) Aggregate(params *AggregateParams) (*AggregatesHistogram, error) {
 	return i.db.Aggregate(params)
 }
 
