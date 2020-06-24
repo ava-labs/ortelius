@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
@@ -122,6 +123,12 @@ type ListTransactionsParams struct {
 	Sort TransactionSort
 }
 
+func addressFromString(addrStr string) (ids.ShortID, error) {
+	addrStr = strings.TrimPrefix(addrStr, "X-")
+	addrStr = strings.TrimPrefix(addrStr, "x-")
+	return ids.ShortFromString(addrStr)
+}
+
 func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	err := p.ListParams.ForValues(q)
 	if err != nil {
@@ -146,7 +153,7 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 
 	addressStrs := q[params.KeyAddress]
 	for _, addressStr := range addressStrs {
-		addr, err := ids.ShortFromString(addressStr)
+		addr, err := addressFromString(addressStr)
 		if err != nil {
 			return err
 		}
@@ -353,7 +360,7 @@ func (p *ListOutputsParams) ForValues(q url.Values) error {
 
 	addressStrs := q[params.KeyAddress]
 	for _, addressStr := range addressStrs {
-		addr, err := ids.ShortFromString(addressStr)
+		addr, err := addressFromString(addressStr)
 		if err != nil {
 			return err
 		}
