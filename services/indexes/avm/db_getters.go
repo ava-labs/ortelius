@@ -572,10 +572,18 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 	outputMap := map[models.StringID]*Output{}
 
 	inputsMap := map[models.StringID][]*Input{}
-	inputTotalsMap := map[models.StringID]AssetTokenCounts{}
+	inputTotalsMap := map[models.StringID]map[models.StringID]*big.Int{}
 
 	outputsMap := map[models.StringID][]*Output{}
-	outputTotalsMap := map[models.StringID]AssetTokenCounts{}
+	outputTotalsMap := map[models.StringID]map[models.StringID]*big.Int{}
+
+	addToBigIntMap := func(m map[models.StringID]*big.Int, assetID models.StringID, amt *big.Int) {
+		prevAmt := m[assetID]
+		if prevAmt == nil {
+			prevAmt = big.NewInt(0)
+		}
+		m[assetID] = prevAmt.Add(amt, prevAmt)
+	}
 
 	for _, out := range outputs {
 		outputMap[out.ID] = out
@@ -587,21 +595,26 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 		}
 
 		if _, ok := inputTotalsMap[out.RedeemingTransactionID]; !ok {
-			inputTotalsMap[out.RedeemingTransactionID] = AssetTokenCounts{}
+			inputTotalsMap[out.RedeemingTransactionID] = map[models.StringID]*big.Int{}
 		}
 		if _, ok := outputsMap[out.TransactionID]; !ok {
 			outputsMap[out.TransactionID] = []*Output{}
 		}
 
 		if _, ok := outputTotalsMap[out.TransactionID]; !ok {
-			outputTotalsMap[out.TransactionID] = AssetTokenCounts{}
+			outputTotalsMap[out.TransactionID] = map[models.StringID]*big.Int{}
+		}
+
+		bigAmt := new(big.Int)
+		if _, ok := bigAmt.SetString(string(out.Amount), 10); !ok {
+			return errors.New("invalid amount")
 		}
 
 		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: out})
-		inputTotalsMap[out.RedeemingTransactionID][out.AssetID] += out.Amount
+		addToBigIntMap(inputTotalsMap[out.RedeemingTransactionID], out.AssetID, bigAmt)
 
 		outputsMap[out.TransactionID] = append(outputsMap[out.TransactionID], out)
-		outputTotalsMap[out.TransactionID][out.AssetID] += out.Amount
+		addToBigIntMap(outputTotalsMap[out.TransactionID], out.AssetID, bigAmt)
 	}
 
 	// Collect the addresses into a list on each Output
@@ -638,10 +651,18 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
-		tx.InputTotals = inputTotalsMap[tx.ID]
-		tx.OutputTotals = outputTotalsMap[tx.ID]
 		tx.Inputs = append(tx.Inputs, inputsMap[tx.ID]...)
 		tx.Outputs = append(tx.Outputs, outputsMap[tx.ID]...)
+
+		tx.InputTotals = make(AssetTokenCounts, len(inputTotalsMap[tx.ID]))
+		for k, v := range inputTotalsMap[tx.ID] {
+			tx.InputTotals[k] = TokenAmount(v.String())
+		}
+
+		tx.OutputTotals = make(AssetTokenCounts, len(outputTotalsMap[tx.ID]))
+		for k, v := range outputTotalsMap[tx.ID] {
+			tx.OutputTotals[k] = TokenAmount(v.String())
+		}
 	}
 
 	return nil
