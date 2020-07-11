@@ -126,7 +126,6 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	// Create a backend to get messages from
 	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
 	if err != nil {
-		// panic(err)
 		return err
 	}
 
