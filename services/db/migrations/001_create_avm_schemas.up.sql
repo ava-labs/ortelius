@@ -58,6 +58,7 @@ create table avm_transactions
 );
 create unique index avm_transactions_id ON avm_transactions (id);
 create index avm_transactions_chain_id ON avm_transactions (chain_id);
+create index avm_transactions_created_at_idx ON avm_transactions (created_at);
 
 create table addresses
 (
