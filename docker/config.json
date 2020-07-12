@@ -1,11 +1,11 @@
 {
-  "networkID": 12345,
-  "logDirectory": "/tmp/ortelius/logs/client",
+  "networkID": 3,
+  "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
-    "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH": {
-      "id": "4R5p2RXDGLqaifZE4hHWH9owe34pfoBULn1DrQTWivjg8o4aH",
+    "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L": {
+      "id": "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L",
       "alias": "X",
       "vmType": "avm"
     },
@@ -13,6 +13,23 @@
       "id": "11111111111111111111111111111111LpoYY",
       "alias": "P",
       "vmType": "pvm"
+    }
+  },
+  "stream": {
+    "kafka": {
+      "brokers": [
+        "kafka:9092"
+      ],
+      "groupName": "indexer"
+    }
+  },
+  "services": {
+    "redis": {
+      "addr": "redis:6379"
+    },
+    "db": {
+      "dsn": "root:password@tcp(mysql:3306)/ortelius_dev",
+      "driver": "mysql"
     }
   }
 }

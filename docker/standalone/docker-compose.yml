@@ -1,0 +1,31 @@
+version: '3'
+services:
+  producer: &ortelius-app
+    build:
+      context: ../..
+    command: ["stream", "producer"]
+    networks:
+      - services
+    external_links:
+      - mysql
+      - kafka
+      - redis
+    volumes:
+      - gecko-ipcs:/tmp
+      - ../config.json:/opt/config.json
+  indexer:
+    <<: *ortelius-app
+    command: ["stream", "indexer"]
+  api:
+    <<: *ortelius-app
+    command: ["api"]
+    ports:
+      - 8080:8080
+networks:
+  services:
+    external:
+      name: ortelius_services
+volumes:
+  gecko-ipcs:
+    external:
+      name: ortelius_gecko_ipcs
