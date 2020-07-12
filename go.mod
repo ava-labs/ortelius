@@ -8,7 +8,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.5.7
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/ava-labs/gecko v0.5.0
+	github.com/ava-labs/gecko v0.5.7
 	github.com/go-redis/cache/v8 v8.0.0-beta.11
 	github.com/go-redis/redis/v8 v8.0.0-beta.4
 	github.com/go-sql-driver/mysql v1.5.0
