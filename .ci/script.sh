@@ -7,7 +7,7 @@
 make test_env_run &
 
 # Lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.24.0
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
 $GOPATH/bin/golangci-lint run --deadline=1m
 
 # Run tests
