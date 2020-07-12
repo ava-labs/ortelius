@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/codec"
@@ -34,7 +33,7 @@ var (
 	ErrSerializationTooLong = errors.New("serialization is too long")
 )
 
-func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte) error {
+func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int64) error {
 	var (
 		err  error
 		job  = db.stream.NewJob("bootstrap")
@@ -64,7 +63,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	var txBytes []byte
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, time.Now().Unix())
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, timestamp)
 	for _, tx := range avmGenesis.Txs {
 		txBytes, err = db.codec.Marshal(tx)
 		if err != nil {

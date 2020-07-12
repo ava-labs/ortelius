@@ -78,7 +78,7 @@ func (i *Index) Bootstrap(ctx context.Context) error {
 
 	for _, chain := range platformGenesis.Chains {
 		if chain.VMID.Equals(avm.ID) {
-			return i.bootstrap(ctx, chain.GenesisData)
+			return i.bootstrap(ctx, chain.GenesisData, int64(platformGenesis.Timestamp))
 		}
 	}
 	return nil
@@ -179,8 +179,8 @@ func (i *Index) GetOutput(ctx context.Context, id ids.ID) (*Output, error) {
 	return nil, err
 }
 
-func (i *Index) bootstrap(ctx context.Context, genesisBytes []byte) error {
-	return i.db.bootstrap(ctx, genesisBytes)
+func (i *Index) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int64) error {
+	return i.db.bootstrap(ctx, genesisBytes, timestamp)
 }
 
 // newAVM creates an producer instance that we can use to parse txs
