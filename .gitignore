@@ -22,5 +22,8 @@
 
 # Development artifacts
 ortelius
+orteliusd
 main
 config*.json
+configs
+vendor
