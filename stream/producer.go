@@ -17,7 +17,7 @@ import (
 )
 
 // producer reads from the socket and writes to the event stream
-type producer struct {
+type Producer struct {
 	chainID     string
 	eventType   EventType
 	sock        protocol.Socket
@@ -26,8 +26,8 @@ type producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType) (*producer, error) {
-	p := &producer{
+func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType) (*Producer, error) {
+	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
@@ -54,13 +54,13 @@ func NewDecisionsProducerProcessor(conf cfg.Config, networkID uint32, chainVM st
 }
 
 // Close shuts down the producer
-func (p *producer) Close() error {
+func (p *Producer) Close() error {
 	return p.writeBuffer.close()
 }
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *producer) ProcessNextMessage(ctx context.Context) error {
+func (p *Producer) ProcessNextMessage(ctx context.Context) error {
 	rawMsg, err := p.receive(ctx)
 	if err != nil {
 		return err
@@ -74,15 +74,15 @@ func (p *producer) ProcessNextMessage(ctx context.Context) error {
 	return err
 }
 
-func (p *producer) Write(msg []byte) (int, error) {
+func (p *Producer) Write(msg []byte) (int, error) {
 	return p.writeBuffer.Write(msg)
 }
 
 // receive reads bytes from the IPC socket
-func (p *producer) receive(ctx context.Context) ([]byte, error) {
+func (p *Producer) receive(ctx context.Context) ([]byte, error) {
 	deadline, _ := ctx.Deadline()
 
-	err := p.sock.SetOption(mangos.OptionRecvDeadline, deadline.Sub(time.Now()))
+	err := p.sock.SetOption(mangos.OptionRecvDeadline, time.Until(deadline))
 	if err != nil {
 		return nil, err
 	}

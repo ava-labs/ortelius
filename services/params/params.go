@@ -65,7 +65,7 @@ func CacheKey(name string, val interface{}) string {
 
 func RoundTime(t time.Time, precision time.Duration) time.Time {
 	ts := t.Unix()
-	ts = ts - (ts % int64(precision.Seconds()))
+	ts -= (ts % int64(precision.Seconds()))
 	return time.Unix(ts, 0)
 }
 

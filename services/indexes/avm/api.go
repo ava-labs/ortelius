@@ -10,7 +10,6 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
-	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/params"
 )
 
@@ -21,8 +20,7 @@ type APIContext struct {
 	chainID    string
 	chainAlias string
 
-	cache *cache.Cache
-	rw    web.ResponseWriter
+	rw web.ResponseWriter
 }
 
 func NewAPIRouter(params api.RouterParams) error {

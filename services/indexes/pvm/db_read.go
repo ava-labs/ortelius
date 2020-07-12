@@ -160,7 +160,7 @@ func (db *DB) loadFXIDs(ctx context.Context, chains []*Chain) error {
 
 	fxIDs := []struct {
 		ChainID models.StringID
-		FXID    models.StringID `db:"fx_id""`
+		FXID    models.StringID `db:"fx_id"`
 	}{}
 	_, err := db.newSession("load_control_signatures").
 		Select("chain_id", "fx_id").

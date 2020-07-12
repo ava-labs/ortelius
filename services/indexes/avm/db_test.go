@@ -21,11 +21,10 @@ import (
 )
 
 type message struct {
-	id              ids.ID
-	chainID         ids.ID
-	body            []byte
-	timestamp       int64
-	timestampOffset int64
+	id        ids.ID
+	chainID   ids.ID
+	body      []byte
+	timestamp int64
 }
 
 func (m *message) ID() string       { return m.id.String() }
@@ -302,7 +301,7 @@ func assertCorrectOutputAddress(t *testing.T, expected, actual OutputAddress) {
 		t.Fatal("Wrong Address:", actual.Address)
 	}
 
-	if string(actual.Signature) != string(actual.Signature) {
+	if string(actual.Signature) != string(expected.Signature) {
 		t.Fatal("Wrong redeeming signature:", actual.Signature)
 	}
 }

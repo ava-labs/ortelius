@@ -41,8 +41,6 @@ func (db *DB) Consume(ctx context.Context, c services.Consumable) error {
 }
 
 func (db *DB) Bootstrap(ctx context.Context) error {
-	ctx = context.Background()
-
 	pvmGenesisBytes, err := genesis.Genesis(db.networkID)
 	if err != nil {
 		return err
@@ -327,23 +325,23 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 	return nil
 }
 
-func (db *DB) indexValidator(ctx services.ConsumerCtx, txID ids.ID, dv platformvm.DurationValidator, destination ids.ShortID, shares uint32, subnetID ids.ID) error {
-	_, err := ctx.DB().
-		InsertInto("pvm_validators").
-		Pair("transaction_id", txID.String()).
-		Pair("node_id", dv.NodeID.String()).
-		Pair("weight", dv.Weight()).
-		Pair("start_time", dv.StartTime()).
-		Pair("end_time", dv.EndTime()).
-		Pair("destination", destination.String()).
-		Pair("shares", shares).
-		Pair("subnet_id", subnetID.String()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !errIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("index_validator.upsert_validator", err)
-	}
-	return nil
-}
+// func (db *DB) indexValidator(ctx services.ConsumerCtx, txID ids.ID, dv platformvm.DurationValidator, destination ids.ShortID, shares uint32, subnetID ids.ID) error {
+// 	_, err := ctx.DB().
+// 		InsertInto("pvm_validators").
+// 		Pair("transaction_id", txID.String()).
+// 		Pair("node_id", dv.NodeID.String()).
+// 		Pair("weight", dv.Weight()).
+// 		Pair("start_time", dv.StartTime()).
+// 		Pair("end_time", dv.EndTime()).
+// 		Pair("destination", destination.String()).
+// 		Pair("shares", shares).
+// 		Pair("subnet_id", subnetID.String()).
+// 		ExecContext(ctx.Ctx())
+// 	if err != nil && !errIsDuplicateEntryError(err) {
+// 		return ctx.Job().EventErr("index_validator.upsert_validator", err)
+// 	}
+// 	return nil
+// }
 
 func errIsDuplicateEntryError(err error) bool {
 	return err != nil && strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")

@@ -26,8 +26,8 @@ type Consumer interface {
 type FanOutConsumer []Consumer
 
 // Bootstrap initializes all underlying backends
-func (fos FanOutConsumer) Bootstrap(ctx context.Context) (err error) {
-	for _, service := range fos {
+func (foc FanOutConsumer) Bootstrap(ctx context.Context) (err error) {
+	for _, service := range foc {
 		if err = service.Bootstrap(ctx); err != nil {
 			return err
 		}

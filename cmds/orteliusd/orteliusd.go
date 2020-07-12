@@ -110,7 +110,7 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Short: streamCmdDesc,
 		Long:  streamCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 			os.Exit(0)
 		},
 	}

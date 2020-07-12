@@ -26,7 +26,7 @@ type cacher interface {
 func cacheKey(networkID uint32, parts ...string) string {
 	k := make([]string, 1, len(parts)+1)
 	k[0] = strconv.Itoa(int(networkID))
-	return cache.CacheKeyFromParts(append(k, parts...)...)
+	return cache.KeyFromParts(append(k, parts...)...)
 }
 
 func updateCachable(ctx context.Context, cache cacher, key string, cachableFn CachableFn) ([]byte, error) {

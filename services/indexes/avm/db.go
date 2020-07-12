@@ -6,9 +6,11 @@ package avm
 import (
 	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/ava-labs/gecko/utils/crypto"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
+
+	// Import MySQL driver
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // DB is a services.Accumulator backed by redis
@@ -33,6 +35,6 @@ func NewDB(stream *health.Stream, db *dbr.Connection, chainID string, codec code
 	}
 }
 
-func (r *DB) newSession(name string) *dbr.Session {
-	return r.db.NewSession(r.stream.NewJob(name))
+func (db *DB) newSession(name string) *dbr.Session {
+	return db.db.NewSession(db.stream.NewJob(name))
 }

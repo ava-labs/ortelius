@@ -23,7 +23,7 @@ var (
 	DefaultTTL = 5 * time.Minute
 )
 
-func CacheKeyFromParts(parts ...string) string {
+func KeyFromParts(parts ...string) string {
 	return strings.Join(parts, CacheSeparator)
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 
+	// Import the MySQL driver
 	_ "github.com/go-sql-driver/mysql"
 )
 

@@ -45,6 +45,8 @@ var (
 
 	outputSelectColumnsString = strings.Join(outputSelectColumns, ", ")
 
+	// nolint
+	// This SQL is built out of only hardcoded column strings
 	outputSelectForDressTransactionsQuery = fmt.Sprintf(`
 		SELECT %s FROM avm_outputs WHERE avm_outputs.transaction_id IN ?
 		UNION
@@ -52,7 +54,7 @@ var (
 		outputSelectColumnsString, outputSelectColumnsString)
 )
 
-func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error) {
+func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error) {
 	if len(p.Query) < MinSearchQueryLength {
 		return nil, ErrSearchQueryTooShort
 	}
@@ -60,15 +62,15 @@ func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error
 	// See if the query string is an id or shortID. If so we can search on them
 	// directly. Otherwise we treat the query as a normal query-string.
 	if shortID, err := addressFromString(p.Query); err == nil {
-		return r.searchByShortID(ctx, shortID)
+		return db.searchByShortID(ctx, shortID)
 	}
 	if id, err := ids.FromString(p.Query); err == nil {
-		return r.searchByID(ctx, id)
+		return db.searchByID(ctx, id)
 	}
 
 	// The query string was not an id/shortid so perform a regular search against
 	// all models
-	assets, err := r.ListAssets(ctx, &ListAssetsParams{ListParams: p.ListParams, Query: p.Query})
+	assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: p.ListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +78,7 @@ func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := r.ListTransactions(ctx, &ListTransactionsParams{ListParams: p.ListParams, Query: p.Query})
+	transactions, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: p.ListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +86,7 @@ func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error
 		return collateSearchResults(assets, nil, transactions, nil)
 	}
 
-	addresses, err := r.ListAddresses(ctx, &ListAddressesParams{ListParams: p.ListParams, Query: p.Query})
+	addresses, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: p.ListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +97,11 @@ func (r *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error
 	return collateSearchResults(assets, addresses, transactions, nil)
 }
 
-func (r *DB) Aggregate(ctx context.Context, params *AggregateParams) (*AggregatesHistogram, error) {
+func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
-		params.StartTime, err = r.getFirstTransactionTime(ctx)
+		params.StartTime, err = db.getFirstTransactionTime(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +124,7 @@ func (r *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregate
 	}
 
 	// Build the query and load the base data
-	db := r.newSession("get_transaction_aggregates_histogram")
+	dbRunner := db.newSession("get_transaction_aggregates_histogram")
 
 	columns := []string{
 		"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
@@ -140,7 +142,7 @@ func (r *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregate
 			intervalSeconds))
 	}
 
-	builder := db.
+	builder := dbRunner.
 		Select(columns...).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
@@ -245,14 +247,14 @@ func (r *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregate
 	return aggs, nil
 }
 
-func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
-	db := r.newSession("get_transactions")
+func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
+	dbRunner := db.newSession("get_transactions")
 
 	txs := []*Transaction{}
-	builder := p.Apply(db.
+	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at").
 		From("avm_transactions").
-		Where("avm_transactions.chain_id = ?", r.chainID))
+		Where("avm_transactions.chain_id = ?", db.chainID))
 
 	var applySort func(sort TransactionSort)
 	applySort = func(sort TransactionSort) {
@@ -277,7 +279,7 @@ func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*
 	count := uint64(p.Offset) + uint64(len(txs))
 	if len(txs) >= p.Limit {
 		p.ListParams = params.ListParams{}
-		err := p.Apply(db.
+		err := p.Apply(dbRunner.
 			Select("COUNT(avm_transactions.id)").
 			From("avm_transactions")).
 			LoadOneContext(ctx, &count)
@@ -287,21 +289,21 @@ func (r *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*
 	}
 
 	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, db, txs); err != nil {
+	if err := db.dressTransactions(ctx, dbRunner, txs); err != nil {
 		return nil, err
 	}
 
 	return &TransactionList{ListMetadata{count}, txs}, nil
 }
 
-func (r *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, error) {
-	db := r.newSession("list_assets")
+func (db *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, error) {
+	dbRunner := db.newSession("list_assets")
 
 	assets := []*Asset{}
-	_, err := p.Apply(db.
+	_, err := p.Apply(dbRunner.
 		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
 		From("avm_assets").
-		Where("chain_id = ?", r.chainID)).
+		Where("chain_id = ?", db.chainID)).
 		LoadContext(ctx, &assets)
 	if err != nil {
 		return nil, err
@@ -310,10 +312,10 @@ func (r *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, e
 	count := uint64(p.Offset) + uint64(len(assets))
 	if len(assets) >= p.Limit {
 		p.ListParams = params.ListParams{}
-		err := p.Apply(db.
+		err := p.Apply(dbRunner.
 			Select("COUNT(avm_assets.id)").
 			From("avm_assets").
-			Where("chain_id = ?", r.chainID)).
+			Where("chain_id = ?", db.chainID)).
 			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err
@@ -323,11 +325,11 @@ func (r *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, e
 	return &AssetList{ListMetadata{count}, assets}, nil
 }
 
-func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*AddressList, error) {
-	db := r.newSession("list_addresses")
+func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*AddressList, error) {
+	dbRunner := db.newSession("list_addresses")
 
 	addresses := []*Address{}
-	_, err := p.Apply(db.
+	_, err := p.Apply(dbRunner.
 		Select("avm_output_addresses.address", "addresses.public_key").
 		From("addresses").
 		LeftJoin("avm_output_addresses", "addresses.address = avm_output_addresses.address")).
@@ -339,7 +341,7 @@ func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addres
 	count := uint64(p.Offset) + uint64(len(addresses))
 	if len(addresses) >= p.Limit {
 		p.ListParams = params.ListParams{}
-		err = p.Apply(db.
+		err = p.Apply(dbRunner.
 			Select("COUNT(addresses.address)").
 			From("addresses")).
 			LoadOneContext(ctx, &count)
@@ -349,18 +351,18 @@ func (r *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addres
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAddresses(ctx, db, addresses); err != nil {
+	if err = db.dressAddresses(ctx, dbRunner, addresses); err != nil {
 		return nil, err
 	}
 
 	return &AddressList{ListMetadata{count}, addresses}, nil
 }
 
-func (r *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList, error) {
-	db := r.newSession("list_transaction_outputs")
+func (db *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList, error) {
+	dbRunner := db.newSession("list_transaction_outputs")
 
 	outputs := []*Output{}
-	_, err := p.Apply(db.
+	_, err := p.Apply(dbRunner.
 		Select(outputSelectColumns...).
 		From("avm_outputs")).LoadContext(ctx, &outputs)
 	if err != nil {
@@ -379,7 +381,7 @@ func (r *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList
 	}
 
 	addresses := []*OutputAddress{}
-	_, err = db.
+	_, err = dbRunner.
 		Select(
 			"avm_output_addresses.output_id",
 			"avm_output_addresses.address",
@@ -404,7 +406,7 @@ func (r *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList
 	count := uint64(p.Offset) + uint64(len(outputs))
 	if len(outputs) >= p.Limit {
 		p.ListParams = params.ListParams{}
-		err = p.Apply(db.
+		err = p.Apply(dbRunner.
 			Select("COUNT(avm_outputs.id)").
 			From("avm_outputs")).
 			LoadOneContext(ctx, &count)
@@ -420,28 +422,9 @@ func (r *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputList
 // Helpers
 //
 
-func (r *DB) getTransactionCountSince(ctx context.Context, db *dbr.Session, minutes uint64, assetID ids.ID) (count uint64, err error) {
-	builder := db.
-		Select("COUNT(DISTINCT(avm_transactions.id))").
-		From("avm_transactions")
-
-	if minutes > 0 {
-		builder = builder.Where("created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)", minutes)
-	}
-
-	if !assetID.Equals(ids.Empty) {
-		builder = builder.
-			LeftJoin("avm_outputs", "avm_outputs.transaction_id = avm_transactions.id").
-			Where("avm_outputs.asset_id = ?", assetID.String())
-	}
-
-	err = builder.LoadOneContext(ctx, &count)
-	return count, err
-}
-
-func (r *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
+func (db *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	var ts int64
-	err := r.newSession("get_first_transaction_time").
+	err := db.newSession("get_first_transaction_time").
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions").
 		LoadOneContext(ctx, &ts)
@@ -451,7 +434,7 @@ func (r *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []*Transaction) error {
+func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*Transaction) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -464,7 +447,7 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 
 	// Load each Transaction Output for the tx, both inputs and outputs
 	outputs := []*Output{}
-	_, err := db.SelectBySql(outputSelectForDressTransactionsQuery, txIDs, txIDs).
+	_, err := dbRunner.SelectBySql(outputSelectForDressTransactionsQuery, txIDs, txIDs).
 		LoadContext(ctx, &outputs)
 	if err != nil {
 		return err
@@ -472,7 +455,7 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 
 	// Load all Output addresses for this Transaction
 	outputAddresses := make([]OutputAddress, 0, 2)
-	_, err = db.
+	_, err = dbRunner.
 		Select(
 			"avm_output_addresses.output_id AS output_id",
 			"avm_output_addresses.address AS address",
@@ -588,7 +571,7 @@ func (r *DB) dressTransactions(ctx context.Context, db dbr.SessionRunner, txs []
 	return nil
 }
 
-func (r *DB) dressAddresses(ctx context.Context, db dbr.SessionRunner, addrs []*Address) error {
+func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*Address) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -609,7 +592,7 @@ func (r *DB) dressAddresses(ctx context.Context, db dbr.SessionRunner, addrs []*
 		AssetInfo
 	}{}
 
-	_, err := db.
+	_, err := dbRunner.
 		Select(
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
@@ -640,14 +623,14 @@ func (r *DB) dressAddresses(ctx context.Context, db dbr.SessionRunner, addrs []*
 	return nil
 }
 
-func (r *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error) {
-	if assets, err := r.ListAssets(ctx, &ListAssetsParams{ID: &id}); err != nil {
+func (db *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error) {
+	if assets, err := db.ListAssets(ctx, &ListAssetsParams{ID: &id}); err != nil {
 		return nil, err
 	} else if len(assets.Assets) > 0 {
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := r.ListTransactions(ctx, &ListTransactionsParams{ID: &id}); err != nil {
+	if txs, err := db.ListTransactions(ctx, &ListTransactionsParams{ID: &id}); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
@@ -656,8 +639,8 @@ func (r *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error) 
 	return &SearchResults{}, nil
 }
 
-func (r *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*SearchResults, error) {
-	if addrs, err := r.ListAddresses(ctx, &ListAddressesParams{Address: &id}); err != nil {
+func (db *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*SearchResults, error) {
+	if addrs, err := db.ListAddresses(ctx, &ListAddressesParams{Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
 		return collateSearchResults(nil, addrs, nil, nil)
@@ -666,7 +649,7 @@ func (r *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*SearchResult
 	return &SearchResults{}, nil
 }
 
-func collateSearchResults(assetResults *AssetList, addressResults *AddressList, transactionResults *TransactionList, outputResults *OutputList) (*SearchResults, error) {
+func collateSearchResults(assetResults *AssetList, addressResults *AddressList, transactionResults *TransactionList, _ *OutputList) (*SearchResults, error) {
 	var (
 		assets       []*Asset
 		addresses    []*Address
@@ -684,10 +667,6 @@ func collateSearchResults(assetResults *AssetList, addressResults *AddressList, 
 
 	if transactionResults != nil {
 		transactions = transactionResults.Transactions
-	}
-
-	if outputResults != nil {
-		outputs = outputResults.Outputs
 	}
 
 	// Build overall SearchResults object from our pieces

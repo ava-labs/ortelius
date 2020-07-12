@@ -84,11 +84,11 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 }
 
 // AddTx ingests a Transaction and adds it to the services
-func (r *DB) Index(ctx context.Context, i services.Consumable) error {
+func (db *DB) Index(ctx context.Context, i services.Consumable) error {
 	var (
 		err  error
-		job  = r.stream.NewJob("index")
-		sess = r.db.NewSession(job)
+		job  = db.stream.NewJob("index")
+		sess = db.db.NewSession(job)
 	)
 	job.KeyValue("id", i.ID())
 	job.KeyValue("chain_id", i.ChainID())
@@ -110,7 +110,7 @@ func (r *DB) Index(ctx context.Context, i services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = r.ingestTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp()), i.Body())
+	err = db.ingestTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp()), i.Body())
 	if err != nil {
 		return err
 	}
@@ -123,8 +123,8 @@ func (r *DB) Index(ctx context.Context, i services.Consumable) error {
 	return nil
 }
 
-func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(r.codec, txBytes)
+func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
+	tx, err := parseTx(db.codec, txBytes)
 	if err != nil {
 		return err
 	}
@@ -132,27 +132,27 @@ func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Finish processing with a type-specific ingestion routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.GenesisAsset:
-		return r.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias)
+		return db.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias)
 	case *avm.CreateAssetTx:
-		return r.ingestCreateAssetTx(ctx, txBytes, castTx, "")
+		return db.ingestCreateAssetTx(ctx, txBytes, castTx, "")
 	case *avm.OperationTx:
-		// 	r.ingestOperationTx(ctx, tx)
+		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
 		castTx.BaseTx.Ins = append(castTx.BaseTx.Ins, castTx.Ins...)
-		return r.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
+		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
 	case *avm.ExportTx:
 		castTx.BaseTx.Outs = append(castTx.BaseTx.Outs, castTx.Outs...)
-		return r.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
+		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
 	case *avm.BaseTx:
-		return r.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
+		return db.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
 	default:
 		return errors.New("unknown tx type")
 	}
 	return nil
 }
 
-func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := r.codec.Marshal(&avm.Tx{UnsignedTx: tx})
+func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
+	wrappedTxBytes, err := db.codec.Marshal(&avm.Tx{UnsignedTx: tx})
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 				continue
 			}
 
-			r.ingestOutput(ctx, txID, outputCount-1, txID, xOut)
+			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut)
 
 			amount, err = math.Add64(amount, xOut.Amount())
 			if err != nil {
@@ -183,7 +183,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 	_, err = ctx.DB().
 		InsertInto("avm_assets").
 		Pair("id", txID.String()).
-		Pair("chain_Id", r.chainID).
+		Pair("chain_Id", db.chainID).
 		Pair("name", tx.Name).
 		Pair("symbol", tx.Symbol).
 		Pair("denomination", tx.Denomination).
@@ -197,7 +197,7 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", txID.String()).
-		Pair("chain_id", r.chainID).
+		Pair("chain_id", db.chainID).
 		Pair("type", TXTypeCreateAsset).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
@@ -208,14 +208,14 @@ func (r *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *a
 	return nil
 }
 
-func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx, txType TransactionType) error {
+func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *avm.Tx, baseTx *avm.BaseTx, txType TransactionType) error {
 	var (
 		err   error
 		total uint64 = 0
 		creds        = uniqueTx.Credentials()
 	)
 
-	unsignedTxBytes, err := r.codec.Marshal(&uniqueTx.UnsignedTx)
+	unsignedTxBytes, err := db.codec.Marshal(&uniqueTx.UnsignedTx)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		redeemedOutputs = append(redeemedOutputs, inputID.String())
 
 		// Upsert this input as an output in case we haven't seen the parent tx
-		r.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
+		db.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
 			Amt:      in.In.Amount(),
 			Locktime: 0,
 			OutputOwners: secp256k1fx.OutputOwners{
@@ -248,13 +248,13 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 			return nil
 		}
 		for _, sig := range cred.Sigs {
-			publicKey, err := r.ecdsaRecoveryFactory.RecoverPublicKey(unsignedTxBytes, sig[:])
+			publicKey, err := db.ecdsaRecoveryFactory.RecoverPublicKey(unsignedTxBytes, sig[:])
 			if err != nil {
 				return err
 			}
 
-			r.ingestAddressFromPublicKey(ctx, publicKey)
-			r.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+			db.ingestAddressFromPublicKey(ctx, publicKey)
+			db.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 		}
 	}
 
@@ -295,18 +295,18 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		if !ok {
 			continue
 		}
-		r.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut)
 	}
 	return nil
 }
 
-func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput) {
 	outputID := txID.Prefix(uint64(idx))
 
 	_, err := ctx.DB().
 		InsertInto("avm_outputs").
 		Pair("id", outputID.String()).
-		Pair("chain_id", r.chainID).
+		Pair("chain_id", db.chainID).
 		Pair("transaction_id", txID.String()).
 		Pair("output_index", idx).
 		Pair("asset_id", assetID.String()).
@@ -317,18 +317,18 @@ func (r *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, ass
 		Pair("threshold", out.Threshold).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
-		_ = r.stream.EventErr("ingest_output", err)
+		_ = db.stream.EventErr("ingest_output", err)
 	}
 
 	// Ingest each Output Address
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		r.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil)
+		db.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil)
 	}
 }
 
-func (r *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) {
+func (db *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) {
 	_, err := ctx.DB().
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
@@ -340,7 +340,7 @@ func (r *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey cryp
 	}
 }
 
-func (r *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
+func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).

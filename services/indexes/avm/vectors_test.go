@@ -97,10 +97,10 @@ func createTestVectors() (testVectors []testVector) {
 			serializedTx: testVectorSerializedTxs[i],
 			expecteds:    e,
 		})
-		i += 1
+		i++
 	}
 
-	nextTx := func(amount uint64) Transaction {
+	nextTx := func() Transaction {
 		return Transaction{
 			ID:                     txID,
 			CanonicalSerialization: testVectorSerializedTxs[i],
@@ -154,7 +154,7 @@ func createTestVectors() (testVectors []testVector) {
 	// Add tx 1
 	txID = stringIDOfBytes(testVectorSerializedTxs[0])
 	expecteds = copyTestVectorExpecteds(expecteds)
-	expecteds.txs = append(expecteds.txs, nextTx(45000000000000000))
+	expecteds.txs = append(expecteds.txs, nextTx())
 	expecteds.outs = append(expecteds.outs, outsFor(100000, 44999999999900000)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr1)...)
 	addVector(expecteds)
@@ -163,7 +163,7 @@ func createTestVectors() (testVectors []testVector) {
 	txID = stringIDOfBytes(testVectorSerializedTxs[1])
 	expecteds = copyTestVectorExpecteds(expecteds)
 	expecteds.outs[2].RedeemingTransactionID = txID
-	expecteds.txs = append(expecteds.txs, nextTx(44999999999900000))
+	expecteds.txs = append(expecteds.txs, nextTx())
 	expecteds.outs = append(expecteds.outs, outsFor(10000, 44999999999890000)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr2)...)
 	addVector(expecteds)
@@ -172,7 +172,7 @@ func createTestVectors() (testVectors []testVector) {
 	txID = stringIDOfBytes(testVectorSerializedTxs[2])
 	expecteds = copyTestVectorExpecteds(expecteds)
 	expecteds.outs[1].RedeemingTransactionID = txID
-	expecteds.txs = append(expecteds.txs, nextTx(100000))
+	expecteds.txs = append(expecteds.txs, nextTx())
 	expecteds.outs = append(expecteds.outs, outsFor(10001, 89999)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr2)...)
 	addVector(expecteds)
@@ -181,7 +181,7 @@ func createTestVectors() (testVectors []testVector) {
 	txID = stringIDOfBytes(testVectorSerializedTxs[3])
 	expecteds = copyTestVectorExpecteds(expecteds)
 	expecteds.outs[6].RedeemingTransactionID = txID
-	expecteds.txs = append(expecteds.txs, nextTx(89999))
+	expecteds.txs = append(expecteds.txs, nextTx())
 	expecteds.outs = append(expecteds.outs, outsFor(20002, 69997)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr3)...)
 	addVector(expecteds)

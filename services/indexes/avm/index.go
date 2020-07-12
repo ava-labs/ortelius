@@ -90,7 +90,6 @@ func (i *Index) Consume(ctx context.Context, ingestable services.Consumable) err
 	}
 
 	return nil
-
 }
 
 func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo, error) {

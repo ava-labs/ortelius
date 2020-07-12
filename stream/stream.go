@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrUnknownVM = errors.New("Unknown VM")
+	ErrUnknownVM = errors.New("unknown VM")
 
 	ErrInvalidTopicName    = errors.New("invalid topic name")
 	ErrWrongTopicEventType = errors.New("wrong topic event type")
