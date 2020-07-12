@@ -67,11 +67,31 @@ func createTestVectors() (testVectors []testVector) {
 	addr3 := models.ToShortStringID(ids.NewShortID([20]byte{208, 187, 155, 197, 193, 255, 200, 81, 99, 172, 211, 188, 182, 225, 70, 109, 145, 253, 209, 84}))
 	addrChange := models.ToShortStringID(ids.NewShortID([20]byte{60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}))
 
+	avaxGenesisOutput := Output{
+		ID:                     "ehWBfjaqMPbtsRfjf3ZPjREFVeAyfiGs2Q52ZUy2pzNNumBRd",
+		TransactionID:          "n8XH5JY1EX5VYqDeAhB4Zd4GKxi9UNQy6oPpMsCAj1Q6xkiiL",
+		OutputIndex:            0,
+		AssetID:                "n8XH5JY1EX5VYqDeAhB4Zd4GKxi9UNQy6oPpMsCAj1Q6xkiiL",
+		OutputType:             OutputTypesSECP2556K1Transfer,
+		Amount:                 "45000000000000000",
+		CreatedAt:              time.Unix(1, 0),
+		RedeemingTransactionID: "PBp3ZQyjnLNfKPLP1FM48GreKBKxrY5PRAL2PLtPsj9v71kca",
+	}
+
+	avaxGenesisOutputAddress := OutputAddress{
+		OutputID: avaxGenesisOutput.ID,
+		Address:  "6Y3kysjF9jnHnYkdS9yGAuoHyae2eNmeV",
+	}
+
 	// Create helpers for building the set of expected objects
 	var txID models.StringID
 	var i int64 = 0
 
-	expecteds := testVectorExpecteds{}
+	expecteds := testVectorExpecteds{
+		outs:     []Output{avaxGenesisOutput},
+		outAddrs: []OutputAddress{avaxGenesisOutputAddress},
+	}
+
 	addVector := func(e testVectorExpecteds) {
 		testVectors = append(testVectors, testVector{
 			serializedTx: testVectorSerializedTxs[i],
@@ -103,7 +123,7 @@ func createTestVectors() (testVectors []testVector) {
 			outs[i] = Output{
 				TransactionID: txID,
 				OutputIndex:   uint64(i),
-				Amount:        amount,
+				Amount:        TokenAmountForUint64(amount),
 				AssetID:       models.ToStringID(testAVAAssetID),
 				OutputType:    OutputTypesSECP2556K1Transfer,
 				Threshold:     1,
@@ -142,7 +162,7 @@ func createTestVectors() (testVectors []testVector) {
 	// Add tx2
 	txID = stringIDOfBytes(testVectorSerializedTxs[1])
 	expecteds = copyTestVectorExpecteds(expecteds)
-	expecteds.outs[1].RedeemingTransactionID = txID
+	expecteds.outs[2].RedeemingTransactionID = txID
 	expecteds.txs = append(expecteds.txs, nextTx(44999999999900000))
 	expecteds.outs = append(expecteds.outs, outsFor(10000, 44999999999890000)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr2)...)
@@ -151,7 +171,7 @@ func createTestVectors() (testVectors []testVector) {
 	// Add tx3
 	txID = stringIDOfBytes(testVectorSerializedTxs[2])
 	expecteds = copyTestVectorExpecteds(expecteds)
-	expecteds.outs[0].RedeemingTransactionID = txID
+	expecteds.outs[1].RedeemingTransactionID = txID
 	expecteds.txs = append(expecteds.txs, nextTx(100000))
 	expecteds.outs = append(expecteds.outs, outsFor(10001, 89999)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr2)...)
@@ -160,7 +180,7 @@ func createTestVectors() (testVectors []testVector) {
 	// Add tx4
 	txID = stringIDOfBytes(testVectorSerializedTxs[3])
 	expecteds = copyTestVectorExpecteds(expecteds)
-	expecteds.outs[5].RedeemingTransactionID = txID
+	expecteds.outs[6].RedeemingTransactionID = txID
 	expecteds.txs = append(expecteds.txs, nextTx(89999))
 	expecteds.outs = append(expecteds.outs, outsFor(20002, 69997)...)
 	expecteds.outAddrs = append(expecteds.outAddrs, outAddrsFor(addr3)...)

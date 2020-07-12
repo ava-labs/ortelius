@@ -4,7 +4,10 @@
 package avm
 
 import (
+	"context"
 	"encoding/hex"
+	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -22,35 +25,35 @@ type message struct {
 	id              ids.ID
 	chainID         ids.ID
 	body            []byte
-	timestamp       uint64
-	timestampOffset uint64
+	timestamp       int64
+	timestampOffset int64
 }
 
-func (m *message) ID() ids.ID        { return m.id }
-func (m *message) ChainID() ids.ID   { return m.chainID }
-func (m *message) Body() []byte      { return m.body }
-func (m *message) Timestamp() uint64 { return m.timestamp }
+func (m *message) ID() string       { return m.id.String() }
+func (m *message) ChainID() string  { return m.chainID.String() }
+func (m *message) Body() []byte     { return m.body }
+func (m *message) Timestamp() int64 { return m.timestamp }
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Index, func()) {
-	// Get default config
-	conf, err := cfg.NewAPIConfig("")
-	if err != nil {
-		t.Fatal("Failed to get config:", err.Error())
-	}
-
-	// Configure test db
-	conf.DB.TXDB = true
-	conf.DB.DSN = "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"
-
-	// Configure test redis
+	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
 		t.Fatal("Failed to create miniredis server:", err.Error())
 	}
-	conf.Redis.Addr = s.Addr()
+
+	conf := cfg.Services{
+		DB: &cfg.DB{
+			TXDB:   true,
+			Driver: "mysql",
+			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",
+		},
+		Redis: &cfg.Redis{
+			Addr: s.Addr(),
+		},
+	}
 
 	// Create index
-	idx, err := New(conf.Services, networkID, chainID)
+	idx, err := New(conf, networkID, chainID.String())
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
@@ -73,37 +76,39 @@ func TestIngestInputs(t *testing.T) {
 	tx1Bytes, _ := hex.DecodeString(tx1)
 	tx2Bytes, _ := hex.DecodeString(tx2)
 
-	err := idx.Add(&message{
+	ctx := newTestContext()
+
+	err := idx.Consume(ctx, &message{
 		id:        ids.NewID(hashing.ComputeHash256Array(tx1Bytes)),
 		chainID:   chainID,
 		body:      tx1Bytes,
-		timestamp: uint64(1),
+		timestamp: 1,
 	})
 	if err != nil {
 		t.Fatal("Failed to index:", err.Error())
 	}
 
-	err = idx.Add(&message{
+	err = idx.Consume(ctx, &message{
 		id:        ids.NewID(hashing.ComputeHash256Array(tx2Bytes)),
 		chainID:   chainID,
 		body:      tx2Bytes,
-		timestamp: uint64(2),
+		timestamp: 2,
 	})
 	if err != nil {
 		t.Fatal("Failed to index:", err.Error())
 	}
 
-	outputs, err := idx.ListOutputs(&ListOutputsParams{})
+	outputs, err := idx.ListOutputs(ctx, &ListOutputsParams{})
 	if err != nil {
 		t.Fatal("Failed to list outputs:", err.Error())
 	}
 
-	if len(outputs) != 4 {
-		t.Fatal("Incorrect number of outputs:", len(outputs))
+	if len(outputs.Outputs) != 5 {
+		t.Fatal("Incorrect number of outputs:", len(outputs.Outputs))
 	}
 
-	expectedAddrs := []string{"DvLWeWgVRx914ewTVNjTAopXXHGHkatbD", "6cesTteH62Y5mLoDBUASaBvCXuL2AthL", "DvLWeWgVRx914ewTVNjTAopXXHGHkatbD", "6cesTteH62Y5mLoDBUASaBvCXuL2AthL"}
-	for i, output := range outputs {
+	expectedAddrs := []string{"6cesTteH62Y5mLoDBUASaBvCXuL2AthL", "DvLWeWgVRx914ewTVNjTAopXXHGHkatbD", "6cesTteH62Y5mLoDBUASaBvCXuL2AthL", "6cesTteH62Y5mLoDBUASaBvCXuL2AthL", "DvLWeWgVRx914ewTVNjTAopXXHGHkatbD"}
+	for i, output := range outputs.Outputs {
 		if len(output.Addresses) != 1 {
 			t.Fatal("Incorrect number of Output addresses:", len(output.Addresses))
 		}
@@ -118,7 +123,7 @@ func TestIndexBootstrap(t *testing.T) {
 	idx, closeFn := newTestIndex(t, 12345, testXChainID)
 	defer closeFn()
 
-	err := idx.Bootstrap()
+	err := idx.Bootstrap(newTestContext())
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
@@ -133,7 +138,7 @@ func TestIndexBootstrap(t *testing.T) {
 		ID:                     txID,
 		ChainID:                models.ToStringID(testXChainID),
 		CanonicalSerialization: createAssetTx,
-		CreatedAt:              time.Unix(1572566400, 0),
+		CreatedAt:              time.Unix(1572566400, 0).UTC(),
 	}})
 }
 
@@ -149,12 +154,13 @@ func TestIndexVectors(t *testing.T) {
 
 	// Add each test vector tx
 	acc := services.FanOutConsumer{idx}
+	ctx := newTestContext()
 	for i, v := range createTestVectors() {
-		err := acc.Add(&message{
+		err := acc.Consume(ctx, &message{
 			id:        ids.NewID(hashing.ComputeHash256Array(v.serializedTx)),
 			chainID:   testXChainID,
 			body:      v.serializedTx,
-			timestamp: uint64(i + 1),
+			timestamp: int64(i + 1),
 		})
 		if err != nil {
 			t.Fatal("Failed to add tx to index:", err.Error())
@@ -202,7 +208,7 @@ func assertCorrectTransaction(t *testing.T, expected, actual Transaction) {
 	}
 
 	if !actual.CreatedAt.Equal(expected.CreatedAt) {
-		t.Fatal("Wrong ingested at:", actual.CreatedAt)
+		t.Fatal("Wrong timestamp:", actual.CreatedAt)
 	}
 }
 
@@ -211,7 +217,6 @@ func assertAllOutputsCorrect(t *testing.T, db dbr.SessionRunner, expecteds []Out
 	if _, err := db.
 		Select("*").
 		From("avm_outputs").
-		OrderAsc("created_at").
 		Load(&outputs); err != nil {
 		t.Fatal("Failed to get outputs:", err.Error())
 	}
@@ -222,6 +227,9 @@ func assertCorrectOutputs(t *testing.T, expecteds, actuals []Output) {
 	if len(actuals) != len(expecteds) {
 		t.Fatal("Wrong Output count:", len(actuals))
 	}
+
+	sort.Sort(outputsLexically(actuals))
+	sort.Sort(outputsLexically(expecteds))
 
 	for i, actual := range actuals {
 		assertCorrectOutput(t, expecteds[i], actual)
@@ -267,7 +275,6 @@ func assertAllOutputAddressesCorrect(t *testing.T, db dbr.SessionRunner, expecte
 	if _, err := db.
 		Select("*").
 		From("avm_output_addresses").
-		OrderAsc("created_at").
 		Load(&outputAddresses); err != nil {
 		t.Fatal("Failed to get Output addresses:", err.Error())
 	}
@@ -278,6 +285,9 @@ func assertCorrectOutputAddresses(t *testing.T, expecteds, actuals []OutputAddre
 	if len(actuals) != len(expecteds) {
 		t.Fatal("Wrong Output addresses count:", len(actuals))
 	}
+
+	sort.Sort(outputAddrsLexically(actuals))
+	sort.Sort(outputAddrsLexically(expecteds))
 
 	for i, actual := range actuals {
 		assertCorrectOutputAddress(t, expecteds[i], actual)
@@ -296,4 +306,24 @@ func assertCorrectOutputAddress(t *testing.T, expected, actual OutputAddress) {
 	if string(actual.Signature) != string(actual.Signature) {
 		t.Fatal("Wrong redeeming signature:", actual.Signature)
 	}
+}
+
+func newTestContext() context.Context {
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	time.AfterFunc(5*time.Second, cancelFn)
+	return ctx
+}
+
+type outputsLexically []Output
+
+func (o outputsLexically) Len() int           { return len(o) }
+func (o outputsLexically) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
+func (o outputsLexically) Less(i, j int) bool { return o[i].ID < o[j].ID }
+
+type outputAddrsLexically []OutputAddress
+
+func (o outputAddrsLexically) Len() int      { return len(o) }
+func (o outputAddrsLexically) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+func (o outputAddrsLexically) Less(i, j int) bool {
+	return string(o[i].OutputID)+string(o[i].Address) < string(o[j].OutputID)+string(o[j].Address)
 }

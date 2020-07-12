@@ -4,6 +4,8 @@
 package avm
 
 import (
+	"strconv"
+
 	"github.com/ava-labs/ortelius/services/models"
 )
 
@@ -20,3 +22,7 @@ type SearchResultType string
 type AssetTokenCounts map[models.StringID]TokenAmount
 
 type TokenAmount string
+
+func TokenAmountForUint64(i uint64) TokenAmount {
+	return TokenAmount(strconv.Itoa(int(i)))
+}
