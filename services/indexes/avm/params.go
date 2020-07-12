@@ -123,12 +123,6 @@ type ListTransactionsParams struct {
 	Sort TransactionSort
 }
 
-func addressFromString(addrStr string) (ids.ShortID, error) {
-	addrStr = strings.TrimPrefix(addrStr, "X-")
-	addrStr = strings.TrimPrefix(addrStr, "x-")
-	return ids.ShortFromString(addrStr)
-}
-
 func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	err := p.ListParams.ForValues(q)
 	if err != nil {
@@ -231,20 +225,9 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		b = b.Where("avm_transactions.created_at <= ?", p.EndTime)
 	}
 
-	var applySort func(b *dbr.SelectBuilder, sort TransactionSort) *dbr.SelectBuilder
-	applySort = func(b *dbr.SelectBuilder, sort TransactionSort) *dbr.SelectBuilder {
-		if p.Query != "" {
-			return b
-		}
-		switch sort {
-		case TransactionSortTimestampAsc:
-			return b.OrderAsc("avm_transactions.created_at")
-		case TransactionSortTimestampDesc:
-			return b.OrderDesc("avm_transactions.created_at")
-		}
-		return applySort(b, TransactionSortDefault)
+	if p.Query != "" {
+		b.Where(dbr.Like("avm_transactions.id", p.Query+"%"))
 	}
-	b = applySort(b, p.Sort)
 
 	return b
 }
@@ -294,6 +277,14 @@ func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 			Where("alias = ?", p.Alias)
 	}
 
+	if p.Query != "" {
+		b.Where(dbr.Or(
+			dbr.Like("avm_assets.id", p.Query+"%"),
+			dbr.Like("avm_assets.name", p.Query+"%"),
+			dbr.Like("avm_assets.symbol", p.Query+"%"),
+		))
+	}
+
 	return b
 }
 
@@ -332,8 +323,12 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Address != nil {
 		b = b.
-			Where("avm_output_addresses.address = ?", p.Address.String()).
+			Where("addresses.address = ?", p.Address.String()).
 			Limit(1)
+	}
+
+	if p.Query != "" {
+		b.Where(dbr.Like("addresses.address", p.Query+"%"))
 	}
 
 	return b
@@ -423,8 +418,12 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.ID != nil {
 		b = b.
-			Where("id = ?", p.ID.String()).
+			Where("avm_outputs.id = ?", p.ID.String()).
 			Limit(1)
+	}
+
+	if p.Query != "" {
+		b.Where(dbr.Like("avm_outputs.id", p.Query+"%"))
 	}
 
 	return b
@@ -443,4 +442,18 @@ func toTransactionSort(s string) (TransactionSort, error) {
 		return TransactionSortTimestampDesc, nil
 	}
 	return TransactionSortDefault, params.ErrUndefinedSort
+}
+
+var addressPrefixes = []string{"X", "P", "C"}
+
+func addressFromString(addrStr string) (ids.ShortID, error) {
+	for _, prefix := range addressPrefixes {
+		addrStr = strings.TrimPrefix(addrStr, prefix+"-")
+		addrStr = strings.TrimPrefix(addrStr, strings.ToLower(prefix)+"-")
+	}
+	sID, err := ids.ShortFromString(addrStr)
+	if err != nil {
+		return ids.ShortEmpty, err
+	}
+	return sID, nil
 }

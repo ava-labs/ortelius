@@ -25,7 +25,7 @@ import (
 const (
 	// MaxSerializationLen is the maximum number of bytes a canonically
 	// serialized tx can be stored as in the database.
-	MaxSerializationLen = 16_384
+	MaxSerializationLen = 64000
 )
 
 var (
@@ -125,11 +125,6 @@ func (r *DB) Index(ctx context.Context, i services.Consumable) error {
 }
 
 func (r *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	// Validate that the serializations aren't too long
-	if len(txBytes) > MaxSerializationLen {
-		return ErrSerializationTooLong
-	}
-
 	tx, err := parseTx(r.codec, txBytes)
 	if err != nil {
 		return err
@@ -226,7 +221,7 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		return err
 	}
 
-	var redeemOutputsConditions []dbr.Builder
+	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
 	for i, in := range baseTx.Ins {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
@@ -234,7 +229,9 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 		}
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
-		redeemOutputsConditions = append(redeemOutputsConditions, dbr.Eq("id", inputID.String()))
+
+		// Save id so we can mark this output as consumed
+		redeemedOutputs = append(redeemedOutputs, inputID.String())
 
 		// Upsert this input as an output in case we haven't seen the parent tx
 		r.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
@@ -263,16 +260,21 @@ func (r *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *av
 	}
 
 	// Mark all inputs as redeemed
-	if len(redeemOutputsConditions) > 0 {
+	if len(redeemedOutputs) > 0 {
 		_, err = ctx.DB().
 			Update("avm_outputs").
 			Set("redeemed_at", dbr.Now).
 			Set("redeeming_transaction_id", baseTx.ID().String()).
-			Where(dbr.Or(redeemOutputsConditions...)).
+			Where("id IN ?", redeemedOutputs).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return err
 		}
+	}
+
+	// If the tx is too big we can't store it in the db
+	if len(txBytes) > MaxSerializationLen {
+		txBytes = []byte{}
 	}
 
 	// Add baseTx to the table

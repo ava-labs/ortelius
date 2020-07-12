@@ -52,12 +52,13 @@ create table avm_transactions
     chain_id                varchar(50)      not null,
     type                    varchar(255)     not null,
 
-    canonical_serialization varbinary(16384) not null,
+    canonical_serialization varbinary(64000) not null,
 
     created_at              timestamp        not null default current_timestamp
 );
 create unique index avm_transactions_id ON avm_transactions (id);
 create index avm_transactions_chain_id ON avm_transactions (chain_id);
+create index avm_transactions_created_at_idx ON avm_transactions (created_at);
 
 create table addresses
 (
