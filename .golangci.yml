@@ -1,0 +1,56 @@
+run:
+  skip-dirs:
+    - vendor
+
+issues:
+  exclude:
+    - Error return value of `.*\.EventErr(Kv)?` is not checked
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+  goconst:
+    min-occurrences: 20
+  gocyclo:
+    min-complexity: 30
+  misspell:
+    locale: US
+  nakedret:
+    max-func-lines: 0
+  unparam:
+    algo: cha
+    check-exported: false
+
+linters:
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - errcheck
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - golint
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nolintlint
+    - rowserrcheck
+    - scopelint
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
