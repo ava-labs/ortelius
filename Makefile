@@ -43,16 +43,13 @@ check_binaries: ## Ensure the binaries build
 ##
 ## Database
 ##
-.PHONY: db_install_migrate db_migrate_up db_migrate_down
+.PHONY: db_migrate_up db_migrate_down
 
-db_install_migrate: ## Install the migration tool
-	@which migrate || go get -tags 'mysql' github.com/golang-migrate/migrate/cmd/migrate
-
-db_migrate_up: db_install_migrate ## Migrate the database up
+db_migrate_up: ## Migrate the database up
 	DSN="${DSN:-mysql://root:password@tcp(127.0.0.1:3306)/ortelius_dev}"
 	${GOPATH}/bin/migrate -source file://services/db/migrations -database "${DSN}" up
 
-db_migrate_down: db_install_migrate ## Migrate the database down
+db_migrate_down: ## Migrate the database down
 	DSN="${DSN:-mysql://root:password@tcp(127.0.0.1:3306)/ortelius_dev}"
 	${GOPATH}/bin/migrate -source file://services/db/migrations -database "${DSN}" down
 
