@@ -12,7 +12,7 @@ import (
 )
 
 func NewIndexerFactory() stream.ProcessorFactory {
-	return stream.NewConsumerFactory(createIndexerConsumer)
+	return stream.NewConsumerFactory(createIndexerConsumer, stream.EventTypeDecisions)
 }
 
 func createIndexerConsumer(conf cfg.Config, networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {

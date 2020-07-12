@@ -19,16 +19,21 @@ type serviceConsumerFactory func(cfg.Config, uint32, string, string) (services.C
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	reader   *kafka.Reader
-	consumer services.Consumer
+	networkID uint32
+	eventType EventType
+	reader    *kafka.Reader
+	consumer  services.Consumer
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
+func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactory {
 	return func(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
 		var (
 			err error
-			c   = &consumer{}
+			c   = &consumer{
+				networkID: networkID,
+				eventType: eventType,
+			}
 		)
 
 		// Create consumer backend
@@ -55,10 +60,11 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:    chainID,
-			Brokers:  conf.Kafka.Brokers,
-			GroupID:  groupName,
-			MaxBytes: 10e6,
+			Topic:       getTopicName(networkID, chainID, eventType),
+			Brokers:     conf.Kafka.Brokers,
+			GroupID:     groupName,
+			StartOffset: kafka.FirstOffset,
+			MaxBytes:    10e6,
 		})
 
 		// If the start time is set then seek to the correct offset
@@ -82,7 +88,7 @@ func (c *consumer) Close() error {
 
 // ProcessNextMessage waits for a new Message and adds it to the services
 func (c *consumer) ProcessNextMessage(ctx context.Context) error {
-	msg, err := getNextMessage(ctx, c.reader)
+	msg, err := c.getNextMessage(ctx)
 	if err != nil {
 		return err
 	}
@@ -90,15 +96,15 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer
-func getNextMessage(ctx context.Context, r *kafka.Reader) (*Message, error) {
+func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := r.ReadMessage(ctx)
+	msg, err := c.reader.ReadMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Extract chainID from topic
-	chainID, err := ids.FromString(msg.Topic)
+	chainID, err := parseTopicNameToChainID(msg.Topic, c.networkID, c.eventType)
 	if err != nil {
 		return nil, err
 	}

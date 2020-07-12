@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"encoding/binary"
-	"path"
 	"time"
 
 	"nanomsg.org/go/mangos/v2"
@@ -20,21 +19,23 @@ import (
 // producer reads from the socket and writes to the event stream
 type producer struct {
 	chainID     string
+	eventType   EventType
 	sock        protocol.Socket
 	binFilterFn binFilterFn
 	writeBuffer *writeBuffer
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, _ uint32, _ string, chainID string) (*producer, error) {
+func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType) (*producer, error) {
 	p := &producer{
 		chainID:     chainID,
+		eventType:   eventType,
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		writeBuffer: newWriteBuffer(conf.Brokers, chainID),
+		writeBuffer: newWriteBuffer(conf.Brokers, getTopicName(networkID, chainID, eventType)),
 	}
 
 	var err error
-	p.sock, err = createIPCSocket("ipc://" + path.Join(conf.Producer.IPCRoot, chainID) + ".ipc")
+	p.sock, err = createIPCSocket(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +43,14 @@ func NewProducer(conf cfg.Config, _ uint32, _ string, chainID string) (*producer
 	return p, nil
 }
 
-// NewProducerProcessor creates a producer as a Processor
-func NewProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, networkID, chainVM, chainID)
+// NewConsensusProducerProcessor creates a producer for consensus events
+func NewConsensusProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
+	return NewProducer(conf, networkID, chainVM, chainID, EventTypeConsensus)
+}
+
+// NewDecisionsProducerProcessor creates a producer for decision events
+func NewDecisionsProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
+	return NewProducer(conf, networkID, chainVM, chainID, EventTypeDecisions)
 }
 
 // Close shuts down the producer

@@ -10,7 +10,7 @@ import (
 )
 
 func NewBroadcasterFactory() stream.ProcessorFactory {
-	return stream.NewConsumerFactory(createBroadcasterConsumer)
+	return stream.NewConsumerFactory(createBroadcasterConsumer, stream.EventTypeConsensus)
 }
 
 func createBroadcasterConsumer(c cfg.Config, _ uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {

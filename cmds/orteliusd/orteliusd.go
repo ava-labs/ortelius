@@ -4,19 +4,17 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
-	"github.com/ava-labs/gecko/utils/hashing"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/ortelius/api"
-	// "github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
@@ -42,12 +40,6 @@ const (
 	streamIndexerCmdUse  = "indexer"
 	streamIndexerCmdDesc = "Runs the stream indexer daemon"
 
-	streamBroadcasterCmdUse  = "broadcaster"
-	streamBroadcasterCmdDesc = "Runs the stream broadcaster daemon"
-
-	streamAddCmdUse  = "add"
-	streamAddCmdDesc = "Adds an event to the stream"
-
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 )
@@ -61,7 +53,6 @@ type listenCloser interface {
 func main() {
 	if err := execute(); err != nil {
 		log.Fatalln("Failed to run:", err.Error())
-		os.Exit(1)
 	}
 }
 
@@ -129,49 +120,12 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   runStreamProcessorManager(config, runErr, stream.NewProducerProcessor),
+		Run:   runStreamProcessorManagers(config, runErr, stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManager(config, runErr, consumers.NewIndexerFactory()),
-	}, &cobra.Command{
-		Use:   streamBroadcasterCmdUse,
-		Short: streamBroadcasterCmdDesc,
-		Long:  streamBroadcasterCmdDesc,
-		Run:   runStreamProcessorManager(config, runErr, consumers.NewBroadcasterFactory()),
-	}, &cobra.Command{
-		Use:   streamAddCmdUse,
-		Short: streamAddCmdDesc,
-		Long:  streamAddCmdDesc,
-		Args:  cobra.ExactArgs(2),
-		Run: func(_ *cobra.Command, args []string) {
-			chainID, hexMsg := args[0], args[1]
-
-			rawMsg, err := hex.DecodeString(hexMsg)
-			if err != nil {
-				*runErr = err
-				return
-			}
-
-			p, err := stream.NewProducer(*config, 0, "", chainID)
-			if err != nil {
-				*runErr = err
-				return
-			}
-
-			if _, err = p.Write(rawMsg); err != nil {
-				*runErr = err
-				return
-			}
-
-			if err = p.Close(); err != nil {
-				*runErr = err
-				return
-			}
-
-			fmt.Println("Sent message", hashing.ComputeHash256(rawMsg))
-		},
+		Run:   runStreamProcessorManagers(config, runErr, consumers.NewIndexerFactory()),
 	})
 
 	return streamCmd
@@ -214,16 +168,27 @@ func runListenCloser(lc listenCloser) {
 	}
 }
 
-// runStreamProcessorManager returns a cobra command that instantiates and runs
-// a stream process manager
-func runStreamProcessorManager(config *cfg.Config, runErr *error, factory stream.ProcessorFactory) func(_ *cobra.Command, _ []string) {
+// runStreamProcessorManagers returns a cobra command that instantiates and runs
+// a set of stream process managers
+func runStreamProcessorManagers(config *cfg.Config, runErr *error, factories ...stream.ProcessorFactory) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
-		// Create and start processor manager
-		pm, err := stream.NewProcessorManager(*config, factory)
-		if err != nil {
-			*runErr = err
-			return
+		wg := &sync.WaitGroup{}
+		wg.Add(len(factories))
+
+		for _, factory := range factories {
+			go func(factory stream.ProcessorFactory) {
+				defer wg.Done()
+
+				// Create and start processor manager
+				pm, err := stream.NewProcessorManager(*config, factory)
+				if err != nil {
+					*runErr = err
+					return
+				}
+				runListenCloser(pm)
+			}(factory)
 		}
-		runListenCloser(pm)
+
+		wg.Wait()
 	}
 }
