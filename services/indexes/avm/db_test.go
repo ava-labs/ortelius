@@ -6,7 +6,6 @@ package avm
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"sort"
 	"testing"
 	"time"

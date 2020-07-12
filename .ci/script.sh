@@ -6,22 +6,12 @@
 # Start a test env
 make test_env_run &
 
-# Install deps
-go get ./...
-go get github.com/alicebob/miniredis
-go get -tags 'mysql' github.com/golang-migrate/migrate/cmd/migrate
-
-# Build tests
-go test -i ./...
-
 # Lint
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.24.0
 $GOPATH/bin/golangci-lint run --deadline=1m
-
-# Migrate DB
-$GOPATH/bin/migrate \
-  -source "file://services/db/migrations" \
-  -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius_test" \
-  up
 
 # Run tests
 go test -v ./...
+
+# Ensure build works
+go build cmds/orteliusd/*.go

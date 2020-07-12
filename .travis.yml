@@ -6,6 +6,5 @@ services:
 cache:
   directories:
     - $GOPATH/pkg/mod
-before_install: .ci/before_install.sh
 script: .ci/script.sh
 after_success: .ci/after_success.sh

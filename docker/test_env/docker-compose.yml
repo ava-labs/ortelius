@@ -1,4 +1,6 @@
 version: '3.5'
+volumes:
+  mysql-data:
 services:
   mysql:
     image: mysql:8.0
@@ -10,6 +12,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ortelius_test
-
-volumes:
-  mysql-data:
+  migrate:
+    image: migrate/migrate:v4.11.0
+    volumes:
+      - ../../services/db/migrations:/migrations
+      - ./migrate.sh:/migrate.sh
+    restart: "no"
+    depends_on:
+      - mysql
+    entrypoint: ["/bin/sh"]
+    command: ["/migrate.sh"]
