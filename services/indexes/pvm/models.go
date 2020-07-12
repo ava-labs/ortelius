@@ -13,6 +13,8 @@ const (
 	VMName = "pvm"
 
 	BlockTypeProposal BlockType = iota
+	BlockTypeAbort
+	BlockTypeCommit
 	BlockTypeStandard
 	BlockTypeAtomic
 )
