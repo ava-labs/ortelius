@@ -11,8 +11,10 @@ import (
 	"github.com/ava-labs/ortelius/services/cache"
 )
 
+// CachableFn is a function whose output can safely be cached
 type CachableFn func(context.Context) (interface{}, error)
 
+// Cachable is a keyed CachableFn
 type Cachable struct {
 	Key        []string
 	CachableFn CachableFn

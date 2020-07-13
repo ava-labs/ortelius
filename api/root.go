@@ -19,18 +19,22 @@ import (
 )
 
 var (
+	// ErrCacheableFnFailed is returned when the execution of a CachableFn fails
 	ErrCacheableFnFailed = errors.New("failed to load resource")
 )
 
 type index struct {
+	// Chains is a map of chain IDs to chainInfo
 	Chains map[string]chainInfo `json:"chains"`
 }
 
+// chainInfo is a set of basic overview information about a chain
 type chainInfo struct {
 	Alias  string `json:"alias"`
 	VMType string `json:"vmType"`
 }
 
+// RootRequestContext is the base context for APIs in the ortelius systems
 type RootRequestContext struct {
 	ctx       context.Context
 	job       *health.Job
@@ -40,14 +44,18 @@ type RootRequestContext struct {
 	cache cacher
 }
 
+// Ctx returns the context.Context for this request context
 func (c *RootRequestContext) Ctx() context.Context {
 	return c.ctx
 }
 
+// NetworkID returns the networkID this request is for
 func (c *RootRequestContext) NetworkID() uint32 {
 	return c.networkID
 }
 
+// WriteCacheable writes to the http response the output of the given Cachable's
+// function, either from the cache or from a new execution of the function
 func (c *RootRequestContext) WriteCacheable(w http.ResponseWriter, cachable Cachable) {
 	key := cacheKey(c.NetworkID(), cachable.Key...)
 
@@ -68,6 +76,7 @@ func (c *RootRequestContext) WriteCacheable(w http.ResponseWriter, cachable Cach
 	WriteJSON(w, resp)
 }
 
+// WriteErr writes an error response to the http response
 func (c *RootRequestContext) WriteErr(w http.ResponseWriter, code int, err error) {
 	c.err = err
 

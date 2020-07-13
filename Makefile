@@ -15,11 +15,13 @@ help:
 .PHONY: dev_env_run test_env_run
 
 dev_env_run: ## Start up backing services in dev mode
-	@(cd docker/dev_env && docker-compose up --remove-orphans)
+	@docker-compose -f docker/dev_env/docker-compose.yml up --remove-orphans
 
 test_env_run: ## Start up backing services in test mode
-	@(cd docker/test_env && docker-compose up --remove-orphans)
+	@docker-compose -f docker/test_env/docker-compose.yml up --remove-orphans
 
+standalone_run: ## Start up standalone mode
+	@docker-compose -f docker/standalone/docker-compose.yml up --remove-orphans
 ##
 ## Testing
 ##
