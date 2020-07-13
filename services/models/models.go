@@ -3,6 +3,7 @@
 
 package models
 
+// ChainInfo represents an overview of data about a given chain
 type ChainInfo struct {
 	ID        StringID `json:"chainID"`
 	Alias     string   `json:"chainAlias"`

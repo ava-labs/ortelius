@@ -14,6 +14,8 @@ import (
 )
 
 var (
+	// ErrUnregisteredVM is returned when trying to get a router factory for an
+	// unknown VM
 	ErrUnregisteredVM = errors.New("no Router is registered for this VM")
 
 	routerFactoriesMu = sync.Mutex{}
@@ -25,7 +27,10 @@ type registeredRouter struct {
 	ctx interface{}
 }
 
+// RouterFactory initializes a router based on a set of given params
 type RouterFactory func(RouterParams) error
+
+// RouterParams is the set of options passed to RouterFactories
 type RouterParams struct {
 	Router      *web.Router
 	Connections *services.Connections
@@ -35,6 +40,7 @@ type RouterParams struct {
 	ServiceConfig cfg.Services
 }
 
+// RegisterRouter adds a new RouterFactor to the registry
 func RegisterRouter(name string, factory RouterFactory, ctx interface{}) {
 	routerFactoriesMu.Lock()
 	defer routerFactoriesMu.Unlock()

@@ -9,16 +9,19 @@ import (
 	"net/http"
 )
 
+// ErrorResponse represents an API error to return to the caller
 type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
+// WriteJSON writes the given bytes to the http response as JSON
 func WriteJSON(w http.ResponseWriter, msg []byte) {
 	w.WriteHeader(200)
 	fmt.Fprint(w, string(msg))
 }
 
+// WriteObject writes the given object to the http response as JSON
 func WriteObject(w http.ResponseWriter, obj interface{}) {
 	bytes, err := json.Marshal(obj)
 	if err != nil {
@@ -28,6 +31,7 @@ func WriteObject(w http.ResponseWriter, obj interface{}) {
 	WriteJSON(w, bytes)
 }
 
+// WriteErr writes the given error message to the http response
 func WriteErr(w http.ResponseWriter, code int, msg string) {
 	errBytes, err := json.Marshal(&ErrorResponse{
 		Code:    code,

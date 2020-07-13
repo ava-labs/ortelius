@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -15,17 +14,17 @@ import (
 )
 
 var (
-	ErrUndefinedRouterFactory = errors.New("undefined Router factory")
-	ErrUnimplemented          = errors.New("unimplemented Router factory")
-
+	// RequestTimeout is the maximum duration to allow an API request to execute
 	RequestTimeout = 2 * time.Minute
 )
 
+// Server is an HTTP server configured with various ortelius APIs
 type Server struct {
 	log    logging.Logger
 	server *http.Server
 }
 
+// NewServer creates a new *Server based on the given config
 func NewServer(conf cfg.Config) (*Server, error) {
 	loggingConf, err := logging.DefaultConfig()
 	if err != nil {
@@ -55,11 +54,13 @@ func NewServer(conf cfg.Config) (*Server, error) {
 	}, err
 }
 
+// Listen begins listening for new socket connections and blocks until closed
 func (s *Server) Listen() error {
 	s.log.Info("Server listening on %s", s.server.Addr)
 	return s.server.ListenAndServe()
 }
 
+// Close shuts the server down
 func (s *Server) Close() error {
 	s.log.Info("Server shutting down")
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
