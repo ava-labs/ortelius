@@ -7,8 +7,9 @@ services:
     networks:
       - services
     external_links:
-      - mysql
+      - zookeeper
       - kafka
+      - mysql
       - redis
     volumes:
       - gecko-ipcs:/tmp
