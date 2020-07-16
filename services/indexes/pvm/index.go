@@ -97,3 +97,7 @@ func (i *Index) GetValidator(ctx context.Context, id ids.ID) (*Validator, error)
 	}
 	return list.Validators[0], nil
 }
+
+func (i *Index) Close(ctx context.Context) error {
+	return i.db.Close(ctx)
+}

@@ -182,6 +182,10 @@ func (i *Index) bootstrap(ctx context.Context, genesisBytes []byte, timestamp in
 	return i.db.bootstrap(ctx, genesisBytes, timestamp)
 }
 
+func (i *Index) Close(ctx context.Context) error {
+	return i.db.Close(ctx)
+}
+
 // newAVM creates an producer instance that we can use to parse txs
 func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 	g, err := genesis.VMGenesis(networkID, avm.ID)

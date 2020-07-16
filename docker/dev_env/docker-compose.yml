@@ -1,11 +1,17 @@
 version: '3.5'
 volumes:
   zookeeper-data:
+    name: ortelius_zookeeper_data
   zookeeper-log:
+    name: ortelius_zookeeper_logs
   kafka-data:
+    name: ortelius_kafka
   redis-data:
+    name: ortelius_redis
   mysql-data:
+    name: ortelius_mysql
   gecko-data:
+    name: ortelius_gecko
   gecko-ipcs:
     name: ortelius_gecko_ipcs
 networks:
