@@ -20,6 +20,7 @@ type Consumer interface {
 	Name() string
 	Bootstrap(context.Context) error
 	Consume(context.Context, Consumable) error
+	Close(context.Context) error
 }
 
 // FanOutConsumer takes in items and sends them to multiple backend Indexers

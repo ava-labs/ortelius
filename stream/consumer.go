@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/wrappers"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -83,7 +84,12 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 
 // Close closes the consumer
 func (c *consumer) Close() error {
-	return c.reader.Close()
+	ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancelFn()
+
+	errs := wrappers.Errs{}
+	errs.Add(c.reader.Close(), c.consumer.Close(ctx))
+	return errs.Err
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services

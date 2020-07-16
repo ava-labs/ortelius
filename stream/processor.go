@@ -128,6 +128,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	if err != nil {
 		return err
 	}
+	defer backend.Close()
 
 	// Create a closure that processes the next message from the backend
 	var (

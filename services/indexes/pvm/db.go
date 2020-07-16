@@ -4,6 +4,7 @@
 package pvm
 
 import (
+	"context"
 	"errors"
 
 	"github.com/ava-labs/gecko/utils/codec"
@@ -32,6 +33,11 @@ func NewDBIndex(stream *health.Stream, db *dbr.Connection, networkID uint32, cha
 		stream:    stream,
 		db:        db,
 	}
+}
+
+func (db *DB) Close(context.Context) error {
+	db.stream.Event("close")
+	return db.db.Close()
 }
 
 func (db *DB) newSession(name string) *dbr.Session {

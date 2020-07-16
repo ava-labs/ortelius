@@ -4,6 +4,8 @@
 package avm
 
 import (
+	"context"
+
 	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/ava-labs/gecko/utils/crypto"
 	"github.com/gocraft/dbr"
@@ -33,6 +35,11 @@ func NewDB(stream *health.Stream, db *dbr.Connection, chainID string, codec code
 
 		ecdsaRecoveryFactory: crypto.FactorySECP256K1R{},
 	}
+}
+
+func (db *DB) Close(context.Context) error {
+	db.stream.Event("close")
+	return db.db.Close()
 }
 
 func (db *DB) newSession(name string) *dbr.Session {
