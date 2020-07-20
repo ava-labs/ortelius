@@ -61,7 +61,7 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       getTopicName(networkID, chainID, eventType),
+			Topic:       GetTopicName(networkID, chainID, eventType),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,

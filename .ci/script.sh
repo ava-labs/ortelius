@@ -7,8 +7,15 @@
 make test_env_run &
 
 # Lint
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
-$GOPATH/bin/golangci-lint run --deadline=1m
+docker run --rm -v $(pwd):/app -w /app golangci/golangci-lint:v1.27.0 golangci-lint run -v --timeout=5m
+
+# Wait for DB to be up and migrated
+echo "Waiting for DB to be ready"
+for i in `seq 1 60`;
+do
+  docker run --rm --network ortelius_services --entrypoint=mysql mysql:8.0 -uroot -ppassword -h mysql -e 'SELECT version FROM schema_migrations;' ortelius_test > /dev/null 2>&1 && break
+  echo -n . && sleep 1
+done
 
 # Run tests
 go test -v ./...

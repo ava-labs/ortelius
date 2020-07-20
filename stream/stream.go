@@ -44,7 +44,7 @@ func getSocketName(root string, networkID uint32, chainID string, eventType Even
 	return fmt.Sprintf("ipc://%s/%d-%s-%s", root, networkID, chainID, eventType)
 }
 
-func getTopicName(networkID uint32, chainID string, eventType EventType) string {
+func GetTopicName(networkID uint32, chainID string, eventType EventType) string {
 	return fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType)
 }
 

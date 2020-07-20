@@ -40,6 +40,9 @@ const (
 	streamIndexerCmdUse  = "indexer"
 	streamIndexerCmdDesc = "Runs the stream indexer daemon"
 
+	streamExportCmdUse  = "export"
+	streamExportCmdDesc = "Exports the stream to disk"
+
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 )
@@ -115,8 +118,26 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		},
 	}
 
+	// Create export sub command command
+	exportCmd := &cobra.Command{
+		Use:   streamExportCmdUse,
+		Short: streamExportCmdDesc,
+		Long:  streamExportCmdDesc,
+	}
+	exportFile := ""
+	exportChainID := ""
+	exportCmd.Flags().StringVarP(&exportFile, "export-path", "", "/tmp/ortelius_exports", "")
+	exportCmd.Flags().StringVarP(&exportChainID, "export-chain-id", "", "11111111111111111111111111111111LpoYY", "")
+	exportCmd.Run = func(_ *cobra.Command, _ []string) {
+		count, err := consumers.ExportToDisk(config, exportFile, exportChainID)
+		if err != nil {
+			log.Printf("Error exporting: %s\n", err.Error())
+		}
+		log.Printf("Export finished. Exported %d records.\n", count)
+	}
+
 	// Add sub commands
-	streamCmd.AddCommand(&cobra.Command{
+	streamCmd.AddCommand(exportCmd, &cobra.Command{
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,

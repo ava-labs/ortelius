@@ -31,7 +31,7 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 		chainID:     chainID,
 		eventType:   eventType,
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		writeBuffer: newWriteBuffer(conf.Brokers, getTopicName(networkID, chainID, eventType)),
+		writeBuffer: newWriteBuffer(conf.Brokers, GetTopicName(networkID, chainID, eventType)),
 	}
 
 	var err error
