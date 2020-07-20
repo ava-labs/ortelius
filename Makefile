@@ -80,4 +80,4 @@ DOCKER_TAG ?= dev-$(GIT_HASH)
 DOCKER_IMAGE_NAME ?= ${DOCKER_REPO}:${DOCKER_TAG}
 
 image: ## Build the Docker image
-	docker build -t ${DOCKER_IMAGE_NAME} -f ./docker/Dockerfile .
+	docker build -t ${DOCKER_IMAGE_NAME} .
