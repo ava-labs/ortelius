@@ -234,8 +234,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 
 		// Upsert this input as an output in case we haven't seen the parent tx
 		db.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
-			Amt:      in.In.Amount(),
-			Locktime: 0,
+			Amt: in.In.Amount(),
 			OutputOwners: secp256k1fx.OutputOwners{
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
@@ -280,7 +279,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", baseTx.ID().String()).
-		Pair("chain_id", baseTx.BCID.String()).
+		Pair("chain_id", baseTx.BlockchainID.String()).
 		Pair("type", txType).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
@@ -382,7 +381,12 @@ func parseTx(c codec.Codec, bytes []byte) (*avm.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	tx.Initialize(bytes)
+	unsignedBytes, err := c.Marshal(&tx.UnsignedTx)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.Initialize(unsignedBytes, bytes)
 	return tx, nil
 
 	// utx := &avm.UniqueTx{

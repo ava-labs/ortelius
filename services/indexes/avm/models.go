@@ -53,16 +53,16 @@ type Input struct {
 }
 
 type Output struct {
-	ID            models.StringID        `json:"id"`
-	TransactionID models.StringID        `json:"transactionID"`
-	OutputIndex   uint64                 `json:"outputIndex"`
-	AssetID       models.StringID        `json:"assetID"`
-	OutputType    OutputType             `json:"outputType"`
-	Amount        TokenAmount            `json:"amount"`
-	Locktime      uint64                 `json:"locktime"`
-	Threshold     uint64                 `json:"threshold"`
-	Addresses     []models.StringShortID `json:"addresses"`
-	CreatedAt     time.Time              `json:"timestamp"`
+	ID            models.StringID  `json:"id"`
+	TransactionID models.StringID  `json:"transactionID"`
+	OutputIndex   uint64           `json:"outputIndex"`
+	AssetID       models.StringID  `json:"assetID"`
+	OutputType    OutputType       `json:"outputType"`
+	Amount        TokenAmount      `json:"amount"`
+	Locktime      uint64           `json:"locktime"`
+	Threshold     uint64           `json:"threshold"`
+	Addresses     []models.Address `json:"addresses"`
+	CreatedAt     time.Time        `json:"timestamp"`
 
 	RedeemingTransactionID models.StringID `json:"redeemingTransactionID"`
 
@@ -70,17 +70,17 @@ type Output struct {
 }
 
 type InputCredentials struct {
-	Address   models.StringShortID `json:"address"`
-	PublicKey []byte               `json:"public_key"`
-	Signature []byte               `json:"signature"`
+	Address   models.Address `json:"address"`
+	PublicKey []byte         `json:"public_key"`
+	Signature []byte         `json:"signature"`
 }
 
 type OutputAddress struct {
-	OutputID  models.StringID      `json:"output_id"`
-	Address   models.StringShortID `json:"address"`
-	Signature []byte               `json:"signature"`
-	CreatedAt time.Time            `json:"timestamp"`
-	PublicKey []byte               `json:"-"`
+	OutputID  models.StringID `json:"output_id"`
+	Address   models.Address  `json:"address"`
+	Signature []byte          `json:"signature"`
+	CreatedAt time.Time       `json:"timestamp"`
+	PublicKey []byte          `json:"-"`
 }
 
 type Asset struct {
@@ -99,8 +99,8 @@ type Asset struct {
 }
 
 type Address struct {
-	Address   models.StringShortID `json:"address"`
-	PublicKey []byte               `json:"publicKey"`
+	Address   models.Address `json:"address"`
+	PublicKey []byte         `json:"publicKey"`
 
 	Assets map[models.StringID]AssetInfo `json:"assets"`
 

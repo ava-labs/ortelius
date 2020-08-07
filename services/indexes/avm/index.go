@@ -5,6 +5,7 @@ package avm
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/gecko/database"
 	"github.com/ava-labs/gecko/database/nodb"
@@ -22,6 +23,10 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/models"
+)
+
+var (
+	ErrIncorrectGenesisChainTxType = errors.New("incorrect genesis chain tx type")
 )
 
 func init() {
@@ -63,7 +68,7 @@ func newForConnections(conns *services.Connections, networkID uint32, chainID st
 func (i *Index) Name() string { return "avm-index" }
 
 func (i *Index) Bootstrap(ctx context.Context) error {
-	platformGenesisBytes, err := genesis.Genesis(i.networkID)
+	platformGenesisBytes, _, err := genesis.Genesis(i.networkID)
 	if err != nil {
 		return err
 	}
@@ -77,8 +82,12 @@ func (i *Index) Bootstrap(ctx context.Context) error {
 	}
 
 	for _, chain := range platformGenesis.Chains {
-		if chain.VMID.Equals(avm.ID) {
-			return i.bootstrap(ctx, chain.GenesisData, int64(platformGenesis.Timestamp))
+		createChainTx, ok := chain.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
+		if !ok {
+			return ErrIncorrectGenesisChainTxType
+		}
+		if createChainTx.VMID.Equals(avm.ID) {
+			return i.bootstrap(ctx, createChainTx.GenesisData, int64(platformGenesis.Timestamp))
 		}
 	}
 	return nil
@@ -193,11 +202,15 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 		return nil, err
 	}
 
+	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
+	if !ok {
+		return nil, ErrIncorrectGenesisChainTxType
+	}
+
 	var (
-		genesisTX = g
-		fxIDs     = genesisTX.FxIDs
-		fxs       = make([]*common.Fx, 0, len(fxIDs))
-		ctx       = &snow.Context{
+		fxIDs = createChainTx.FxIDs
+		fxs   = make([]*common.Fx, 0, len(fxIDs))
+		ctx   = &snow.Context{
 			NetworkID: networkID,
 			ChainID:   chainID,
 			Log:       logging.NoLog{},
@@ -224,7 +237,7 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 	// An error is returned about the DB being closed but this is expected because
 	// we're not using a real DB here.
 	vm := &avm.VM{}
-	err = vm.Initialize(ctx, &nodb.Database{}, genesisTX.GenesisData, make(chan common.Message, 1), fxs)
+	err = vm.Initialize(ctx, &nodb.Database{}, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
 	if err != nil && err != database.ErrClosed {
 		return nil, err
 	}

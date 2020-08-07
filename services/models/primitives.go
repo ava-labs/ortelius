@@ -4,7 +4,11 @@
 package models
 
 import (
+	"encoding/json"
+
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/constants"
+	"github.com/ava-labs/gecko/utils/formatting"
 )
 
 // StringID represents a 256bit hash encoded as a base58 string
@@ -27,4 +31,22 @@ func ToShortStringID(id ids.ShortID) StringShortID {
 // Equals returns true if and only if the two stringShortIDs represent the same ID
 func (rid StringShortID) Equals(oRID StringShortID) bool {
 	return string(rid) == string(oRID)
+}
+
+var bech32HRP = constants.GetHRP(4)
+
+type Address StringShortID
+
+func (addr Address) MarshalJSON() ([]byte, error) {
+	id, err := ids.ShortFromString(string(addr))
+	if err != nil {
+		return nil, err
+	}
+
+	bech32Addr, err := formatting.FormatBech32(bech32HRP, id.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(bech32Addr)
 }
