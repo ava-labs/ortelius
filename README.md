@@ -1,6 +1,6 @@
 # Ortelius
 
-Ortelius stores and maps activity on the AVA network. It's primary features are:
+Ortelius stores and maps activity on the Avalanche network. It's primary features are:
 
 - Safely persisting all blocks and transactions to Kafka, which acts as a durable log of all events that have occurred on network
 
@@ -12,7 +12,7 @@ Ortelius stores and maps activity on the AVA network. It's primary features are:
 
 Building requires Go 1.13 or higher.
 
-Running the full stack requires Gecko, Kafka, and a database such as MySQL or PostgreSQL.
+Running the full stack requires Avalanche.go, Kafka, MySQL or PostgreSQL, and Redis.
 
 ## Getting Started
 
