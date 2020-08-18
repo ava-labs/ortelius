@@ -50,7 +50,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 	}()
 
 	avmGenesis := &avm.Genesis{}
-	if err = db.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	if err = db.vm.Codec().Unmarshal(genesisBytes, avmGenesis); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 	var txBytes []byte
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, timestamp)
 	for _, tx := range avmGenesis.Txs {
-		txBytes, err = db.codec.Marshal(tx)
+		txBytes, err = db.vm.Codec().Marshal(tx)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func (db *DB) Index(ctx context.Context, i services.Consumable) error {
 }
 
 func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(db.codec, txBytes)
+	tx, err := parseTx(db.vm.Codec(), txBytes)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 }
 
 func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.codec.Marshal(&avm.Tx{UnsignedTx: tx})
+	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		creds        = uniqueTx.Credentials()
 	)
 
-	unsignedTxBytes, err := db.codec.Marshal(&uniqueTx.UnsignedTx)
+	unsignedTxBytes, err := db.vm.Codec().Marshal(&uniqueTx.UnsignedTx)
 	if err != nil {
 		return err
 	}

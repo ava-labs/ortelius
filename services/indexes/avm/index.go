@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/gecko/vms/nftfx"
 	"github.com/ava-labs/gecko/vms/platformvm"
 	"github.com/ava-labs/gecko/vms/secp256k1fx"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
@@ -61,7 +62,7 @@ func newForConnections(conns *services.Connections, networkID uint32, chainID st
 	return &Index{
 		networkID: networkID,
 		chainID:   chainID,
-		db:        NewDB(conns.Stream(), conns.DB(), chainID, vm.Codec()),
+		db:        NewDB(conns.Stream(), conns.DB(), chainID, vm),
 	}, nil
 }
 
@@ -207,6 +208,10 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 		return nil, ErrIncorrectGenesisChainTxType
 	}
 
+	bcLookup := &ids.Aliaser{}
+	bcLookup.Initialize()
+	bcLookup.Alias(chainID, "X")
+
 	var (
 		fxIDs = createChainTx.FxIDs
 		fxs   = make([]*common.Fx, 0, len(fxIDs))
@@ -214,6 +219,8 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 			NetworkID: networkID,
 			ChainID:   chainID,
 			Log:       logging.NoLog{},
+			Metrics:   prometheus.NewRegistry(),
+			BCLookup:  bcLookup,
 		}
 	)
 	for _, fxID := range fxIDs {
