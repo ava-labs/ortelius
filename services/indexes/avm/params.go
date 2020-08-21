@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/formatting"
 	"github.com/gocraft/dbr"
 
 	"github.com/ava-labs/ortelius/services/params"
@@ -451,9 +452,11 @@ func addressFromString(addrStr string) (ids.ShortID, error) {
 		addrStr = strings.TrimPrefix(addrStr, prefix+"-")
 		addrStr = strings.TrimPrefix(addrStr, strings.ToLower(prefix)+"-")
 	}
-	sID, err := ids.ShortFromString(addrStr)
+
+	_, addrBytes, err := formatting.ParseBech32(addrStr)
 	if err != nil {
 		return ids.ShortEmpty, err
 	}
-	return sID, nil
+
+	return ids.ToShortID(addrBytes)
 }
