@@ -86,8 +86,10 @@ func (wb *writeBuffer) loop() {
 		select {
 		case <-wb.stopCh:
 			return
-		case msg := <-wb.buffer:
-			wb.localBuffer = append(wb.localBuffer, *msg)
+		case msg, ok := <-wb.buffer:
+			if ok {
+				wb.localBuffer = append(wb.localBuffer, *msg)
+			}
 			if len(wb.localBuffer) >= wb.size {
 				flush()
 			}
