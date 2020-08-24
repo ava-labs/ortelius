@@ -7,7 +7,6 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
-	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/ava-labs/ortelius/stream"
 )
 
@@ -19,8 +18,8 @@ func createIndexerConsumer(conf cfg.Config, networkID uint32, chainVM string, ch
 	switch chainVM {
 	case avm.VMName:
 		indexer, err = avm.New(conf.Services, networkID, chainID)
-	case pvm.VMName:
-		indexer, err = pvm.New(conf.Services, networkID, chainID)
+	// case pvm.VMName:
+	// 	indexer, err = pvm.New(conf.Services, networkID, chainID)
 	default:
 		return nil, stream.ErrUnknownVM
 	}
