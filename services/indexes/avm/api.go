@@ -173,7 +173,7 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
-	id, err := ids.ShortFromString(r.PathParams["id"])
+	id, err := addressFromString(r.PathParams["id"])
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return

@@ -6,8 +6,8 @@ package avm
 import (
 	"context"
 
-	"github.com/ava-labs/gecko/utils/codec"
 	"github.com/ava-labs/gecko/utils/crypto"
+	"github.com/ava-labs/gecko/vms/avm"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 
@@ -18,7 +18,7 @@ import (
 // DB is a services.Accumulator backed by redis
 type DB struct {
 	chainID string
-	codec   codec.Codec
+	vm      *avm.VM
 	stream  *health.Stream
 	db      *dbr.Connection
 
@@ -26,10 +26,10 @@ type DB struct {
 }
 
 // NewDB creates a new DB for the given config
-func NewDB(stream *health.Stream, db *dbr.Connection, chainID string, codec codec.Codec) *DB {
+func NewDB(stream *health.Stream, db *dbr.Connection, chainID string, vm *avm.VM) *DB {
 	return &DB{
 		db:      db,
-		codec:   codec,
+		vm:      vm,
 		stream:  stream,
 		chainID: chainID,
 

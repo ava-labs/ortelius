@@ -50,7 +50,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 	}()
 
 	avmGenesis := &avm.Genesis{}
-	if err = db.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	if err = db.vm.Codec().Unmarshal(genesisBytes, avmGenesis); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 	var txBytes []byte
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, timestamp)
 	for _, tx := range avmGenesis.Txs {
-		txBytes, err = db.codec.Marshal(tx)
+		txBytes, err = db.vm.Codec().Marshal(tx)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func (db *DB) Index(ctx context.Context, i services.Consumable) error {
 }
 
 func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(db.codec, txBytes)
+	tx, err := parseTx(db.vm.Codec(), txBytes)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 }
 
 func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.codec.Marshal(&avm.Tx{UnsignedTx: tx})
+	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		creds        = uniqueTx.Credentials()
 	)
 
-	unsignedTxBytes, err := db.codec.Marshal(&uniqueTx.UnsignedTx)
+	unsignedTxBytes, err := db.vm.Codec().Marshal(&uniqueTx.UnsignedTx)
 	if err != nil {
 		return err
 	}
@@ -234,8 +234,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 
 		// Upsert this input as an output in case we haven't seen the parent tx
 		db.ingestOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
-			Amt:      in.In.Amount(),
-			Locktime: 0,
+			Amt: in.In.Amount(),
 			OutputOwners: secp256k1fx.OutputOwners{
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
@@ -280,7 +279,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", baseTx.ID().String()).
-		Pair("chain_id", baseTx.BCID.String()).
+		Pair("chain_id", baseTx.BlockchainID.String()).
 		Pair("type", txType).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
@@ -382,7 +381,12 @@ func parseTx(c codec.Codec, bytes []byte) (*avm.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	tx.Initialize(bytes)
+	unsignedBytes, err := c.Marshal(&tx.UnsignedTx)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.Initialize(unsignedBytes, bytes)
 	return tx, nil
 
 	// utx := &avm.UniqueTx{

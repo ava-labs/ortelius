@@ -491,7 +491,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	for _, out := range outputs {
 		outputMap[out.ID] = out
 
-		out.Addresses = []models.StringShortID{}
+		out.Addresses = []models.Address{}
 
 		if _, ok := inputsMap[out.RedeemingTransactionID]; !ok {
 			inputsMap[out.RedeemingTransactionID] = []*Input{}
@@ -577,8 +577,8 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 	}
 
 	// Create a list of ids for querying, and a map for accumulating results later
-	addrIDs := make([]models.StringShortID, len(addrs))
-	addrsByID := make(map[models.StringShortID]*Address, len(addrs))
+	addrIDs := make([]models.Address, len(addrs))
+	addrsByID := make(map[models.Address]*Address, len(addrs))
 	for i, addr := range addrs {
 		addrIDs[i] = addr.Address
 		addrsByID[addr.Address] = addr
@@ -588,7 +588,7 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 
 	// Load each Transaction Output for the tx, both inputs and outputs
 	rows := []*struct {
-		Address models.StringShortID `json:"address"`
+		Address models.Address `json:"address"`
 		AssetInfo
 	}{}
 

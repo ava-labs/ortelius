@@ -75,8 +75,8 @@ db_migrate_down: ## Migrate the database down
 
 GIT_HASH = $(shell git rev-parse --short HEAD)
 
-DOCKER_REPO ?= ortelius
-DOCKER_TAG ?= dev-$(GIT_HASH)
+DOCKER_REPO ?= avaplatform/ortelius
+DOCKER_TAG ?= $(GIT_HASH)
 DOCKER_IMAGE_NAME ?= ${DOCKER_REPO}:${DOCKER_TAG}
 
 image: ## Build the Docker image
