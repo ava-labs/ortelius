@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/gecko/ipcs/socket"
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/segmentio/kafka-go"
 
@@ -144,8 +145,10 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			}
 
 			switch err {
+			case socket.ErrTimeout:
+				c.log.Debug("socket timeout")
 			case kafka.RequestTimedOut:
-				c.log.Debug("Kafka timeout")
+				c.log.Debug("kafka timeout")
 			default:
 				c.log.Error("Unknown error: %s", err.Error())
 			}
