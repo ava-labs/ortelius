@@ -6,6 +6,7 @@ package stream
 import (
 	"errors"
 	"fmt"
+	"path"
 	"strconv"
 	"strings"
 
@@ -41,7 +42,7 @@ func (m *Message) Body() []byte     { return m.body }
 func (m *Message) Timestamp() int64 { return m.timestamp }
 
 func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
-	return fmt.Sprintf("ipc://%s/%d-%s-%s", root, networkID, chainID, eventType)
+	return path.Join(root, fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType))
 }
 
 func GetTopicName(networkID uint32, chainID string, eventType EventType) string {

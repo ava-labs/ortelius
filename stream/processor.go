@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/segmentio/kafka-go"
-	"nanomsg.org/go/mangos/v2"
 
 	"github.com/ava-labs/ortelius/cfg"
 )
@@ -145,8 +144,6 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			}
 
 			switch err {
-			case mangos.ErrRecvTimeout:
-				c.log.Debug("IPC socket timeout")
 			case kafka.RequestTimedOut:
 				c.log.Debug("Kafka timeout")
 			default:
