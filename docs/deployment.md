@@ -1,6 +1,8 @@
 # Ortelius Deployment
 
-## Requirements
+This page details the various services and components that make up the Ortelius stack and how they can be configured.
+
+## Required Services
 
 The full Ortelius pipeline requires the following services. This guide will not cover their installation but will discuss key configuration settings.
 
@@ -8,12 +10,6 @@ The full Ortelius pipeline requires the following services. This guide will not 
 - **[Apache Kafka](https://kafka.apache.org/)** stores the persistent log of events
 - **[MySQL](https://www.mysql.com/)** or **[PostgreSQL](https://www.postgresql.org/)** powers the index
 - **[Redis](https://redis.io/)** caches index queries for the API so responses can be as fast as possible
-
-## Installation
-
-Ortelius can be built from source into a single binary or a Docker image. A public Docker image is also available on [Docker Hub](https://hub.docker.com/repository/docker/avaplatform/ortelius).
-
-Example: `docker run --rm avaplatform/ortelius --help`
 
 ## Configuring services
 
@@ -37,6 +33,12 @@ delete.retention.ms=3154000000000
 The indexer requires that a MySQL or Postgres compatible database be available. The migrations can be found in the repo's [services/db/migrations](../services/db/migrations) directory and can be applied with [golang-migrate](https://github.com/golang-migrate/migrate), example:
 
 `migrate -source file://services/db/migrations -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius" up`
+
+## Ortelius Distribution
+
+Ortelius can be built from source into a single binary or a Docker image. A public Docker image is also available on [Docker Hub](https://hub.docker.com/repository/docker/avaplatform/ortelius).
+
+Example: `docker run --rm avaplatform/ortelius --help`
 
 ## Configuring Ortelius
 

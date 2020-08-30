@@ -14,22 +14,31 @@ help:
 ##
 .PHONY: dev_env_run dev_env_rm test_env_run test_env_rm standalone_run standalone_rm standalone_build
 
-dev_env_run: ## Start up backing services in dev mode
+dev_env_run: ## Run backing services in dev mode
 	@docker-compose -f docker/dev_env/docker-compose.yml up --remove-orphans
 
-dev_env_rm: ## Stop all backing services in dev mode
+dev_env_start: ## Start up backing services in dev mode
+	@docker-compose -f docker/dev_env/docker-compose.yml up --remove-orphans -d
+
+dev_env_rm: ## Stop and remove all backing services in dev mode
 	@docker-compose -f docker/dev_env/docker-compose.yml down --remove-orphans --volumes
 
-test_env_run: ## Start up backing services in test mode
+test_env_run: ## Run backing services in test mode
 	@docker-compose -f docker/test_env/docker-compose.yml up --remove-orphans
 
-test_env_rm: ## Stop all test mode services
+test_env_start: ## Start up backing services in test mode
+	@docker-compose -f docker/test_env/docker-compose.yml up --remove-orphans -d
+
+test_env_rm: ## Stop and remove all test mode services
 	@docker-compose -f docker/standalone/docker-compose.yml down --remove-orphans --volumes
 
-standalone_run: ## Start up standalone mode
+standalone_run: ## Run standalone mode
 	@docker-compose -f docker/standalone/docker-compose.yml up --remove-orphans
 
-standalone_rm: ## Stop all standalone mode services
+standalone_start: ## Start up standalone mode
+	@docker-compose -f docker/standalone/docker-compose.yml up --remove-orphans -d
+
+standalone_rm: ## Stop and remove all standalone mode services
 	@docker-compose -f docker/standalone/docker-compose.yml down --remove-orphans --volumes
 
 standalone_build: ## Build or rebuild all standalone mode images
