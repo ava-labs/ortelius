@@ -1,18 +1,13 @@
 {
-  "networkID": 3,
+  "networkID": 4,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
-    "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L": {
-      "id": "rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L",
+    "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC": {
+      "id": "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
       "alias": "X",
       "vmType": "avm"
-    },
-    "11111111111111111111111111111111LpoYY": {
-      "id": "11111111111111111111111111111111LpoYY",
-      "alias": "P",
-      "vmType": "pvm"
     }
   },
   "stream": {

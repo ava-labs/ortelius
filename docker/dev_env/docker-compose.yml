@@ -71,12 +71,12 @@ services:
     volumes:
       - redis-data:/var/lib/redis
   gecko:
-    image: "avaplatform/gecko:7014fc8"
+    image: "avaplatform/gecko:291c630b-disroless"
     command: [
-      "./build/ava",
+      "./build/avalanche",
       "-db-dir=/var/lib/gecko",
       "-log-level=info",
-      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,rrEWX7gc7D9mwcdrdBxBTdqh1a7WDVsMuadhTZgyXfFcRz45L",
+      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
     ]
     volumes:
       - gecko-data:/var/lib/gecko

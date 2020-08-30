@@ -1,34 +1,36 @@
 # Ortelius
 
-Ortelius stores and maps activity on the Avalanche network. It's primary features are:
+[![Build Status](https://travis-ci.com/ava-labs/ortelius.svg?branch=master)](https://travis-ci.com/ava-labs/ortelius)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ava-labs/ortelius)](https://goreportcard.com/report/github.com/ava-labs/ortelius)
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
-- Safely persisting all blocks and transactions to Kafka, which acts as a durable log of all events that have occurred on network
+A data processing pipeline for the [Avalanche network](https://avax.network).
 
-- Indexing all the data in the persistent log into an easy-to-query dataset
+## Features
 
-- Providing an [HTTP API](docs/api.md) to access the indexed data
+- Maintains a persistent log of all consensus events and decisions made on the Avalanche network.
+- Indexes all Exchange (X) and Platform (P) chain transactions.
+- Provides an API allowing easy exploration of the index.
+- Engineered from the ground up with reliability at high scale in mind. Ortelius works with best-in-class backing services and is built to scale horizontally as the network grows.
 
-## Requirements
+## Quick Start with Standalone Mode
 
-Building requires Go 1.13 or higher.
+The easiest way to get started to is try out the Docker-based standalone mode. This mode is not suitable for large production setups that need to scale out the applications, but it allows you to quickly get the pipeline up and working.
 
-Running the full stack requires Avalanche.go, Kafka, MySQL or PostgreSQL, and Redis.
-
-## Getting Started
-
-### Download
+### Download Repo
 
 ```shell script
 git checkout https://github.com/ava-labs/ortelius.git $GOPATH/github.com/ava-labs/ortelius
 cd $GOPATH/github.com/ava-labs/ortelius
 ```
 
-### Start required services
+### Start Standalone Mode
+In one terminal instance execute `make dev_env_run` to start local instances of the required backing services. In another terminal execute `make standalone_run` to start the Ortelius applications. The API should now be available at `http://localhost:8080` which can be verified with with cURL:
 
-You can run a development service stack in your terminal:
+`curl http://localhost:8080/X/transactions`
 
-```shell script
-make dev_env_run &
-make standalone_run
-```
+On the first run it will take a few minutes for Gecko to connect to sync to the network and ingest all the historical data.
 
+## Deployment
+
+For a production deployment see the [deployment page](docs/deployment.md).
