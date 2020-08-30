@@ -15,22 +15,23 @@ A data processing pipeline for the [Avalanche network](https://avax.network).
 
 ## Quick Start with Standalone Mode
 
-The easiest way to get started to is try out the Docker-based standalone mode. This mode is not suitable for large production setups that need to scale out the applications, but it allows you to quickly get the pipeline up and working.
+The easiest way to get started to is try out the Docker Compose-based standalone mode. Using the standalone backing services, such as Kafka and MySQL, is not suitable for large production setups that need to scale out individual clusters, but it allows you to quickly get the pipeline up and working.
 
-### Download Repo
+Ensure you have Docker and Docker Compose installed and then run:
 
 ```shell script
 git checkout https://github.com/ava-labs/ortelius.git $GOPATH/github.com/ava-labs/ortelius
 cd $GOPATH/github.com/ava-labs/ortelius
+make dev_env_start
+make standalone_run
 ```
 
-### Start Standalone Mode
-In one terminal instance execute `make dev_env_run` to start local instances of the required backing services. In another terminal execute `make standalone_run` to start the Ortelius applications. The API should now be available at `http://localhost:8080` which can be verified with with cURL:
+The API should now be available at `http://localhost:8080` which can be verified with with cURL:
 
 `curl http://localhost:8080/X/transactions`
 
 On the first run it will take a few minutes for Gecko to connect to sync to the network and ingest all the historical data.
 
-## Deployment
+## Production Deployment
 
-For a production deployment see the [deployment page](docs/deployment.md).
+For a production deployment see the [deployment page](docs/deployment.md) which enumerates the individual components and provides information on how to set them up for a production environment.
