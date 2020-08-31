@@ -50,11 +50,15 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	return resp, nil
 }
 
-func (c *Cache) Set(ctx context.Context, key string, bytes []byte) error {
+func (c *Cache) Set(ctx context.Context, key string, bytes []byte, ttl time.Duration) error {
+	if ttl < 1 {
+		ttl = c.defaultTTL
+	}
+
 	return c.cache.Set(&cache.Item{
 		Ctx:   ctx,
 		Key:   key,
 		Value: bytes,
-		TTL:   c.defaultTTL,
+		TTL:   ttl,
 	})
 }

@@ -5,6 +5,7 @@ package avm
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/web"
@@ -111,6 +112,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	}
 
 	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.index.ListTransactions(ctx, p)
@@ -126,6 +128,7 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 	}
 
 	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.index.GetTransaction(ctx, id)
@@ -165,6 +168,7 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 	}
 
 	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.index.ListAddresses(ctx, p)
@@ -180,6 +184,7 @@ func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 	}
 
 	c.WriteCacheable(w, api.Cachable{
+		TTL: 1 * time.Second,
 		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.index.GetAddress(ctx, id)
@@ -195,6 +200,7 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 	}
 
 	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_outputs", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.index.ListOutputs(ctx, p)

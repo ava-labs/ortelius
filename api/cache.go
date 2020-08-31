@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/ava-labs/ortelius/services/cache"
 )
@@ -18,11 +19,12 @@ type CachableFn func(context.Context) (interface{}, error)
 type Cachable struct {
 	Key        []string
 	CachableFn CachableFn
+	TTL        time.Duration
 }
 
 type cacher interface {
 	Get(context.Context, string) ([]byte, error)
-	Set(context.Context, string, []byte) error
+	Set(context.Context, string, []byte, time.Duration) error
 }
 
 func cacheKey(networkID uint32, parts ...string) string {
@@ -31,7 +33,7 @@ func cacheKey(networkID uint32, parts ...string) string {
 	return cache.KeyFromParts(append(k, parts...)...)
 }
 
-func updateCachable(ctx context.Context, cache cacher, key string, cachableFn CachableFn) ([]byte, error) {
+func updateCachable(ctx context.Context, cache cacher, key string, cachableFn CachableFn, ttl time.Duration) ([]byte, error) {
 	obj, err := cachableFn(ctx)
 	if err != nil {
 		return nil, err
@@ -42,7 +44,7 @@ func updateCachable(ctx context.Context, cache cacher, key string, cachableFn Ca
 		return nil, err
 	}
 
-	if err := cache.Set(ctx, key, objBytes); err != nil {
+	if err = cache.Set(ctx, key, objBytes, ttl); err != nil {
 		return nil, err
 	}
 

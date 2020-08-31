@@ -63,7 +63,7 @@ func (c *RootRequestContext) WriteCacheable(w http.ResponseWriter, cachable Cach
 	resp, err := c.cache.Get(c.Ctx(), key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
-		resp, err = updateCachable(c.ctx, c.cache, key, cachable.CachableFn)
+		resp, err = updateCachable(c.ctx, c.cache, key, cachable.CachableFn, cachable.TTL)
 	} else if err == nil {
 		c.job.KeyValue("cache", "hit")
 	}
