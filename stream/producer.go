@@ -6,12 +6,9 @@ package stream
 import (
 	"context"
 	"encoding/binary"
-	"time"
+	
+	"github.com/ava-labs/gecko/ipcs/pipe"
 
-	"nanomsg.org/go/mangos/v2"
-	"nanomsg.org/go/mangos/v2/protocol"
-	"nanomsg.org/go/mangos/v2/protocol/sub"
-	_ "nanomsg.org/go/mangos/v2/transport/ipc" // Register transport
 
 	"github.com/ava-labs/ortelius/cfg"
 )
@@ -20,7 +17,7 @@ import (
 type Producer struct {
 	chainID     string
 	eventType   EventType
-	sock        protocol.Socket
+	sock        *pipe.Client
 	binFilterFn binFilterFn
 	writeBuffer *writeBuffer
 }
@@ -35,7 +32,7 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 	}
 
 	var err error
-	p.sock, err = createIPCSocket(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
+	p.sock, err = pipe.Dial(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +58,7 @@ func (p *Producer) Close() error {
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
 func (p *Producer) ProcessNextMessage(ctx context.Context) error {
-	rawMsg, err := p.receive(ctx)
+	rawMsg, err := p.sock.Recv(ctx)
 	if err != nil {
 		return err
 	}
@@ -78,41 +75,6 @@ func (p *Producer) Write(msg []byte) (int, error) {
 	return p.writeBuffer.Write(msg)
 }
 
-// receive reads bytes from the IPC socket
-func (p *Producer) receive(ctx context.Context) ([]byte, error) {
-	deadline, _ := ctx.Deadline()
-
-	err := p.sock.SetOption(mangos.OptionRecvDeadline, time.Until(deadline))
-	if err != nil {
-		return nil, err
-	}
-
-	rawMsg, err := p.sock.Recv()
-	if err != nil {
-		return nil, err
-	}
-	return rawMsg, nil
-}
-
-// createIPCSocket creates a new socket connection to the configured IPC URL
-func createIPCSocket(url string) (protocol.Socket, error) {
-	// Create and open a connection to the IPC socket
-	sock, err := sub.NewSocket()
-	if err != nil {
-		return nil, err
-	}
-
-	if err = sock.Dial(url); err != nil {
-		return nil, err
-	}
-
-	// Subscribe to all topics
-	if err = sock.SetOption(mangos.OptionSubscribe, []byte("")); err != nil {
-		return nil, err
-	}
-
-	return sock, nil
-}
 
 type binFilterFn func([]byte) bool
 
