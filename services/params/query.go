@@ -6,9 +6,11 @@ package params
 import (
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/formatting"
 )
 
 func GetQueryInt(q url.Values, key string, defaultVal int) (val int, err error) {
@@ -86,4 +88,37 @@ func GetQueryInterval(q url.Values, key string) (time.Duration, error) {
 		}
 	}
 	return interval, nil
+}
+
+func GetQueryAddress(q url.Values, key string) (*ids.ShortID, error) {
+	addrStr := GetQueryString(q, key, "")
+	if addrStr == "" {
+		return nil, nil
+	}
+
+	addr, err := AddressFromString(addrStr)
+	if err != nil {
+		return nil, err
+	}
+	return &addr, nil
+}
+
+var addressPrefixes = []string{"X", "P", "C"}
+
+func AddressFromString(addrStr string) (ids.ShortID, error) {
+	for _, prefix := range addressPrefixes {
+		addrStr = strings.TrimPrefix(addrStr, prefix+"-")
+		addrStr = strings.TrimPrefix(addrStr, strings.ToLower(prefix)+"-")
+	}
+
+	_, addrBytes, err := formatting.ParseBech32(addrStr)
+	if err != nil {
+		addrFromShortIDStr, err := ids.ShortFromString(addrStr)
+		if err == nil {
+			return addrFromShortIDStr, nil
+		}
+		return ids.ShortEmpty, err
+	}
+
+	return ids.ToShortID(addrBytes)
 }
