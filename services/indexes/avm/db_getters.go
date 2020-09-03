@@ -61,7 +61,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, erro
 
 	// See if the query string is an id or shortID. If so we can search on them
 	// directly. Otherwise we treat the query as a normal query-string.
-	if shortID, err := addressFromString(p.Query); err == nil {
+	if shortID, err := params.AddressFromString(p.Query); err == nil {
 		return db.searchByShortID(ctx, shortID)
 	}
 	if id, err := ids.FromString(p.Query); err == nil {

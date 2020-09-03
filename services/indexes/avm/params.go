@@ -7,11 +7,9 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/ava-labs/gecko/utils/formatting"
 	"github.com/gocraft/dbr"
 
 	"github.com/ava-labs/ortelius/services/params"
@@ -148,7 +146,7 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 
 	addressStrs := q[params.KeyAddress]
 	for _, addressStr := range addressStrs {
-		addr, err := addressFromString(addressStr)
+		addr, err := params.AddressFromString(addressStr)
 		if err != nil {
 			return err
 		}
@@ -301,9 +299,17 @@ func (p *ListAddressesParams) ForValues(q url.Values) error {
 		return err
 	}
 
-	p.Address, err = params.GetQueryShortID(q, params.KeyAddress)
+	p.Address, err = params.GetQueryAddress(q, params.KeyAddress)
 	if err != nil {
 		return err
+	}
+
+	if p.Address == nil && p.Query != "" {
+		addr, err := params.AddressFromString(p.Query)
+		if err != nil {
+			return err
+		}
+		p.Address = &addr
 	}
 
 	return nil
@@ -326,10 +332,6 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		b = b.
 			Where("addresses.address = ?", p.Address.String()).
 			Limit(1)
-	}
-
-	if p.Query != "" {
-		b.Where(dbr.Like("addresses.address", p.Query+"%"))
 	}
 
 	return b
@@ -356,7 +358,7 @@ func (p *ListOutputsParams) ForValues(q url.Values) error {
 
 	addressStrs := q[params.KeyAddress]
 	for _, addressStr := range addressStrs {
-		addr, err := addressFromString(addressStr)
+		addr, err := params.AddressFromString(addressStr)
 		if err != nil {
 			return err
 		}
@@ -443,20 +445,4 @@ func toTransactionSort(s string) (TransactionSort, error) {
 		return TransactionSortTimestampDesc, nil
 	}
 	return TransactionSortDefault, params.ErrUndefinedSort
-}
-
-var addressPrefixes = []string{"X", "P", "C"}
-
-func addressFromString(addrStr string) (ids.ShortID, error) {
-	for _, prefix := range addressPrefixes {
-		addrStr = strings.TrimPrefix(addrStr, prefix+"-")
-		addrStr = strings.TrimPrefix(addrStr, strings.ToLower(prefix)+"-")
-	}
-
-	_, addrBytes, err := formatting.ParseBech32(addrStr)
-	if err != nil {
-		return ids.ShortEmpty, err
-	}
-
-	return ids.ToShortID(addrBytes)
 }
