@@ -102,12 +102,13 @@ func (i *Index) Consume(ctx context.Context, ingestable services.Consumable) err
 	return nil
 }
 
-func (i *Index) GetChainInfo(alias string, networkID uint32) (*models.ChainInfo, error) {
+func (i *Index) GetChainInfo(alias string, avaxAssetID string) (*models.ChainInfo, error) {
 	return &models.ChainInfo{
-		ID:        models.StringID(i.chainID),
-		Alias:     alias,
-		NetworkID: networkID,
-		VM:        VMName,
+		NetworkID:   i.networkID,
+		ID:          models.StringID(i.chainID),
+		AVAXAssetID: models.StringID(avaxAssetID),
+		Alias:       alias,
+		VM:          VMName,
 	}, nil
 }
 
