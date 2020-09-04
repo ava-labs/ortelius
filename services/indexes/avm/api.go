@@ -5,8 +5,10 @@ package avm
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
+	"github.com/ava-labs/gecko/genesis"
 	"github.com/ava-labs/gecko/ids"
 	"github.com/gocraft/web"
 
@@ -30,6 +32,16 @@ func NewAPIRouter(params api.RouterParams) error {
 		return err
 	}
 
+	_, avaxAssetID, err := genesis.Genesis(params.NetworkID)
+	if err != nil {
+		return err
+	}
+
+	overviewHandler, err := newOverviewHandler(index, params.ChainConfig.Alias, avaxAssetID.String())
+	if err != nil {
+		return err
+	}
+
 	params.Router.
 		// Setup the context for each request
 		Middleware(func(c *APIContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
@@ -43,7 +55,7 @@ func NewAPIRouter(params api.RouterParams) error {
 		}).
 
 		// General routes
-		Get("/", (*APIContext).Overview).
+		Get("/", overviewHandler).
 		Get("/search", (*APIContext).Search).
 		Get("/aggregates", (*APIContext).Aggregate).
 		Get("/transactions/aggregates", (*APIContext).Aggregate). // DEPRECATED
@@ -65,13 +77,20 @@ func NewAPIRouter(params api.RouterParams) error {
 // General routes
 //
 
-func (c *APIContext) Overview(w web.ResponseWriter, _ *web.Request) {
-	overview, err := c.index.GetChainInfo(c.chainAlias, c.NetworkID())
+func newOverviewHandler(i *Index, alias string, avaxAssetID string) (func(c *APIContext, w web.ResponseWriter, _ *web.Request), error) {
+	overview, err := i.GetChainInfo(alias, avaxAssetID)
 	if err != nil {
-		c.WriteErr(w, 500, err)
-		return
+		return nil, err
 	}
-	api.WriteObject(w, overview)
+
+	overviewBytes, err := json.Marshal(overview)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(c *APIContext, w web.ResponseWriter, _ *web.Request) {
+		api.WriteJSON(w, overviewBytes)
+	}, nil
 }
 
 func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
