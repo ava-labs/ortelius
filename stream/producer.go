@@ -6,10 +6,8 @@ package stream
 import (
 	"context"
 	"encoding/binary"
-	
-	"github.com/ava-labs/gecko/ipcs/pipe"
 
-
+	"github.com/ava-labs/gecko/ipcs/socket"
 	"github.com/ava-labs/ortelius/cfg"
 )
 
@@ -17,7 +15,7 @@ import (
 type Producer struct {
 	chainID     string
 	eventType   EventType
-	sock        *pipe.Client
+	sock        *socket.Client
 	binFilterFn binFilterFn
 	writeBuffer *writeBuffer
 }
@@ -32,7 +30,7 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 	}
 
 	var err error
-	p.sock, err = pipe.Dial(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
+	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +55,8 @@ func (p *Producer) Close() error {
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *Producer) ProcessNextMessage(ctx context.Context) error {
-	rawMsg, err := p.sock.Recv(ctx)
+func (p *Producer) ProcessNextMessage(_ context.Context) error {
+	rawMsg, err := p.sock.Recv()
 	if err != nil {
 		return err
 	}
@@ -74,7 +72,6 @@ func (p *Producer) ProcessNextMessage(ctx context.Context) error {
 func (p *Producer) Write(msg []byte) (int, error) {
 	return p.writeBuffer.Write(msg)
 }
-
 
 type binFilterFn func([]byte) bool
 
