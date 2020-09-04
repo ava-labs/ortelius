@@ -71,7 +71,7 @@ services:
     volumes:
       - redis-data:/var/lib/redis
   gecko:
-    image: "avaplatform/gecko:291c630b-disroless"
+    image: "avaplatform/gecko:2a337eca"
     command: [
       "./build/avalanche",
       "-db-dir=/var/lib/gecko",
