@@ -24,6 +24,9 @@ var (
 )
 
 type index struct {
+	// NetworkID is the id of the network this API is connected to
+	NetworkID uint32 `json:"network_id"`
+
 	// Chains is a map of chain IDs to chainInfo
 	Chains map[string]chainInfo `json:"chains"`
 }
@@ -95,7 +98,7 @@ func (c *RootRequestContext) WriteErr(w http.ResponseWriter, code int, err error
 }
 
 func newRootRouter(params RouterParams, chainsConf cfg.Chains) (*web.Router, error) {
-	indexResponder, err := newIndexResponder(chainsConf)
+	indexResponder, err := newIndexResponder(params.NetworkID, chainsConf)
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +138,12 @@ func newContextSetter(networkID uint32, stream *health.Stream, cache *cache.Cach
 	}
 }
 
-func newIndexResponder(chainsConf cfg.Chains) (func(*RootRequestContext, web.ResponseWriter, *web.Request), error) {
-	i := &index{Chains: make(map[string]chainInfo, len(chainsConf))}
+func newIndexResponder(networkID uint32, chainsConf cfg.Chains) (func(*RootRequestContext, web.ResponseWriter, *web.Request), error) {
+	i := &index{
+		NetworkID: networkID,
+		Chains:    make(map[string]chainInfo, len(chainsConf)),
+	}
+
 	for id, info := range chainsConf {
 		i.Chains[id] = chainInfo{
 			Alias:  info.Alias,
