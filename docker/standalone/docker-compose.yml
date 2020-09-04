@@ -13,6 +13,7 @@ services:
     volumes:
       - gecko-ipcs:/tmp
       - ../config.json:/opt/config.json
+    restart: on-failure
   indexer:
     <<: *ortelius-app
     command: ["stream", "indexer"]
