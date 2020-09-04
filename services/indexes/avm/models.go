@@ -37,6 +37,8 @@ type Transaction struct {
 	Inputs  []*Input  `json:"inputs"`
 	Outputs []*Output `json:"outputs"`
 
+	Memo []byte `json:"memo"`
+
 	InputTotals         AssetTokenCounts `json:"inputTotals"`
 	OutputTotals        AssetTokenCounts `json:"outputTotals"`
 	ReusedAddressTotals AssetTokenCounts `json:"reusedAddressTotals"`

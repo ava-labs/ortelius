@@ -252,7 +252,7 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 
 	txs := []*Transaction{}
 	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.created_at").
+		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
 		From("avm_transactions").
 		Where("avm_transactions.chain_id = ?", db.chainID))
 

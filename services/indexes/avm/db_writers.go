@@ -199,6 +199,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		Pair("id", txID.String()).
 		Pair("chain_id", db.chainID).
 		Pair("type", TXTypeCreateAsset).
+		Pair("memo", tx.Memo).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
 		ExecContext(ctx.Ctx())
@@ -281,6 +282,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		Pair("id", baseTx.ID().String()).
 		Pair("chain_id", baseTx.BlockchainID.String()).
 		Pair("type", txType).
+		Pair("memo", baseTx.Memo).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
 		ExecContext(ctx.Ctx())
