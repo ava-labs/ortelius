@@ -32,6 +32,7 @@ services:
     healthcheck:
       test: /bin/sh -c '[ \"imok\" = \"$$(echo ruok | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
       interval: 1m
+    restart: on-failure
   kafka:
     image: confluentinc/cp-kafka:5.0.0
     depends_on:
@@ -43,6 +44,7 @@ services:
       - kafka.env
     volumes:
       - kafka-data:/var/lib/kafka/data/
+    restart: on-failure
   mysql:
     image: mysql:8.0
     volumes:
@@ -53,16 +55,17 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ortelius_dev
+    restart: on-failure
   migrate:
     image: migrate/migrate:v4.11.0
     volumes:
       - ../../services/db/migrations:/migrations
       - ./migrate.sh:/migrate.sh
-    restart: "no"
     depends_on:
       - mysql
     entrypoint: ["/bin/sh"]
     command: ["/migrate.sh"]
+    restart: on-failure
   redis:
     image: "redis:6.0.5-alpine3.12"
     command: redis-server
@@ -70,8 +73,9 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/var/lib/redis
+    restart: on-failure
   gecko:
-    image: "avaplatform/gecko:291c630b-disroless"
+    image: "avaplatform/gecko:2a337eca"
     command: [
       "./build/avalanche",
       "-db-dir=/var/lib/gecko",
