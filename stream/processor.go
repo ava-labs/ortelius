@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/gecko/ipcs/socket"
 	"github.com/ava-labs/gecko/utils/logging"
+	"github.com/ava-labs/ortelius/socket"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"

@@ -7,8 +7,8 @@ import (
 	"context"
 	"encoding/binary"
 
-	"github.com/ava-labs/gecko/ipcs/socket"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/socket"
 )
 
 // producer reads from the socket and writes to the event stream
