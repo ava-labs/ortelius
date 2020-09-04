@@ -330,9 +330,9 @@ func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addre
 
 	addresses := []*Address{}
 	_, err := p.Apply(dbRunner.
-		Select("avm_output_addresses.address", "addresses.public_key").
-		From("addresses").
-		LeftJoin("avm_output_addresses", "addresses.address = avm_output_addresses.address")).
+		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
+		From("avm_output_addresses").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")).
 		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
@@ -342,8 +342,8 @@ func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addre
 	if len(addresses) >= p.Limit {
 		p.ListParams = params.ListParams{}
 		err = p.Apply(dbRunner.
-			Select("COUNT(addresses.address)").
-			From("addresses")).
+			Select("COUNT(DISTINCT(avm_output_addresses.address))").
+			From("avm_output_addresses")).
 			LoadOneContext(ctx, &count)
 		if err != nil {
 			return nil, err

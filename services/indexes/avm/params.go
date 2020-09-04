@@ -330,7 +330,7 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Address != nil {
 		b = b.
-			Where("addresses.address = ?", p.Address.String()).
+			Where("avm_output_addresses.address = ?", p.Address.String()).
 			Limit(1)
 	}
 
