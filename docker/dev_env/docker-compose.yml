@@ -74,7 +74,7 @@ services:
       - redis-data:/var/lib/redis
     restart: on-failure
   gecko:
-    image: "avaplatform/gecko:2a337eca"
+    image: "avaplatform/gecko:12581d44"
     command: [
       "./build/avalanche",
       "-db-dir=/var/lib/gecko",
