@@ -49,7 +49,6 @@ services:
     image: mysql:8.0
     volumes:
       - mysql-data:/var/lib/mysql
-    restart: always
     ports:
       - "3306:3306"
     environment:
