@@ -6,19 +6,27 @@ package socket
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/utils/wrappers"
 )
 
+const (
+	// DefaultMaxMessageSize is the number of bytes to cap messages at by default
+	DefaultMaxMessageSize = 1 << 21
+)
+
 var (
-	// ErrTimeout is returned when a socket operation times out
-	ErrTimeout = errors.New("timeout")
+	// ErrMessageTooLarge is returned when reading a message that is larger than
+	// our max size
+	ErrMessageTooLarge = errors.New("message to large")
 )
 
 // Socket manages sending messages over a socket to many subscribed clients
@@ -26,12 +34,12 @@ type Socket struct {
 	log logging.Logger
 
 	addr     string
+	accept   acceptFn
 	connLock *sync.RWMutex
 	conns    []net.Conn
 
-	listeningCh chan struct{}
-	quitCh      chan struct{}
-	doneCh      chan struct{}
+	quitCh chan struct{}
+	doneCh chan struct{}
 }
 
 // NewSocket creates a new socket object for the given address. It does not open
@@ -41,12 +49,35 @@ func NewSocket(addr string, log logging.Logger) *Socket {
 		log: log,
 
 		addr:     addr,
+		accept:   accept,
 		connLock: &sync.RWMutex{},
 
-		listeningCh: make(chan struct{}),
-		quitCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
+		quitCh: make(chan struct{}),
+		doneCh: make(chan struct{}),
 	}
+}
+
+// Listen starts listening on the socket for new connection
+func (s *Socket) Listen() error {
+	l, err := listen(s.addr)
+	if err != nil {
+		return err
+	}
+
+	// Start a loop that accepts new connections until told to quit
+	go func() {
+		for {
+			select {
+			case <-s.quitCh:
+				close(s.doneCh)
+				return
+			default:
+				s.accept(s, l)
+			}
+		}
+	}()
+
+	return nil
 }
 
 // Send writes the given message to all connection clients
@@ -66,7 +97,7 @@ func (s *Socket) Send(msg []byte) error {
 	var err error
 	for _, conn := range conns {
 		if _, err = conn.Write(msg); err != nil {
-			return err
+			return fmt.Errorf("failed to write message to %s: %w", conn.RemoteAddr(), err)
 		}
 	}
 	return nil
@@ -96,6 +127,7 @@ func (s *Socket) Close() error {
 // Client is a read-only connection to a socket
 type Client struct {
 	net.Conn
+	maxMessageSize int64
 }
 
 // Recv waits for a message from the socket. It's guaranteed to either return a
@@ -105,16 +137,20 @@ func (c *Client) Recv() ([]byte, error) {
 	var sz int64
 	if err := binary.Read(c.Conn, binary.BigEndian, &sz); err != nil {
 		if isTimeoutError(err) {
-			return nil, ErrTimeout
+			return nil, errReadTimeout{c.Conn.RemoteAddr()}
 		}
 		return nil, err
+	}
+
+	if sz > atomic.LoadInt64(&c.maxMessageSize) {
+		return nil, ErrMessageTooLarge
 	}
 
 	// Create buffer for entire message and read it all in
 	msg := make([]byte, sz)
 	if _, err := io.ReadFull(c.Conn, msg); err != nil {
 		if isTimeoutError(err) {
-			return nil, ErrTimeout
+			return nil, errReadTimeout{c.Conn.RemoteAddr()}
 		}
 		return nil, err
 	}
@@ -122,9 +158,39 @@ func (c *Client) Recv() ([]byte, error) {
 	return msg, nil
 }
 
+// SetMaxMessageSize sets the maximum size to allow for messages
+func (c *Client) SetMaxMessageSize(s int64) {
+	atomic.StoreInt64(&c.maxMessageSize, s)
+}
+
 // Close closes the underlying socket connection
 func (c *Client) Close() error {
 	return c.Conn.Close()
+}
+
+// errReadTimeout is returned a socket read times out
+type errReadTimeout struct {
+	addr net.Addr
+}
+
+// Error implements the error interface
+func (e errReadTimeout) Error() string {
+	return fmt.Sprintf("read from %s timed out", e.addr)
+}
+
+// acceptFn takes accepts connections from a Listener and gives them to a Socket
+type acceptFn func(*Socket, net.Listener)
+
+// accept is the default acceptFn for sockets. It accepts the next connection
+// from the given listen and adds it to the Socket's connection list
+func accept(s *Socket, l net.Listener) {
+	conn, err := l.Accept()
+	if err != nil {
+		s.log.Error("socket accept error: %s", err.Error())
+	}
+	s.connLock.Lock()
+	s.conns = append(s.conns, conn)
+	s.connLock.Unlock()
 }
 
 // isTimeoutError checks if an error is a timeout as per the net.Error interface

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/ava-labs/ortelius/socket"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -145,8 +144,6 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			}
 
 			switch err {
-			case socket.ErrTimeout:
-				c.log.Debug("socket timeout")
 			case kafka.RequestTimedOut:
 				c.log.Debug("kafka timeout")
 			default:
