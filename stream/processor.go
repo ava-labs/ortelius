@@ -146,6 +146,8 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			switch err {
 			case kafka.RequestTimedOut:
 				c.log.Debug("kafka timeout")
+			case context.DeadlineExceeded:
+				c.log.Debug("context deadline exceeded")
 			default:
 				c.log.Error("Unknown error: %s", err.Error())
 			}
