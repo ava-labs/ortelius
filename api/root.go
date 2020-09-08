@@ -103,8 +103,13 @@ func newRootRouter(params RouterParams, chainsConf cfg.Chains) (*web.Router, err
 		return nil, err
 	}
 
+	var cache cacher = params.Connections.Cache()
+	if cache == nil {
+		cache = &nullCache{}
+	}
+
 	router := web.New(RootRequestContext{}).
-		Middleware(newContextSetter(params.NetworkID, params.Connections.Stream(), params.Connections.Cache())).
+		Middleware(newContextSetter(params.NetworkID, params.Connections.Stream(), cache)).
 		Middleware((*RootRequestContext).setHeaders).
 		NotFound((*RootRequestContext).notFoundHandler).
 		Get("/", indexResponder)
@@ -112,7 +117,7 @@ func newRootRouter(params RouterParams, chainsConf cfg.Chains) (*web.Router, err
 	return router, nil
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache *cache.Cache) func(*RootRequestContext, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) func(*RootRequestContext, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *RootRequestContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		// Set context properties, context last
 		c.cache = cache

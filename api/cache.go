@@ -50,3 +50,13 @@ func updateCachable(ctx context.Context, cache cacher, key string, cachableFn Ca
 
 	return objBytes, nil
 }
+
+type nullCache struct{}
+
+func (nullCache) Get(_ context.Context, _ string) ([]byte, error) {
+	return nil, nil
+}
+
+func (nullCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	return nil
+}
