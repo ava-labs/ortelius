@@ -6,6 +6,7 @@ package stream
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ type ProcessorFactory func(cfg.Config, uint32, string, string) (Processor, error
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
-	ProcessNextMessage(context.Context) error
+	ProcessNextMessage(context.Context, logging.Logger) error
 	Close() error
 }
 
@@ -131,28 +132,52 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 	// Create a closure that processes the next message from the backend
 	var (
-		ctx      context.Context
-		cancelFn context.CancelFunc
-
+		ctx                context.Context
+		cancelFn           context.CancelFunc
+		successes          int
+		failures           int
+		nomsg              int
 		processNextMessage = func() {
 			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
-			err = backend.ProcessNextMessage(ctx)
+			err = backend.ProcessNextMessage(ctx, c.log)
 			if err == nil {
+				successes++
 				return
 			}
 
 			switch err {
+			// This error is expected when the upstream service isn't producing
+			case context.DeadlineExceeded:
+				nomsg++
+				c.log.Debug("context deadline exceeded")
+				return
+
+			// These are always errors
 			case kafka.RequestTimedOut:
 				c.log.Debug("kafka timeout")
-			case context.DeadlineExceeded:
-				c.log.Debug("context deadline exceeded")
+			case io.EOF:
+				c.log.Error("EOF")
 			default:
 				c.log.Error("Unknown error: %s", err.Error())
 			}
+
+			failures++
 		}
 	)
+
+	// Log run statistics periodically until asked to stop
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for range t.C {
+			c.log.Info("IProcessor successes=%d failures=%d nomsg=%d", successes, failures, nomsg)
+			if c.isStopping() {
+				return
+			}
+		}
+	}()
 
 	// Process messages until asked to stop
 	for !c.isStopping() {

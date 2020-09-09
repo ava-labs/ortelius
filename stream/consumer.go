@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/gecko/utils/logging"
 	"github.com/ava-labs/gecko/utils/wrappers"
 	"github.com/segmentio/kafka-go"
 
@@ -93,12 +94,18 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context) error {
+func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) error {
 	msg, err := c.getNextMessage(ctx)
 	if err != nil {
+		log.Error("consumer.getNextMessage: %s", err.Error())
 		return err
 	}
-	return c.consumer.Consume(ctx, msg)
+
+	if err = c.consumer.Consume(ctx, msg); err != nil {
+		log.Error("consumer.Consume: %s", err.Error())
+		return err
+	}
+	return nil
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

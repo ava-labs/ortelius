@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/binary"
 
+	"github.com/ava-labs/gecko/utils/logging"
+
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/socket"
 )
@@ -55,9 +57,10 @@ func (p *Producer) Close() error {
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *Producer) ProcessNextMessage(_ context.Context) error {
+func (p *Producer) ProcessNextMessage(_ context.Context, log logging.Logger) error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
+		log.Error("sock.Recv: %s", err.Error())
 		return err
 	}
 
@@ -65,8 +68,11 @@ func (p *Producer) ProcessNextMessage(_ context.Context) error {
 		return nil
 	}
 
-	_, err = p.writeBuffer.Write(rawMsg)
-	return err
+	if _, err = p.writeBuffer.Write(rawMsg); err != nil {
+		log.Error("writeBuffer.Write: %s", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (p *Producer) Write(msg []byte) (int, error) {
