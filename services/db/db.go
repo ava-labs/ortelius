@@ -12,8 +12,8 @@ import (
 	"github.com/DATA-DOG/go-txdb"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/go-sql-driver/mysql"
-	"github.com/gocraft/dbr"
-	"github.com/gocraft/dbr/dialect"
+	"github.com/gocraft/dbr/v2"
+	"github.com/gocraft/dbr/v2/dialect"
 	"github.com/gocraft/health"
 
 	// Import the MySQL driver
