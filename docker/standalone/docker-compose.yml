@@ -1,7 +1,7 @@
 version: '3'
 services:
   producer: &ortelius-app
-    image: "avaplatform/ortelius:7e2dc71"
+    image: "avaplatform/ortelius:fb08d10"
     command: ["stream", "producer"]
     networks:
       - services
