@@ -195,7 +195,7 @@ func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 	// Process messages until asked to stop
 	for !c.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF {
+		if err == io.EOF && !c.isStopping() {
 			return err
 		}
 	}
