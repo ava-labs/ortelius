@@ -123,6 +123,17 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	c.log.Info("Starting worker for chain %s", chainConfig.ID)
 	defer c.log.Info("Exiting worker for chain %s", chainConfig.ID)
 
+	var err error
+	for {
+		err = c.runProcessorLoop(chainConfig)
+		if err != io.EOF {
+			break
+		}
+	}
+	return err
+}
+
+func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 	// Create a backend to get messages from
 	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
 	if err != nil {
@@ -137,14 +148,14 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		successes          int
 		failures           int
 		nomsg              int
-		processNextMessage = func() {
+		processNextMessage = func() error {
 			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
 			err = backend.ProcessNextMessage(ctx, c.log)
 			if err == nil {
 				successes++
-				return
+				return nil
 			}
 
 			switch err {
@@ -152,18 +163,20 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			case context.DeadlineExceeded:
 				nomsg++
 				c.log.Debug("context deadline exceeded")
-				return
+				return nil
 
 			// These are always errors
 			case kafka.RequestTimedOut:
 				c.log.Debug("kafka timeout")
 			case io.EOF:
 				c.log.Error("EOF")
+				return io.EOF
 			default:
 				c.log.Error("Unknown error: %s", err.Error())
 			}
 
 			failures++
+			return nil
 		}
 	)
 
@@ -181,7 +194,10 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 	// Process messages until asked to stop
 	for !c.isStopping() {
-		processNextMessage()
+		err := processNextMessage()
+		if err == io.EOF {
+			return err
+		}
 	}
 	return nil
 }
