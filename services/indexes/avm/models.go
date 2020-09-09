@@ -86,8 +86,6 @@ type OutputAddress struct {
 }
 
 type OutputAndAddress struct {
-	*Output
-	*OutputAddress
 	ID            models.StringID  `json:"id"`
 	TransactionID models.StringID  `json:"transactionID"`
 	OutputIndex   uint64           `json:"outputIndex"`
