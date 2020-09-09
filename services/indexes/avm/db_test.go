@@ -13,7 +13,7 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/gecko/ids"
 	"github.com/ava-labs/gecko/utils/hashing"
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"

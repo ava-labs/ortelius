@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/ortelius/services/params"
 )

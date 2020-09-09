@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/ava-labs/gecko/ids"
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/ortelius/services/models"
 	"github.com/ava-labs/ortelius/services/params"
@@ -42,16 +41,6 @@ var (
 		"avm_outputs.created_at",
 		"avm_outputs.redeeming_transaction_id",
 	}
-
-	outputSelectColumnsString = strings.Join(outputSelectColumns, ", ")
-
-	// nolint
-	// This SQL is built out of only hardcoded column strings
-	outputSelectForDressTransactionsQuery = fmt.Sprintf(`
-		SELECT %s FROM avm_outputs WHERE avm_outputs.transaction_id IN ?
-		UNION
-		SELECT %s FROM avm_outputs WHERE avm_outputs.redeeming_transaction_id IN ?`,
-		outputSelectColumnsString, outputSelectColumnsString)
 )
 
 func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error) {
@@ -446,27 +435,37 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	// Load each Transaction Output for the tx, both inputs and outputs
-	outputs := []*Output{}
-	_, err := dbRunner.SelectBySql(outputSelectForDressTransactionsQuery, txIDs, txIDs).
-		LoadContext(ctx, &outputs)
-	if err != nil {
-		return err
-	}
+	outputsAndAddress := []*OutputAndAddress{}
 
-	// Load all Output addresses for this Transaction
-	outputAddresses := make([]OutputAddress, 0, 2)
-	_, err = dbRunner.
-		Select(
-			"avm_output_addresses.output_id AS output_id",
-			"avm_output_addresses.address AS address",
-			"addresses.public_key AS public_key",
-			"avm_output_addresses.redeeming_signature AS signature",
-		).
-		From("avm_output_addresses").
-		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
+	avm_outputs_by_tid := dbRunner.Select(outputSelectColumns...).
+		From("avm_outputs").
+		Where("avm_outputs.transaction_id IN ?", txIDs)
+	avm_outputs_by_rtid := dbRunner.Select(outputSelectColumns...).
+		From("avm_outputs").
+		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs)
+	avm_outputs_union := dbr.Union(avm_outputs_by_tid, avm_outputs_by_rtid).As("avm_outputs")
+	avm_outputs_distunion := dbr.Select(ToInteface(outputSelectColumns)...).
+		Distinct().
+		From(avm_outputs_union).As("avm_outputs")
+
+	_, err := dbRunner.Select("avm_outputs.id",
+		"avm_outputs.transaction_id",
+		"avm_outputs.output_index",
+		"avm_outputs.asset_id",
+		"avm_outputs.output_type",
+		"avm_outputs.amount",
+		"avm_outputs.locktime",
+		"avm_outputs.threshold",
+		"avm_outputs.created_at",
+		"avm_outputs.redeeming_transaction_id",
+		"avm_output_addresses.output_id AS output_id",
+		"avm_output_addresses.address AS address",
+		"addresses.public_key AS public_key",
+		"avm_output_addresses.redeeming_signature AS signature").
+		From(avm_outputs_distunion).
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-		Where("avm_outputs.transaction_id IN ? OR avm_outputs.redeeming_transaction_id IN ?", txIDs, txIDs).
-		LoadContext(ctx, &outputAddresses)
+		LoadContext(ctx, &outputsAndAddress)
 	if err != nil {
 		return err
 	}
@@ -488,7 +487,8 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		m[assetID] = prevAmt.Add(amt, prevAmt)
 	}
 
-	for _, out := range outputs {
+	for _, outpre := range outputsAndAddress {
+		out := OutputAndAddress2Output(outpre)
 		outputMap[out.ID] = out
 
 		out.Addresses = []models.Address{}
@@ -522,7 +522,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	// Collect the addresses into a list on each Output
 	var input *Input
-	for _, outputAddress := range outputAddresses {
+	for _, outputAddress := range outputsAndAddress {
 		output, ok := outputMap[outputAddress.OutputID]
 		if !ok {
 			continue
@@ -703,4 +703,29 @@ func collateSearchResults(assetResults *AssetList, addressResults *AddressList, 
 	}
 
 	return collatedResults, nil
+}
+
+func OutputAndAddress2Output(out *OutputAndAddress) *Output {
+	return &Output{
+		out.ID,
+		out.TransactionID,
+		out.OutputIndex,
+		out.AssetID,
+		out.OutputType,
+		out.Amount,
+		out.Locktime,
+		out.Threshold,
+		out.Addresses,
+		out.CreatedAt,
+		out.RedeemingTransactionID,
+		out.Score,
+	}
+}
+
+func ToInteface(a []string) []interface{} {
+	b := make([]interface{}, len(a))
+	for i := range a {
+		b[i] = a[i]
+	}
+	return b
 }

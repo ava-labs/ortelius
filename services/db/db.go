@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-txdb"
-	"github.com/gocraft/dbr"
-	"github.com/gocraft/dbr/dialect"
+	"github.com/gocraft/dbr/v2"
+	"github.com/gocraft/dbr/v2/dialect"
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/cfg"

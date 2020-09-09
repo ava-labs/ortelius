@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/gecko/utils/crypto"
 	"github.com/ava-labs/gecko/vms/avm"
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 
 	// Import MySQL driver
