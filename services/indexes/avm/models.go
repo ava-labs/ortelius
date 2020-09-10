@@ -85,25 +85,6 @@ type OutputAddress struct {
 	PublicKey []byte          `json:"-"`
 }
 
-type OutputAndAddress struct {
-	ID            models.StringID  `json:"id"`
-	TransactionID models.StringID  `json:"transactionID"`
-	OutputIndex   uint64           `json:"outputIndex"`
-	AssetID       models.StringID  `json:"assetID"`
-	OutputType    OutputType       `json:"outputType"`
-	Amount        TokenAmount      `json:"amount"`
-	Locktime      uint64           `json:"locktime"`
-	Threshold     uint64           `json:"threshold"`
-	Addresses     []models.Address `json:"addresses"`
-	CreatedAt     time.Time        `json:"timestamp"`
-	RedeemingTransactionID models.StringID `json:"redeemingTransactionID"`
-	Score uint64 `json:"-"`
-	OutputID  models.StringID `json:"output_id"`
-	Address   models.Address  `json:"address"`
-	Signature []byte          `json:"signature"`
-	PublicKey []byte          `json:"-"`
-}
-
 type Asset struct {
 	ID      models.StringID `json:"id"`
 	ChainID models.StringID `json:"chainID"`
