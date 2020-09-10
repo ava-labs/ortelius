@@ -435,7 +435,10 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	// Load each Transaction Output for the tx, both inputs and outputs
-	outputsAndAddress := []*OutputAndAddress{}
+	outputsAndAddress := []*struct {
+		Output
+		OutputAddress
+	}{}
 
 	avm_outputs_by_tid := dbRunner.Select(outputSelectColumns...).
 		From("avm_outputs").
@@ -444,7 +447,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		From("avm_outputs").
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs)
 	avm_outputs_union := dbr.Union(avm_outputs_by_tid, avm_outputs_by_rtid).As("avm_outputs")
-	avm_outputs_distunion := dbr.Select(ToInteface(outputSelectColumns)...).
+	avm_outputs_distunion := dbRunner.Select(outputSelectColumns...).
 		Distinct().
 		From(avm_outputs_union).As("avm_outputs")
 
@@ -488,7 +491,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	for _, outpre := range outputsAndAddress {
-		out := OutputAndAddress2Output(outpre)
+		out := &outpre.Output
 		outputMap[out.ID] = out
 
 		out.Addresses = []models.Address{}
@@ -703,29 +706,4 @@ func collateSearchResults(assetResults *AssetList, addressResults *AddressList, 
 	}
 
 	return collatedResults, nil
-}
-
-func OutputAndAddress2Output(out *OutputAndAddress) *Output {
-	return &Output{
-		out.ID,
-		out.TransactionID,
-		out.OutputIndex,
-		out.AssetID,
-		out.OutputType,
-		out.Amount,
-		out.Locktime,
-		out.Threshold,
-		out.Addresses,
-		out.CreatedAt,
-		out.RedeemingTransactionID,
-		out.Score,
-	}
-}
-
-func ToInteface(a []string) []interface{} {
-	b := make([]interface{}, len(a))
-	for i := range a {
-		b[i] = a[i]
-	}
-	return b
 }
