@@ -447,10 +447,6 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		From("avm_outputs").
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs)
 	avm_outputs_union := dbr.Union(avm_outputs_by_tid, avm_outputs_by_rtid).As("avm_outputs")
-	avm_outputs_distunion := dbRunner.Select(outputSelectColumns...).
-		Distinct().
-		From(avm_outputs_union).As("avm_outputs")
-
 	_, err := dbRunner.Select("avm_outputs.id",
 		"avm_outputs.transaction_id",
 		"avm_outputs.output_index",
@@ -465,7 +461,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		"avm_output_addresses.address AS address",
 		"addresses.public_key AS public_key",
 		"avm_output_addresses.redeeming_signature AS signature").
-		From(avm_outputs_distunion).
+		From(avm_outputs_union).
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
 		LoadContext(ctx, &outputsAndAddress)
