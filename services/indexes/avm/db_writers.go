@@ -170,7 +170,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				continue
 			}
 
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut)
+			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
 
 			amount, err = math.Add64(amount, xOut.Amount())
 			if err != nil {
@@ -240,7 +240,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		})
+		}, false)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -296,15 +296,16 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true)
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool) {
 	outputID := txID.Prefix(uint64(idx))
 
-	_, err := ctx.DB().
+	var err error
+	_, err = ctx.DB().
 		InsertInto("avm_outputs").
 		Pair("id", outputID.String()).
 		Pair("chain_id", db.chainID).
@@ -318,19 +319,21 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("threshold", out.Threshold).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
-		_, err := ctx.DB().
-			Update("avm_outputs").
-			Set("chain_id", db.chainID).
-			Set("transaction_id", txID.String()).
-			Set("output_index", idx).
-			Set("asset_id", assetID.String()).
-			Set("output_type", OutputTypesSECP2556K1Transfer).
-			Set("amount", out.Amount()).
-			Set("created_at", ctx.Time()).
-			Set("locktime", out.Locktime).
-			Set("threshold", out.Threshold).
-			Where("avm_outputs.id = ?", outputID.String()).
-			ExecContext(ctx.Ctx())
+		if upd {
+			_, err = ctx.DB().
+				Update("avm_outputs").
+				Set("chain_id", db.chainID).
+				Set("transaction_id", txID.String()).
+				Set("output_index", idx).
+				Set("asset_id", assetID.String()).
+				Set("output_type", OutputTypesSECP2556K1Transfer).
+				Set("amount", out.Amount()).
+				Set("created_at", ctx.Time()).
+				Set("locktime", out.Locktime).
+				Set("threshold", out.Threshold).
+				Where("avm_outputs.id = ?", outputID.String()).
+				ExecContext(ctx.Ctx())
+		}
 		if err != nil {
 			_ = db.stream.EventErr("ingest_output", err)
 		}
