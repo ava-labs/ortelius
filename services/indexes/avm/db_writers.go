@@ -315,7 +315,22 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("threshold", out.Threshold).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
-		_ = db.stream.EventErr("ingest_output", err)
+		_, err := ctx.DB().
+			Update("avm_outputs").
+			Set("chain_id", db.chainID).
+			Set("transaction_id", txID.String()).
+			Set("output_index", idx).
+			Set("asset_id", assetID.String()).
+			Set("output_type", OutputTypesSECP2556K1Transfer).
+			Set("amount", out.Amount()).
+			Set("created_at", ctx.Time()).
+			Set("locktime", out.Locktime).
+			Set("threshold", out.Threshold).
+			Where("avm_outputs.id = ?", outputID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			_ = db.stream.EventErr("ingest_output", err)
+		}
 	}
 
 	// Ingest each Output Address
