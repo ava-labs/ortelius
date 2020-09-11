@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/ava-labs/gecko/utils/logging"
-	"github.com/ava-labs/gecko/utils/wrappers"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
 
 const (

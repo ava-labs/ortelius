@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/go-redis/redis/v8"
 
 	"github.com/ava-labs/ortelius/services"

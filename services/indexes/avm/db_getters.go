@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr"
 
 	"github.com/ava-labs/ortelius/services/models"

@@ -6,8 +6,8 @@ package avm
 import (
 	"context"
 
-	"github.com/ava-labs/gecko/utils/crypto"
-	"github.com/ava-labs/gecko/vms/avm"
+	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 
