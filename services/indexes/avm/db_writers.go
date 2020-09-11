@@ -315,24 +315,24 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
 		ExecContext(ctx.Ctx())
-	if err != nil && !errIsDuplicateEntryError(err) {
-		if upd {
-			_, err = ctx.DB().
+
+	if err != nil {
+		// We got an error and it's not a duplicate entry error, so log it
+		if !errIsDuplicateEntryError(err) {
+			_ = db.stream.EventErr("ingest_output.insert", err)
+			// We got a duplicate entry error and we want to update
+		} else if upd {
+			if _, err = ctx.DB().
 				Update("avm_outputs").
 				Set("chain_id", db.chainID).
-				Set("transaction_id", txID.String()).
-				Set("output_index", idx).
-				Set("asset_id", assetID.String()).
 				Set("output_type", OutputTypesSECP2556K1Transfer).
 				Set("amount", out.Amount()).
-				Set("created_at", ctx.Time()).
 				Set("locktime", out.Locktime).
 				Set("threshold", out.Threshold).
 				Where("avm_outputs.id = ?", outputID.String()).
-				ExecContext(ctx.Ctx())
-		}
-		if err != nil {
-			_ = db.stream.EventErr("ingest_output", err)
+				ExecContext(ctx.Ctx()); err != nil {
+				_ = db.stream.EventErr("ingest_output.update", err)
+			}
 		}
 	}
 
