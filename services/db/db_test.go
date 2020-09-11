@@ -7,6 +7,23 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 )
 
+func TestParse(t *testing.T) {
+	var err error
+	var dsn string
+	dsn, err = forceParseTimeParam("mysql://root:password@tcp(mysql:3306)/ortelius_dev")
+	if err != nil || dsn != "mysql://root:password@tcp(mysql:3306)/ortelius_dev?parseTime=true" {
+		t.Fatal("Unexpected dsn")
+	}
+	dsn, err = forceParseTimeParam("root:password@tcp(mysql:3306)/ortelius_dev")
+	if err != nil || dsn != "root:password@tcp(mysql:3306)/ortelius_dev?parseTime=true" {
+		t.Fatal("Unexpected dsn")
+	}
+	dsn, err = forceParseTimeParam("root:password@tcp(mysql:3306)/ortelius_dev?xyz=123")
+	if err != nil || dsn != "root:password@tcp(mysql:3306)/ortelius_dev?parseTime=true&xyz=123" {
+		t.Fatal("Unexpected dsn")
+	}
+}
+
 func TestNewErrors(t *testing.T) {
 	conn, err := New(nil, cfg.DB{
 		Driver: "mysql",
@@ -28,7 +45,7 @@ func TestNewErrors(t *testing.T) {
 	if conn != nil {
 		t.Fatal("Expected conn to be nil")
 	}
-	if !strings.HasSuffix(err.Error(), "missing protocol scheme") {
+	if !strings.HasPrefix(err.Error(), "invalid DSN") {
 		t.Fatal("Expected an invalid URI")
 	}
 
