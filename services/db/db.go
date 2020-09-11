@@ -6,16 +6,15 @@ package db
 import (
 	"context"
 	"database/sql"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/DATA-DOG/go-txdb"
+	"github.com/ava-labs/ortelius/cfg"
+	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/dbr/dialect"
 	"github.com/gocraft/health"
-
-	"github.com/ava-labs/ortelius/cfg"
 
 	// Import the MySQL driver
 	_ "github.com/go-sql-driver/mysql"
@@ -79,16 +78,16 @@ func registerTxDB(c cfg.DB) {
 
 func forceParseTimeParam(dsn string) (string, error) {
 	// Parse dsn into a url
-	u, err := url.Parse(dsn)
+	u, err := mysql.ParseDSN(dsn)
 	if err != nil {
 		return "", err
 	}
 
-	// Add parseTime query param
-	q := u.Query()
-	q.Add("parseTime", "true")
-	u.RawQuery = q.Encode()
+	if u.Params == nil {
+		u.Params = make(map[string]string)
+	}
+	u.Params["parseTime"] = "true"
 
 	// Re-encode as a string
-	return u.String(), nil
+	return u.FormatDSN(), nil
 }
