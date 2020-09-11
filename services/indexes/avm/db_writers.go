@@ -152,14 +152,13 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 }
 
 func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
-	if err != nil {
-		return err
-	}
-	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
+	var (
+		txID        = ids.NewID(hashing.ComputeHash256Array(txBytes))
+		err         error
+		outputCount uint32
+		amount      uint64
+	)
 
-	var outputCount uint32
-	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
 			outputCount++
