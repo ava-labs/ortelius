@@ -138,10 +138,8 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.OperationTx:
 		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
-		castTx.BaseTx.Ins = append(castTx.BaseTx.Ins, castTx.Ins...)
 		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
 	case *avm.ExportTx:
-		castTx.BaseTx.Outs = append(castTx.BaseTx.Outs, castTx.Outs...)
 		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
 	case *avm.BaseTx:
 		return db.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
