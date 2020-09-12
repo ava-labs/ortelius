@@ -253,7 +253,6 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 	txs := []*Transaction{}
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "HEX(avm_transactions.memo) as memo", "avm_transactions.created_at").
-		Distinct().
 		From("avm_transactions").
 		Where("avm_transactions.chain_id = ?", db.chainID))
 
