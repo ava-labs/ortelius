@@ -21,7 +21,9 @@ import (
 )
 
 const (
-	txDBDriverName = "txdb"
+	DriverMysql = "mysql"
+	DriverNone  = ""
+	driverTXDB  = "txdb"
 )
 
 func New(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
@@ -35,12 +37,12 @@ func New(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
 
 	// If we want a transactional db then register that driver instead
 	if conf.TXDB {
-		driver = txDBDriverName
+		driver = driverTXDB
 		registerTxDB(conf)
 	}
 
 	// If we're using MySQL we need to ensure to set the parseTime option
-	if conf.Driver == "mysql" {
+	if conf.Driver == DriverMysql {
 		dbrDialect = dialect.MySQL
 		dsn, err = forceParseTimeParam(dsn)
 		if err != nil {
@@ -72,7 +74,7 @@ var registerTxDBOnce = sync.Once{}
 
 func registerTxDB(c cfg.DB) {
 	registerTxDBOnce.Do(func() {
-		txdb.Register(txDBDriverName, c.Driver, c.DSN)
+		txdb.Register(driverTXDB, c.Driver, c.DSN)
 	})
 }
 
@@ -90,4 +92,17 @@ func forceParseTimeParam(dsn string) (string, error) {
 
 	// Re-encode as a string
 	return u.FormatDSN(), nil
+}
+
+func SanitizedDSN(cfg *cfg.DB) (string, error) {
+	if cfg == nil || cfg.Driver != DriverMysql {
+		return "", nil
+	}
+
+	dsn, err := mysql.ParseDSN(cfg.DSN)
+	if err != nil {
+		return "", err
+	}
+	dsn.Passwd = "[removed]"
+	return dsn.FormatDSN(), nil
 }

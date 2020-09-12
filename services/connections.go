@@ -6,6 +6,7 @@ package services
 import (
 	"context"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -33,22 +34,42 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 		dbConn      *dbr.Connection
 		redisClient *redis.Client
 	)
+
 	if conf.Redis != nil && conf.Redis.Addr != "" {
+		kvs := health.Kvs{"addr": conf.Redis.Addr, "db": strconv.Itoa(conf.Redis.DB)}
 		redisClient, err = NewRedisConn(&redis.Options{
 			DB:       conf.Redis.DB,
 			Addr:     conf.Redis.Addr,
 			Password: conf.Redis.Password,
 		})
 		if err != nil {
+			stream.EventErrKv("connect.redis", err, kvs)
 			return nil, err
 		}
+		stream.EventKv("connect.redis", kvs)
+	} else {
+		stream.Event("connect.redis.skip")
 	}
 
-	if conf.DB != nil {
-		dbConn, err = db.New(stream, *conf.DB)
+	if conf.DB != nil || conf.DB.Driver == db.DriverNone {
+		// Setup logging kvs
+		kvs := health.Kvs{"driver": conf.DB.Driver}
+		loggableDSN, err := db.SanitizedDSN(conf.DB)
 		if err != nil {
+			stream.EventErrKv("connect.db.sanitize_dsn", err, kvs)
 			return nil, err
 		}
+		kvs["dsn"] = loggableDSN
+
+		// Create connection
+		dbConn, err = db.New(stream, *conf.DB)
+		if err != nil {
+			stream.EventErrKv("connect.db", err, kvs)
+			return nil, err
+		}
+		stream.EventKv("connect.db", kvs)
+	} else {
+		stream.Event("connect.db.skip")
 	}
 
 	return NewConnections(stream, dbConn, redisClient), nil
