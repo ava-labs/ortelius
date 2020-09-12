@@ -11,7 +11,7 @@ services:
       - mysql
       - redis
     volumes:
-      - gecko-ipcs:/tmp
+      - avalanche-ipcs:/tmp
       - ../config.json:/opt/config.json
     restart: on-failure
   indexer:
@@ -27,6 +27,6 @@ networks:
     external:
       name: ortelius_services
 volumes:
-  gecko-ipcs:
+  avalanche-ipcs:
     external:
-      name: ortelius_gecko_ipcs
+      name: ortelius_avalanche_ipcs
