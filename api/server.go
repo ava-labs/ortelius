@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/gecko/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/ortelius/cfg"
 )

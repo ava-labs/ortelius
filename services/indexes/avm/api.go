@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/ava-labs/gecko/genesis"
-	"github.com/ava-labs/gecko/ids"
+	"github.com/ava-labs/avalanchego/genesis"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"

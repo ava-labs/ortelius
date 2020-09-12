@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ava-labs/gecko/utils/codec"
+	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/gocraft/dbr"
 	"github.com/gocraft/health"
 )
