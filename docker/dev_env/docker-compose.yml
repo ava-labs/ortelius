@@ -10,10 +10,10 @@ volumes:
     name: ortelius_redis
   mysql-data:
     name: ortelius_mysql
-  gecko-data:
-    name: ortelius_gecko
-  gecko-ipcs:
-    name: ortelius_gecko_ipcs
+  avalanche-data:
+    name: ortelius_avalanche
+  avalanche-ipcs:
+    name: ortelius_avalanche_ipcs
 networks:
   default:
     name: ortelius_services
@@ -73,15 +73,15 @@ services:
     volumes:
       - redis-data:/var/lib/redis
     restart: on-failure
-  gecko:
-    image: "avaplatform/gecko:12581d44"
+  avalanche:
+    image: "avaplatform/avalanchego:a7890896"
     command: [
-      "./build/avalanche",
-      "-db-dir=/var/lib/gecko",
+      "./build/avalanchego",
+      "-db-dir=/var/lib/avalanche",
       "-log-level=info",
       "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
     ]
     volumes:
-      - gecko-data:/var/lib/gecko
-      - gecko-ipcs:/tmp
+      - avalanche-data:/var/lib/avalanche
+      - avalanche-ipcs:/tmp
     restart: always

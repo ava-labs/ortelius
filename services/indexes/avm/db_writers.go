@@ -138,10 +138,8 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.OperationTx:
 		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
-		castTx.BaseTx.Ins = append(castTx.BaseTx.Ins, castTx.Ins...)
 		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
 	case *avm.ExportTx:
-		castTx.BaseTx.Outs = append(castTx.BaseTx.Outs, castTx.Outs...)
 		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
 	case *avm.BaseTx:
 		return db.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
@@ -152,14 +150,13 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 }
 
 func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
-	if err != nil {
-		return err
-	}
-	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
+	var (
+		txID        = ids.NewID(hashing.ComputeHash256Array(txBytes))
+		err         error
+		outputCount uint32
+		amount      uint64
+	)
 
-	var outputCount uint32
-	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
 			outputCount++
@@ -170,7 +167,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				continue
 			}
 
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut)
+			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
 
 			amount, err = math.Add64(amount, xOut.Amount())
 			if err != nil {
@@ -240,7 +237,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		})
+		}, false)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -296,15 +293,16 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true)
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool) {
 	outputID := txID.Prefix(uint64(idx))
 
-	_, err := ctx.DB().
+	var err error
+	_, err = ctx.DB().
 		InsertInto("avm_outputs").
 		Pair("id", outputID.String()).
 		Pair("chain_id", db.chainID).
@@ -317,8 +315,25 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
 		ExecContext(ctx.Ctx())
-	if err != nil && !errIsDuplicateEntryError(err) {
-		_ = db.stream.EventErr("ingest_output", err)
+
+	if err != nil {
+		// We got an error and it's not a duplicate entry error, so log it
+		if !errIsDuplicateEntryError(err) {
+			_ = db.stream.EventErr("ingest_output.insert", err)
+			// We got a duplicate entry error and we want to update
+		} else if upd {
+			if _, err = ctx.DB().
+				Update("avm_outputs").
+				Set("chain_id", db.chainID).
+				Set("output_type", OutputTypesSECP2556K1Transfer).
+				Set("amount", out.Amount()).
+				Set("locktime", out.Locktime).
+				Set("threshold", out.Threshold).
+				Where("avm_outputs.id = ?", outputID.String()).
+				ExecContext(ctx.Ctx()); err != nil {
+				_ = db.stream.EventErr("ingest_output.update", err)
+			}
+		}
 	}
 
 	// Ingest each Output Address
