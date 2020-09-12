@@ -7,10 +7,9 @@ import (
 	"context"
 	"encoding/binary"
 
+	"github.com/ava-labs/avalanchego/ipcs/socket"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/socket"
 )
 
 // producer reads from the socket and writes to the event stream
