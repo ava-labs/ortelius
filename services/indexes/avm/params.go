@@ -216,12 +216,13 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		b = b.LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 			Where("avm_output_addresses.address IN ?", addrs)
 	}
-	if needsDistinct {
-		b = b.Distinct()
-	}
 
 	if p.AssetID != nil {
 		b = b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+	}
+
+	if needsDistinct {
+		b = b.Distinct()
 	}
 
 	if !p.StartTime.IsZero() {
