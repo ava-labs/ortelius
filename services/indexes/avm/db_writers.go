@@ -258,11 +258,12 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 
 	// Mark all inputs as redeemed
 	if len(redeemedOutputs) > 0 {
+		trid :=  baseTx.ID().String()
 		_, err = ctx.DB().
 			Update("avm_outputs").
 			Set("redeemed_at", dbr.Now).
-			Set("redeeming_transaction_id", baseTx.ID().String()).
-			Where("id IN ?", redeemedOutputs).
+			Set("redeeming_transaction_id", trid).
+			Where("id IN ? and redeeming_transaction_id <> ?", redeemedOutputs, trid).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return err
@@ -381,7 +382,7 @@ func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, add
 	_, err = ctx.DB().
 		Update("avm_output_addresses").
 		Set("redeeming_signature", sig).
-		Where("output_id = ? and address = ?", outputID.String(), address.String()).
+		Where("output_id = ? and address = ? and redeeming_signature <> ?", outputID.String(), address.String(), sig).
 		ExecContext(ctx.Ctx())
 	if err != nil {
 		_ = ctx.Job().EventErr("ingest_output_address", err)
