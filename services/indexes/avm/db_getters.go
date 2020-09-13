@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/ortelius/api"
 	"math"
 	"math/big"
 	"strings"
@@ -250,9 +251,10 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
 	dbRunner := db.newSession("get_transactions")
 
-	if _, err := dbRunner.Exec("SET SESSION MAX_EXECUTION_TIME=5000"); err != nil {
+	if _, err := dbRunner.Exec(fmt.Sprintf("SET SESSION MAX_EXECUTION_TIME=%d",api.RequestTimeout.Milliseconds())); err != nil {
 		return nil, err
 	}
+
 
 	txs := []*Transaction{}
 	builder := p.Apply(dbRunner.
