@@ -250,6 +250,10 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
 	dbRunner := db.newSession("get_transactions")
 
+	if _, err := dbRunner.Exec("SET SESSION MAX_EXECUTION_TIME=2000"); err != nil {
+		return nil, err
+	}
+
 	txs := []*Transaction{}
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "HEX(avm_transactions.memo) as memo", "avm_transactions.created_at").
@@ -263,8 +267,10 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 		}
 		switch sort {
 		case TransactionSortTimestampAsc:
+			builder.OrderAsc("avm_transactions.chain_id")
 			builder.OrderAsc("avm_transactions.created_at")
 		case TransactionSortTimestampDesc:
+			builder.OrderAsc("avm_transactions.chain_id")
 			builder.OrderDesc("avm_transactions.created_at")
 		default:
 			applySort(TransactionSortDefault)
