@@ -34,7 +34,6 @@ create table avm_outputs
 );
 create index avm_outputs_asset_id ON avm_outputs (asset_id);
 create index avm_outputs_chain_id_id ON avm_outputs (chain_id, id);
-create index avm_transactions_chain_id_created_at ON avm_transactions (chain_id, created_at desc);
 create unique index avm_outputs_tx_id_output_idx ON avm_outputs (transaction_id, output_index);
 
 create table avm_output_addresses
