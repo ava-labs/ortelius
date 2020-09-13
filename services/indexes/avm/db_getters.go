@@ -250,7 +250,7 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*TransactionList, error) {
 	dbRunner := db.newSession("get_transactions")
 
-	if _, err := dbRunner.Exec("SET SESSION MAX_EXECUTION_TIME=2000"); err != nil {
+	if _, err := dbRunner.Exec("SET SESSION MAX_EXECUTION_TIME=5000"); err != nil {
 		return nil, err
 	}
 
