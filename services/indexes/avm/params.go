@@ -190,7 +190,12 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	return k
 }
 
-func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+// true if we will need to left join
+func (p *ListTransactionsParams) NeedsDistinct() bool {
+	return len(p.Addresses) > 0 || p.AssetID != nil
+}
+
+func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) (*dbr.SelectBuilder) {
 	p.ListParams.Apply(b)
 
 	if p.ID != nil {
@@ -199,11 +204,8 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 			Limit(1)
 	}
 
-	needsDistinct := false
-
 	needOutputsJoin := len(p.Addresses) > 0 || p.AssetID != nil
 	if needOutputsJoin {
-		needsDistinct = true
 		b = b.LeftJoin("avm_outputs", "avm_outputs.transaction_id = avm_transactions.id")
 	}
 
@@ -212,17 +214,12 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		for i, id := range p.Addresses {
 			addrs[i] = id.String()
 		}
-		needsDistinct = true
 		b = b.LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 			Where("avm_output_addresses.address IN ?", addrs)
 	}
 
 	if p.AssetID != nil {
 		b = b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
-	}
-
-	if needsDistinct {
-		b = b.Distinct()
 	}
 
 	if !p.StartTime.IsZero() {
