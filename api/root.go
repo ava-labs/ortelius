@@ -124,6 +124,14 @@ func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) fun
 		c.networkID = networkID
 		c.job = stream.NewJob(jobNameForPath(r.Request.URL.Path))
 
+		// Tag stream with request data
+		remoteAddr := r.RemoteAddr
+		if addrs, ok := r.Header["X-Forwarded-For"]; ok {
+			remoteAddr = strings.Join(addrs, ",")
+		}
+		c.job.KeyValue("remote_addrs", remoteAddr)
+		c.job.KeyValue("url", r.RequestURI)
+
 		ctx := context.Background()
 		ctx, cancelFn := context.WithTimeout(ctx, RequestTimeout)
 		c.ctx = ctx
