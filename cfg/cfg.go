@@ -23,6 +23,8 @@ var (
 type Config struct {
 	NetworkID    uint32 `json:"networkID"`
 	LogDirectory string `json:"logDirectory"`
+	QueueSizeConsumer uint32 `json:"queueSizeConsumer"`
+	QueueSizeProducer uint32 `json:"queueSizeProducer"`
 	Chains       `json:"chains"`
 	Stream       `json:"stream"`
 	Services     `json:"services"`
@@ -113,6 +115,8 @@ func NewFromFile(filePath string) (*Config, error) {
 	return &Config{
 		NetworkID:    v.GetUint32(keysNetworkID),
 		LogDirectory: v.GetString(keysLogDirectory),
+		QueueSizeConsumer: v.GetUint32(keysQueueSizeConsumer),
+		QueueSizeProducer: v.GetUint32(keysQueueSizeProducer),
 		Chains:       chains,
 		Services: Services{
 			API: API{

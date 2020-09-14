@@ -6,6 +6,8 @@ package cfg
 const (
 	keysNetworkID    = "networkID"
 	keysLogDirectory = "logDirectory"
+	keysQueueSizeConsumer = "queueSizeConsumer"
+	keysQueueSizeProducer = "queueSizeProducer"
 
 	keysChains       = "chains"
 	keysChainsID     = "id"

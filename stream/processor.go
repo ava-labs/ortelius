@@ -25,12 +25,13 @@ var (
 	ErrUnknownProcessorType = errors.New("unknown processor type")
 )
 
-type ProcessorFactory func(cfg.Config, uint32, string, string) (Processor, error)
+type ProcessorFactory func(cfg.Config, uint32, string, string, logging.Logger) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
-	ProcessNextMessage(context.Context, logging.Logger) error
+	ProcessNextMessage(context.Context) error
 	Close() error
+	Successes() uint64
 }
 
 // ProcessorManager reads or writes from/to the event stream backend
@@ -135,7 +136,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 	// Create a backend to get messages from
-	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
+	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID, c.log)
 	if err != nil {
 		return err
 	}
@@ -152,7 +153,7 @@ func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
-			err = backend.ProcessNextMessage(ctx, c.log)
+			err = backend.ProcessNextMessage(ctx)
 			if err == nil {
 				successes++
 				return nil
@@ -185,7 +186,7 @@ func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
-			c.log.Info("IProcessor successes=%d failures=%d nomsg=%d", successes, failures, nomsg)
+			c.log.Info("IProcessor successes=%d of %d failures=%d nomsg=%d", backend.Successes(), successes, failures, nomsg)
 			if c.isStopping() {
 				return
 			}

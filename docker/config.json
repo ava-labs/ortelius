@@ -1,6 +1,8 @@
 {
   "networkID": 4,
   "logDirectory": "/var/log/ortelius",
+  "queueSizeConsumer": 4,
+  "queueSizeProducer": 4,
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {

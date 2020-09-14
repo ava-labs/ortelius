@@ -5,6 +5,8 @@ package stream
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -25,16 +27,28 @@ type consumer struct {
 	eventType EventType
 	reader    *kafka.Reader
 	consumer  services.Consumer
+	msgchan     chan <- *Message
+	waitgroup   sync.WaitGroup
+	cancel      context.CancelFunc
+	successes   uint64
+	log         logging.Logger
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactory {
-	return func(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
+	return func(conf cfg.Config, networkID uint32, chainVM string, chainID string, log logging.Logger) (Processor, error) {
+		msgchan := make(chan *Message)
+		ctx2, cancel := context.WithCancel(context.Background())
+
 		var (
 			err error
 			c   = &consumer{
 				networkID: networkID,
 				eventType: eventType,
+				msgchan:   msgchan,
+				waitgroup: sync.WaitGroup{},
+				cancel:    cancel,
+				log:       log,
 			}
 		)
 
@@ -79,12 +93,20 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 			}
 		}
 
+		for i := 0; i < int(conf.QueueSizeConsumer); i++ {
+			c.waitgroup.Add(1)
+			go c.ProcessWorker(ctx2, msgchan)
+		}
+
 		return c, nil
 	}
 }
 
 // Close closes the consumer
 func (c *consumer) Close() error {
+	c.cancel()
+	c.waitgroup.Wait()
+
 	ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancelFn()
 
@@ -94,18 +116,36 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) error {
+func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	msg, err := c.getNextMessage(ctx)
 	if err != nil {
-		log.Error("consumer.getNextMessage: %s", err.Error())
+		c.log.Error("consumer.getNextMessage: %s", err.Error())
 		return err
 	}
 
-	if err = c.consumer.Consume(ctx, msg); err != nil {
-		log.Error("consumer.Consume: %s", err.Error())
-		return err
-	}
+	c.msgchan <- msg
+
 	return nil
+}
+
+func (c* consumer) Successes() uint64 {
+	return c.successes
+}
+
+func (c *consumer) ProcessWorker(ctx context.Context, msgchan <- chan *Message) {
+	defer c.waitgroup.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <- msgchan:
+			if err := c.consumer.Consume(ctx, msg); err != nil {
+				c.log.Error("consumer.Consume: %s", err.Error())
+			} else {
+				atomic.AddUint64(&c.successes, 1)
+			}
+		}
+	}
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer
