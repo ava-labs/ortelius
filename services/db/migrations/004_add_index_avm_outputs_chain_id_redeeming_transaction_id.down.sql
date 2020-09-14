@@ -1,0 +1,1 @@
+drop index avm_outputs_chain_id_redeeming_transaction_id ON avm_outputs;
