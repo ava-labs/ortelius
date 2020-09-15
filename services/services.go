@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
 

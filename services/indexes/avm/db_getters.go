@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/gocraft/dbr"
+	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/ortelius/services/models"
 	"github.com/ava-labs/ortelius/services/params"
@@ -42,16 +41,6 @@ var (
 		"avm_outputs.created_at",
 		"avm_outputs.redeeming_transaction_id",
 	}
-
-	outputSelectColumnsString = strings.Join(outputSelectColumns, ", ")
-
-	// nolint
-	// This SQL is built out of only hardcoded column strings
-	outputSelectForDressTransactionsQuery = fmt.Sprintf(`
-		SELECT %s FROM avm_outputs WHERE avm_outputs.transaction_id IN ?
-		UNION
-		SELECT %s FROM avm_outputs WHERE avm_outputs.redeeming_transaction_id IN ?`,
-		outputSelectColumnsString, outputSelectColumnsString)
 )
 
 func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, error) {
@@ -446,31 +435,32 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		txIDs[i] = tx.ID
 	}
 
-	// Load each Transaction Output for the tx, both inputs and outputs
-	outputs := []*Output{}
-	_, err := dbRunner.SelectBySql(outputSelectForDressTransactionsQuery, txIDs, txIDs).
+	// Load output data for all inputs and outputs into a single list
+	// We can't treat them separately because some my be both inputs and outputs
+	// for different transactions
+	outputs := []*struct {
+		Output
+		OutputAddress
+	}{}
+	_, err := outputSelector(dbRunner, db.chainID).
+		Where("avm_outputs.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &outputs)
 	if err != nil {
 		return err
 	}
 
-	// Load all Output addresses for this Transaction
-	outputAddresses := make([]OutputAddress, 0, 2)
-	_, err = dbRunner.
-		Select(
-			"avm_output_addresses.output_id AS output_id",
-			"avm_output_addresses.address AS address",
-			"addresses.public_key AS public_key",
-			"avm_output_addresses.redeeming_signature AS signature",
-		).
-		From("avm_output_addresses").
-		LeftJoin("avm_outputs", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address").
-		Where("avm_outputs.transaction_id IN ? OR avm_outputs.redeeming_transaction_id IN ?", txIDs, txIDs).
-		LoadContext(ctx, &outputAddresses)
+	inputs := []*struct {
+		Output
+		OutputAddress
+	}{}
+	_, err = outputSelector(dbRunner, db.chainID).
+		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
+		LoadContext(ctx, &inputs)
 	if err != nil {
 		return err
 	}
+
+	outputs = append(outputs, inputs...)
 
 	// Create maps for all Transaction outputs and Input Transaction outputs
 	outputMap := map[models.StringID]*Output{}
@@ -489,7 +479,8 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		m[assetID] = prevAmt.Add(amt, prevAmt)
 	}
 
-	for _, out := range outputs {
+	for _, outpre := range outputs {
+		out := &outpre.Output
 		outputMap[out.ID] = out
 
 		out.Addresses = []models.Address{}
@@ -523,7 +514,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	// Collect the addresses into a list on each Output
 	var input *Input
-	for _, outputAddress := range outputAddresses {
+	for _, outputAddress := range outputs {
 		output, ok := outputMap[outputAddress.OutputID]
 		if !ok {
 			continue
@@ -704,4 +695,26 @@ func collateSearchResults(assetResults *AssetList, addressResults *AddressList, 
 	}
 
 	return collatedResults, nil
+}
+
+func outputSelector(dbRunner dbr.SessionRunner, chainID string) *dbr.SelectBuilder {
+	return dbRunner.Select("avm_outputs.id",
+		"avm_outputs.transaction_id",
+		"avm_outputs.output_index",
+		"avm_outputs.asset_id",
+		"avm_outputs.output_type",
+		"avm_outputs.amount",
+		"avm_outputs.locktime",
+		"avm_outputs.threshold",
+		"avm_outputs.created_at",
+		"avm_outputs.redeeming_transaction_id",
+		"avm_output_addresses.output_id AS output_id",
+		"avm_output_addresses.address AS address",
+		"avm_output_addresses.redeeming_signature AS signature",
+		"addresses.public_key AS public_key",
+	).
+		From("avm_outputs").
+		Where("avm_outputs.chain_id = ?", chainID).
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
