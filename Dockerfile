@@ -16,4 +16,5 @@ WORKDIR /opt
 # Copy in and wire up build artifacts
 COPY --from=0 /opt/orteliusd /opt/orteliusd
 COPY --from=0 /go/src/github.com/ava-labs/ortelius/docker/config.json /opt/config.json
+COPY --from=0 /go/src/github.com/ava-labs/ortelius/services/db/migrations /opt/migrations
 ENTRYPOINT ["/opt/orteliusd"]
