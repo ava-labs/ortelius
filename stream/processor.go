@@ -25,7 +25,7 @@ var (
 	ErrUnknownProcessorType = errors.New("unknown processor type")
 )
 
-type ProcessorFactory func(cfg.Config, uint32, string, string) (Processor, error)
+type ProcessorFactory func(cfg.Config, uint32, string, string, *logging.Log) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
@@ -135,7 +135,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 	// Create a backend to get messages from
-	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
+	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID, c.log)
 	if err != nil {
 		return err
 	}

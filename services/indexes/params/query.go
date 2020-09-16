@@ -98,6 +98,19 @@ func GetQueryInterval(q url.Values, key string) (time.Duration, error) {
 	return interval, nil
 }
 
+func GetQueryVersion(q url.Values, key string) int {
+	versionStr, ok := q[key]
+	if !ok || len(versionStr) < 1 {
+		return VersionDefault
+	}
+
+	versionInt, _ := strconv.Atoi(versionStr[0])
+	if versionInt < VersionDefault {
+		versionInt = VersionDefault
+	}
+	return versionInt
+}
+
 func GetQueryAddress(q url.Values, key string) (*ids.ShortID, error) {
 	addrStr := GetQueryString(q, key, "")
 	if addrStr == "" {

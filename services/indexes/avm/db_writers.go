@@ -6,8 +6,6 @@ package avm
 import (
 	"context"
 	"errors"
-	"strings"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -16,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/services/db"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 
@@ -349,6 +348,15 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("payload", payload).
 		ExecContext(ctx.Ctx())
 
+	// fire and forget..
+	// update the created_at on the state table if we have an earlier date in ctx.Time().
+	// which means we need to re-run aggregation calculations from this earlier date.
+	ctx.DB().
+		Update("asset_aggregation_state").
+		Set("created_at", ctx.Time()).
+		Where("id = ? and created_at > ?", 0, ctx.Time()).
+		ExecContext(ctx.Ctx())
+
 	if err != nil {
 		// We got an error and it's not a duplicate entry error, so log it
 		if !errIsDuplicateEntryError(err) {
@@ -425,7 +433,7 @@ func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, add
 }
 
 func errIsDuplicateEntryError(err error) bool {
-	return err != nil && strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")
+	return db.ErrIsDuplicateEntryError(err)
 }
 
 func parseTx(c codec.Codec, bytes []byte) (*avm.Tx, error) {

@@ -22,7 +22,13 @@ type Producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType) (*Producer, error) {
+func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType, log *logging.Log) (*Producer, error) {
+	var err error
+	err = initializeProducerTasker(conf, log)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
@@ -30,7 +36,6 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(networkID, chainID, eventType)),
 	}
 
-	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
 	if err != nil {
 		return nil, err
@@ -40,13 +45,13 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, networkID, chainVM, chainID, EventTypeConsensus)
+func NewConsensusProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, networkID, chainVM, chainID, EventTypeConsensus, log)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, networkID, chainVM, chainID, EventTypeDecisions)
+func NewDecisionsProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, networkID, chainVM, chainID, EventTypeDecisions, log)
 }
 
 // Close shuts down the producer

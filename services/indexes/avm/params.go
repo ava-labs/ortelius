@@ -60,6 +60,7 @@ type AggregateParams struct {
 	StartTime    time.Time
 	EndTime      time.Time
 	IntervalSize time.Duration
+	Version      int
 }
 
 func (p *AggregateParams) ForValues(q url.Values) (err error) {
@@ -79,6 +80,11 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	}
 
 	p.IntervalSize, err = params.GetQueryInterval(q, params.KeyIntervalSize)
+	if err != nil {
+		return err
+	}
+
+	p.Version = params.GetQueryVersion(q, params.KeyAggregateVersion)
 	if err != nil {
 		return err
 	}

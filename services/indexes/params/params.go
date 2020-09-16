@@ -13,22 +13,24 @@ import (
 )
 
 const (
-	KeyID           = "id"
-	KeyAddress      = "address"
-	KeyAssetID      = "assetID"
-	KeySearchQuery  = "query"
-	KeySortBy       = "sort"
-	KeyLimit        = "limit"
-	KeyOffset       = "offset"
-	KeySpent        = "spent"
-	KeyStartTime    = "startTime"
-	KeyEndTime      = "endTime"
-	KeyIntervalSize = "intervalSize"
-	KeyDisableCount = "disableCount"
+	KeyID               = "id"
+	KeyAddress          = "address"
+	KeyAssetID          = "assetID"
+	KeySearchQuery      = "query"
+	KeySortBy           = "sort"
+	KeyLimit            = "limit"
+	KeyOffset           = "offset"
+	KeySpent            = "spent"
+	KeyStartTime        = "startTime"
+	KeyEndTime          = "endTime"
+	KeyIntervalSize     = "intervalSize"
+	KeyDisableCount     = "disableCount"
+	KeyAggregateVersion = "aggregateVersion"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
 	PaginationDefaultOffset = 0
+	VersionDefault          = 0
 )
 
 var (
@@ -74,8 +76,8 @@ func RoundTime(t time.Time, precision time.Duration) time.Time {
 // Global params
 //
 type ListParams struct {
-	Limit  int
-	Offset int
+	Limit           int
+	Offset          int
 	DisableCounting bool
 }
 

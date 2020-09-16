@@ -105,6 +105,8 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 		params.EndTime = time.Now().UTC()
 	}
 
+	intervals := []Aggregates{}
+
 	// Ensure the interval count requested isn't too large
 	intervalSeconds := int64(params.IntervalSize.Seconds())
 	requestedIntervalCount := 0
@@ -121,44 +123,83 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 	// Build the query and load the base data
 	dbRunner := db.newSession("get_transaction_aggregates_histogram")
 
-	columns := []string{
-		"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
+	switch(params.Version) {
+	case 2:
+		columns := []string{
+			"SUM(asset_aggregation.transaction_volume)",
+			"SUM(asset_aggregation.transaction_count)",
+			"SUM(asset_aggregation.address_count)",
+			"SUM(asset_aggregation.asset_count)",
+			"SUM(asset_aggregation.output_count)",
+		}
 
-		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-		"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
-		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
-		"COUNT(avm_outputs.id) AS output_count",
-	}
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(asset_aggregation.aggregation_ts)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
 
-	if requestedIntervalCount > 0 {
-		columns = append(columns, fmt.Sprintf(
-			"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
-			params.StartTime.Unix(),
-			intervalSeconds))
-	}
+		builder := dbRunner.
+			Select(columns...).
+			From("asset_aggregation").
+			Where("asset_aggregation.aggregation_ts >= ?", params.StartTime).
+			Where("asset_aggregation.aggregation_ts < ?", params.EndTime)
 
-	builder := dbRunner.
-		Select(columns...).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		Where("avm_outputs.created_at >= ?", params.StartTime).
-		Where("avm_outputs.created_at < ?", params.EndTime)
+		if params.AssetID != nil {
+			builder.Where("asset_aggregation.asset_id = ?", params.AssetID.String())
+		}
 
-	if params.AssetID != nil {
-		builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
-	}
+		if requestedIntervalCount > 0 {
+			builder.
+				GroupBy("idx").
+				OrderAsc("idx").
+				Limit(uint64(requestedIntervalCount))
+		}
 
-	if requestedIntervalCount > 0 {
-		builder.
-			GroupBy("idx").
-			OrderAsc("idx").
-			Limit(uint64(requestedIntervalCount))
-	}
+		_, err := builder.LoadContext(ctx, &intervals)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		columns := []string{
+			"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
 
-	intervals := []Aggregates{}
-	_, err := builder.LoadContext(ctx, &intervals)
-	if err != nil {
-		return nil, err
+			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+			"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
+			"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
+			"COUNT(avm_outputs.id) AS output_count",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder := dbRunner.
+			Select(columns...).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			Where("avm_outputs.created_at >= ?", params.StartTime).
+			Where("avm_outputs.created_at < ?", params.EndTime)
+
+		if params.AssetID != nil {
+			builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
+		}
+
+		if requestedIntervalCount > 0 {
+			builder.
+				GroupBy("idx").
+				OrderAsc("idx").
+				Limit(uint64(requestedIntervalCount))
+		}
+
+		_, err := builder.LoadContext(ctx, &intervals)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// If no intervals were requested then the total aggregate is equal to the
