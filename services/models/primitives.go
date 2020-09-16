@@ -11,6 +11,16 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 )
 
+// bech32HRP is the human-readable part of bech32 addresses. It needs to be
+// available to Address.MarshalJSON is there is no other way to give it this
+// data
+var bech32HRP = constants.GetHRP(constants.EverestID)
+
+// SetBech32HRP sets the package-wide beck32HRP to use for Address marshaling
+func SetBech32HRP(networkID uint32) {
+	bech32HRP = constants.GetHRP(networkID)
+}
+
 // StringID represents a 256bit hash encoded as a base58 string
 type StringID string
 
@@ -32,8 +42,6 @@ func ToShortStringID(id ids.ShortID) StringShortID {
 func (rid StringShortID) Equals(oRID StringShortID) bool {
 	return string(rid) == string(oRID)
 }
-
-var bech32HRP = constants.GetHRP(4)
 
 type Address StringShortID
 
