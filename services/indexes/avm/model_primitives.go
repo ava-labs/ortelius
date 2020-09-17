@@ -6,7 +6,7 @@ package avm
 import (
 	"strconv"
 
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 // TransactionType represents a sub class of Transaction
