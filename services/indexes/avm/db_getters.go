@@ -57,9 +57,13 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, erro
 		return db.searchByID(ctx, id)
 	}
 
+	// copy the list params, and inject DisableCounting for subsequent List* calls.
+	cpListParams := p.ListParams
+	cpListParams.DisableCounting = true
+
 	// The query string was not an id/shortid so perform a regular search against
 	// all models
-	assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: p.ListParams, Query: p.Query, DisableCounting: 1})
+	assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +71,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, erro
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: p.ListParams, Query: p.Query, DisableCounting: 1})
+	transactions, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +79,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*SearchResults, erro
 		return collateSearchResults(assets, nil, transactions, nil)
 	}
 
-	addresses, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: p.ListParams, Query: p.Query, DisableCounting: 1})
+	addresses, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -267,8 +271,7 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 	}
 
 	var count uint64
-	count = 0
-	if p.DisableCounting == 0 {
+	if !p.DisableCounting {
 		count = uint64(p.Offset) + uint64(len(txs))
 		if len(txs) >= p.Limit {
 			p.ListParams = params.ListParams{}
@@ -304,9 +307,8 @@ func (db *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, 
 	}
 
 	var count uint64
-	count = 0
-	if p.DisableCounting == 0 {
-		count := uint64(p.Offset) + uint64(len(assets))
+	if !p.DisableCounting {
+		count = uint64(p.Offset) + uint64(len(assets))
 		if len(assets) >= p.Limit {
 			p.ListParams = params.ListParams{}
 			err := p.Apply(dbRunner.
@@ -337,9 +339,8 @@ func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*Addre
 	}
 
 	var count uint64
-	count = 0
-	if p.DisableCounting == 0 {
-		count := uint64(p.Offset) + uint64(len(addresses))
+	if !p.DisableCounting {
+		count = uint64(p.Offset) + uint64(len(addresses))
 		if len(addresses) >= p.Limit {
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
@@ -405,15 +406,18 @@ func (db *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*OutputLis
 		output.Addresses = append(output.Addresses, address.Address)
 	}
 
-	count := uint64(p.Offset) + uint64(len(outputs))
-	if len(outputs) >= p.Limit {
-		p.ListParams = params.ListParams{}
-		err = p.Apply(dbRunner.
-			Select("COUNT(avm_outputs.id)").
-			From("avm_outputs")).
-			LoadOneContext(ctx, &count)
-		if err != nil {
-			return nil, err
+	var count uint64
+	if !p.DisableCounting {
+		count = uint64(p.Offset) + uint64(len(outputs))
+		if len(outputs) >= p.Limit {
+			p.ListParams = params.ListParams{}
+			err = p.Apply(dbRunner.
+				Select("COUNT(avm_outputs.id)").
+				From("avm_outputs")).
+				LoadOneContext(ctx, &count)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -628,13 +632,15 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 }
 
 func (db *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error) {
-	if assets, err := db.ListAssets(ctx, &ListAssetsParams{ID: &id, DisableCounting: 1}); err != nil {
+	listParams := params.ListParams{DisableCounting: true}
+
+	if assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(assets.Assets) > 0 {
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := db.ListTransactions(ctx, &ListTransactionsParams{ID: &id, DisableCounting: 1}); err != nil {
+	if txs, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
@@ -644,7 +650,9 @@ func (db *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error)
 }
 
 func (db *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*SearchResults, error) {
-	if addrs, err := db.ListAddresses(ctx, &ListAddressesParams{Address: &id, DisableCounting: 1}); err != nil {
+	listParams := params.ListParams{DisableCounting: true}
+
+	if addrs, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
 		return collateSearchResults(nil, addrs, nil, nil)

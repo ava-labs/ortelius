@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/stream/record"
 )
 
 type serviceConsumerFactory func(cfg.Config, uint32, string, string) (services.Consumer, error)
@@ -128,16 +127,10 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 		return nil, err
 	}
 
-	// Extract tx body from value
-	body, err := record.Unmarshal(msg.Value)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Message{
+		body:      msg.Value,
 		id:        id.String(),
 		chainID:   chainID.String(),
-		body:      body,
 		timestamp: msg.Time.UTC().Unix(),
 	}, nil
 }

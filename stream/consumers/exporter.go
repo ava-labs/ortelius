@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/stream"
-	"github.com/ava-labs/ortelius/stream/record"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -100,11 +99,7 @@ func newExportReadWriter(fileName string, brokers []string, networkID uint32, ch
 			return err
 		}
 
-		body, err := record.Unmarshal(msg.Value)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(file, "%s\n", hex.EncodeToString(body))
+		_, err = fmt.Fprintf(file, "%s\n", hex.EncodeToString(msg.Value))
 		return err
 	}
 

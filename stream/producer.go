@@ -18,7 +18,7 @@ type Producer struct {
 	eventType   EventType
 	sock        *socket.Client
 	binFilterFn binFilterFn
-	writeBuffer *writeBuffer
+	writeBuffer *bufferedWriter
 }
 
 // NewProducer creates a producer using the given config
@@ -27,7 +27,7 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 		chainID:     chainID,
 		eventType:   eventType,
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		writeBuffer: newWriteBuffer(conf.Brokers, GetTopicName(networkID, chainID, eventType)),
+		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(networkID, chainID, eventType)),
 	}
 
 	var err error
@@ -68,7 +68,7 @@ func (p *Producer) ProcessNextMessage(_ context.Context, log logging.Logger) err
 	}
 
 	if _, err = p.writeBuffer.Write(rawMsg); err != nil {
-		log.Error("writeBuffer.Write: %s", err.Error())
+		log.Error("bufferedWriter.Write: %s", err.Error())
 		return err
 	}
 	return nil

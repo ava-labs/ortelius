@@ -41,7 +41,7 @@ Params:
 
 #### Global list Transaction Params:
 
-`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
+`disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
 
 #### Params:
 
@@ -108,7 +108,7 @@ The transaction object
 
 #### Global list Asset Params:
 
-`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
+`disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
 
 #### Response:
 
@@ -128,7 +128,7 @@ Array of asset objects
 
 #### Global list Address Params:
 
-`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
+`disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
 
 #### Params:
 
@@ -140,6 +140,7 @@ Array of Address objects
 
 ```json
 [
+  "count": 1,
   {
     "address": "2poot6VNEurx99o5WZigk2ic3ssj2T5Fz",
     "publicKey": null,
