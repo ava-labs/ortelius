@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/ortelius/services/params"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 type BlockSort string

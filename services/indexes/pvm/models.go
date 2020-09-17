@@ -6,7 +6,7 @@ package pvm
 import (
 	"time"
 
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 const (

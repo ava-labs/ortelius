@@ -6,7 +6,7 @@ package pvm
 import (
 	"context"
 
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 func (db *DB) ListBlocks(ctx context.Context, params ListBlocksParams) (*BlockList, error) {

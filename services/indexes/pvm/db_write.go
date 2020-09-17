@@ -41,7 +41,7 @@ func (db *DB) Consume(ctx context.Context, c services.Consumable) error {
 }
 
 func (db *DB) Bootstrap(ctx context.Context) error {
-	pvmGenesisBytes, err := genesis.Genesis(db.networkID)
+	pvmGenesisBytes, _, err := genesis.Genesis(db.networkID)
 	if err != nil {
 		return err
 	}
@@ -67,14 +67,22 @@ func (db *DB) Bootstrap(ctx context.Context) error {
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, int64(pvmGenesis.Timestamp))
 	blockID := ids.NewID([32]byte{})
 
-	for _, createChainTx := range pvmGenesis.Chains {
+	for _, tx := range pvmGenesis.Chains {
+		createChainTx, ok := tx.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
+		if !ok {
+			continue
+		}
 		err = db.indexCreateChainTx(cCtx, blockID, createChainTx)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, addValidatorTx := range pvmGenesis.Validators.Txs {
+	for _, tx := range pvmGenesis.Validators {
+		addValidatorTx, ok := tx.UnsignedTx.(platformvm.UnsignedProposalTx)
+		if !ok {
+			continue
+		}
 		err = db.indexProposalTx(cCtx, blockID, addValidatorTx)
 		if err != nil {
 			return err
@@ -95,20 +103,28 @@ func (db *DB) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs := wrappers.Errs{}
 		errs.Add(
 			db.indexCommonBlock(ctx, BlockTypeProposal, blk.CommonBlock, blockBytes),
-			db.indexProposalTx(ctx, blk.ID(), blk.Tx),
+			// db.indexProposalTx(ctx, blk.ID(), blk.Tx),
 		)
 		return errs.Err
 	case *platformvm.StandardBlock:
 		blockErr := db.indexCommonBlock(ctx, BlockTypeStandard, blk.CommonBlock, blockBytes)
 		for _, tx := range blk.Txs {
-			if err := db.indexDecisionTx(ctx, blk.ID(), tx); err != nil {
+			dTx, ok := tx.UnsignedTx.(platformvm.UnsignedDecisionTx)
+			if !ok {
+				continue
+			}
+			if err := db.indexDecisionTx(ctx, blk.ID(), dTx); err != nil {
 				return err
 			}
 		}
 		return blockErr
 	case *platformvm.AtomicBlock:
 		blockErr := db.indexCommonBlock(ctx, BlockTypeAtomic, blk.CommonBlock, blockBytes)
-		if err := db.indexAtomicTx(ctx, blk.ID(), blk.Tx); err != nil {
+		atomicTx, ok := blk.Tx.UnsignedTx.(platformvm.UnsignedAtomicTx)
+		if !ok {
+			break
+		}
+		if err := db.indexAtomicTx(ctx, blk.ID(), atomicTx); err != nil {
 			return err
 		}
 		return blockErr
@@ -156,17 +172,17 @@ func (db *DB) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, txType 
 	return nil
 }
 
-func (db *DB) indexDecisionTx(ctx services.ConsumerCtx, blockID ids.ID, dTx platformvm.DecisionTx) error {
+func (db *DB) indexDecisionTx(ctx services.ConsumerCtx, blockID ids.ID, dTx platformvm.UnsignedDecisionTx) error {
 	switch tx := dTx.(type) {
-	case *platformvm.CreateChainTx:
+	case *platformvm.UnsignedCreateChainTx:
 		return db.indexCreateChainTx(ctx, blockID, tx)
-	case *platformvm.CreateSubnetTx:
+	case *platformvm.UnsignedCreateSubnetTx:
 		return db.indexCreateSubnetTx(ctx, blockID, tx)
 	}
 	return nil
 }
 
-func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.ProposalTx) error {
+func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.UnsignedProposalTx) error {
 	// var (
 	// 	nonce       uint64
 	// 	sig         [65]byte
@@ -210,22 +226,22 @@ func (db *DB) indexProposalTx(ctx services.ConsumerCtx, blockID ids.ID, tx platf
 	return nil
 }
 
-func (db *DB) indexAtomicTx(ctx services.ConsumerCtx, blockID ids.ID, atomicTx platformvm.AtomicTx) error {
+func (db *DB) indexAtomicTx(ctx services.ConsumerCtx, blockID ids.ID, atomicTx platformvm.UnsignedAtomicTx) error {
 	txBytes, err := db.codec.Marshal(atomicTx)
 	if err != nil {
 		return err
 	}
 
-	switch tx := atomicTx.(type) {
-	case *platformvm.ImportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeImport, ids.NewID(hashing.ComputeHash256Array(txBytes)), tx.Nonce, tx.Sig)
-	case *platformvm.ExportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeExport, ids.NewID(hashing.ComputeHash256Array(txBytes)), tx.Nonce, tx.Sig)
+	switch atomicTx.(type) {
+	case *platformvm.UnsignedImportTx:
+		return db.indexTransaction(ctx, blockID, TransactionTypeImport, ids.NewID(hashing.ComputeHash256Array(txBytes)), 0, [65]byte{})
+	case *platformvm.UnsignedExportTx:
+		return db.indexTransaction(ctx, blockID, TransactionTypeExport, ids.NewID(hashing.ComputeHash256Array(txBytes)), 0, [65]byte{})
 	}
 	return nil
 }
 
-func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.CreateChainTx) error {
+func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {
 	txBytes, err := db.codec.Marshal(tx)
 	if err != nil {
 		return err
@@ -233,7 +249,7 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 
 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
 
-	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, txID, tx.Nonce, [65]byte{})
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, txID, 0, [65]byte{})
 	if err != nil {
 		return err
 	}
@@ -253,36 +269,36 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 	}
 
 	// Add FX IDs
-	if len(tx.ControlSigs) > 0 {
-		builder := ctx.DB().
-			InsertInto("pvm_chains_fx_ids").
-			Columns("chain_id", "fx_id")
-		for _, fxID := range tx.FxIDs {
-			builder.Values(db.chainID, fxID.String())
-		}
-		_, err = builder.ExecContext(ctx.Ctx())
-		if err != nil && !errIsDuplicateEntryError(err) {
-			return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_fx_ids", err)
-		}
-	}
-
-	// Add Control Sigs
-	if len(tx.ControlSigs) > 0 {
-		builder := ctx.DB().
-			InsertInto("pvm_chains_control_signatures").
-			Columns("chain_id", "signature")
-		for _, sig := range tx.ControlSigs {
-			builder.Values(db.chainID, sig[:])
-		}
-		_, err = builder.ExecContext(ctx.Ctx())
-		if err != nil && !errIsDuplicateEntryError(err) {
-			return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_control_sigs", err)
-		}
-	}
+	// if len(tx.ControlSigs) > 0 {
+	// 	builder := ctx.DB().
+	// 		InsertInto("pvm_chains_fx_ids").
+	// 		Columns("chain_id", "fx_id")
+	// 	for _, fxID := range tx.FxIDs {
+	// 		builder.Values(db.chainID, fxID.String())
+	// 	}
+	// 	_, err = builder.ExecContext(ctx.Ctx())
+	// 	if err != nil && !errIsDuplicateEntryError(err) {
+	// 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_fx_ids", err)
+	// 	}
+	// }
+	//
+	// // Add Control Sigs
+	// if len(tx.ControlSigs) > 0 {
+	// 	builder := ctx.DB().
+	// 		InsertInto("pvm_chains_control_signatures").
+	// 		Columns("chain_id", "signature")
+	// 	for _, sig := range tx.ControlSigs {
+	// 		builder.Values(db.chainID, sig[:])
+	// 	}
+	// 	_, err = builder.ExecContext(ctx.Ctx())
+	// 	if err != nil && !errIsDuplicateEntryError(err) {
+	// 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_control_sigs", err)
+	// 	}
+	// }
 	return nil
 }
 
-func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.CreateSubnetTx) error {
+func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateSubnetTx) error {
 	txBytes, err := db.codec.Marshal(tx)
 	if err != nil {
 		return err
@@ -290,7 +306,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 
 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
 
-	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, txID, tx.Nonce, tx.Sig)
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, txID, 0, [65]byte{})
 	if err != nil {
 		return err
 	}
@@ -301,7 +317,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 		Pair("id", txID.String()).
 		Pair("network_id", tx.NetworkID).
 		Pair("chain_id", db.chainID).
-		Pair("threshold", tx.Threshold).
+		// Pair("threshold", tx.Threshold).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
@@ -309,18 +325,18 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 	}
 
 	// Add control keys
-	if len(tx.ControlKeys) > 0 {
-		builder := ctx.DB().
-			InsertInto("pvm_subnet_control_keys").
-			Columns("subnet_id", "address")
-		for _, address := range tx.ControlKeys {
-			builder.Values(txID.String(), address.String())
-		}
-		_, err = builder.ExecContext(ctx.Ctx())
-		if err != nil && !errIsDuplicateEntryError(err) {
-			return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
-		}
-	}
+	// if len(tx.ControlKeys) > 0 {
+	// 	builder := ctx.DB().
+	// 		InsertInto("pvm_subnet_control_keys").
+	// 		Columns("subnet_id", "address")
+	// 	for _, address := range tx.ControlKeys {
+	// 		builder.Values(txID.String(), address.String())
+	// 	}
+	// 	_, err = builder.ExecContext(ctx.Ctx())
+	// 	if err != nil && !errIsDuplicateEntryError(err) {
+	// 		return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
+	// 	}
+	// }
 
 	return nil
 }

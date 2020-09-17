@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 func init() {
