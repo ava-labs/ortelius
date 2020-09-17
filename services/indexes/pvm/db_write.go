@@ -156,14 +156,14 @@ func (db *DB) indexCommonBlock(ctx services.ConsumerCtx, blkType BlockType, blk 
 	return nil
 }
 
-func (db *DB) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, txType TransactionType, id ids.ID, nonce uint64, sig [65]byte) error {
+func (db *DB) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, txType TransactionType, id ids.ID) error {
 	_, err := ctx.DB().
 		InsertInto("pvm_transactions").
 		Pair("id", id.String()).
 		Pair("block_id", blockID.String()).
 		Pair("type", txType).
-		Pair("nonce", nonce).
-		Pair("signature", sig[:]).
+		// Pair("nonce", nonce).
+		// Pair("signature", sig[:]).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
@@ -234,9 +234,9 @@ func (db *DB) indexAtomicTx(ctx services.ConsumerCtx, blockID ids.ID, atomicTx p
 
 	switch atomicTx.(type) {
 	case *platformvm.UnsignedImportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeImport, ids.NewID(hashing.ComputeHash256Array(txBytes)), 0, [65]byte{})
+		return db.indexTransaction(ctx, blockID, TransactionTypeImport, ids.NewID(hashing.ComputeHash256Array(txBytes)))
 	case *platformvm.UnsignedExportTx:
-		return db.indexTransaction(ctx, blockID, TransactionTypeExport, ids.NewID(hashing.ComputeHash256Array(txBytes)), 0, [65]byte{})
+		return db.indexTransaction(ctx, blockID, TransactionTypeExport, ids.NewID(hashing.ComputeHash256Array(txBytes)))
 	}
 	return nil
 }
@@ -249,7 +249,7 @@ func (db *DB) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *p
 
 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
 
-	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, txID, 0, [65]byte{})
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateChain, txID)
 	if err != nil {
 		return err
 	}
@@ -306,7 +306,7 @@ func (db *DB) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *
 
 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
 
-	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, txID, 0, [65]byte{})
+	err = db.indexTransaction(ctx, blockID, TransactionTypeCreateSubnet, txID)
 	if err != nil {
 		return err
 	}

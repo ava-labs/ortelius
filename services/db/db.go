@@ -15,9 +15,6 @@ import (
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/dbr/v2/dialect"
 	"github.com/gocraft/health"
-
-	// Import the MySQL driver
-	_ "github.com/go-sql-driver/mysql"
 )
 
 const (

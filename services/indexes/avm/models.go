@@ -81,7 +81,6 @@ type OutputAddress struct {
 	OutputID  models.StringID `json:"output_id"`
 	Address   models.Address  `json:"address"`
 	Signature []byte          `json:"signature"`
-	CreatedAt time.Time       `json:"timestamp"`
 	PublicKey []byte          `json:"-"`
 }
 

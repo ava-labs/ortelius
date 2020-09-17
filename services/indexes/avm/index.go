@@ -211,7 +211,9 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 
 	bcLookup := &ids.Aliaser{}
 	bcLookup.Initialize()
-	bcLookup.Alias(chainID, "X")
+	if err = bcLookup.Alias(chainID, "X"); err != nil {
+		return nil, err
+	}
 
 	var (
 		fxIDs = createChainTx.FxIDs

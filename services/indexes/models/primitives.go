@@ -51,8 +51,8 @@ func ToAddress(id ids.ShortID) Address {
 }
 
 // Equals returns true if and only if the two Addresses represent the same
-func (a1 Address) Equals(a2 Address) bool {
-	return string(a2) == string(a2)
+func (addr Address) Equals(oAddr2 Address) bool {
+	return string(addr) == string(oAddr2)
 }
 
 func (addr Address) MarshalJSON() ([]byte, error) {
