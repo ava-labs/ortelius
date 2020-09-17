@@ -6,7 +6,6 @@ package avm
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/nodb"
@@ -76,7 +75,7 @@ func (i *Index) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+	if err = platformvm.Codec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
 		return err
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -250,9 +249,6 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 	if err != nil && err != database.ErrClosed {
 		return nil, err
 	}
-
-	vm.Codec().SetMaxSize(math.MaxUint32)
-	vm.Codec().SetMaxSliceLen(math.MaxUint32)
 
 	return vm, nil
 }
