@@ -164,7 +164,7 @@ func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) 
 }
 
 func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, error) {
-	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id})
+	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id, DisableCounting: 1})
 	if err != nil {
 		return nil, err
 	}

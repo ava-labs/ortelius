@@ -24,6 +24,7 @@ const (
 	KeyStartTime    = "startTime"
 	KeyEndTime      = "endTime"
 	KeyIntervalSize = "intervalSize"
+	KeyDisableCount = "disableCount"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500

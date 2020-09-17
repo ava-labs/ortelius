@@ -120,6 +120,8 @@ type ListTransactionsParams struct {
 	EndTime   time.Time
 
 	Sort TransactionSort
+
+	DisableCounting int
 }
 
 func (p *ListTransactionsParams) ForValues(q url.Values) error {
@@ -159,6 +161,11 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	}
 
 	p.EndTime, err = params.GetQueryTime(q, params.KeyEndTime)
+	if err != nil {
+		return err
+	}
+
+	p.DisableCounting, err = params.GetQueryInt(q, params.KeyDisableCount, 0)
 	if err != nil {
 		return err
 	}
@@ -236,6 +243,7 @@ type ListAssetsParams struct {
 	ID    *ids.ID
 	Query string
 	Alias string
+	DisableCounting int
 }
 
 func (p *ListAssetsParams) ForValue(q url.Values) error {
@@ -245,6 +253,11 @@ func (p *ListAssetsParams) ForValue(q url.Values) error {
 	}
 
 	p.ID, err = params.GetQueryID(q, params.KeyID)
+	if err != nil {
+		return err
+	}
+
+	p.DisableCounting, err = params.GetQueryInt(q, params.KeyDisableCount, 0)
 	if err != nil {
 		return err
 	}
@@ -291,6 +304,7 @@ type ListAddressesParams struct {
 	params.ListParams
 	Address *ids.ShortID
 	Query   string
+	DisableCounting int
 }
 
 func (p *ListAddressesParams) ForValues(q url.Values) error {
@@ -310,6 +324,11 @@ func (p *ListAddressesParams) ForValues(q url.Values) error {
 			return err
 		}
 		p.Address = &addr
+	}
+
+	p.DisableCounting, err = params.GetQueryInt(q, params.KeyDisableCount, 0)
+	if err != nil {
+		return err
 	}
 
 	return nil

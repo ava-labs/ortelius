@@ -39,6 +39,10 @@ Params:
 
 ### List Transactions - /x/transactions
 
+#### Global list Transaction Params:
+
+`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
+
 #### Params:
 
 `sort` - The sorting method to use. Options: timestamp-asc, timestamp-desc. Default: timestamp-asc
@@ -57,7 +61,7 @@ Array of transaction objects
 
 The transaction object
 
-### Aggregate Transactions - /x/transactions/aggregates
+### Aggregate Transactions - /x/transactions/aggregates or /x/aggregates
 
 #### Params:
 
@@ -102,6 +106,10 @@ The transaction object
 
 ### List Assets - /x/assets
 
+#### Global list Asset Params:
+
+`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
+
 #### Response:
 
 Array of asset objects
@@ -117,6 +125,10 @@ Array of asset objects
 Array of asset objects
 
 ### List Addresses - /x/addresses
+
+#### Global list Address Params:
+
+`disableCount` - Int value != 0 will suppress counting in results, count will be 0 in results
 
 #### Params:
 
