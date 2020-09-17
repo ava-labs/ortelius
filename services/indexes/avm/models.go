@@ -12,7 +12,7 @@ import (
 var (
 	VMName = "avm"
 
-	OutputTypesSECP2556K1Transfer OutputType = 0x000000ff
+	OutputTypesSECP2556K1Transfer OutputType = 7
 
 	TXTypeBase        TransactionType = "base"
 	TXTypeCreateAsset TransactionType = "create_asset"
