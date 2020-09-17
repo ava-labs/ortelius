@@ -23,29 +23,6 @@ type Consumer interface {
 	Close(context.Context) error
 }
 
-// FanOutConsumer takes in items and sends them to multiple backend Indexers
-type FanOutConsumer []Consumer
-
-// Bootstrap initializes all underlying backends
-func (foc FanOutConsumer) Bootstrap(ctx context.Context) (err error) {
-	for _, service := range foc {
-		if err = service.Bootstrap(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Consume takes in a Consumable and sends it to all underlying indexers
-func (foc FanOutConsumer) Consume(ctx context.Context, c Consumable) (err error) {
-	for _, consumer := range foc {
-		if err = consumer.Consume(ctx, c); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ConsumerCtx
 type ConsumerCtx struct {
 	ctx context.Context
