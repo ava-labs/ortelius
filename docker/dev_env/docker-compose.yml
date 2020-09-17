@@ -57,6 +57,8 @@ services:
     restart: on-failure
   migrate:
     image: migrate/migrate:v4.11.0
+    environment:
+      ORTELIUS_DB: "ortelius_dev"
     volumes:
       - ../../services/db/migrations:/migrations
       - ./migrate.sh:/migrate.sh
@@ -79,8 +81,11 @@ services:
       "./build/avalanchego",
       "-db-dir=/var/lib/avalanche",
       "-log-level=info",
+      "-http-host=0.0.0.0",
       "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
     ]
+    ports:
+      - "9650:9650"
     volumes:
       - avalanche-data:/var/lib/avalanche
       - avalanche-ipcs:/tmp

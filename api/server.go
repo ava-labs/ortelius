@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/models"
 )
 
 var (
@@ -41,6 +42,9 @@ func NewServer(conf cfg.Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set address prefix to use the configured network
+	models.SetBech32HRP(conf.NetworkID)
 
 	return &Server{
 		log: log,

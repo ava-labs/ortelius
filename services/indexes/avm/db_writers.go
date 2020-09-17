@@ -25,6 +25,9 @@ const (
 	// MaxSerializationLen is the maximum number of bytes a canonically
 	// serialized tx can be stored as in the database.
 	MaxSerializationLen = 64000
+
+	// MaxMemoLen is the maximum number of bytes a memo can be in the database
+	MaxMemoLen = 2048
 )
 
 var (
@@ -192,6 +195,15 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		return err
 	}
 
+	// If the tx or memo is too big we can't store it in the db
+	if len(txBytes) > MaxSerializationLen {
+		txBytes = []byte{}
+	}
+
+	if len(tx.Memo) > MaxMemoLen {
+		tx.Memo = nil
+	}
+
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", txID.String()).
@@ -269,9 +281,13 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		}
 	}
 
-	// If the tx is too big we can't store it in the db
+	// If the tx or memo is too big we can't store it in the db
 	if len(txBytes) > MaxSerializationLen {
 		txBytes = []byte{}
+	}
+
+	if len(baseTx.Memo) > MaxMemoLen {
+		baseTx.Memo = nil
 	}
 
 	// Add baseTx to the table
