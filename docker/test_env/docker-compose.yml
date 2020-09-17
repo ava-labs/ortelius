@@ -1,9 +1,6 @@
 version: '3.5'
 volumes:
   mysql-data:
-networks:
-  default:
-    name: ortelius_services
 services:
   mysql:
     image: mysql:8.0

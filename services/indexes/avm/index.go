@@ -23,7 +23,7 @@ import (
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 var (
@@ -163,7 +163,7 @@ func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) 
 	return i.db.ListAddresses(ctx, params)
 }
 
-func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*Address, error) {
+func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, error) {
 	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id})
 	if err != nil {
 		return nil, err
@@ -211,7 +211,9 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 
 	bcLookup := &ids.Aliaser{}
 	bcLookup.Initialize()
-	bcLookup.Alias(chainID, "X")
+	if err = bcLookup.Alias(chainID, "X"); err != nil {
+		return nil, err
+	}
 
 	var (
 		fxIDs = createChainTx.FxIDs

@@ -45,6 +45,16 @@ func (rid StringShortID) Equals(oRID StringShortID) bool {
 
 type Address StringShortID
 
+// ToAddress converts an ids.ShortID into an Address
+func ToAddress(id ids.ShortID) Address {
+	return Address(id.String())
+}
+
+// Equals returns true if and only if the two Addresses represent the same
+func (addr Address) Equals(oAddr2 Address) bool {
+	return string(addr) == string(oAddr2)
+}
+
 func (addr Address) MarshalJSON() ([]byte, error) {
 	id, err := ids.ShortFromString(string(addr))
 	if err != nil {

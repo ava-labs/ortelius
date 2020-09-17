@@ -7,7 +7,7 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
-	"github.com/ava-labs/ortelius/services/params"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 type APIContext struct {

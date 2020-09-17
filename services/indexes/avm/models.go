@@ -6,7 +6,7 @@ package avm
 import (
 	"time"
 
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 var (
@@ -81,7 +81,6 @@ type OutputAddress struct {
 	OutputID  models.StringID `json:"output_id"`
 	Address   models.Address  `json:"address"`
 	Signature []byte          `json:"signature"`
-	CreatedAt time.Time       `json:"timestamp"`
 	PublicKey []byte          `json:"-"`
 }
 
@@ -100,7 +99,7 @@ type Asset struct {
 	Score uint64 `json:"-"`
 }
 
-type Address struct {
+type AddressInfo struct {
 	Address   models.Address `json:"address"`
 	PublicKey []byte         `json:"publicKey"`
 
@@ -139,7 +138,7 @@ type AssetList struct {
 
 type AddressList struct {
 	ListMetadata
-	Addresses []*Address `json:"addresses"`
+	Addresses []*AddressInfo `json:"addresses"`
 }
 
 type OutputList struct {

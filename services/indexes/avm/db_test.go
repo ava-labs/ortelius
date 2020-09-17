@@ -16,8 +16,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/models"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 type message struct {
@@ -151,10 +150,9 @@ func TestIndexVectors(t *testing.T) {
 	assertAllOutputsCorrect(t, db, nil)
 
 	// Add each test vector tx
-	acc := services.FanOutConsumer{idx}
 	ctx := newTestContext()
 	for i, v := range createTestVectors() {
-		err := acc.Consume(ctx, &message{
+		err := idx.Consume(ctx, &message{
 			id:        ids.NewID(hashing.ComputeHash256Array(v.serializedTx)),
 			chainID:   testXChainID,
 			body:      v.serializedTx,
