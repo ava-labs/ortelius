@@ -318,7 +318,7 @@ func (db *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*AssetList, 
 func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*AddressList, error) {
 	dbRunner := db.newSession("list_addresses")
 
-	addresses := []*Address{}
+	addresses := []*AddressInfo{}
 	_, err := p.Apply(dbRunner.
 		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
 		From("avm_output_addresses").
@@ -563,14 +563,14 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*Address) error {
+func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*AddressInfo) error {
 	if len(addrs) == 0 {
 		return nil
 	}
 
 	// Create a list of ids for querying, and a map for accumulating results later
 	addrIDs := make([]models.Address, len(addrs))
-	addrsByID := make(map[models.Address]*Address, len(addrs))
+	addrsByID := make(map[models.Address]*AddressInfo, len(addrs))
 	for i, addr := range addrs {
 		addrIDs[i] = addr.Address
 		addrsByID[addr.Address] = addr
@@ -644,7 +644,7 @@ func (db *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*SearchResul
 func collateSearchResults(assetResults *AssetList, addressResults *AddressList, transactionResults *TransactionList, _ *OutputList) (*SearchResults, error) {
 	var (
 		assets       []*Asset
-		addresses    []*Address
+		addresses    []*AddressInfo
 		transactions []*Transaction
 		outputs      []*Output
 	)

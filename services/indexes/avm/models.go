@@ -99,7 +99,7 @@ type Asset struct {
 	Score uint64 `json:"-"`
 }
 
-type Address struct {
+type AddressInfo struct {
 	Address   models.Address `json:"address"`
 	PublicKey []byte         `json:"publicKey"`
 
@@ -138,7 +138,7 @@ type AssetList struct {
 
 type AddressList struct {
 	ListMetadata
-	Addresses []*Address `json:"addresses"`
+	Addresses []*AddressInfo `json:"addresses"`
 }
 
 type OutputList struct {

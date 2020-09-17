@@ -163,7 +163,7 @@ func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) 
 	return i.db.ListAddresses(ctx, params)
 }
 
-func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*Address, error) {
+func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, error) {
 	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id})
 	if err != nil {
 		return nil, err
