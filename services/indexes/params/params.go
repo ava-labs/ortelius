@@ -57,6 +57,11 @@ var (
 	_ Param = &ListParams{}
 )
 
+const (
+	StateLiveId   = 1
+	StateBackupId = 2
+)
+
 type Param interface {
 	ForValues(url.Values) error
 	CacheKey() []string

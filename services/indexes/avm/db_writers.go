@@ -6,6 +6,10 @@ package avm
 import (
 	"context"
 	"errors"
+	"time"
+
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -14,11 +18,10 @@ import (
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
-
-	"github.com/ava-labs/ortelius/services"
 )
 
 const (
@@ -131,6 +134,11 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	if err != nil {
 		return err
 	}
+
+	// fire and forget..
+	// update the created_at on the state table if we have an earlier date in ctx.Time().
+	// which means we need to re-run aggregation calculations from this earlier date.
+	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx.Ctx(), ctx.DB(), ctx.Time())
 
 	// Finish processing with a type-specific ingestion routine
 	switch castTx := tx.UnsignedTx.(type) {
@@ -277,7 +285,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 			}
 
 			db.ingestAddressFromPublicKey(ctx, publicKey)
-			db.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+			db.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:], ctx.Time())
 		}
 	}
 
@@ -348,15 +356,6 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("payload", payload).
 		ExecContext(ctx.Ctx())
 
-	// fire and forget..
-	// update the created_at on the state table if we have an earlier date in ctx.Time().
-	// which means we need to re-run aggregation calculations from this earlier date.
-	ctx.DB().
-		Update("asset_aggregation_state").
-		Set("created_at", ctx.Time()).
-		Where("id = ? and created_at > ?", 0, ctx.Time()).
-		ExecContext(ctx.Ctx())
-
 	if err != nil {
 		// We got an error and it's not a duplicate entry error, so log it
 		if !errIsDuplicateEntryError(err) {
@@ -383,7 +382,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		db.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil)
+		db.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil, ctx.Time())
 	}
 }
 
@@ -399,7 +398,7 @@ func (db *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey cry
 	}
 }
 
-func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
+func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte, createdAT time.Time) {
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).

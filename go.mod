@@ -1,6 +1,6 @@
 module github.com/ava-labs/ortelius
 
-go 1.13
+go 1.15
 
 require (
 	github.com/DATA-DOG/go-txdb v0.1.3
