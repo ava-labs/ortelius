@@ -94,7 +94,7 @@ func (wb *writeBuffer) loop() {
 				flush()
 			}
 		case <-flushTicker.C:
-			if wb.lastFlush.Add(5 * time.Second).Before(time.Now()) {
+			if time.Now().After(wb.lastFlush.Add(5 * time.Second)) {
 				flush()
 			}
 		}
