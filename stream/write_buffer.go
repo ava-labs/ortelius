@@ -15,44 +15,42 @@ import (
 	"github.com/ava-labs/ortelius/stream/record"
 )
 
-const WriteBufferSize = 2500
+const defaultWriteBufferSize = 2500
 
-var _ io.Writer = &writeBuffer{}
+var (
+	defaultFlushInterval = 1 * time.Second
 
-type writeBuffer struct {
-	size int
+	_ io.Writer = &bufferedWriter{}
+)
 
-	writer      *kafka.Writer
-	buffer      chan (*kafka.Message)
-	localBuffer []kafka.Message
-
-	lastFlush time.Time
+type bufferedWriter struct {
+	writer *kafka.Writer
+	buffer chan (*kafka.Message)
 
 	stopCh chan (struct{})
 	doneCh chan (struct{})
 }
 
-func newWriteBuffer(brokers []string, topic string) *writeBuffer {
-	wb := &writeBuffer{
-		size: WriteBufferSize,
+func newWriteBuffer(brokers []string, topic string) *bufferedWriter {
+	size := defaultWriteBufferSize
 
-		buffer: make(chan *kafka.Message, WriteBufferSize*2),
+	wb := &bufferedWriter{
+		buffer: make(chan *kafka.Message, size*2),
 		writer: kafka.NewWriter(kafka.WriterConfig{
 			Brokers:  brokers,
 			Topic:    topic,
 			Balancer: &kafka.LeastBytes{},
 		}),
-
 		stopCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
 	}
 
-	go wb.loop()
+	go wb.loop(size, defaultFlushInterval)
 
 	return wb
 }
 
-func (wb *writeBuffer) Write(msg []byte) (int, error) {
+func (wb *bufferedWriter) Write(msg []byte) (int, error) {
 	wb.buffer <- &kafka.Message{
 		Key:   hashing.ComputeHash256(msg),
 		Value: record.Marshal(msg),
@@ -60,20 +58,23 @@ func (wb *writeBuffer) Write(msg []byte) (int, error) {
 	return len(msg), nil
 }
 
-func (wb *writeBuffer) loop() {
-	flushTicker := time.NewTicker(5 * time.Second)
-	wb.localBuffer = make([]kafka.Message, 0, wb.size)
+func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
+	var (
+		lastFlush   = time.Now()
+		flushTicker = time.NewTicker(flushInterval)
+		localBuffer = make([]kafka.Message, 0, size)
+	)
 
 	flush := func() {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(writeTimeout))
 		defer cancelFn()
 
-		if err := wb.writer.WriteMessages(ctx, wb.localBuffer...); err != nil {
+		if err := wb.writer.WriteMessages(ctx, localBuffer...); err != nil {
 			log.Print("Error writing to kafka:", err.Error())
 		}
 
-		wb.lastFlush = time.Now()
-		wb.localBuffer = make([]kafka.Message, 0, 2500)
+		lastFlush = time.Now()
+		localBuffer = make([]kafka.Message, 0, 2500)
 	}
 
 	defer func() {
@@ -88,20 +89,23 @@ func (wb *writeBuffer) loop() {
 			return
 		case msg, ok := <-wb.buffer:
 			if ok {
-				wb.localBuffer = append(wb.localBuffer, *msg)
+				localBuffer = append(localBuffer, *msg)
 			}
-			if len(wb.localBuffer) >= wb.size {
+
+			// If the buffer is full we flush and exert back-pressure
+			if len(localBuffer) >= size {
 				flush()
 			}
 		case <-flushTicker.C:
-			if time.Now().After(wb.lastFlush.Add(5 * time.Second)) {
+			// Don't flush if we've flushed recently from a full buffer
+			if time.Now().After(lastFlush.Add(flushInterval)) {
 				flush()
 			}
 		}
 	}
 }
 
-func (wb *writeBuffer) close() error {
+func (wb *bufferedWriter) close() error {
 	close(wb.buffer)
 	close(wb.stopCh)
 	<-wb.doneCh
