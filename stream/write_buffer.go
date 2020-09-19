@@ -11,8 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/segmentio/kafka-go"
-
-	"github.com/ava-labs/ortelius/stream/record"
 )
 
 const defaultBufferedWriterSize = 256
@@ -48,10 +46,7 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 
 // Write adds the message to the buffer. It implements the io.Writer interface.
 func (wb *bufferedWriter) Write(msg []byte) (int, error) {
-	wb.buffer <- &kafka.Message{
-		Key:   hashing.ComputeHash256(msg),
-		Value: record.Marshal(msg),
-	}
+	wb.buffer <- &kafka.Message{Key: hashing.ComputeHash256(msg), Value: msg}
 	return len(msg), nil
 }
 
