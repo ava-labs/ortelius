@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ava-labs/avalanche-go/utils/wrappers"
 	"github.com/go-redis/redis/v8"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
@@ -93,6 +94,12 @@ func (c Connections) Stream() *health.Stream { return c.stream }
 func (c Connections) DB() *dbr.Connection    { return c.db }
 func (c Connections) Redis() *redis.Client   { return c.redis }
 func (c Connections) Cache() *cache.Cache    { return c.cache }
+
+func (c Connections) Close() error {
+	errs := wrappers.Errs{}
+	errs.Add(c.db.Close(), c.redis.Close())
+	return errs.Err
+}
 
 func NewStream() *health.Stream {
 	s := health.NewStream()

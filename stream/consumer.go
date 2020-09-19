@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
-type serviceConsumerFactory func(cfg.Config, uint32, string, string) (services.Consumer, error)
+type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
@@ -37,8 +37,14 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 			}
 		)
 
+		conns, err := services.NewConnectionsFromConfig(conf.Services)
+		if err != nil {
+			return nil, err
+		}
+		defer conns.Close()
+
 		// Create consumer backend
-		c.consumer, err = factory(conf, networkID, chainVM, chainID)
+		c.consumer, err = factory(conns, networkID, chainVM, chainID)
 		if err != nil {
 			return nil, err
 		}
