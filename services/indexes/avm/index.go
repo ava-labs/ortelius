@@ -114,19 +114,19 @@ func (i *Index) GetChainInfo(alias string, avaxAssetID string) (*models.ChainInf
 	}, nil
 }
 
-func (i *Index) Search(ctx context.Context, params *SearchParams) (*SearchResults, error) {
+func (i *Index) Search(ctx context.Context, params *SearchParams) (*models.SearchResults, error) {
 	return i.db.Search(ctx, params)
 }
 
-func (i *Index) Aggregate(ctx context.Context, params *AggregateParams) (*AggregatesHistogram, error) {
+func (i *Index) Aggregate(ctx context.Context, params *AggregateParams) (*models.AggregatesHistogram, error) {
 	return i.db.Aggregate(ctx, params)
 }
 
-func (i *Index) ListTransactions(ctx context.Context, params *ListTransactionsParams) (*TransactionList, error) {
+func (i *Index) ListTransactions(ctx context.Context, params *ListTransactionsParams) (*models.TransactionList, error) {
 	return i.db.ListTransactions(ctx, params)
 }
 
-func (i *Index) GetTransaction(ctx context.Context, id ids.ID) (*Transaction, error) {
+func (i *Index) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {
 	txList, err := i.db.ListTransactions(ctx, &ListTransactionsParams{ListParams: params.ListParams{DisableCounting: true}, ID: &id})
 	if err != nil {
 		return nil, err
@@ -137,11 +137,11 @@ func (i *Index) GetTransaction(ctx context.Context, id ids.ID) (*Transaction, er
 	return nil, nil
 }
 
-func (i *Index) ListAssets(ctx context.Context, params *ListAssetsParams) (*AssetList, error) {
+func (i *Index) ListAssets(ctx context.Context, params *ListAssetsParams) (*models.AssetList, error) {
 	return i.db.ListAssets(ctx, params)
 }
 
-func (i *Index) GetAsset(ctx context.Context, idStrOrAlias string) (*Asset, error) {
+func (i *Index) GetAsset(ctx context.Context, idStrOrAlias string) (*models.Asset, error) {
 	params := &ListAssetsParams{}
 
 	id, err := ids.FromString(idStrOrAlias)
@@ -162,11 +162,11 @@ func (i *Index) GetAsset(ctx context.Context, idStrOrAlias string) (*Asset, erro
 	return nil, err
 }
 
-func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) (*AddressList, error) {
+func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) (*models.AddressList, error) {
 	return i.db.ListAddresses(ctx, params)
 }
 
-func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, error) {
+func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*models.AddressInfo, error) {
 	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{ListParams: params.ListParams{DisableCounting: true}, Address: &id})
 	if err != nil {
 		return nil, err
@@ -177,11 +177,11 @@ func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, e
 	return nil, err
 }
 
-func (i *Index) ListOutputs(ctx context.Context, params *ListOutputsParams) (*OutputList, error) {
+func (i *Index) ListOutputs(ctx context.Context, params *ListOutputsParams) (*models.OutputList, error) {
 	return i.db.ListOutputs(ctx, params)
 }
 
-func (i *Index) GetOutput(ctx context.Context, id ids.ID) (*Output, error) {
+func (i *Index) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
 	outputList, err := i.db.ListOutputs(ctx, &ListOutputsParams{ID: &id})
 	if err != nil {
 		return nil, err

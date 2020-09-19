@@ -143,11 +143,11 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.OperationTx:
 		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
-		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeImport)
+		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, models.TXTypeImport)
 	case *avm.ExportTx:
-		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, TXTypeExport)
+		return db.ingestBaseTx(ctx, txBytes, tx, &castTx.BaseTx, models.TXTypeExport)
 	case *avm.BaseTx:
-		return db.ingestBaseTx(ctx, txBytes, tx, castTx, TXTypeBase)
+		return db.ingestBaseTx(ctx, txBytes, tx, castTx, models.TXTypeBase)
 	default:
 		return errors.New("unknown tx type")
 	}
@@ -176,15 +176,15 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 			switch outtype := out.(type) {
 			case *nftfx.TransferOutput:
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
 			case *nftfx.MintOutput:
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, outtype.GroupID, nil)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTMint, outtype.GroupID, nil)
 			case *secp256k1fx.MintOutput:
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, 0, nil)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTMint, 0, nil)
 			case *secp256k1fx.TransferOutput:
-				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, OutputTypesSECP2556K1Transfer, 0, nil)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, models.OutputTypesSECP2556K1Transfer, 0, nil)
 				amount, err = math.Add64(amount, outtype.Amount())
 				if err != nil {
 					_ = ctx.Job().EventErr("add_to_amount", err)
@@ -223,7 +223,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		InsertInto("avm_transactions").
 		Pair("id", txID.String()).
 		Pair("chain_id", db.chainID).
-		Pair("type", TXTypeCreateAsset).
+		Pair("type", models.TXTypeCreateAsset).
 		Pair("memo", tx.Memo).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
@@ -265,7 +265,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		}, false, OutputTypesSECP2556K1Transfer, 0, nil)
+		}, false, models.OutputTypesSECP2556K1Transfer, 0, nil)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -325,12 +325,12 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0, nil)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, models.OutputTypesSECP2556K1Transfer, 0, nil)
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType, groupID uint32, payload []byte) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType models.OutputType, groupID uint32, payload []byte) {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
