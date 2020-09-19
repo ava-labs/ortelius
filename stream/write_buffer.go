@@ -15,15 +15,16 @@ import (
 	"github.com/ava-labs/ortelius/stream/record"
 )
 
-const defaultWriteBufferSize = 256
+const defaultBufferedWriterSize = 256
 
 var (
-	defaultFlushInterval = 1 * time.Second
+	defaultBufferedWriterFlushInterval = 1 * time.Second
 
 	// Enforce adherence to the io.Writer interface
 	_ io.Writer = &bufferedWriter{}
 )
 
+// bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
 	writer *kafka.Writer
 	buffer chan (*kafka.Message)
@@ -31,8 +32,8 @@ type bufferedWriter struct {
 	doneCh chan (struct{})
 }
 
-func newWriteBuffer(brokers []string, topic string) *bufferedWriter {
-	size := defaultWriteBufferSize
+func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
+	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
 		writer: kafka.NewWriter(kafka.WriterConfig{
@@ -45,7 +46,7 @@ func newWriteBuffer(brokers []string, topic string) *bufferedWriter {
 		doneCh: make(chan struct{}),
 	}
 
-	go wb.loop(size, defaultFlushInterval)
+	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
 	return wb
 }
