@@ -17,12 +17,9 @@ import (
 
 const defaultBufferedWriterSize = 256
 
-var (
-	defaultBufferedWriterFlushInterval = 1 * time.Second
+var defaultBufferedWriterFlushInterval = 1 * time.Second
 
-	// Enforce adherence to the io.Writer interface
-	_ io.Writer = &bufferedWriter{}
-)
+var _ io.Writer = &bufferedWriter{}
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
@@ -41,7 +38,7 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 			Topic:    topic,
 			Balancer: &kafka.LeastBytes{},
 		}),
-		buffer: make(chan *kafka.Message, size*2),
+		buffer: make(chan *kafka.Message),
 		stopCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
 	}
@@ -66,19 +63,21 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
 		lastFlush   = time.Now()
 		flushTicker = time.NewTicker(flushInterval)
-		localBuffer = make([]kafka.Message, 0, size)
+
+		bufferSize = 0
+		buffer     = make([]kafka.Message, size)
 	)
 
 	flush := func() {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(writeTimeout))
 		defer cancelFn()
 
-		if err := wb.writer.WriteMessages(ctx, localBuffer...); err != nil {
+		if err := wb.writer.WriteMessages(ctx, buffer[:bufferSize]...); err != nil {
 			log.Print("Error writing to kafka:", err.Error())
 		}
 
+		bufferSize = 0
 		lastFlush = time.Now()
-		localBuffer = make([]kafka.Message, 0, size)
 	}
 
 	defer func() {
@@ -96,12 +95,14 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				return
 			}
 
-			// Add this message to the buffer and if it's full we flush and
-			// exert back-pressure
-			localBuffer = append(localBuffer, *msg)
-			if len(localBuffer) >= size {
+			// If the buffer is full we must flush before we can add another message
+			// This will exert backpressure
+			if bufferSize >= size {
 				flush()
 			}
+			// Add this message to the buffer and if it's full we flush and
+			buffer[bufferSize] = *msg
+			bufferSize++
 		case <-flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
 			if time.Now().After(lastFlush.Add(flushInterval)) {
