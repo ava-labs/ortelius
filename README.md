@@ -20,7 +20,7 @@ The easiest way to get started to is try out the Docker Compose-based standalone
 Ensure you have Docker and Docker Compose installed and then run:
 
 ```shell script
-git checkout https://github.com/ava-labs/ortelius.git $GOPATH/github.com/ava-labs/ortelius
+git clone https://github.com/ava-labs/ortelius.git $GOPATH/github.com/ava-labs/ortelius
 cd $GOPATH/github.com/ava-labs/ortelius
 make dev_env_start
 make standalone_run
