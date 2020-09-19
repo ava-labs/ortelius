@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/ortelius/stream/record"
 )
 
-const defaultWriteBufferSize = 2500
+const defaultWriteBufferSize = 256
 
 var (
 	defaultFlushInterval = 1 * time.Second
