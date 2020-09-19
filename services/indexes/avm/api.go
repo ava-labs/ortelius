@@ -96,7 +96,7 @@ func newOverviewHandler(i *Index, alias string, avaxAssetID string) (func(c *API
 }
 
 func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
-	p := &SearchParams{}
+	p := &params.SearchParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -111,7 +111,7 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
-	p := &AggregateParams{}
+	p := &params.AggregateParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -126,7 +126,7 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
-	p := &ListTransactionsParams{}
+	p := &params.ListTransactionsParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -158,7 +158,7 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
-	p := &ListAssetsParams{}
+	p := &params.ListAssetsParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -182,7 +182,7 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
-	p := &ListAddressesParams{}
+	p := &params.ListAddressesParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -214,7 +214,7 @@ func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
-	p := &ListOutputsParams{}
+	p := &params.ListOutputsParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return

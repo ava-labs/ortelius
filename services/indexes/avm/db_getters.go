@@ -45,7 +45,7 @@ var (
 	}
 )
 
-func (db *DB) Search(ctx context.Context, p *SearchParams) (*models.SearchResults, error) {
+func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.SearchResults, error) {
 	if len(p.Query) < MinSearchQueryLength {
 		return nil, ErrSearchQueryTooShort
 	}
@@ -65,7 +65,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*models.SearchResult
 
 	// The query string was not an id/shortid so perform a regular search against
 	// all models
-	assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: cpListParams, Query: p.Query})
+	assets, err := db.ListAssets(ctx, &params.ListAssetsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*models.SearchResult
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
+	transactions, err := db.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*models.SearchResult
 		return collateSearchResults(assets, nil, transactions, nil)
 	}
 
-	addresses, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: cpListParams, Query: p.Query})
+	addresses, err := db.ListAddresses(ctx, &params.ListAddressesParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (db *DB) Search(ctx context.Context, p *SearchParams) (*models.SearchResult
 	return collateSearchResults(assets, addresses, transactions, nil)
 }
 
-func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*models.AggregatesHistogram, error) {
+func (db *DB) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
@@ -242,7 +242,7 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*models.A
 	return aggs, nil
 }
 
-func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (*models.TransactionList, error) {
+func (db *DB) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
 	dbRunner := db.newSession("get_transactions")
 
 	txs := []*models.Transaction{}
@@ -254,20 +254,20 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 		builder = builder.Distinct()
 	}
 
-	var applySort func(sort TransactionSort)
-	applySort = func(sort TransactionSort) {
+	var applySort func(sort params.TransactionSort)
+	applySort = func(sort params.TransactionSort) {
 		if p.Query != "" {
 			return
 		}
 		switch sort {
-		case TransactionSortTimestampAsc:
+		case params.TransactionSortTimestampAsc:
 			builder.OrderAsc("avm_transactions.chain_id")
 			builder.OrderAsc("avm_transactions.created_at")
-		case TransactionSortTimestampDesc:
+		case params.TransactionSortTimestampDesc:
 			builder.OrderAsc("avm_transactions.chain_id")
 			builder.OrderDesc("avm_transactions.created_at")
 		default:
-			applySort(TransactionSortDefault)
+			applySort(params.TransactionSortDefault)
 		}
 	}
 	applySort(p.Sort)
@@ -307,7 +307,7 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 	return &models.TransactionList{models.ListMetadata{count}, txs}, nil
 }
 
-func (db *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*models.AssetList, error) {
+func (db *DB) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
 	dbRunner := db.newSession("list_assets")
 
 	assets := []*models.Asset{}
@@ -339,7 +339,7 @@ func (db *DB) ListAssets(ctx context.Context, p *ListAssetsParams) (*models.Asse
 	return &models.AssetList{models.ListMetadata{count}, assets}, nil
 }
 
-func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*models.AddressList, error) {
+func (db *DB) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
 	dbRunner := db.newSession("list_addresses")
 
 	addresses := []*models.AddressInfo{}
@@ -375,7 +375,7 @@ func (db *DB) ListAddresses(ctx context.Context, p *ListAddressesParams) (*model
 	return &models.AddressList{models.ListMetadata{count}, addresses}, nil
 }
 
-func (db *DB) ListOutputs(ctx context.Context, p *ListOutputsParams) (*models.OutputList, error) {
+func (db *DB) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
 	dbRunner := db.newSession("list_transaction_outputs")
 
 	outputs := []*models.Output{}
@@ -651,13 +651,13 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 func (db *DB) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
-	if assets, err := db.ListAssets(ctx, &ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
+	if assets, err := db.ListAssets(ctx, &params.ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(assets.Assets) > 0 {
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := db.ListTransactions(ctx, &ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
+	if txs, err := db.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
@@ -669,7 +669,7 @@ func (db *DB) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults,
 func (db *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
-	if addrs, err := db.ListAddresses(ctx, &ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
+	if addrs, err := db.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
 		return collateSearchResults(nil, addrs, nil, nil)

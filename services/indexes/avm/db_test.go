@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 type message struct {
@@ -95,7 +96,7 @@ func TestIngestInputs(t *testing.T) {
 		t.Fatal("Failed to index:", err.Error())
 	}
 
-	outputs, err := idx.ListOutputs(ctx, &ListOutputsParams{})
+	outputs, err := idx.ListOutputs(ctx, &params.ListOutputsParams{})
 	if err != nil {
 		t.Fatal("Failed to list outputs:", err.Error())
 	}
