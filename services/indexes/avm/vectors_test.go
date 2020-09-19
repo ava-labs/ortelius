@@ -123,7 +123,7 @@ func createTestVectors() (testVectors []testVector) {
 			outs[i] = Output{
 				TransactionID: txID,
 				OutputIndex:   uint64(i),
-				Amount:        TokenAmountForUint64(amount),
+				Amount:        models.TokenAmountForUint64(amount),
 				AssetID:       models.ToStringID(testAVAAssetID),
 				OutputType:    OutputTypesSECP2556K1Transfer,
 				Threshold:     1,

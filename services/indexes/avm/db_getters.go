@@ -234,7 +234,7 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 		aggs.Intervals = append(aggs.Intervals, interval)
 	}
 	// Add total aggregated token amounts
-	aggs.Aggregates.TransactionVolume = TokenAmount(totalVolume.String())
+	aggs.Aggregates.TransactionVolume = models.TokenAmount(totalVolume.String())
 
 	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
@@ -582,14 +582,14 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 			}
 		}
 
-		tx.InputTotals = make(AssetTokenCounts, len(inputTotalsMap[tx.ID]))
+		tx.InputTotals = make(models.AssetTokenCounts, len(inputTotalsMap[tx.ID]))
 		for k, v := range inputTotalsMap[tx.ID] {
-			tx.InputTotals[k] = TokenAmount(v.String())
+			tx.InputTotals[k] = models.TokenAmount(v.String())
 		}
 
-		tx.OutputTotals = make(AssetTokenCounts, len(outputTotalsMap[tx.ID]))
+		tx.OutputTotals = make(models.AssetTokenCounts, len(outputTotalsMap[tx.ID]))
 		for k, v := range outputTotalsMap[tx.ID] {
-			tx.OutputTotals[k] = TokenAmount(v.String())
+			tx.OutputTotals[k] = models.TokenAmount(v.String())
 		}
 	}
 

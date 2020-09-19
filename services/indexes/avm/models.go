@@ -21,15 +21,15 @@ var (
 	OutputTypesNFTMint            OutputType = 10
 	OutputTypesNFTTransferOutput  OutputType = 11
 
-	TXTypeBase        TransactionType = "base"
-	TXTypeCreateAsset TransactionType = "create_asset"
-	TXTypeImport      TransactionType = "import"
-	TXTypeExport      TransactionType = "export"
+	TXTypeBase        models.TransactionType = "base"
+	TXTypeCreateAsset models.TransactionType = "create_asset"
+	TXTypeImport      models.TransactionType = "import"
+	TXTypeExport      models.TransactionType = "export"
 
-	ResultTypeTransaction SearchResultType = "transaction"
-	ResultTypeAsset       SearchResultType = "asset"
-	ResultTypeAddress     SearchResultType = "address"
-	ResultTypeOutput      SearchResultType = "output"
+	ResultTypeTransaction models.SearchResultType = "transaction"
+	ResultTypeAsset       models.SearchResultType = "asset"
+	ResultTypeAddress     models.SearchResultType = "address"
+	ResultTypeOutput      models.SearchResultType = "output"
 )
 
 //
@@ -46,9 +46,9 @@ type Transaction struct {
 
 	Memo []byte `json:"memo"`
 
-	InputTotals         AssetTokenCounts `json:"inputTotals"`
-	OutputTotals        AssetTokenCounts `json:"outputTotals"`
-	ReusedAddressTotals AssetTokenCounts `json:"reusedAddressTotals"`
+	InputTotals         models.AssetTokenCounts `json:"inputTotals"`
+	OutputTotals        models.AssetTokenCounts `json:"outputTotals"`
+	ReusedAddressTotals models.AssetTokenCounts `json:"reusedAddressTotals"`
 
 	CanonicalSerialization []byte    `json:"canonicalSerialization,omitempty"`
 	CreatedAt              time.Time `json:"timestamp"`
@@ -62,16 +62,16 @@ type Input struct {
 }
 
 type Output struct {
-	ID            models.StringID  `json:"id"`
-	TransactionID models.StringID  `json:"transactionID"`
-	OutputIndex   uint64           `json:"outputIndex"`
-	AssetID       models.StringID  `json:"assetID"`
-	OutputType    OutputType       `json:"outputType"`
-	Amount        TokenAmount      `json:"amount"`
-	Locktime      uint64           `json:"locktime"`
-	Threshold     uint64           `json:"threshold"`
-	Addresses     []models.Address `json:"addresses"`
-	CreatedAt     time.Time        `json:"timestamp"`
+	ID            models.StringID    `json:"id"`
+	TransactionID models.StringID    `json:"transactionID"`
+	OutputIndex   uint64             `json:"outputIndex"`
+	AssetID       models.StringID    `json:"assetID"`
+	OutputType    models.OutputType  `json:"outputType"`
+	Amount        models.TokenAmount `json:"amount"`
+	Locktime      uint64             `json:"locktime"`
+	Threshold     uint64             `json:"threshold"`
+	Addresses     []models.Address   `json:"addresses"`
+	CreatedAt     time.Time          `json:"timestamp"`
 
 	RedeemingTransactionID models.StringID `json:"redeemingTransactionID"`
 
@@ -104,8 +104,8 @@ type Asset struct {
 	Alias        string `json:"alias"`
 	Denomination uint8  `json:"denomination"`
 
-	CurrentSupply TokenAmount `json:"currentSupply"`
-	CreatedAt     time.Time   `json:"timestamp"`
+	CurrentSupply models.TokenAmount `json:"currentSupply"`
+	CreatedAt     time.Time          `json:"timestamp"`
 
 	Score uint64 `json:"-"`
 }
@@ -122,11 +122,11 @@ type AddressInfo struct {
 type AssetInfo struct {
 	AssetID models.StringID `json:"id"`
 
-	TransactionCount uint64      `json:"transactionCount"`
-	UTXOCount        uint64      `json:"utxoCount"`
-	Balance          TokenAmount `json:"balance"`
-	TotalReceived    TokenAmount `json:"totalReceived"`
-	TotalSent        TokenAmount `json:"totalSent"`
+	TransactionCount uint64             `json:"transactionCount"`
+	UTXOCount        uint64             `json:"utxoCount"`
+	Balance          models.TokenAmount `json:"balance"`
+	TotalReceived    models.TokenAmount `json:"totalReceived"`
+	TotalSent        models.TokenAmount `json:"totalSent"`
 }
 
 //
@@ -179,7 +179,7 @@ func (s SearchResultSet) Less(i, j int) bool { return s[i].Score < s[j].Score }
 // SearchResult represents a single item matching a search query.
 type SearchResult struct {
 	// SearchResultType is the type of object found
-	SearchResultType `json:"type"`
+	models.SearchResultType `json:"type"`
 
 	// Data is the object itself
 	Data interface{} `json:"data"`
@@ -206,7 +206,7 @@ type Aggregates struct {
 	StartTime time.Time `json:"startTime"`
 	EndTime   time.Time `json:"endTime"`
 
-	TransactionVolume TokenAmount `json:"transactionVolume"`
+	TransactionVolume models.TokenAmount `json:"transactionVolume"`
 
 	TransactionCount uint64 `json:"transactionCount"`
 	AddressCount     uint64 `json:"addressCount"`
