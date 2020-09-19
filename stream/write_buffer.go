@@ -20,13 +20,13 @@ const defaultWriteBufferSize = 256
 var (
 	defaultFlushInterval = 1 * time.Second
 
+	// Enforce adherence to the io.Writer interface
 	_ io.Writer = &bufferedWriter{}
 )
 
 type bufferedWriter struct {
 	writer *kafka.Writer
 	buffer chan (*kafka.Message)
-
 	stopCh chan (struct{})
 	doneCh chan (struct{})
 }
@@ -35,12 +35,12 @@ func newWriteBuffer(brokers []string, topic string) *bufferedWriter {
 	size := defaultWriteBufferSize
 
 	wb := &bufferedWriter{
-		buffer: make(chan *kafka.Message, size*2),
 		writer: kafka.NewWriter(kafka.WriterConfig{
 			Brokers:  brokers,
 			Topic:    topic,
 			Balancer: &kafka.LeastBytes{},
 		}),
+		buffer: make(chan *kafka.Message, size*2),
 		stopCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
 	}
@@ -50,6 +50,7 @@ func newWriteBuffer(brokers []string, topic string) *bufferedWriter {
 	return wb
 }
 
+// Write adds the message to the buffer. It implements the io.Writer interface.
 func (wb *bufferedWriter) Write(msg []byte) (int, error) {
 	wb.buffer <- &kafka.Message{
 		Key:   hashing.ComputeHash256(msg),
@@ -58,6 +59,8 @@ func (wb *bufferedWriter) Write(msg []byte) (int, error) {
 	return len(msg), nil
 }
 
+// loop takes in messages from the buffer and commits them to Kafka when in
+// batches
 func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
 		lastFlush   = time.Now()
@@ -74,7 +77,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		}
 
 		lastFlush = time.Now()
-		localBuffer = make([]kafka.Message, 0, 2500)
+		localBuffer = make([]kafka.Message, 0, size)
 	}
 
 	defer func() {
@@ -88,11 +91,13 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		case <-wb.stopCh:
 			return
 		case msg, ok := <-wb.buffer:
-			if ok {
-				localBuffer = append(localBuffer, *msg)
+			if !ok {
+				return
 			}
 
-			// If the buffer is full we flush and exert back-pressure
+			// Add this message to the buffer and if it's full we flush and
+			// exert back-pressure
+			localBuffer = append(localBuffer, *msg)
 			if len(localBuffer) >= size {
 				flush()
 			}
@@ -105,6 +110,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	}
 }
 
+// close stops the bufferedWriter and flushes any remaining items
 func (wb *bufferedWriter) close() error {
 	close(wb.buffer)
 	close(wb.stopCh)
