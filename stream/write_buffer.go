@@ -25,7 +25,6 @@ var _ io.Writer = &bufferedWriter{}
 type bufferedWriter struct {
 	writer *kafka.Writer
 	buffer chan (*kafka.Message)
-	stopCh chan (struct{})
 	doneCh chan (struct{})
 }
 
@@ -39,7 +38,6 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 			Balancer: &kafka.LeastBytes{},
 		}),
 		buffer: make(chan *kafka.Message),
-		stopCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
 	}
 
@@ -88,8 +86,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 	for {
 		select {
-		case <-wb.stopCh:
-			return
 		case msg, ok := <-wb.buffer:
 			if !ok {
 				return
@@ -100,6 +96,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			if bufferSize >= size {
 				flush()
 			}
+
 			// Add this message to the buffer and if it's full we flush and
 			buffer[bufferSize] = *msg
 			bufferSize++
@@ -114,8 +111,8 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 // close stops the bufferedWriter and flushes any remaining items
 func (wb *bufferedWriter) close() error {
+	// Close buffer and wait for it to stop, flush, and signal back
 	close(wb.buffer)
-	close(wb.stopCh)
 	<-wb.doneCh
 	return wb.writer.Close()
 }
