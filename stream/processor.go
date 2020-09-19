@@ -82,7 +82,7 @@ func (c *ProcessorManager) Listen() error {
 			// Keep running the worker until it exits without an error
 			for err := c.runProcessor(chainConfig); err != nil; err = c.runProcessor(chainConfig) {
 				c.log.Error("Error running worker: %s", err.Error())
-				<-time.After(10 * time.Second)
+				<-time.After(1 * time.Second)
 			}
 			c.log.Info("Exiting worker manager for chain %s", chainConfig.ID)
 		}(chainConfig)
