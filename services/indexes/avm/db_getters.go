@@ -454,10 +454,12 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	// Load output data for all inputs and outputs into a single list
 	// We can't treat them separately because some my be both inputs and outputs
 	// for different transactions
-	outputs := []*struct {
+	type compositeRecord struct {
 		Output
 		OutputAddress
-	}{}
+	}
+
+	outputs := []*compositeRecord{}
 	_, err := outputSelector(dbRunner, db.chainID).
 		Where("avm_outputs.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &outputs)
@@ -465,10 +467,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		return err
 	}
 
-	inputs := []*struct {
-		Output
-		OutputAddress
-	}{}
+	inputs := []*compositeRecord{}
 	_, err = outputSelector(dbRunner, db.chainID).
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
@@ -478,15 +477,17 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	outputs = append(outputs, inputs...)
 
-	// Create maps for all Transaction outputs and Input Transaction outputs
-	outputMap := map[models.StringID]*Output{}
+	// Create a map of addresses for each output and maps of transaction ids to
+	// inputs, outputs, and the total amounts of the inputs and outputs
+	var (
+		outputAddrs     = make(map[models.StringID]map[models.Address]struct{}, len(txs)*2)
+		inputsMap       = make(map[models.StringID]map[models.StringID]*Input, len(txs))
+		outputsMap      = make(map[models.StringID]map[models.StringID]*Output, len(txs))
+		inputTotalsMap  = make(map[models.StringID]map[models.StringID]*big.Int, len(txs))
+		outputTotalsMap = make(map[models.StringID]map[models.StringID]*big.Int, len(txs))
+	)
 
-	inputsMap := map[models.StringID][]*Input{}
-	inputTotalsMap := map[models.StringID]map[models.StringID]*big.Int{}
-
-	outputsMap := map[models.StringID][]*Output{}
-	outputTotalsMap := map[models.StringID]map[models.StringID]*big.Int{}
-
+	// Create a helper to safely add big integers
 	addToBigIntMap := func(m map[models.StringID]*big.Int, assetID models.StringID, amt *big.Int) {
 		prevAmt := m[assetID]
 		if prevAmt == nil {
@@ -495,65 +496,58 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		m[assetID] = prevAmt.Add(amt, prevAmt)
 	}
 
-	for _, outpre := range outputs {
-		out := &outpre.Output
-		outputMap[out.ID] = out
-
-		out.Addresses = []models.Address{}
-
-		if _, ok := inputsMap[out.RedeemingTransactionID]; !ok {
-			inputsMap[out.RedeemingTransactionID] = []*Input{}
-		}
-
-		if _, ok := inputTotalsMap[out.RedeemingTransactionID]; !ok {
-			inputTotalsMap[out.RedeemingTransactionID] = map[models.StringID]*big.Int{}
-		}
-		if _, ok := outputsMap[out.TransactionID]; !ok {
-			outputsMap[out.TransactionID] = []*Output{}
-		}
-
-		if _, ok := outputTotalsMap[out.TransactionID]; !ok {
-			outputTotalsMap[out.TransactionID] = map[models.StringID]*big.Int{}
-		}
+	// Collect outpoints into the maps
+	for _, output := range outputs {
+		out := &output.Output
 
 		bigAmt := new(big.Int)
 		if _, ok := bigAmt.SetString(string(out.Amount), 10); !ok {
 			return errors.New("invalid amount")
 		}
 
-		inputsMap[out.RedeemingTransactionID] = append(inputsMap[out.RedeemingTransactionID], &Input{Output: out})
-		addToBigIntMap(inputTotalsMap[out.RedeemingTransactionID], out.AssetID, bigAmt)
+		if _, ok := inputsMap[out.RedeemingTransactionID]; !ok {
+			inputsMap[out.RedeemingTransactionID] = map[models.StringID]*Input{}
+		}
+		if _, ok := inputTotalsMap[out.RedeemingTransactionID]; !ok {
+			inputTotalsMap[out.RedeemingTransactionID] = map[models.StringID]*big.Int{}
+		}
+		if _, ok := outputsMap[out.TransactionID]; !ok {
+			outputsMap[out.TransactionID] = map[models.StringID]*Output{}
+		}
+		if _, ok := outputTotalsMap[out.TransactionID]; !ok {
+			outputTotalsMap[out.TransactionID] = map[models.StringID]*big.Int{}
+		}
+		if _, ok := outputAddrs[out.ID]; !ok {
+			outputAddrs[out.ID] = map[models.Address]struct{}{}
+		}
 
-		outputsMap[out.TransactionID] = append(outputsMap[out.TransactionID], out)
+		outputAddrs[out.ID][output.OutputAddress.Address] = struct{}{}
+		outputsMap[out.TransactionID][out.ID] = out
+		inputsMap[out.RedeemingTransactionID][out.ID] = &Input{Output: out}
 		addToBigIntMap(outputTotalsMap[out.TransactionID], out.AssetID, bigAmt)
+		addToBigIntMap(inputTotalsMap[out.RedeemingTransactionID], out.AssetID, bigAmt)
 	}
 
-	// Collect the addresses into a list on each Output
+	// Collect the addresses into a list on each outpoint
 	var input *Input
-	for _, outputAddress := range outputs {
-		output, ok := outputMap[outputAddress.OutputID]
-		if !ok {
-			continue
+	for _, out := range outputs {
+		out.Addresses = make([]models.Address, 0, len(outputAddrs[out.ID]))
+		for addr := range outputAddrs[out.ID] {
+			out.Addresses = append(out.Addresses, addr)
 		}
-		output.Addresses = append(output.Addresses, outputAddress.Address)
 
 		// If this Address didn't sign any txs then we're done
-		if len(outputAddress.Signature) == 0 {
-			continue
-		}
-
-		inputs, ok := inputsMap[output.RedeemingTransactionID]
-		if !ok {
+		if len(out.Signature) == 0 {
 			continue
 		}
 
 		// Get the Input and add the credentials for this Address
-		for _, input = range inputs {
-			if input.Output.ID.Equals(outputAddress.OutputID) {
+		for _, input = range inputsMap[out.RedeemingTransactionID] {
+			if input.Output.ID.Equals(out.OutputID) {
 				input.Creds = append(input.Creds, InputCredentials{
-					Address:   outputAddress.Address,
-					PublicKey: outputAddress.PublicKey,
-					Signature: outputAddress.Signature,
+					Address:   out.Address,
+					PublicKey: out.PublicKey,
+					Signature: out.Signature,
 				})
 				break
 			}
@@ -562,8 +556,17 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
-		tx.Inputs = append(tx.Inputs, inputsMap[tx.ID]...)
-		tx.Outputs = append(tx.Outputs, outputsMap[tx.ID]...)
+		if inputs, ok := inputsMap[tx.ID]; ok {
+			for _, input := range inputs {
+				tx.Inputs = append(tx.Inputs, input)
+			}
+		}
+
+		if outputs, ok := outputsMap[tx.ID]; ok {
+			for _, output := range outputs {
+				tx.Outputs = append(tx.Outputs, output)
+			}
+		}
 
 		tx.InputTotals = make(AssetTokenCounts, len(inputTotalsMap[tx.ID]))
 		for k, v := range inputTotalsMap[tx.ID] {
