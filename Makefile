@@ -44,6 +44,15 @@ standalone_rm: ## Stop and remove all standalone mode services
 standalone_build: ## Build or rebuild all standalone mode images
 	@docker-compose -f docker/standalone/docker-compose.yml build
 
+production_start: ## Start production mode
+	@docker-compose -f docker/production/docker-compose.yml up --remove-orphans
+
+production_stop: ## Stop production mode
+	@docker-compose -f docker/production/docker-compose.yml up --remove-orphans
+
+production_logs: ## Logs for production mode
+	@docker-compose -f docker/production/docker-compose.yml logs -f
+
 ##
 ## Testing
 ##
