@@ -50,6 +50,9 @@ production_start: ## Start production mode
 production_stop: ## Stop production mode
 	@docker-compose -f docker/production/docker-compose.yml up --remove-orphans
 
+production_rm: ## Remove production mode
+	@docker-compose -f docker/production/docker-compose.yml down --remove-orphans
+
 production_logs: ## Logs for production mode
 	@docker-compose -f docker/production/docker-compose.yml logs -f
 
