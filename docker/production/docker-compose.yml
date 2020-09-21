@@ -91,7 +91,7 @@ services:
     image: "antarcticcircle/manhattan:v0.0.5"
     command: [
       "./build/avalanchego",
-      "=network-id=5",
+      "-network-id=5",
       "-db-dir=/var/lib/avalanche",
       "-log-level=info",
       "-http-host=0.0.0.0",
