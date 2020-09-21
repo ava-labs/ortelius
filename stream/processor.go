@@ -126,8 +126,10 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	var err error
 	for {
 		err = c.runProcessorLoop(chainConfig)
-		if err != io.EOF {
-			break
+		switch err {
+		case io.EOF, ErrUnknownVM:
+			c.log.Info("Worker for chain %s encountered unrecoverable error: %s", chainConfig.ID, err.Error())
+			return nil
 		}
 	}
 	return err
