@@ -4,8 +4,8 @@
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
-    "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm": {
-      "id": "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm",
+    "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM": {
+      "id": "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
       "alias": "X",
       "vmType": "avm"
     }
@@ -23,7 +23,7 @@
       "addr": "redis:6379"
     },
     "db": {
-      "dsn": "root:password@tcp(mysql:3306)/ortelius_fuji",
+      "dsn": "root:password@tcp(mysql:3306)/ortelius",
       "driver": "mysql"
     }
   }

@@ -10,7 +10,7 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: ortelius_fuji
+      MYSQL_DATABASE: ortelius
     restart: on-failure
   migrate:
     image: migrate/migrate:v4.11.0
@@ -20,7 +20,7 @@ services:
       - mysql
     entrypoint: ["/bin/sh"]
     command: |
-      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius_fuji" up; do
+      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up; do
         sleep 1
       done'
     restart: on-failure
@@ -88,14 +88,14 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
-    image: "antarcticcircle/manhattan:v0.0.5"
+    image: "antarcticcircle/manhattan:v0.0.7"
     command: [
       "./build/avalanchego",
-      "-network-id=5",
+      "-network-id=1",
       "-db-dir=/var/lib/avalanche",
       "-log-level=info",
       "-http-host=0.0.0.0",
-      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2vrXWHgGxh5n3YsLHMV16YVVJTpT4z45Fmb4y3bL6si8kLCyg9",
+      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
     ]
     ports:
       - "9650:9650"
@@ -105,7 +105,6 @@ services:
     depends_on:
       - producer
     restart: always
-
   producer: &ortelius-app
     image: "avaplatform/ortelius:bb4665c"
     command: ["stream", "producer", "-c", "/opt/config.json"]

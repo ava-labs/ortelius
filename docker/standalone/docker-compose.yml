@@ -8,7 +8,7 @@ networks:
       name: ortelius_services
 services:
   avalanche:
-    image: "antarcticcircle/manhattan:v0.0.5"
+    image: "antarcticcircle/manhattan:v0.0.7"
     command: [
       "./build/avalanchego",
       "-network-id=5",
@@ -25,9 +25,8 @@ services:
     depends_on:
       - producer
     restart: always
-
   producer: &ortelius-app
-    image: "avaplatform/ortelius:bb4665c"
+    image: "avaplatform/ortelius:c50b559"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services

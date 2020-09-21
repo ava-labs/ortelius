@@ -4,7 +4,7 @@
 package cfg
 
 const defaultJSON = `{
-  "networkID": 5,
+  "networkID": 1,
   "logDirectory": "/tmp/ortelius/logs/producer/avm",
   "chains": {},
   "services": {
