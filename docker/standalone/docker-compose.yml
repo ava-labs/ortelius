@@ -1,8 +1,34 @@
 version: '3'
+volumes:
+  avalanche-data:
+  avalanche-ipcs:
+networks:
+  services:
+    external:
+      name: ortelius_services
 services:
+  avalanche:
+    image: "antarcticcircle/manhattan:v0.0.5"
+    command: [
+      "./build/avalanchego",
+      "=network-id=5",
+      "-db-dir=/var/lib/avalanche",
+      "-log-level=info",
+      "-http-host=0.0.0.0",
+      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2vrXWHgGxh5n3YsLHMV16YVVJTpT4z45Fmb4y3bL6si8kLCyg9",
+    ]
+    ports:
+      - "9650:9650"
+    volumes:
+      - avalanche-data:/var/lib/avalanche
+      - avalanche-ipcs:/tmp
+    depends_on:
+      - producer
+    restart: always
+
   producer: &ortelius-app
-    image: "avaplatform/ortelius:fc23eda"
-    command: ["stream", "producer"]
+    image: "avaplatform/ortelius:bb4665c"
+    command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services
     external_links:
@@ -15,17 +41,9 @@ services:
     restart: on-failure
   indexer:
     <<: *ortelius-app
-    command: ["stream", "indexer"]
+    command: ["stream", "indexer", "-c", "/opt/config.json"]
   api:
     <<: *ortelius-app
-    command: ["api"]
+    command: ["api", "-c", "/opt/config.json"]
     ports:
       - 8080:8080
-networks:
-  services:
-    external:
-      name: ortelius_services
-volumes:
-  avalanche-ipcs:
-    external:
-      name: ortelius_avalanche_ipcs

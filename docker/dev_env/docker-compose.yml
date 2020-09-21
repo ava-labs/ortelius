@@ -10,10 +10,6 @@ volumes:
     name: ortelius_redis
   mysql-data:
     name: ortelius_mysql
-  avalanche-data:
-    name: ortelius_avalanche
-  avalanche-ipcs:
-    name: ortelius_avalanche_ipcs
 networks:
   default:
     name: ortelius_services
@@ -26,7 +22,7 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: ortelius_dev
+      MYSQL_DATABASE: ortelius_fuji
     restart: on-failure
   migrate:
     image: migrate/migrate:v4.11.0
@@ -36,7 +32,7 @@ services:
       - mysql
     entrypoint: ["/bin/sh"]
     command: |
-      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius_dev" up; do
+      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius_fuji" up; do
         sleep 1
       done'
     restart: on-failure
@@ -48,21 +44,6 @@ services:
     volumes:
       - redis-data:/var/lib/redis
     restart: on-failure
-  avalanche:
-    image: "avaplatform/avalanchego:a7890896"
-    command: [
-      "./build/avalanchego",
-      "-db-dir=/var/lib/avalanche",
-      "-log-level=info",
-      "-http-host=0.0.0.0",
-      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
-    ]
-    ports:
-      - "9650:9650"
-    volumes:
-      - avalanche-data:/var/lib/avalanche
-      - avalanche-ipcs:/tmp
-    restart: always
   zookeeper:
     image: confluentinc/cp-zookeeper:5.0.0
     ports:
