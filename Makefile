@@ -45,13 +45,13 @@ standalone_build: ## Build or rebuild all standalone mode images
 	@docker-compose -f docker/standalone/docker-compose.yml build
 
 production_start: ## Start production mode
-	@docker-compose -f docker/production/docker-compose.yml up --remove-orphans
+	@docker-compose -f docker/production/docker-compose.yml up -d --remove-orphans
 
 production_stop: ## Stop production mode
-	@docker-compose -f docker/production/docker-compose.yml up --remove-orphans
+	@docker-compose -f docker/production/docker-compose.yml stop
 
 production_rm: ## Remove production mode
-	@docker-compose -f docker/production/docker-compose.yml down --remove-orphans
+	@docker-compose -f docker/production/docker-compose.yml down
 
 production_logs: ## Logs for production mode
 	@docker-compose -f docker/production/docker-compose.yml logs -f

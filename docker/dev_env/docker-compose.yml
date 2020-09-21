@@ -22,7 +22,7 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: ortelius_fuji
+      MYSQL_DATABASE: ortelius
     restart: on-failure
   migrate:
     image: migrate/migrate:v4.11.0
@@ -32,7 +32,7 @@ services:
       - mysql
     entrypoint: ["/bin/sh"]
     command: |
-      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius_fuji" up; do
+      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up; do
         sleep 1
       done'
     restart: on-failure

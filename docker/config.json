@@ -1,5 +1,5 @@
 {
-  "networkID": 5,
+  "networkID": 1,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
