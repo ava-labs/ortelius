@@ -8,7 +8,7 @@ networks:
       name: ortelius_services
 services:
   avalanche:
-    image: "antarcticcircle/manhattan:v0.0.7"
+    image: "avaplatform/avalanchego:v1.0.0"
     command: [
       "./build/avalanchego",
       "-network-id=5",
