@@ -506,14 +506,16 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		}
 
 		outputAddrs[out.ID][output.OutputAddress.Address] = struct{}{}
+
+		input := &Input{Output: out}
+
 		outputsMap[out.TransactionID][out.ID] = out
-		inputsMap[out.RedeemingTransactionID][out.ID] = &Input{Output: out}
+		inputsMap[out.RedeemingTransactionID][out.ID] = input
 		addToBigIntMap(outputTotalsMap[out.TransactionID], out.AssetID, bigAmt)
 		addToBigIntMap(inputTotalsMap[out.RedeemingTransactionID], out.AssetID, bigAmt)
 	}
 
 	// Collect the addresses into a list on each outpoint
-	var input *Input
 	for _, out := range outputs {
 		out.Addresses = make([]models.Address, 0, len(outputAddrs[out.ID]))
 		for addr := range outputAddrs[out.ID] {
@@ -526,7 +528,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		}
 
 		// Get the Input and add the credentials for this Address
-		for _, input = range inputsMap[out.RedeemingTransactionID] {
+		for _, input := range inputsMap[out.RedeemingTransactionID] {
 			if input.Output.ID.Equals(out.OutputID) {
 				input.Creds = append(input.Creds, InputCredentials{
 					Address:   out.Address,
@@ -583,12 +585,18 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 
 	// Load each Transaction Output for the tx, both inputs and outputs
 	rows := []*struct {
-		Address models.Address `json:"address"`
+		TransactionId models.StringID `json:"transaction_id"`
+		Address       models.Address  `json:"address"`
 		AssetInfo
 	}{}
 
+	subq := dbRunner.Select("avm_outputs.transaction_id").
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		Where("avm_output_addresses.address IN ?", addrIDs)
 	_, err := dbRunner.
 		Select(
+			"avm_outputs.transaction_id",
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
@@ -599,8 +607,8 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		Where("avm_output_addresses.address IN ?", addrIDs).
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+		Where("avm_outputs.transaction_id IN ?", subq).
+		GroupBy("avm_outputs.transaction_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &rows)
 	if err != nil {
 		return err
@@ -612,10 +620,32 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 		if !ok {
 			continue
 		}
-		addr.Assets[row.AssetID] = row.AssetInfo
+		for _, row2 := range rows {
+			if row.TransactionId == row2.TransactionId {
+				addr.Assets[row.AssetID] = addAsset(addr.Assets[row.AssetID], row2.AssetInfo)
+			}
+		}
 	}
 
 	return nil
+}
+
+func addAsset(info0 AssetInfo, info1 AssetInfo) AssetInfo {
+	info0.Balance = TokenAmount(bigAddTokenAmount(info0.Balance, info1.Balance))
+	info0.TotalReceived = TokenAmount(bigAddTokenAmount(info0.TotalReceived, info1.TotalReceived))
+	info0.TotalSent = TokenAmount(bigAddTokenAmount(info0.TotalSent, info1.TotalSent))
+	info0.TransactionCount = info0.TransactionCount + info1.TransactionCount
+	info0.UTXOCount = info0.UTXOCount + info1.UTXOCount
+	return info0
+}
+
+func bigAddTokenAmount(t1 TokenAmount, t2 TokenAmount) string {
+	t1i := new(big.Int)
+	t1i.SetString(string(t1), 10)
+	t2i := new(big.Int)
+	t2i.SetString(string(t2), 10)
+	t3i := new(big.Int)
+	return t3i.Add(t1i, t2i).String()
 }
 
 func (db *DB) searchByID(ctx context.Context, id ids.ID) (*SearchResults, error) {
