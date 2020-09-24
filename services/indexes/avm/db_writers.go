@@ -174,15 +174,14 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 
 			xOutMint, ok := out.(*nftfx.MintOutput)
 			if ok {
-				// TODO: process GroupID
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMint.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, xOutMint.GroupID)
 				continue
 			}
 			xOutMintS, ok := out.(*secp256k1fx.MintOutput)
 			if ok {
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMintS.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, 0)
 				continue
 			}
 			xOut, ok := out.(*secp256k1fx.TransferOutput)
@@ -191,7 +190,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				continue
 			}
 
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Transfer)
+			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Transfer, 0)
 
 			amount, err = math.Add64(amount, xOut.Amount())
 			if err != nil {
@@ -270,7 +269,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		}, false, OutputTypesSECP2556K1Transfer)
+		}, false, OutputTypesSECP2556K1Transfer, 0)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -330,12 +329,12 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0)
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType, groupID uint32) {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -351,6 +350,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("created_at", ctx.Time()).
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
+		Pair("group_id", groupID).
 		ExecContext(ctx.Ctx())
 
 	if err != nil {
@@ -366,6 +366,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 				Set("amount", out.Amount()).
 				Set("locktime", out.Locktime).
 				Set("threshold", out.Threshold).
+				Set("group_id", groupID).
 				Where("avm_outputs.id = ?", outputID.String()).
 				ExecContext(ctx.Ctx()); err != nil {
 				_ = db.stream.EventErr("ingest_output.update", err)
