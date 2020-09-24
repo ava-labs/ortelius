@@ -279,7 +279,7 @@ func (db *DB) ListTransactions(ctx context.Context, p *ListTransactionsParams) (
 	}
 
 	// Add all the addition information we might want
-	if err := db.dressTransactions(ctx, dbRunner, txs); err != nil {
+	if err := db.dressTransactions(ctx, dbRunner, txs, p.Addresses); err != nil {
 		return nil, err
 	}
 
@@ -424,7 +424,7 @@ func (db *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*Transaction) error {
+func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*Transaction, Addresses []ids.ShortID) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -443,8 +443,20 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 		OutputAddress
 	}
 
+	addrs := make([]string, len(Addresses))
+	if len(Addresses) > 0 {
+		for i, id := range Addresses {
+			addrs[i] = id.String()
+		}
+	}
+
 	outputs := []*compositeRecord{}
-	_, err := outputSelector(dbRunner, db.chainID).
+	transactionSelector := outputSelector(dbRunner, db.chainID)
+	if len(Addresses) > 0 {
+		transactionSelector = transactionSelector.
+			Where("avm_output_addresses.address IN ?", addrs)
+	}
+	_, err := transactionSelector.
 		Where("avm_outputs.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &outputs)
 	if err != nil {
@@ -452,7 +464,12 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	inputs := []*compositeRecord{}
-	_, err = outputSelector(dbRunner, db.chainID).
+	transactionSelector = outputSelector(dbRunner, db.chainID)
+	if len(Addresses) > 0 {
+		transactionSelector = transactionSelector.
+			Where("avm_output_addresses.address IN ?", addrs)
+	}
+	_, err = transactionSelector.
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
