@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/avm"
-	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
@@ -171,7 +170,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		for _, out := range state.Outs {
 			outputCount++
 
-			xOutMint, ok := out.(*nftfx.MintOutput)
+			xOutMint, ok := out.(*secp256k1fx.MintOutput)
 			if ok {
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMint.OutputOwners}
 				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
