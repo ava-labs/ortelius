@@ -13,6 +13,7 @@ var (
 	VMName = "avm"
 
 	OutputTypesSECP2556K1Transfer OutputType = 7
+	OutputTypesSECP2556K1Mint     OutputType = 6
 
 	TXTypeBase        TransactionType = "base"
 	TXTypeCreateAsset TransactionType = "create_asset"
