@@ -6,17 +6,17 @@ package avm
 import (
 	"context"
 	"errors"
-	"strings"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
+	"strings"
 
 	"github.com/ava-labs/ortelius/services"
 )
@@ -72,7 +72,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 		if err != nil {
 			return err
 		}
-		err = db.ingestCreateAssetTx(cCtx, txBytes, &tx.CreateAssetTx, tx.Alias)
+		err = db.ingestCreateAssetTx(cCtx, txBytes, &tx.CreateAssetTx, tx.Alias, true)
 		if err != nil {
 			return err
 		}
@@ -135,9 +135,9 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Finish processing with a type-specific ingestion routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.GenesisAsset:
-		return db.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias)
+		return db.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias, false)
 	case *avm.CreateAssetTx:
-		return db.ingestCreateAssetTx(ctx, txBytes, castTx, "")
+		return db.ingestCreateAssetTx(ctx, txBytes, castTx, "", false)
 	case *avm.OperationTx:
 		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
@@ -152,18 +152,31 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	return nil
 }
 
-func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
-	if err != nil {
-		return err
+func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string, bootstrap bool) error {
+	var err error
+	var txID ids.ID
+	if bootstrap {
+		wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
+		if err != nil {
+			return err
+		}
+		txID = ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
+	} else {
+		txID = tx.ID()
 	}
-	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
 
 	var outputCount uint32
 	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
 			outputCount++
+
+			xOutMint, ok := out.(*nftfx.MintOutput)
+			if ok {
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMint.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
+				continue
+			}
 
 			xOut, ok := out.(*secp256k1fx.TransferOutput)
 			if !ok {
