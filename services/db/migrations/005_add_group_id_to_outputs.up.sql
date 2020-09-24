@@ -1,1 +1,1 @@
-ALTER TABLE `avm_outputs` ADD COLUMN `group_id` bigint unsigned;
+ALTER TABLE `avm_outputs` ADD COLUMN `group_id` bigint unsigned default 0;
