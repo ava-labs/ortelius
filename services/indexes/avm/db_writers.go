@@ -178,6 +178,12 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
 				continue
 			}
+			xOutMintS, ok := out.(*secp256k1fx.MintOutput)
+			if ok {
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMintS.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
+				continue
+			}
 			xOut, ok := out.(*secp256k1fx.TransferOutput)
 			if !ok {
 				_ = ctx.Job().EventErr("assertion_to_secp256k1fx_transfer_output", errors.New("Output is not a *secp256k1fx.TransferOutput"))
