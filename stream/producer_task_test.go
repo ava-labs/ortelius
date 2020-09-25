@@ -2,8 +2,6 @@ package stream
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"testing"
 	"time"
 
@@ -39,28 +37,6 @@ func TestIntegration(t *testing.T) {
 
 	co := services.NewConnections(h, c, nil)
 
-	outputsAggregateOverride := func(ctx context.Context, sess *dbr.Session, aggregateTs time.Time) (*sql.Rows, error) {
-		if sess == nil {
-			return nil, fmt.Errorf("")
-		}
-		aggregateColumns = []string{
-			"avm_outputs.created_at as aggregate_ts",
-			"avm_outputs.asset_id",
-			"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS transaction_volume",
-			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
-			"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
-			"COUNT(avm_outputs.id) AS output_count",
-		}
-
-		return sess.
-			Select(aggregateColumns...).
-			From("avm_outputs").
-			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-			GroupBy("aggregate_ts", "avm_outputs.asset_id").
-			RowsContext(ctx)
-	}
-
 	// produce an expected timestamp to test..
 	timenow := time.Now().Round(1 * time.Minute)
 	timeProducerFunc := func() time.Time {
@@ -68,16 +44,13 @@ func TestIntegration(t *testing.T) {
 	}
 
 	tasker := ProducerTasker{connections: co,
-		avmOutputsCursor:        outputsAggregateOverride,
+		avmOutputsCursor:        AvmOutputsAggregateCursor,
 		insertAvmAggregate:      models.InsertAvmAssetAggregation,
 		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
 		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
 		updateAvmAggregateCount: models.UpdateAvmAssetAggregationCount,
 		timeStampProducer:       timeProducerFunc,
 	}
-
-	// override function to call my tables
-	tasker.avmOutputsCursor = outputsAggregateOverride
 
 	ctx := context.Background()
 
@@ -87,6 +60,8 @@ func TestIntegration(t *testing.T) {
 	// cleanup for run.
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupId)
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveId)
+	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
 
@@ -126,7 +101,6 @@ func TestIntegration(t *testing.T) {
 	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
 	avmAggregate.AssetId = "futureasset"
 	_, _ = models.InsertAvmAssetAggregation(ctx, sess, avmAggregate)
-	_, _ = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregate)
 
 	err = tasker.RefreshAggregates()
 	if err != nil {
