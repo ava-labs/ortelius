@@ -41,7 +41,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 
 	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
 
-	var avmAggregate AvmAggregateModel
+	var avmAggregate AvmAggregate
 	avmAggregate.AggregateTS = time.Now()
 	avmAggregate.AssetId = "as1"
 	avmAggregate.TransactionVolume = "1"

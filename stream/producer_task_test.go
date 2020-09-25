@@ -122,8 +122,8 @@ func TestIntegration(t *testing.T) {
 		Pair("created_at", pastime).
 		Exec()
 
-	avmAggregate := models.AvmAggregateModel{}
-	avmAggregate.AggregateTS = time.Now().Add(time.Duration(tasker.ConstAggregateDeleteFrame().Milliseconds()+1) * time.Millisecond)
+	avmAggregate := models.AvmAggregate{}
+	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
 	avmAggregate.AssetId = "futureasset"
 	_, _ = models.InsertAvmAssetAggregation(ctx, sess, avmAggregate)
 	_, _ = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregate)
@@ -147,7 +147,7 @@ func TestIntegration(t *testing.T) {
 
 	count := 999999
 	_, _ = sess.Select("count(*)").From("avm_asset_aggregation").
-		Where("aggregate_ts < ?", time.Now().Add(tasker.ConstAggregateDeleteFrame())).
+		Where("aggregate_ts < ?", time.Now().Add(aggregateDeleteFrame)).
 		Load(&count)
 	if count != 0 {
 		t.Errorf("future avm_asset not removed")
@@ -205,12 +205,12 @@ func TestHandleBackupState(t *testing.T) {
 
 	timeNow := time.Now().Round(1 * time.Minute)
 
-	_, _ = models.InsertAvmAssetAggregationState(ctx, sess, models.AvmAssetAggregateStateModel{
+	_, _ = models.InsertAvmAssetAggregationState(ctx, sess, models.AvmAssetAggregateState{
 		ID:               params.StateBackupId,
 		CreatedAt:        timeNow,
 		CurrentCreatedAt: timeNow})
 
-	state := models.AvmAssetAggregateStateModel{
+	state := models.AvmAssetAggregateState{
 		ID:               params.StateLiveId,
 		CreatedAt:        time.Unix(1, 0),
 		CurrentCreatedAt: time.Unix(1, 0)}

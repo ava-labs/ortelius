@@ -40,8 +40,8 @@ type ProducerTasker struct {
 	log                     *logging.Log
 	plock                   sync.Mutex
 	avmOutputsCursor        func(ctx context.Context, sess *dbr.Session, aggregateTs time.Time) (*sql.Rows, error)
-	insertAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateModel) (sql.Result, error)
-	updateAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateModel) (sql.Result, error)
+	insertAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
+	updateAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
 	insertAvmAggregateCount func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateCount) (sql.Result, error)
 	updateAvmAggregateCount func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateCount) (sql.Result, error)
 	timeStampProducer       func() time.Time
@@ -75,10 +75,6 @@ func initializeProducerTasker(conf cfg.Config, log *logging.Log) error {
 	return nil
 }
 
-func (t *ProducerTasker) Start() {
-	go initRefreshAggregatesTick(t)
-}
-
 func (t *ProducerTasker) RefreshAggregates() error {
 	t.plock.Lock()
 	defer t.plock.Unlock()
@@ -90,14 +86,14 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	sess := t.connections.DB().NewSession(job)
 
 	var err error
-	var liveAggregationState models.AvmAssetAggregateStateModel
-	var backupAggregateState models.AvmAssetAggregateStateModel
+	var liveAggregationState models.AvmAssetAggregateState
+	var backupAggregateState models.AvmAssetAggregateState
 
 	// initialize the assset_aggregation_state table with id=stateLiveId row.
 	// if the row has not been created..
 	// created at and current created at set to time(0), so the first run will re-build aggregates for the entire db.
 	_, _ = models.InsertAvmAssetAggregationState(ctx, sess,
-		models.AvmAssetAggregateStateModel{
+		models.AvmAssetAggregateState{
 			ID:               params.StateLiveId,
 			CreatedAt:        time.Unix(1, 0),
 			CurrentCreatedAt: time.Unix(1, 0)},
@@ -185,14 +181,14 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 	}
 
 	for ok := rows.Next(); ok; ok = rows.Next() {
-		var avmAggregates models.AvmAggregateModel
-		err = rows.Scan(&avmAggregates.AggregateTS,
-			&avmAggregates.AssetId,
-			&avmAggregates.TransactionVolume,
-			&avmAggregates.TransactionCount,
-			&avmAggregates.AddressCount,
-			&avmAggregates.AssetCount,
-			&avmAggregates.OutputCount)
+		var avmAggregate models.AvmAggregate
+		err = rows.Scan(&avmAggregate.AggregateTS,
+			&avmAggregate.AssetId,
+			&avmAggregate.TransactionVolume,
+			&avmAggregate.TransactionCount,
+			&avmAggregate.AddressCount,
+			&avmAggregate.AssetCount,
+			&avmAggregate.OutputCount)
 		if err != nil {
 			t.log.Error("row fetch %s", err.Error())
 			return time.Time{}, err
@@ -200,11 +196,11 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 
 		// aggregateTS would be update to the most recent timestamp we processed...
 		// we use it later to prune old aggregates from the db.
-		if avmAggregates.AggregateTS.After(aggregateTS) {
-			aggregateTS = avmAggregates.AggregateTS
+		if avmAggregate.AggregateTS.After(aggregateTS) {
+			aggregateTS = avmAggregate.AggregateTS
 		}
 
-		err = t.replaceAvmAggregate(ctx, sess, avmAggregates)
+		err = t.replaceAvmAggregate(ctx, sess, avmAggregate)
 		if err != nil {
 			t.log.Error("replace avm aggregate %s", err.Error())
 			return time.Time{}, err
@@ -247,20 +243,20 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 	}
 
 	for ok := rows.Next(); ok; ok = rows.Next() {
-		var avmAggregatesCount models.AvmAggregateCount
-		err = rows.Scan(&avmAggregatesCount.Address,
-			&avmAggregatesCount.AssetID,
-			&avmAggregatesCount.TransactionCount,
-			&avmAggregatesCount.TotalReceived,
-			&avmAggregatesCount.TotalSent,
-			&avmAggregatesCount.Balance,
-			&avmAggregatesCount.UtxoCount)
+		var avmAggregateCount models.AvmAggregateCount
+		err = rows.Scan(&avmAggregateCount.Address,
+			&avmAggregateCount.AssetID,
+			&avmAggregateCount.TransactionCount,
+			&avmAggregateCount.TotalReceived,
+			&avmAggregateCount.TotalSent,
+			&avmAggregateCount.Balance,
+			&avmAggregateCount.UtxoCount)
 		if err != nil {
 			t.log.Error("row fetch %s", err.Error())
 			return err
 		}
 
-		err = t.replaceAvmAggregateCount(ctx, sess, avmAggregatesCount)
+		err = t.replaceAvmAggregateCount(ctx, sess, avmAggregateCount)
 		if err != nil {
 			t.log.Error("replace avm aggregate count %s", err.Error())
 			return err
@@ -269,7 +265,7 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 	return nil
 }
 
-func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateStateModel) (models.AvmAssetAggregateStateModel, error) {
+func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
 	// setup the backup as a copy of the live state.
 	backupAggregateState := liveAggregationState
 	backupAggregateState.ID = params.StateBackupId
@@ -293,7 +289,7 @@ func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Sessio
 	return models.SelectAvmAssetAggregationState(ctx, sess, backupAggregateState.ID)
 }
 
-func (t *ProducerTasker) replaceAvmAggregate(ctx context.Context, sess *dbr.Session, avmAggregates models.AvmAggregateModel) error {
+func (t *ProducerTasker) replaceAvmAggregate(ctx context.Context, sess *dbr.Session, avmAggregates models.AvmAggregate) error {
 	_, err := t.insertAvmAggregate(ctx, sess, avmAggregates)
 	if db.ErrIsDuplicateEntryError(err) {
 		_, err := t.updateAvmAggregate(ctx, sess, avmAggregates)
@@ -340,10 +336,6 @@ func computeAndRoundCurrentAggregateTS(aggregateTS time.Time) time.Time {
 	return aggregateTS
 }
 
-func (t *ProducerTasker) ConstAggregateDeleteFrame() time.Duration {
-	return aggregateDeleteFrame
-}
-
 func AvmOutputsAggregateCursor(ctx context.Context, sess *dbr.Session, aggregateTS time.Time) (*sql.Rows, error) {
 	rows, err := sess.
 		Select(aggregateColumns...).
@@ -353,6 +345,10 @@ func AvmOutputsAggregateCursor(ctx context.Context, sess *dbr.Session, aggregate
 		Where("avm_outputs.created_at >= ?", aggregateTS).
 		RowsContext(ctx)
 	return rows, err
+}
+
+func (t *ProducerTasker) Start() {
+	go initRefreshAggregatesTick(t)
 }
 
 func initRefreshAggregatesTick(t *ProducerTasker) {

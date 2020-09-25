@@ -9,7 +9,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-type AvmAggregateModel struct {
+type AvmAggregate struct {
 	AggregateTS       time.Time `json:"aggregateTS"`
 	AssetId           string    `json:"assetId"`
 	TransactionVolume string    `json:"transactionVolume"`
@@ -29,6 +29,12 @@ type AvmAggregateCount struct {
 	UtxoCount        uint64
 }
 
+type AvmAssetAggregateState struct {
+	ID               uint64    `json:"id"`
+	CreatedAt        time.Time `json:"createdAt"`
+	CurrentCreatedAt time.Time `json:"currentCreatedAt"`
+}
+
 func PurgeOldAvmAssetAggregation(ctx context.Context, sess *dbr.Session, time time.Time) (sql.Result, error) {
 	return sess.
 		DeleteFrom("avm_asset_aggregation").
@@ -36,17 +42,17 @@ func PurgeOldAvmAssetAggregation(ctx context.Context, sess *dbr.Session, time ti
 		ExecContext(ctx)
 }
 
-func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmAggregateModel, error) {
-	avmAggregateModels := make([]*AvmAggregateModel, 0, 2)
+func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmAggregate, error) {
+	avmAggregates := make([]*AvmAggregate, 0, 2)
 
 	_, err := sess.Select("aggregate_ts", "asset_id", "transaction_volume", "transaction_count", "address_count", "asset_count", "output_count").
 		From("avm_asset_aggregation").
-		LoadContext(ctx, &avmAggregateModels)
+		LoadContext(ctx, &avmAggregates)
 
-	return avmAggregateModels, err
+	return avmAggregates, err
 }
 
-func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregateModel) (sql.Result, error) {
+func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update avm_asset_aggregation "+
 		"set "+
 		" transaction_volume=CONVERT(?,DECIMAL(65)),"+
@@ -64,7 +70,7 @@ func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 		avmAggregate.AssetId)
 }
 
-func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregateModel) (sql.Result, error) {
+func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_aggregation "+
 		"(aggregate_ts,asset_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
 		"values (?,?,CONVERT(?,DECIMAL(65)),?,?,?,?)",
@@ -126,14 +132,8 @@ func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.S
 		ExecContext(ctx)
 }
 
-type AvmAssetAggregateStateModel struct {
-	ID               uint64    `json:"id"`
-	CreatedAt        time.Time `json:"createdAt"`
-	CurrentCreatedAt time.Time `json:"currentCreatedAt"`
-}
-
-func SelectAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, id uint64) (AvmAssetAggregateStateModel, error) {
-	var avmAssetAggregateState AvmAssetAggregateStateModel
+func SelectAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, id uint64) (AvmAssetAggregateState, error) {
+	var avmAssetAggregateState AvmAssetAggregateState
 	err := sess.
 		Select("id", "created_at", "current_created_at").
 		From("avm_asset_aggregation_state").
@@ -142,7 +142,7 @@ func SelectAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, id u
 	return avmAssetAggregateState, err
 }
 
-func UpdateAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmAssetAggregationState AvmAssetAggregateStateModel) (sql.Result, error) {
+func UpdateAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmAssetAggregationState AvmAssetAggregateState) (sql.Result, error) {
 	return sess.
 		Update("avm_asset_aggregation_state").
 		Set("created_at", avmAssetAggregationState.CreatedAt).
@@ -151,7 +151,7 @@ func UpdateAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmA
 		ExecContext(ctx)
 }
 
-func InsertAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmAssetAggregationState AvmAssetAggregateStateModel) (sql.Result, error) {
+func InsertAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmAssetAggregationState AvmAssetAggregateState) (sql.Result, error) {
 	return sess.
 		InsertInto("avm_asset_aggregation_state").
 		Pair("id", avmAssetAggregationState.ID).
