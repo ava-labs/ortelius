@@ -69,7 +69,7 @@ type Output struct {
 
 	RedeemingTransactionID models.StringID `json:"redeemingTransactionID"`
 
-	GropuID uint32 `json:"groupID"`
+	GroupID uint32 `json:"groupID"`
 
 	Score uint64 `json:"-"`
 }
