@@ -172,36 +172,24 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		for _, out := range state.Outs {
 			outputCount++
 
-			xOutNftfxTransferOutput, ok := out.(*nftfx.TransferOutput)
-			if ok {
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutNftfxTransferOutput.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, xOutNftfxTransferOutput.GroupID, xOutNftfxTransferOutput.Payload)
-				continue
-			}
-			xOutNftfxMint, ok := out.(*nftfx.MintOutput)
-			if ok {
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutNftfxMint.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, xOutNftfxMint.GroupID, make([]byte, 0, 1))
-				continue
-			}
-			xOutMintS, ok := out.(*secp256k1fx.MintOutput)
-			if ok {
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMintS.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, 0, make([]byte, 0, 1))
-				continue
-			}
-			xOut, ok := out.(*secp256k1fx.TransferOutput)
-			if !ok {
-				_ = ctx.Job().EventErr("assertion_to_secp256k1fx_transfer_output", errors.New("Output is not a *secp256k1fx.TransferOutput"))
-				continue
-			}
-
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
-
-			amount, err = math.Add64(amount, xOut.Amount())
-			if err != nil {
-				_ = ctx.Job().EventErr("add_to_amount", err)
-				continue
+			switch outtype := out.(type) {
+			case *nftfx.TransferOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
+			case *nftfx.MintOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, outtype.GroupID, make([]byte, 0, 1))
+			case *secp256k1fx.MintOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, 0, make([]byte, 0, 1))
+			case *secp256k1fx.TransferOutput:
+				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
+				amount, err = math.Add64(amount, outtype.Amount())
+				if err != nil {
+					_ = ctx.Job().EventErr("add_to_amount", err)
+				}
+			default:
+				_ = ctx.Job().EventErr("assertion_to_output", errors.New("Output is not known"))
 			}
 		}
 	}
