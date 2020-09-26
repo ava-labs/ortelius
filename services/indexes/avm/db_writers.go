@@ -362,6 +362,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 				Set("locktime", out.Locktime).
 				Set("threshold", out.Threshold).
 				Set("group_id", groupID).
+				Set("payload", payload).
 				Where("avm_outputs.id = ?", outputID.String()).
 				ExecContext(ctx.Ctx()); err != nil {
 				_ = db.stream.EventErr("ingest_output.update", err)
