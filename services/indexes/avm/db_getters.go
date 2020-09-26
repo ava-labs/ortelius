@@ -40,6 +40,8 @@ var (
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
 		"avm_outputs.redeeming_transaction_id",
+		"avm_outputs.group_id",
+		"avm_outputs.payload",
 	}
 )
 

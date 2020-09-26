@@ -172,16 +172,22 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		for _, out := range state.Outs {
 			outputCount++
 
-			xOutMint, ok := out.(*nftfx.MintOutput)
+			xOutNftfxTransferOutput, ok := out.(*nftfx.TransferOutput)
 			if ok {
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMint.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, xOutMint.GroupID)
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutNftfxTransferOutput.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, xOutNftfxTransferOutput.GroupID, xOutNftfxTransferOutput.Payload)
+				continue
+			}
+			xOutNftfxMint, ok := out.(*nftfx.MintOutput)
+			if ok {
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutNftfxMint.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, xOutNftfxMint.GroupID, make([]byte, 0, 1))
 				continue
 			}
 			xOutMintS, ok := out.(*secp256k1fx.MintOutput)
 			if ok {
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: xOutMintS.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, 0)
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Mint, 0, make([]byte, 0, 1))
 				continue
 			}
 			xOut, ok := out.(*secp256k1fx.TransferOutput)
@@ -190,7 +196,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				continue
 			}
 
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Transfer, 0)
+			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
 
 			amount, err = math.Add64(amount, xOut.Amount())
 			if err != nil {
@@ -269,7 +275,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		}, false, OutputTypesSECP2556K1Transfer, 0)
+		}, false, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -329,12 +335,12 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType, groupID uint32) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType, groupID uint32, payload []byte) {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -351,6 +357,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
 		Pair("group_id", groupID).
+		Pair("payload", payload).
 		ExecContext(ctx.Ctx())
 
 	if err != nil {
