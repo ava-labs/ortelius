@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	KeyID               = "id"
-	KeyAddress          = "address"
-	KeyAssetID          = "assetID"
-	KeySearchQuery      = "query"
-	KeySortBy           = "sort"
-	KeyLimit            = "limit"
-	KeyOffset           = "offset"
-	KeySpent            = "spent"
-	KeyStartTime        = "startTime"
-	KeyEndTime          = "endTime"
-	KeyIntervalSize     = "intervalSize"
-	KeyDisableCount     = "disableCount"
-	KeyAggregateVersion = "aggregateVersion"
+	KeyID           = "id"
+	KeyAddress      = "address"
+	KeyAssetID      = "assetID"
+	KeySearchQuery  = "query"
+	KeySortBy       = "sort"
+	KeyLimit        = "limit"
+	KeyOffset       = "offset"
+	KeySpent        = "spent"
+	KeyStartTime    = "startTime"
+	KeyEndTime      = "endTime"
+	KeyIntervalSize = "intervalSize"
+	KeyDisableCount = "disableCount"
+	KeyVersion      = "version"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
