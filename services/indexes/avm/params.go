@@ -103,6 +103,7 @@ func (p *AggregateParams) CacheKey() []string {
 		params.CacheKey(params.KeyStartTime, params.RoundTime(p.StartTime, time.Hour).Unix()),
 		params.CacheKey(params.KeyEndTime, params.RoundTime(p.EndTime, time.Hour).Unix()),
 		params.CacheKey(params.KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+		params.CacheKey(params.KeyAggregateVersion, int64(p.Version)),
 	)
 
 	return k
@@ -302,6 +303,7 @@ type ListAddressesParams struct {
 	params.ListParams
 	Address *ids.ShortID
 	Query   string
+	Version int
 }
 
 func (p *ListAddressesParams) ForValues(q url.Values) error {
@@ -323,6 +325,11 @@ func (p *ListAddressesParams) ForValues(q url.Values) error {
 		p.Address = &addr
 	}
 
+	p.Version = params.GetQueryVersion(q, params.KeyAggregateVersion)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -332,6 +339,8 @@ func (p *ListAddressesParams) CacheKey() []string {
 	if p.Address != nil {
 		k = append(k, params.CacheKey(params.KeyAddress, p.Address.String()))
 	}
+
+	k = append(k, params.CacheKey(params.KeyAggregateVersion, int64(p.Version)))
 
 	return k
 }
