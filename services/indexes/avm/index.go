@@ -6,7 +6,7 @@ package avm
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/ortelius/services/indexes/params"
+	"math"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/database/nodb"
@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 var (
@@ -76,7 +77,7 @@ func (i *Index) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err = platformvm.Codec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+	if err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
 		return err
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -253,6 +254,9 @@ func newAVM(chainID ids.ID, networkID uint32) (*avm.VM, error) {
 	if err != nil && err != database.ErrClosed {
 		return nil, err
 	}
+
+	vm.Codec().SetMaxSize(math.MaxUint32)
+	vm.Codec().SetMaxSliceLen(math.MaxUint32)
 
 	return vm, nil
 }

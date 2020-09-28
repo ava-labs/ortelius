@@ -1,11 +1,11 @@
 {
-  "networkID": 4,
+  "networkID": 1,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
-    "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC": {
-      "id": "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
+    "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM": {
+      "id": "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
       "alias": "X",
       "vmType": "avm"
     }
@@ -23,7 +23,7 @@
       "addr": "redis:6379"
     },
     "db": {
-      "dsn": "root:password@tcp(mysql:3306)/ortelius_dev",
+      "dsn": "root:password@tcp(mysql:3306)/ortelius",
       "driver": "mysql"
     }
   }

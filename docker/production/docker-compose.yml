@@ -1,23 +1,11 @@
 version: '3.5'
 volumes:
-  zookeeper-data:
-    name: ortelius_zookeeper_data
-  zookeeper-log:
-    name: ortelius_zookeeper_logs
-  kafka-data:
-    name: ortelius_kafka
-  redis-data:
-    name: ortelius_redis
-  mysql-data:
-    name: ortelius_mysql
-networks:
-  default:
-    name: ortelius_services
+  avalanche-ipcs:
 services:
   mysql:
     image: mysql:8.0
     volumes:
-      - mysql-data:/var/lib/mysql
+      - /var/lib/ortelius/mysql:/var/lib/mysql
     ports:
       - "3306:3306"
     environment:
@@ -41,8 +29,6 @@ services:
     command: redis-server
     ports:
       - "6379:6379"
-    volumes:
-      - redis-data:/var/lib/redis
     restart: on-failure
   zookeeper:
     image: confluentinc/cp-zookeeper:5.0.0
@@ -53,8 +39,8 @@ services:
       - ZOOKEEPER_CLIENT_PORT=2181
       - ZOOKEEPER_SERVERS=zookeeper:4182:5181
     volumes:
-      - zookeeper-data:/var/lib/zookeeper/data/
-      - zookeeper-log:/var/lib/zookeeper/log/
+      - /var/lib/ortelius/zookeeper/data:/var/lib/zookeeper/data/
+      - /var/lib/ortelius/zookeeper/logs:/var/lib/zookeeper/log/
     healthcheck:
       test: /bin/sh -c '[ \"imok\" = \"$$(echo ruok | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
       interval: 1m
@@ -67,7 +53,7 @@ services:
       - "9092:9092"
       - "29092:29092"
     volumes:
-      - kafka-data:/var/lib/kafka/data/
+      - /var/lib/ortelius/kafka:/var/lib/kafka/data/
     restart: on-failure
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -101,3 +87,40 @@ services:
       KAFKA_LOG_ROLL_HOURS: 24
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
+  avalanche:
+    image: "avaplatform/avalanchego:23642a8d"
+    command: [
+      "./build/avalanchego",
+      "-network-id=1",
+      "-db-dir=/var/lib/avalanche",
+      "-log-level=info",
+      "-http-host=0.0.0.0",
+      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
+    ]
+    ports:
+      - "9650:9650"
+    volumes:
+      - /var/lib/ortelius/avalanche:/var/lib/avalanche
+      - avalanche-ipcs:/tmp
+    depends_on:
+      - producer
+    restart: always
+  producer: &ortelius-app
+    image: "avaplatform/ortelius:516bb13"
+    command: ["stream", "producer", "-c", "/opt/config.json"]
+    external_links:
+      - zookeeper
+      - kafka
+      - mysql
+      - redis
+    volumes:
+      - avalanche-ipcs:/tmp
+    restart: on-failure
+  indexer:
+    <<: *ortelius-app
+    command: ["stream", "indexer", "-c", "/opt/config.json"]
+  api:
+    <<: *ortelius-app
+    command: ["api", "-c", "/opt/config.json"]
+    ports:
+      - 8080:8080
