@@ -21,6 +21,14 @@ func GetQueryInt(q url.Values, key string, defaultVal int) (val int, err error) 
 	return defaultVal, err
 }
 
+func GetQueryBool(q url.Values, key string, defaultVal bool) (val bool, err error) {
+	strs := q[key]
+	if len(strs) >= 1 {
+		return strconv.ParseBool(strs[0])
+	}
+	return defaultVal, err
+}
+
 func GetQueryString(q url.Values, key string, defaultVal string) string {
 	strs := q[key]
 	if len(strs) >= 1 {
