@@ -628,7 +628,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*AddressInfo, Version int) error {
+func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*AddressInfo, version int) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -649,7 +649,7 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 		AssetInfo
 	}{}
 
-	switch Version {
+	switch version {
 	case 1:
 		_, err := dbRunner.
 			Select(
