@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 var (
@@ -126,7 +127,7 @@ func (i *Index) ListTransactions(ctx context.Context, params *ListTransactionsPa
 }
 
 func (i *Index) GetTransaction(ctx context.Context, id ids.ID) (*Transaction, error) {
-	txList, err := i.db.ListTransactions(ctx, &ListTransactionsParams{ID: &id})
+	txList, err := i.db.ListTransactions(ctx, &ListTransactionsParams{ListParams: params.ListParams{DisableCounting: true}, ID: &id})
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +150,7 @@ func (i *Index) GetAsset(ctx context.Context, idStrOrAlias string) (*Asset, erro
 	} else {
 		params.Alias = idStrOrAlias
 	}
+	params.DisableCounting = true
 
 	assetList, err := i.db.ListAssets(ctx, params)
 	if err != nil {
@@ -165,7 +167,7 @@ func (i *Index) ListAddresses(ctx context.Context, params *ListAddressesParams) 
 }
 
 func (i *Index) GetAddress(ctx context.Context, id ids.ShortID) (*AddressInfo, error) {
-	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{Address: &id})
+	addressList, err := i.db.ListAddresses(ctx, &ListAddressesParams{ListParams: params.ListParams{DisableCounting: true}, Address: &id})
 	if err != nil {
 		return nil, err
 	}

@@ -190,6 +190,11 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	return k
 }
 
+// true if we will need to left join
+func (p *ListTransactionsParams) NeedsDistinct() bool {
+	return len(p.Addresses) > 0 || p.AssetID != nil
+}
+
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.Apply(b)
 
@@ -201,7 +206,7 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	needOutputsJoin := len(p.Addresses) > 0 || p.AssetID != nil
 	if needOutputsJoin {
-		b = b.LeftJoin("avm_outputs", "avm_outputs.transaction_id = avm_transactions.id")
+		b = b.LeftJoin("avm_outputs", "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id)")
 	}
 
 	if len(p.Addresses) > 0 {

@@ -24,6 +24,7 @@ const (
 	KeyStartTime    = "startTime"
 	KeyEndTime      = "endTime"
 	KeyIntervalSize = "intervalSize"
+	KeyDisableCount = "disableCount"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
@@ -75,6 +76,7 @@ func RoundTime(t time.Time, precision time.Duration) time.Time {
 type ListParams struct {
 	Limit  int
 	Offset int
+	DisableCounting bool
 }
 
 func (p *ListParams) ForValues(q url.Values) (err error) {
@@ -86,6 +88,10 @@ func (p *ListParams) ForValues(q url.Values) (err error) {
 	if err != nil {
 		return err
 	}
+	p.DisableCounting, err = GetQueryBool(q, KeyDisableCount, false)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -93,6 +99,9 @@ func (p *ListParams) CacheKey() []string {
 	return []string{
 		CacheKey(KeyLimit, p.Limit),
 		CacheKey(KeyOffset, p.Offset),
+
+		// inject the DisableCount to the key..  Makes sure cache hits will return answer matching request
+		CacheKey(KeyDisableCount, p.DisableCounting),
 	}
 }
 
