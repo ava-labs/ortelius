@@ -6,7 +6,6 @@ package avm
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -285,7 +284,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 			}
 
 			db.ingestAddressFromPublicKey(ctx, publicKey)
-			db.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:], ctx.Time())
+			db.ingestOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 		}
 	}
 
@@ -382,7 +381,7 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		db.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil, ctx.Time())
+		db.ingestOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil)
 	}
 }
 
@@ -398,7 +397,7 @@ func (db *DB) ingestAddressFromPublicKey(ctx services.ConsumerCtx, publicKey cry
 	}
 }
 
-func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte, createdAT time.Time) {
+func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) {
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).
