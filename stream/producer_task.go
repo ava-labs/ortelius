@@ -172,12 +172,12 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 	var rows *sql.Rows
 	rows, err = t.avmOutputsCursor(ctx, sess, aggregateTS)
 	if err != nil {
-		t.log.Error("error query %s", err.Error())
+		t.log.Error("error query %s", err)
 		return time.Time{}, err
 	}
 	if rows.Err() != nil {
-		t.log.Error("error query %s", err.Error())
-		return time.Time{}, err
+		t.log.Error("error query %s", rows.Err())
+		return time.Time{}, rows.Err()
 	}
 
 	for ok := rows.Next(); ok; ok = rows.Next() {
@@ -190,7 +190,7 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 			&avmAggregate.AssetCount,
 			&avmAggregate.OutputCount)
 		if err != nil {
-			t.log.Error("row fetch %s", err.Error())
+			t.log.Error("row fetch %s", err)
 			return time.Time{}, err
 		}
 
@@ -202,7 +202,7 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 
 		err = t.replaceAvmAggregate(ctx, sess, avmAggregate)
 		if err != nil {
-			t.log.Error("replace avm aggregate %s", err.Error())
+			t.log.Error("replace avm aggregate %s", err)
 			return time.Time{}, err
 		}
 	}
@@ -234,12 +234,12 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 		RowsContext(ctx)
 	if err != nil {
-		t.log.Error("error query %s", err.Error())
+		t.log.Error("error query %s", err)
 		return err
 	}
 	if rows.Err() != nil {
-		t.log.Error("error query %s", err.Error())
-		return err
+		t.log.Error("error query %s", rows.Err())
+		return rows.Err()
 	}
 
 	for ok := rows.Next(); ok; ok = rows.Next() {
@@ -252,13 +252,13 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 			&avmAggregateCount.Balance,
 			&avmAggregateCount.UtxoCount)
 		if err != nil {
-			t.log.Error("row fetch %s", err.Error())
+			t.log.Error("row fetch %s", err)
 			return err
 		}
 
 		err = t.replaceAvmAggregateCount(ctx, sess, avmAggregateCount)
 		if err != nil {
-			t.log.Error("replace avm aggregate count %s", err.Error())
+			t.log.Error("replace avm aggregate count %s", err)
 			return err
 		}
 	}
