@@ -12,7 +12,14 @@ import (
 var (
 	VMName = "avm"
 
+	// OutputTypesSECP2556K1Transfer = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#secp256k1-transfer-output
 	OutputTypesSECP2556K1Transfer OutputType = 7
+	// OutputTypesSECP2556K1Mint = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#secp256k1-mint-output
+	OutputTypesSECP2556K1Mint OutputType = 6
+	// OutputTypesNFTMint = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#nft-mint-output
+	OutputTypesNFTMint OutputType = 10
+	// OutputTypesNFTTransferOutput = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#nft-transfer-output
+	OutputTypesNFTTransferOutput OutputType = 11
 
 	TXTypeBase        TransactionType = "base"
 	TXTypeCreateAsset TransactionType = "create_asset"
@@ -67,6 +74,10 @@ type Output struct {
 	CreatedAt     time.Time        `json:"timestamp"`
 
 	RedeemingTransactionID models.StringID `json:"redeemingTransactionID"`
+
+	GroupID uint32 `json:"groupID"`
+
+	Payload []byte `json:"payload"`
 
 	Score uint64 `json:"-"`
 }

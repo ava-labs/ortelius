@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
@@ -72,7 +73,7 @@ func (db *DB) bootstrap(ctx context.Context, genesisBytes []byte, timestamp int6
 		if err != nil {
 			return err
 		}
-		err = db.ingestCreateAssetTx(cCtx, txBytes, &tx.CreateAssetTx, tx.Alias)
+		err = db.ingestCreateAssetTx(cCtx, txBytes, &tx.CreateAssetTx, tx.Alias, true)
 		if err != nil {
 			return err
 		}
@@ -135,9 +136,9 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Finish processing with a type-specific ingestion routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.GenesisAsset:
-		return db.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias)
+		return db.ingestCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias, false)
 	case *avm.CreateAssetTx:
-		return db.ingestCreateAssetTx(ctx, txBytes, castTx, "")
+		return db.ingestCreateAssetTx(ctx, txBytes, castTx, "", false)
 	case *avm.OperationTx:
 		// 	db.ingestOperationTx(ctx, tx)
 	case *avm.ImportTx:
@@ -152,12 +153,18 @@ func (db *DB) ingestTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	return nil
 }
 
-func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string) error {
-	wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
-	if err != nil {
-		return err
+func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string, bootstrap bool) error {
+	var err error
+	var txID ids.ID
+	if bootstrap {
+		wrappedTxBytes, err := db.vm.Codec().Marshal(&avm.Tx{UnsignedTx: tx})
+		if err != nil {
+			return err
+		}
+		txID = ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
+	} else {
+		txID = tx.ID()
 	}
-	txID := ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
 
 	var outputCount uint32
 	var amount uint64
@@ -165,18 +172,24 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		for _, out := range state.Outs {
 			outputCount++
 
-			xOut, ok := out.(*secp256k1fx.TransferOutput)
-			if !ok {
-				_ = ctx.Job().EventErr("assertion_to_secp256k1fx_transfer_output", errors.New("Output is not a *secp256k1fx.TransferOutput"))
-				continue
-			}
-
-			db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true)
-
-			amount, err = math.Add64(amount, xOut.Amount())
-			if err != nil {
-				_ = ctx.Job().EventErr("add_to_amount", err)
-				continue
+			switch outtype := out.(type) {
+			case *nftfx.TransferOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
+			case *nftfx.MintOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, outtype.GroupID, make([]byte, 0, 1))
+			case *secp256k1fx.MintOutput:
+				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, 0, make([]byte, 0, 1))
+			case *secp256k1fx.TransferOutput:
+				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
+				amount, err = math.Add64(amount, outtype.Amount())
+				if err != nil {
+					_ = ctx.Job().EventErr("add_to_amount", err)
+				}
+			default:
+				_ = ctx.Job().EventErr("assertion_to_output", errors.New("Output is not known"))
 			}
 		}
 	}
@@ -250,7 +263,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		}, false)
+		}, false, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -310,12 +323,12 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true)
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
 	}
 	return nil
 }
 
-func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool) {
+func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType OutputType, groupID uint32, payload []byte) {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -326,11 +339,13 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 		Pair("transaction_id", txID.String()).
 		Pair("output_index", idx).
 		Pair("asset_id", assetID.String()).
-		Pair("output_type", OutputTypesSECP2556K1Transfer).
+		Pair("output_type", outputType).
 		Pair("amount", out.Amount()).
 		Pair("created_at", ctx.Time()).
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
+		Pair("group_id", groupID).
+		Pair("payload", payload).
 		ExecContext(ctx.Ctx())
 
 	if err != nil {
@@ -342,10 +357,12 @@ func (db *DB) ingestOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, as
 			if _, err = ctx.DB().
 				Update("avm_outputs").
 				Set("chain_id", db.chainID).
-				Set("output_type", OutputTypesSECP2556K1Transfer).
+				Set("output_type", outputType).
 				Set("amount", out.Amount()).
 				Set("locktime", out.Locktime).
 				Set("threshold", out.Threshold).
+				Set("group_id", groupID).
+				Set("payload", payload).
 				Where("avm_outputs.id = ?", outputID.String()).
 				ExecContext(ctx.Ctx()); err != nil {
 				_ = db.stream.EventErr("ingest_output.update", err)

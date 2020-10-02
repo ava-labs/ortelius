@@ -40,6 +40,8 @@ var (
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
 		"avm_outputs.redeeming_transaction_id",
+		"avm_outputs.group_id",
+		"avm_outputs.payload",
 	}
 )
 
@@ -743,6 +745,7 @@ func outputSelector(dbRunner dbr.SessionRunner, chainID string) *dbr.SelectBuild
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
 		"avm_outputs.redeeming_transaction_id",
+		"avm_outputs.group_id",
 		"avm_output_addresses.output_id AS output_id",
 		"avm_output_addresses.address AS address",
 		"avm_output_addresses.redeeming_signature AS signature",
