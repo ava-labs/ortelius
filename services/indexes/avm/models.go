@@ -12,14 +12,14 @@ import (
 var (
 	VMName = "avm"
 
-	// OutputTypesSECP2556K1Transfer = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#secp256k1-transfer-output
+	// Create types for transactions and outputs as defined by the spec, which
+	// is documented at:
+	// https://docs.avax.network/v1.0/en/references/avm-transaction-serialization
+
 	OutputTypesSECP2556K1Transfer OutputType = 7
-	// OutputTypesSECP2556K1Mint = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#secp256k1-mint-output
-	OutputTypesSECP2556K1Mint OutputType = 6
-	// OutputTypesNFTMint = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#nft-mint-output
-	OutputTypesNFTMint OutputType = 10
-	// OutputTypesNFTTransferOutput = https://docs.avax.network/v1.0/en/references/avm-transaction-serialization/#nft-transfer-output
-	OutputTypesNFTTransferOutput OutputType = 11
+	OutputTypesSECP2556K1Mint     OutputType = 6
+	OutputTypesNFTMint            OutputType = 10
+	OutputTypesNFTTransferOutput  OutputType = 11
 
 	TXTypeBase        TransactionType = "base"
 	TXTypeCreateAsset TransactionType = "create_asset"
