@@ -139,13 +139,14 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	}
 
 	aggregateTS := computeAndRoundCurrentAggregateTS(liveAggregationState.CurrentCreatedAt)
+	baseAggregateTS := aggregateTS
 
-	aggregateTS, err = t.processAvmOutputs(ctx, sess, aggregateTS)
+	aggregateTS, err = t.processAvmOutputs(ctx, sess, baseAggregateTS)
 	if err != nil {
 		return err
 	}
 
-	err = t.processAvmOutputAddressesCounts(ctx, sess, aggregateTS)
+	err = t.processAvmOutputAddressesCounts(ctx, sess, baseAggregateTS)
 	if err != nil {
 		return err
 	}
