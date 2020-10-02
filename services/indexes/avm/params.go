@@ -190,6 +190,11 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	return k
 }
 
+// true if we will need to left join
+func (p *ListTransactionsParams) NeedsDistinct() bool {
+	return len(p.Addresses) > 0 || p.AssetID != nil
+}
+
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.Apply(b)
 
