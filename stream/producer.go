@@ -24,10 +24,6 @@ type Producer struct {
 // NewProducer creates a producer using the given config
 func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType, log *logging.Log) (*Producer, error) {
 	var err error
-	err = initializeProducerTasker(conf, log)
-	if err != nil {
-		return nil, err
-	}
 
 	p := &Producer{
 		chainID:     chainID,

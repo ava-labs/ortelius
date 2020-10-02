@@ -37,6 +37,11 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 			}
 		)
 
+		err = initializeConsumerTasker(conf, log)
+		if err != nil {
+			return nil, err
+		}
+
 		// Create consumer backend
 		c.consumer, err = factory(conf, networkID, chainVM, chainID)
 		if err != nil {
