@@ -94,22 +94,22 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	// created at and current created at set to time(0), so the first run will re-build aggregates for the entire db.
 	_, _ = models.InsertAvmAssetAggregationState(ctx, sess,
 		models.AvmAssetAggregateState{
-			ID:               params.StateLiveId,
+			ID:               params.StateLiveID,
 			CreatedAt:        time.Unix(1, 0),
 			CurrentCreatedAt: time.Unix(1, 0)},
 	)
 
-	liveAggregationState, err = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveId)
+	liveAggregationState, err = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
 	// this is really bad, the state live row was not created..  we cannot proceed safely.
-	if liveAggregationState.ID != params.StateLiveId {
+	if liveAggregationState.ID != params.StateLiveID {
 		t.log.Error("unable to find live state")
 		return err
 	}
 
 	// check if the backup row exists, if found we crashed from a previous run.
-	backupAggregateState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupId)
+	backupAggregateState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupID)
 
-	if backupAggregateState.ID == uint64(params.StateBackupId) {
+	if backupAggregateState.ID == uint64(params.StateBackupID) {
 		// re-process from backup row..
 		liveAggregationState = backupAggregateState
 	} else {
@@ -121,16 +121,16 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		updatedCurrentCreated := t.timeStampProducer().Add(additionalHours)
 		_, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
 			"set current_created_at=created_at, created_at=? "+
-			"where id=?", updatedCurrentCreated, params.StateLiveId)
+			"where id=?", updatedCurrentCreated, params.StateLiveID)
 		if err != nil {
 			t.log.Error("atomic swap %s", err.Error())
 			return err
 		}
 
 		// reload the live state
-		liveAggregationState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveId)
+		liveAggregationState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
 		// this is really bad, the state live row was not created..  we cannot proceed safely.
-		if liveAggregationState.ID != params.StateLiveId {
+		if liveAggregationState.ID != params.StateLiveID {
 			t.log.Error("unable to reload live state")
 			return err
 		}
@@ -156,7 +156,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	// if things go really bad, then when the process restarts the row will be re-selected and deleted then..
 	_, _ = sess.
 		DeleteFrom("avm_asset_aggregation_state").
-		Where("id = ? and current_created_at = ?", params.StateBackupId, backupAggregateState.CurrentCreatedAt).
+		Where("id = ? and current_created_at = ?", params.StateBackupID, backupAggregateState.CurrentCreatedAt).
 		ExecContext(ctx)
 
 	// delete aggregate data before aggregateDeleteFrame
@@ -183,7 +183,7 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 	for ok := rows.Next(); ok; ok = rows.Next() {
 		var avmAggregate models.AvmAggregate
 		err = rows.Scan(&avmAggregate.AggregateTS,
-			&avmAggregate.AssetId,
+			&avmAggregate.AssetID,
 			&avmAggregate.TransactionVolume,
 			&avmAggregate.TransactionCount,
 			&avmAggregate.AddressCount,
@@ -268,7 +268,7 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
 	// setup the backup as a copy of the live state.
 	backupAggregateState := liveAggregationState
-	backupAggregateState.ID = params.StateBackupId
+	backupAggregateState.ID = params.StateBackupID
 
 	var err error
 	// id=stateBackupId backup row - for crash recovery

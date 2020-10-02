@@ -44,7 +44,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 
 	var avmAggregate AvmAggregate
 	avmAggregate.AggregateTS = time.Now()
-	avmAggregate.AssetId = "as1"
+	avmAggregate.AssetID = "as1"
 	avmAggregate.TransactionVolume = "1"
 	avmAggregate.TransactionCount = 1
 	avmAggregate.AddressCount = 1
@@ -61,7 +61,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	}
 
 	for _, aggregateMapValue := range avmAggregateCounts {
-		if aggregateMapValue.AssetId != "as1" &&
+		if aggregateMapValue.AssetID != "as1" &&
 			aggregateMapValue.TransactionVolume != "1" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 1 {
@@ -84,7 +84,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	}
 
 	for _, aggregateMapValue := range avmAggregateCounts {
-		if aggregateMapValue.AssetId != "as1" &&
+		if aggregateMapValue.AssetID != "as1" &&
 			aggregateMapValue.TransactionVolume != "2" &&
 			aggregateMapValue.TransactionCount != 2 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -110,7 +110,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	job := co.Stream().NewJob("model_aggregation_test")
 	sess := co.DB().NewSession(job)
 
-	sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
 	var avmAggregate AvmAggregateCount
 	avmAggregate.Address = "ad1"

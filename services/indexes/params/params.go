@@ -58,8 +58,8 @@ var (
 )
 
 const (
-	StateLiveId   = 1
-	StateBackupId = 2
+	StateLiveID   = 1
+	StateBackupID = 2
 )
 
 type Param interface {

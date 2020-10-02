@@ -11,7 +11,7 @@ import (
 
 type AvmAggregate struct {
 	AggregateTS       time.Time `json:"aggregateTS"`
-	AssetId           string    `json:"assetId"`
+	AssetID           string    `json:"assetId"`
 	TransactionVolume string    `json:"transactionVolume"`
 	TransactionCount  uint64    `json:"transactionCount"`
 	AddressCount      uint64    `json:"addresCount"`
@@ -67,7 +67,7 @@ func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 		avmAggregate.OutputCount,
 		avmAggregate.AssetCount,
 		avmAggregate.AggregateTS,
-		avmAggregate.AssetId)
+		avmAggregate.AssetID)
 }
 
 func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
@@ -75,7 +75,7 @@ func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 		"(aggregate_ts,asset_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
 		"values (?,?,CONVERT(?,DECIMAL(65)),?,?,?,?)",
 		avmAggregate.AggregateTS,
-		avmAggregate.AssetId,
+		avmAggregate.AssetID,
 		avmAggregate.TransactionVolume,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
@@ -128,7 +128,7 @@ func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.S
 	return sess.
 		Update("avm_asset_aggregation_state").
 		Set("created_at", time).
-		Where("id = ? and created_at > ?", params.StateLiveId, time).
+		Where("id = ? and created_at > ?", params.StateLiveID, time).
 		ExecContext(ctx)
 }
 

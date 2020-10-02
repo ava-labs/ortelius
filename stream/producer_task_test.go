@@ -58,8 +58,8 @@ func TestIntegration(t *testing.T) {
 	sess := co.DB().NewSession(job)
 
 	// cleanup for run.
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupId)
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveId)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveID)
 	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
@@ -99,7 +99,7 @@ func TestIntegration(t *testing.T) {
 
 	avmAggregate := models.AvmAggregate{}
 	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
-	avmAggregate.AssetId = "futureasset"
+	avmAggregate.AssetID = "futureasset"
 	_, _ = models.InsertAvmAssetAggregation(ctx, sess, avmAggregate)
 
 	err = tasker.RefreshAggregates()
@@ -107,9 +107,9 @@ func TestIntegration(t *testing.T) {
 		t.Errorf("refresh failed %s", err.Error())
 	}
 
-	backupAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupId)
-	liveAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveId)
-	if liveAggregationState.ID != params.StateLiveId {
+	backupAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupID)
+	liveAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
+	if liveAggregationState.ID != params.StateLiveID {
 		t.Errorf("state live not created")
 	}
 	if !liveAggregationState.CreatedAt.Equal(timenow.Add(additionalHours)) {
@@ -130,7 +130,7 @@ func TestIntegration(t *testing.T) {
 	avmAggregateModels, _ := models.SelectAvmAssetAggregations(ctx, sess)
 
 	for _, aggregateMapValue := range avmAggregateModels {
-		if aggregateMapValue.AssetId != "testasset" &&
+		if aggregateMapValue.AssetID != "testasset" &&
 			aggregateMapValue.TransactionVolume != "200" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -174,24 +174,24 @@ func TestHandleBackupState(t *testing.T) {
 	sess := co.DB().NewSession(job)
 
 	// cleanup for run.
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupId)
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveId)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveID)
 
 	timeNow := time.Now().Round(1 * time.Minute)
 
 	_, _ = models.InsertAvmAssetAggregationState(ctx, sess, models.AvmAssetAggregateState{
-		ID:               params.StateBackupId,
+		ID:               params.StateBackupID,
 		CreatedAt:        timeNow,
 		CurrentCreatedAt: timeNow})
 
 	state := models.AvmAssetAggregateState{
-		ID:               params.StateLiveId,
+		ID:               params.StateLiveID,
 		CreatedAt:        time.Unix(1, 0),
 		CurrentCreatedAt: time.Unix(1, 0)}
 
 	var producerTask ProducerTasker
 	backupState, _ := producerTask.handleBackupState(ctx, sess, state)
-	if backupState.ID != params.StateBackupId {
+	if backupState.ID != params.StateBackupID {
 		t.Fatal("invalid state")
 	}
 
