@@ -178,12 +178,12 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
 			case *nftfx.MintOutput:
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, outtype.GroupID, make([]byte, 0, 1))
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, outtype.GroupID, nil)
 			case *secp256k1fx.MintOutput:
 				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, 0, make([]byte, 0, 1))
+				db.ingestOutput(ctx, txID, outputCount-1, txID, xOut, true, OutputTypesNFTMint, 0, nil)
 			case *secp256k1fx.TransferOutput:
-				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
+				db.ingestOutput(ctx, txID, outputCount-1, txID, outtype, true, OutputTypesSECP2556K1Transfer, 0, nil)
 				amount, err = math.Add64(amount, outtype.Amount())
 				if err != nil {
 					_ = ctx.Job().EventErr("add_to_amount", err)
@@ -263,7 +263,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 				// We leave Addrs blank because we ingested them above with their signatures
 				Addrs: []ids.ShortID{},
 			},
-		}, false, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
+		}, false, OutputTypesSECP2556K1Transfer, 0, nil)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -323,7 +323,7 @@ func (db *DB) ingestBaseTx(ctx services.ConsumerCtx, txBytes []byte, uniqueTx *a
 		if !ok {
 			continue
 		}
-		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0, make([]byte, 0, 1))
+		db.ingestOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, OutputTypesSECP2556K1Transfer, 0, nil)
 	}
 	return nil
 }
