@@ -203,6 +203,7 @@ func (db *DB) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *
 		Pair("denomination", tx.Denomination).
 		Pair("alias", alias).
 		Pair("current_supply", amount).
+		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return err
@@ -394,7 +395,8 @@ func (db *DB) ingestOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, add
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).
-		Pair("address", address.String())
+		Pair("address", address.String()).
+		Pair("created_at", ctx.Time())
 
 	if sig != nil {
 		builder = builder.Pair("redeeming_signature", sig)
