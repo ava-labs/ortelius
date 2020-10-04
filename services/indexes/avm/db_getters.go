@@ -143,7 +143,7 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 				intervalSeconds))
 		}
 
-		builder := dbRunner.
+		builder = dbRunner.
 			Select(columns...).
 			From("avm_asset_aggregation").
 			Where("avm_asset_aggregation.aggregate_ts >= ?", params.StartTime).
@@ -169,7 +169,7 @@ func (db *DB) Aggregate(ctx context.Context, params *AggregateParams) (*Aggregat
 				intervalSeconds))
 		}
 
-		builder := dbRunner.
+		builder = dbRunner.
 			Select(columns...).
 			From("avm_outputs").
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
