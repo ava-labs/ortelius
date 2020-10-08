@@ -188,6 +188,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.CreateAssetTx:
 		return w.insertCreateAssetTx(ctx, txBytes, castTx, "", false)
 	case *avm.OperationTx:
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation)
 	case *avm.ImportTx:
 		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport)
 	case *avm.ExportTx:
