@@ -6,6 +6,7 @@ package consumers
 import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/ava-labs/ortelius/stream"
 )
 
@@ -14,8 +15,8 @@ func NewIndexerFactory() stream.ProcessorFactory {
 		switch chainVM {
 		case avm.VMName:
 			indexer, err = avm.NewWriter(conns, networkID, chainID)
-		// case pvm.VMName:
-		// 	indexer, err = pvm.New(conf.Services, networkID, chainID)
+		case pvm.VMName:
+			indexer, err = pvm.NewWriter(conns, networkID)
 		default:
 			return nil, stream.ErrUnknownVM
 		}

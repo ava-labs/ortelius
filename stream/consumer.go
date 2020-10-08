@@ -51,7 +51,7 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 		}
 
 		// Bootstrap our service
-		ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
+		ctx, cancelFn := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancelFn()
 		if err = c.consumer.Bootstrap(ctx); err != nil {
 			return nil, err

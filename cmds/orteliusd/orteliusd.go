@@ -21,6 +21,7 @@ import (
 
 	// Register service plugins
 	_ "github.com/ava-labs/ortelius/services/indexes/avm"
+	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
 )
 
 const (
