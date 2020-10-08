@@ -13,7 +13,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
+	"github.com/gocraft/health"
 
+	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
@@ -28,6 +30,7 @@ var (
 	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
 	ErrSearchQueryTooShort            = errors.New("search query too short")
 )
+
 var (
 	outputSelectColumns = []string{
 		"avm_outputs.id",
@@ -45,7 +48,21 @@ var (
 	}
 )
 
-func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.SearchResults, error) {
+type Reader struct {
+	chainID string
+	stream  *health.Stream
+	db      *services.DB
+}
+
+func NewReader(stream *health.Stream, db *services.DB, chainID string) *Reader {
+	return &Reader{
+		db:      db,
+		stream:  stream,
+		chainID: chainID,
+	}
+}
+
+func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.SearchResults, error) {
 	if len(p.Query) < MinSearchQueryLength {
 		return nil, ErrSearchQueryTooShort
 	}
@@ -53,10 +70,10 @@ func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.Searc
 	// See if the query string is an id or shortID. If so we can search on them
 	// directly. Otherwise we treat the query as a normal query-string.
 	if shortID, err := params.AddressFromString(p.Query); err == nil {
-		return db.searchByShortID(ctx, shortID)
+		return r.searchByShortID(ctx, shortID)
 	}
 	if id, err := ids.FromString(p.Query); err == nil {
-		return db.searchByID(ctx, id)
+		return r.searchByID(ctx, id)
 	}
 
 	// copy the list params, and inject DisableCounting for subsequent List* calls.
@@ -65,7 +82,7 @@ func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.Searc
 
 	// The query string was not an id/shortid so perform a regular search against
 	// all models
-	assets, err := db.ListAssets(ctx, &params.ListAssetsParams{ListParams: cpListParams, Query: p.Query})
+	assets, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +90,7 @@ func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.Searc
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := db.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
+	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +98,7 @@ func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.Searc
 		return collateSearchResults(assets, nil, transactions, nil)
 	}
 
-	addresses, err := db.ListAddresses(ctx, &params.ListAddressesParams{ListParams: cpListParams, Query: p.Query})
+	addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: cpListParams, Query: p.Query})
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +109,11 @@ func (db *DB) Search(ctx context.Context, p *params.SearchParams) (*models.Searc
 	return collateSearchResults(assets, addresses, transactions, nil)
 }
 
-func (db *DB) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
-		params.StartTime, err = db.getFirstTransactionTime(ctx)
+		params.StartTime, err = r.getFirstTransactionTime(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +138,7 @@ func (db *DB) Aggregate(ctx context.Context, params *params.AggregateParams) (*m
 	}
 
 	// Build the query and load the base data
-	dbRunner := db.newSession("get_transaction_aggregates_histogram")
+	dbRunner := r.db.NewSession("get_transaction_aggregates_histogram")
 
 	var builder *dbr.SelectStmt
 
@@ -274,14 +291,14 @@ func (db *DB) Aggregate(ctx context.Context, params *params.AggregateParams) (*m
 	return aggs, nil
 }
 
-func (db *DB) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
-	dbRunner := db.newSession("get_transactions")
+func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
+	dbRunner := r.db.NewSession("get_transactions")
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
 		From("avm_transactions").
-		Where("avm_transactions.chain_id = ?", db.chainID))
+		Where("avm_transactions.chain_id = ?", r.chainID))
 	if p.NeedsDistinct() {
 		builder = builder.Distinct()
 	}
@@ -332,21 +349,21 @@ func (db *DB) ListTransactions(ctx context.Context, p *params.ListTransactionsPa
 	}
 
 	// Add all the addition information we might want
-	if err := db.dressTransactions(ctx, dbRunner, txs); err != nil {
+	if err := r.dressTransactions(ctx, dbRunner, txs); err != nil {
 		return nil, err
 	}
 
 	return &models.TransactionList{models.ListMetadata{count}, txs}, nil
 }
 
-func (db *DB) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner := db.newSession("list_assets")
+func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
+	dbRunner := r.db.NewSession("list_assets")
 
 	assets := []*models.Asset{}
 	_, err := p.Apply(dbRunner.
 		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
 		From("avm_assets").
-		Where("chain_id = ?", db.chainID)).
+		Where("chain_id = ?", r.chainID)).
 		LoadContext(ctx, &assets)
 	if err != nil {
 		return nil, err
@@ -360,7 +377,7 @@ func (db *DB) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*mode
 			err := p.Apply(dbRunner.
 				Select("COUNT(avm_assets.id)").
 				From("avm_assets").
-				Where("chain_id = ?", db.chainID)).
+				Where("chain_id = ?", r.chainID)).
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
@@ -371,8 +388,8 @@ func (db *DB) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*mode
 	return &models.AssetList{models.ListMetadata{count}, assets}, nil
 }
 
-func (db *DB) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner := db.newSession("list_addresses")
+func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
+	dbRunner := r.db.NewSession("list_addresses")
 
 	addresses := []*models.AddressInfo{}
 	_, err := p.Apply(dbRunner.
@@ -400,15 +417,15 @@ func (db *DB) ListAddresses(ctx context.Context, p *params.ListAddressesParams) 
 	}
 
 	// Add all the addition information we might want
-	if err = db.dressAddresses(ctx, dbRunner, addresses, p.Version); err != nil {
+	if err = r.dressAddresses(ctx, dbRunner, addresses, p.Version); err != nil {
 		return nil, err
 	}
 
 	return &models.AddressList{models.ListMetadata{count}, addresses}, nil
 }
 
-func (db *DB) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner := db.newSession("list_transaction_outputs")
+func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
+	dbRunner := r.db.NewSession("list_transaction_outputs")
 
 	outputs := []*models.Output{}
 	_, err := p.Apply(dbRunner.
@@ -470,13 +487,62 @@ func (db *DB) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*mo
 	return &models.OutputList{models.ListMetadata{count}, outputs}, err
 }
 
-//
-// Helpers
-//
+func (r *Reader) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {
+	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id})
+	if err != nil {
+		return nil, err
+	}
+	if len(txList.Transactions) > 0 {
+		return txList.Transactions[0], nil
+	}
+	return nil, nil
+}
 
-func (db *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
+func (r *Reader) GetAsset(ctx context.Context, idStrOrAlias string) (*models.Asset, error) {
+	params := &params.ListAssetsParams{}
+
+	id, err := ids.FromString(idStrOrAlias)
+	if err == nil {
+		params.ID = &id
+	} else {
+		params.Alias = idStrOrAlias
+	}
+
+	assetList, err := r.ListAssets(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(assetList.Assets) > 0 {
+		return assetList.Assets[0], nil
+	}
+	return nil, err
+}
+
+func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.AddressInfo, error) {
+	addressList, err := r.ListAddresses(ctx, &params.ListAddressesParams{Address: &id})
+	if err != nil {
+		return nil, err
+	}
+	if len(addressList.Addresses) > 0 {
+		return addressList.Addresses[0], nil
+	}
+	return nil, err
+}
+
+func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
+	outputList, err := r.ListOutputs(ctx, &params.ListOutputsParams{ID: &id})
+	if err != nil {
+		return nil, err
+	}
+	if len(outputList.Outputs) > 0 {
+		return outputList.Outputs[0], nil
+	}
+	return nil, err
+}
+
+func (r *Reader) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	var ts int64
-	err := db.newSession("get_first_transaction_time").
+	err := r.db.NewSession("get_first_transaction_time").
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions").
 		LoadOneContext(ctx, &ts)
@@ -486,7 +552,7 @@ func (db *DB) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction) error {
+func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -506,7 +572,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	outputs := []*compositeRecord{}
-	_, err := outputSelector(dbRunner, db.chainID).
+	_, err := outputSelector(dbRunner, r.chainID).
 		Where("avm_outputs.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &outputs)
 	if err != nil {
@@ -514,7 +580,7 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	inputs := []*compositeRecord{}
-	_, err = outputSelector(dbRunner, db.chainID).
+	_, err = outputSelector(dbRunner, r.chainID).
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
@@ -624,11 +690,10 @@ func (db *DB) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner,
 			tx.OutputTotals[k] = models.TokenAmount(v.String())
 		}
 	}
-
 	return nil
 }
 
-func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -701,16 +766,16 @@ func (db *DB) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, ad
 	return nil
 }
 
-func (db *DB) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults, error) {
+func (r *Reader) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
-	if assets, err := db.ListAssets(ctx, &params.ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
+	if assets, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(assets.Assets) > 0 {
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := db.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
+	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
@@ -719,10 +784,10 @@ func (db *DB) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults,
 	return &models.SearchResults{}, nil
 }
 
-func (db *DB) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
+func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
-	if addrs, err := db.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
+	if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
 		return collateSearchResults(nil, addrs, nil, nil)

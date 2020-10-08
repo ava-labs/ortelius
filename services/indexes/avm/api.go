@@ -13,15 +13,21 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 const VMName = "avm"
 
+func init() {
+	api.RegisterRouter(VMName, NewAPIRouter, APIContext{})
+}
+
 type APIContext struct {
 	*api.RootRequestContext
 
-	index      *Index
+	reader     *Reader
 	chainID    string
 	chainAlias string
 
@@ -29,25 +35,28 @@ type APIContext struct {
 }
 
 func NewAPIRouter(params api.RouterParams) error {
-	index, err := newForConnections(params.Connections, params.NetworkID, params.ChainConfig.ID)
-	if err != nil {
-		return err
-	}
+	reader := NewReader(
+		params.Connections.Stream(),
+		services.NewDB(params.Connections.Stream(), params.Connections.DB()),
+		params.ChainConfig.ID)
 
 	_, avaxAssetID, err := genesis.Genesis(params.NetworkID)
 	if err != nil {
 		return err
 	}
 
-	overviewHandler, err := newOverviewHandler(index, params.ChainConfig.Alias, avaxAssetID.String())
-	if err != nil {
-		return err
-	}
+	overviewBytes, err := json.Marshal(&models.ChainInfo{
+		VM:          VMName,
+		NetworkID:   params.NetworkID,
+		Alias:       params.ChainConfig.Alias,
+		AVAXAssetID: models.StringID(avaxAssetID.String()),
+		ID:          models.StringID(params.ChainConfig.ID),
+	})
 
 	params.Router.
 		// Setup the context for each request
 		Middleware(func(c *APIContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
-			c.index = index
+			c.reader = reader
 			c.chainID = params.ChainConfig.ID
 			c.chainAlias = params.ChainConfig.Alias
 
@@ -57,7 +66,9 @@ func NewAPIRouter(params api.RouterParams) error {
 		}).
 
 		// General routes
-		Get("/", overviewHandler).
+		Get("/", func(c *APIContext, w web.ResponseWriter, _ *web.Request) {
+			api.WriteJSON(w, overviewBytes)
+		}).
 		Get("/search", (*APIContext).Search).
 		Get("/aggregates", (*APIContext).Aggregate).
 		Get("/transactions/aggregates", (*APIContext).Aggregate). // DEPRECATED
@@ -75,26 +86,6 @@ func NewAPIRouter(params api.RouterParams) error {
 	return nil
 }
 
-//
-// General routes
-//
-
-func newOverviewHandler(i *Index, alias string, avaxAssetID string) (func(c *APIContext, w web.ResponseWriter, _ *web.Request), error) {
-	overview, err := i.GetChainInfo(alias, avaxAssetID)
-	if err != nil {
-		return nil, err
-	}
-
-	overviewBytes, err := json.Marshal(overview)
-	if err != nil {
-		return nil, err
-	}
-
-	return func(c *APIContext, w web.ResponseWriter, _ *web.Request) {
-		api.WriteJSON(w, overviewBytes)
-	}, nil
-}
-
 func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 	p := &params.SearchParams{}
 	if err := p.ForValues(r.URL.Query()); err != nil {
@@ -105,7 +96,7 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("search", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.Search(ctx, p)
+			return c.reader.Search(ctx, p)
 		},
 	})
 }
@@ -120,7 +111,7 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.Aggregate(ctx, p)
+			return c.reader.Aggregate(ctx, p)
 		},
 	})
 }
@@ -136,7 +127,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.ListTransactions(ctx, p)
+			return c.reader.ListTransactions(ctx, p)
 		},
 	})
 }
@@ -152,7 +143,7 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.GetTransaction(ctx, id)
+			return c.reader.GetTransaction(ctx, id)
 		},
 	})
 }
@@ -166,7 +157,7 @@ func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("list_assets", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.ListAssets(ctx, p)
+			return c.reader.ListAssets(ctx, p)
 		},
 	})
 }
@@ -176,7 +167,7 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_address", id),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.GetAsset(ctx, id)
+			return c.reader.GetAsset(ctx, id)
 		},
 	})
 }
@@ -192,7 +183,7 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.ListAddresses(ctx, p)
+			return c.reader.ListAddresses(ctx, p)
 		},
 	})
 }
@@ -208,7 +199,7 @@ func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 		TTL: 1 * time.Second,
 		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.GetAddress(ctx, id)
+			return c.reader.GetAddress(ctx, id)
 		},
 	})
 }
@@ -224,7 +215,7 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_outputs", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.ListOutputs(ctx, p)
+			return c.reader.ListOutputs(ctx, p)
 		},
 	})
 }
@@ -239,7 +230,7 @@ func (c *APIContext) GetOutput(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForID("get_output", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.index.GetOutput(ctx, id)
+			return c.reader.GetOutput(ctx, id)
 		},
 	})
 }
