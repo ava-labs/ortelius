@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ava-labs/avalanche-go/utils/wrappers"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/go-redis/redis/v8"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
