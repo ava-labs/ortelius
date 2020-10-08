@@ -321,7 +321,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{models.ListMetadata{count}, txs}, nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
@@ -353,7 +353,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		}
 	}
 
-	return &models.AssetList{models.ListMetadata{count}, assets}, nil
+	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
@@ -389,7 +389,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		return nil, err
 	}
 
-	return &models.AddressList{models.ListMetadata{count}, addresses}, nil
+	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
@@ -452,7 +452,7 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 		}
 	}
 
-	return &models.OutputList{models.ListMetadata{count}, outputs}, err
+	return &models.OutputList{ListMetadata: models.ListMetadata{Count: count}, Outputs: outputs}, err
 }
 
 func (r *Reader) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {

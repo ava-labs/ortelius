@@ -224,7 +224,7 @@ func (w *Writer) ingestCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 					_ = ctx.Job().EventErr("add_to_amount", err)
 				}
 			default:
-				_ = ctx.Job().EventErr("assertion_to_output", errors.New("Output is not known"))
+				_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 			}
 		}
 	}
