@@ -74,8 +74,8 @@ func RoundTime(t time.Time, precision time.Duration) time.Time {
 // Global params
 //
 type ListParams struct {
-	Limit  int
-	Offset int
+	Limit           int
+	Offset          int
 	DisableCounting bool
 }
 
