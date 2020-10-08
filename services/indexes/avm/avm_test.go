@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -37,7 +39,7 @@ func (m *message) ChainID() string  { return m.chainID.String() }
 func (m *message) Body() []byte     { return m.body }
 func (m *message) Timestamp() int64 { return m.timestamp }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Index, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -55,22 +57,29 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Index, func(
 		},
 	}
 
+	connections, _ := services.NewConnectionsFromConfig(conf)
+
 	// Create index
-	idx, err := New(conf, networkID, chainID.String())
+	idx, _ := NewWriter(connections, networkID, chainID.String())
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
+	sdb := services.NewDB(
+		connections.Stream(),
+		connections.DB(),
+	)
 
-	return idx, func() {
+	reader := NewReader(connections.Stream(), sdb, chainID.String())
+	return idx, reader, func() {
 		s.Close()
-		idx.db.db.Close()
+		idx.db.Close(context.Background())
 	}
 }
 
 func TestIngestInputs(t *testing.T) {
 	chainID, _ := ids.FromString("4ktRjsAKxgMr2aEzv9SWmrU7Xk5FniHUrVCX4P1TZSfTLZWFM")
 
-	idx, closeFn := newTestIndex(t, 2, chainID)
+	idx, reader, closeFn := newTestIndex(t, 2, chainID)
 	defer closeFn()
 
 	tx1 := "00000000000000020887AC3054B78FC778790DF1224E3BC5B4DC16916FDAC23BB13B9AF17B4C06A900000002851C1619FC1F795385801F887D52998633D32FBAF3488A757D47B12AE8A595CA000000070000000000004E20000000000000000000000001000000018DB7D7AC082FA6AC6849543A33787DE24B1A4E3F851C1619FC1F795385801F887D52998633D32FBAF3488A757D47B12AE8A595CA00000007009FDF42F664056000000000000000000000000100000001010FD7648AA1C294C2A637FC19435BD9C8CBDDC5000000019A48B1FC5DC5562DACE4E7DD203825CE8C03A7B1082C82C2E4E80CF26F8806DC00000001851C1619FC1F795385801F887D52998633D32FBAF3488A757D47B12AE8A595CA00000005009FDF42F664538000000001000000000000000100000009000000013AADB2929575970742BCA6D28155E32C7B233B6A2E37C9CFC0A64078A07AE19A38178E4E0A65C32C8D122C21E6DC1983C0D4487191C7DCC9FE63607A2040F3DD01"
@@ -101,7 +110,7 @@ func TestIngestInputs(t *testing.T) {
 		t.Fatal("Failed to index:", err.Error())
 	}
 
-	outputs, err := idx.ListOutputs(ctx, &params.ListOutputsParams{})
+	outputs, err := reader.ListOutputs(ctx, &params.ListOutputsParams{})
 	if err != nil {
 		t.Fatal("Failed to list outputs:", err.Error())
 	}
@@ -123,7 +132,7 @@ func TestIngestInputs(t *testing.T) {
 }
 
 func TestIndexBootstrap(t *testing.T) {
-	idx, closeFn := newTestIndex(t, 12345, testXChainID)
+	idx, _, closeFn := newTestIndex(t, 12345, testXChainID)
 	defer closeFn()
 
 	err := idx.Bootstrap(newTestContext())
@@ -136,7 +145,7 @@ func TestIndexBootstrap(t *testing.T) {
 		createAssetTx = []byte{0, 3, 65, 86, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 65, 86, 65, 0, 3, 65, 86, 65, 9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 159, 223, 66, 246, 228, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}
 	)
 
-	db := idx.db.newSession("test_index_bootstrap")
+	db := idx.db.NewSession("test_index_bootstrap")
 	assertAllTransactionsCorrect(t, db, []models.Transaction{{
 		ID:                     txID,
 		ChainID:                models.ToStringID(testXChainID),
@@ -146,10 +155,10 @@ func TestIndexBootstrap(t *testing.T) {
 }
 
 func TestIndexVectors(t *testing.T) {
-	idx, closeFn := newTestIndex(t, 12345, testXChainID)
+	idx, _, closeFn := newTestIndex(t, 12345, testXChainID)
 	defer closeFn()
 
-	db := idx.db.db.NewSession(nil)
+	db := idx.db.NewSession("index_vectors")
 
 	// Start with nothing
 	assertAllTransactionsCorrect(t, db, nil)

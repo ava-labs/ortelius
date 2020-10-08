@@ -45,7 +45,7 @@ func NewAPIRouter(params api.RouterParams) error {
 		return err
 	}
 
-	overviewBytes, err := json.Marshal(&models.ChainInfo{
+	overviewBytes, _ := json.Marshal(&models.ChainInfo{
 		VM:          VMName,
 		NetworkID:   params.NetworkID,
 		Alias:       params.ChainConfig.Alias,
