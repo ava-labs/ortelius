@@ -54,11 +54,11 @@ type Reader struct {
 	db      *services.DB
 }
 
-func NewReader(stream *health.Stream, db *services.DB, chainID string) *Reader {
+func NewReader(conns *services.Connections, chainID string) *Reader {
 	return &Reader{
-		db:      db,
-		stream:  stream,
 		chainID: chainID,
+		stream:  conns.Stream(),
+		db:      services.NewDB(conns.Stream(), conns.DB()),
 	}
 }
 

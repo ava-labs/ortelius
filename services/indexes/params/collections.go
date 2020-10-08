@@ -11,6 +11,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
+
+	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 const (
@@ -435,6 +437,40 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return b
 }
 
+type ListBlocksParams struct {
+	ListParams
+
+	ID        *ids.ID
+	Types     []models.BlockType
+	StartTime time.Time
+	EndTime   time.Time
+	Sort      BlockSort
+}
+
+type ListValidatorsParams struct {
+	ListParams
+
+	ID           *ids.ID
+	Subnets      []ids.ID
+	Destinations []ids.ShortID
+	StartTime    time.Time
+	EndTime      time.Time
+}
+
+type ListChainsParams struct {
+	ListParams
+
+	ID      *ids.ID
+	Subnets []ids.ID
+	VMID    *ids.ID
+}
+
+type ListSubnetsParams struct {
+	ListParams
+
+	ID *ids.ID
+}
+
 //
 // Sorting
 //
@@ -449,3 +485,5 @@ func toTransactionSort(s string) (TransactionSort, error) {
 	}
 	return TransactionSortDefault, ErrUndefinedSort
 }
+
+type BlockSort string

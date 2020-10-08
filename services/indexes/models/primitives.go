@@ -73,15 +73,6 @@ func (addr Address) MarshalJSON() ([]byte, error) {
 	return json.Marshal(bech32Addr)
 }
 
-// TransactionType represents a sub class of Transaction.
-type TransactionType string
-
-// OutputType represents a sub class of Output.
-type OutputType uint32
-
-// SearchResultType is the type for an object found from a search query.
-type SearchResultType string
-
 // AssetTokenCounts maps asset IDs to a TokenAmount for that asset.
 type AssetTokenCounts map[StringID]TokenAmount
 

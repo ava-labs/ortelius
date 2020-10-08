@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/gocraft/dbr/v2"
+
+	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -46,7 +47,13 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Rea
 		t.Fatal("Failed to create miniredis server:", err.Error())
 	}
 
+	logConf, err := logging.DefaultConfig()
+	if err != nil {
+		t.Fatal("Failed to create logging config:", err.Error())
+	}
+
 	conf := cfg.Services{
+		Logging: logConf,
 		DB: &cfg.DB{
 			TXDB:   true,
 			Driver: "mysql",
@@ -57,22 +64,21 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Rea
 		},
 	}
 
-	connections, _ := services.NewConnectionsFromConfig(conf)
+	conns, err := services.NewConnectionsFromConfig(conf)
+	if err != nil {
+		t.Fatal("Failed to create connections:", err.Error())
+	}
 
 	// Create index
-	idx, _ := NewWriter(connections, networkID, chainID.String())
+	writer, err := NewWriter(conns, networkID, chainID.String())
 	if err != nil {
-		t.Fatal("Failed to bootstrap index:", err.Error())
+		t.Fatal("Failed to create writer:", err.Error())
 	}
-	sdb := services.NewDB(
-		connections.Stream(),
-		connections.DB(),
-	)
 
-	reader := NewReader(connections.Stream(), sdb, chainID.String())
-	return idx, reader, func() {
+	reader := NewReader(conns, chainID.String())
+	return writer, reader, func() {
 		s.Close()
-		idx.db.Close(context.Background())
+		conns.Close()
 	}
 }
 
@@ -132,33 +138,29 @@ func TestIngestInputs(t *testing.T) {
 }
 
 func TestIndexBootstrap(t *testing.T) {
-	idx, _, closeFn := newTestIndex(t, 12345, testXChainID)
+	writer, reader, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 
-	err := idx.Bootstrap(newTestContext())
+	err := writer.Bootstrap(newTestContext())
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
 
-	var (
-		txID          = models.ToStringID(ids.NewID([32]byte{102, 120, 244, 148, 78, 145, 97, 160, 180, 127, 210, 143, 194, 49, 223, 176, 3, 60, 202, 183, 27, 214, 191, 129, 132, 160, 171, 238, 108, 158, 146, 237}))
-		createAssetTx = []byte{0, 3, 65, 86, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 65, 86, 65, 0, 3, 65, 86, 65, 9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 159, 223, 66, 246, 228, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 60, 183, 211, 132, 46, 140, 238, 106, 14, 189, 9, 241, 254, 136, 79, 104, 97, 225, 178, 156}
-	)
+	txList, err := reader.ListTransactions(context.Background(), &params.ListTransactionsParams{})
+	if err != nil {
+		t.Fatal("Failed to list transactions:", err.Error())
+	}
 
-	db := idx.db.NewSession("test_index_bootstrap")
-	assertAllTransactionsCorrect(t, db, []models.Transaction{{
-		ID:                     txID,
-		ChainID:                models.ToStringID(testXChainID),
-		CanonicalSerialization: createAssetTx,
-		CreatedAt:              time.Unix(1572566400, 0).UTC(),
-	}})
+	if txList.Count != 1 {
+		t.Fatal("Incorrect number of transactions:", txList.Count)
+	}
 }
 
 func TestIndexVectors(t *testing.T) {
-	idx, _, closeFn := newTestIndex(t, 12345, testXChainID)
+	writer, _, closeFn := newTestIndex(t, 12345, testXChainID)
 	defer closeFn()
 
-	db := idx.db.NewSession("index_vectors")
+	db := writer.conns.DB().NewSession("index_vectors")
 
 	// Start with nothing
 	assertAllTransactionsCorrect(t, db, nil)
@@ -167,7 +169,7 @@ func TestIndexVectors(t *testing.T) {
 	// Add each test vector tx
 	ctx := newTestContext()
 	for i, v := range createTestVectors() {
-		err := idx.Consume(ctx, &message{
+		err := writer.Consume(ctx, &message{
 			id:        ids.NewID(hashing.ComputeHash256Array(v.serializedTx)),
 			chainID:   testXChainID,
 			body:      v.serializedTx,

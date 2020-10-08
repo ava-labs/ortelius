@@ -9,12 +9,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 )
+
+const defaultGroupName = "default-consumer"
 
 type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)
 
@@ -90,12 +91,7 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 
 // Close closes the consumer
 func (c *consumer) Close() error {
-	ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancelFn()
-
-	errs := wrappers.Errs{}
-	errs.Add(c.reader.Close(), c.consumer.Close(ctx))
-	return errs.Err
+	return c.reader.Close()
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services

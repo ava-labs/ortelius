@@ -13,7 +13,6 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
@@ -35,10 +34,7 @@ type APIContext struct {
 }
 
 func NewAPIRouter(params api.RouterParams) error {
-	reader := NewReader(
-		params.Connections.Stream(),
-		services.NewDB(params.Connections.Stream(), params.Connections.DB()),
-		params.ChainConfig.ID)
+	reader := NewReader(params.Connections, params.ChainConfig.ID)
 
 	_, avaxAssetID, err := genesis.Genesis(params.NetworkID)
 	if err != nil {

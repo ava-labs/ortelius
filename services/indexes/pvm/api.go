@@ -4,39 +4,52 @@
 package pvm
 
 import (
+	"context"
+	"time"
+
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
+	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
+
+const VMName = "pvm"
+
+func init() {
+	api.RegisterRouter(VMName, NewAPIRouter, APIContext{})
+}
 
 type APIContext struct {
 	*api.RootRequestContext
 
-	index      *Index
 	networkID  uint32
 	chainAlias string
+
+	reader     *Reader
+	avaxReader *avm.Reader
 }
 
 func NewAPIRouter(params api.RouterParams) error {
-	index, err := New(params.ServiceConfig, params.NetworkID, params.ChainConfig.ID)
-	if err != nil {
-		return err
-	}
+	reader := NewReader(params.Connections)
+	avaxReader := avm.NewReader(params.Connections, ChainID.String())
 
 	params.Router.
 		// Setup the context for each request
 		Middleware(func(c *APIContext, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
-			c.index = index
+			c.reader = reader
+			c.avaxReader = avaxReader
+
 			c.networkID = params.NetworkID
 			c.chainAlias = params.ChainConfig.Alias
 			next(w, r)
 		}).
 
 		// General routes
-		Get("/", (*APIContext).Overview).
+		// Get("/", (*APIContext).Overview).
 
 		// List and Get routes
+		Get("/transactions", (*APIContext).ListTransactions).
 		Get("/blocks", (*APIContext).ListBlocks).
 		// Get("/blocks/:id", (*APIContext).GetBlock).
 		Get("/subnets", (*APIContext).ListSubnets).
@@ -49,14 +62,34 @@ func NewAPIRouter(params api.RouterParams) error {
 	return nil
 }
 
-func (c *APIContext) Overview(w web.ResponseWriter, _ *web.Request) {
-	overview, err := c.index.GetChainInfo(c.chainAlias, c.networkID)
-	if err != nil {
-		api.WriteErr(w, 500, err.Error())
+// func (c *APIContext) Overview(w web.ResponseWriter, _ *web.Request) {
+// 	overview, err := c.reader.GetChainInfo(c.chainAlias, c.networkID)
+// 	if err != nil {
+// 		api.WriteErr(w, 500, err.Error())
+// 		return
+// 	}
+//
+// 	api.WriteObject(w, overview)
+// }
+
+func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListTransactionsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
 		return
 	}
 
-	api.WriteObject(w, overview)
+	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("list_transactions", p),
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.ListTransactions(ctx, p)
+		},
+	})
+}
+
+func (c *APIContext) cacheKeyForParams(name string, p params.Param) []string {
+	return append([]string{"pvm", name}, p.CacheKey()...)
 }
 
 func (c *APIContext) ListBlocks(w web.ResponseWriter, r *web.Request) {
@@ -66,7 +99,7 @@ func (c *APIContext) ListBlocks(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListBlocks(c.Ctx(), ListBlocksParams{ListParams: *p})
+	blocks, err := c.reader.ListBlocks(c.Ctx(), params.ListBlocksParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -82,7 +115,7 @@ func (c *APIContext) ListSubnets(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListSubnets(c.Ctx(), ListSubnetsParams{ListParams: *p})
+	blocks, err := c.reader.ListSubnets(c.Ctx(), params.ListSubnetsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -98,7 +131,7 @@ func (c *APIContext) ListValidators(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListValidators(c.Ctx(), ListValidatorsParams{ListParams: *p})
+	blocks, err := c.reader.ListValidators(c.Ctx(), params.ListValidatorsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return
@@ -114,7 +147,7 @@ func (c *APIContext) ListChains(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	blocks, err := c.index.ListChains(c.Ctx(), ListChainsParams{ListParams: *p})
+	blocks, err := c.reader.ListChains(c.Ctx(), params.ListChainsParams{ListParams: *p})
 	if err != nil {
 		api.WriteErr(w, 500, err.Error())
 		return

@@ -5,6 +5,7 @@ package services
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
@@ -38,4 +39,8 @@ func (w *DB) NewSession(name string) *dbr.Session {
 
 func (w *DB) NewSessionForEventReceiver(er health.EventReceiver) *dbr.Session {
 	return w.db.NewSession(er)
+}
+
+func ErrIsDuplicateEntryError(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")
 }
