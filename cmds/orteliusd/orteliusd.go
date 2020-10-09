@@ -147,7 +147,7 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, consumers.NewIndexerFactory()),
+		Run:   runStreamProcessorManagers(config, runErr, consumers.Indexer),
 	})
 
 	return streamCmd

@@ -12,7 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -21,17 +23,9 @@ import (
 	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
-)
-
-const (
-	// MaxSerializationLen is the maximum number of bytes a canonically
-	// serialized tx can be stored as in the database.
-	MaxSerializationLen = 64000
-
-	// MaxMemoLen is the maximum number of bytes a memo can be in the database
-	MaxMemoLen = 2048
 )
 
 var (
@@ -39,13 +33,12 @@ var (
 )
 
 type Writer struct {
-	db        *services.DB
 	chainID   string
 	networkID uint32
-	codec     codec.Codec
-	stream    *health.Stream
 
-	avax *avax.Writer
+	codec codec.Codec
+	avax  *avax.Writer
+	conns *services.Connections
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
@@ -55,11 +48,10 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	}
 
 	return &Writer{
-		codec:     avmCodec,
+		conns:     conns,
 		chainID:   chainID,
+		codec:     avmCodec,
 		networkID: networkID,
-		stream:    conns.Stream(),
-		db:        services.NewDB(conns.Stream(), conns.DB()),
 		avax:      avax.NewWriter(chainID, conns.Stream()),
 	}, nil
 }
@@ -70,7 +62,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = w.stream.NewJob("bootstrap")
+		job                  = w.conns.Stream().NewJob("bootstrap")
 	)
 	job.KeyValue("chain_id", w.chainID)
 
@@ -82,6 +74,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		job.Complete(health.Success)
 	}()
 
+	// Get platform genesis block
 	platformGenesisBytes, _, err = genesis.Genesis(w.networkID)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to get platform genesis bytes")
@@ -95,6 +88,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		return stacktrace.Propagate(err, "Failed to initialize platform genesis")
 	}
 
+	// Scan chains in platform genesis until we find the singular AVM chain, which
+	// is the X chain, and then we're done
 	for _, chain := range platformGenesis.Chains {
 		createChainTx, ok := chain.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
 		if !ok {
@@ -105,9 +100,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			continue
 		}
 
-		dbSess := w.db.NewSessionForEventReceiver(job)
+		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
-
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
 	return nil
@@ -116,8 +110,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 	var (
 		err  error
-		job  = w.stream.NewJob("index")
-		sess = w.db.NewSessionForEventReceiver(job)
+		job  = w.conns.Stream().NewJob("index")
+		sess = w.conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", i.ID())
 	job.KeyValue("chain_id", i.ChainID())
@@ -157,16 +151,18 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
+	var txID ids.ID
 	for i, tx := range avmGenesis.Txs {
-		txBytes, err := w.codec.Marshal(tx)
+		txBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: &tx.CreateAssetTx})
 		if err != nil {
-			return stacktrace.Propagate(err, "Failed to serialize avm genesis tx %d", i)
+			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
 		}
+		txID = ids.NewID(hashing.ComputeHash256Array(txBytes))
 
-		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, tx.Alias, true); err != nil {
+		if err = w.insertCreateAssetTx(ctx, txID, txBytes, &tx.CreateAssetTx, nil, tx.Alias); err != nil {
 			return stacktrace.Propagate(err, "Failed to index avm genesis tx %d", i)
 		}
-	}w
+	}
 	return nil
 }
 
@@ -183,10 +179,8 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 
 	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
-	case *avm.GenesisAsset:
-		return w.insertCreateAssetTx(ctx, txBytes, &castTx.CreateAssetTx, castTx.Alias, false)
 	case *avm.CreateAssetTx:
-		return w.insertCreateAssetTx(ctx, txBytes, castTx, "", false)
+		return w.insertCreateAssetTx(ctx, castTx.ID(), txBytes, castTx, tx.Credentials(), "")
 	case *avm.OperationTx:
 		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation)
 	case *avm.ImportTx:
@@ -198,47 +192,41 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	default:
 		return errors.New("unknown tx type")
 	}
-	return nil
 }
 
-func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, alias string, bootstrap bool) error {
-	var err error
-	var txID ids.ID
-	if bootstrap {
-		wrappedTxBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: tx})
-		if err != nil {
-			return err
-		}
-		txID = ids.NewID(hashing.ComputeHash256Array(wrappedTxBytes))
-	} else {
-		txID = tx.ID()
+func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txID ids.ID, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string) error {
+	var (
+		err         error
+		outputCount uint32
+		amount      uint64
+		errs        = wrappers.Errs{}
+	)
+
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset))
+
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
 	}
 
-	var outputCount uint32
-	var amount uint64
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
-			outputCount++
-
-			switch outtype := out.(type) {
+			switch typedOut := out.(type) {
 			case *nftfx.TransferOutput:
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				w.avax.InsertOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTTransferOutput, outtype.GroupID, outtype.Payload)
+				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload))
 			case *nftfx.MintOutput:
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				w.avax.InsertOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTMint, outtype.GroupID, nil)
+				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil))
 			case *secp256k1fx.MintOutput:
-				xOut := &secp256k1fx.TransferOutput{Amt: 0, OutputOwners: outtype.OutputOwners}
-				w.avax.InsertOutput(ctx, txID, outputCount-1, txID, xOut, true, models.OutputTypesNFTMint, 0, nil)
+				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil))
 			case *secp256k1fx.TransferOutput:
-				w.avax.InsertOutput(ctx, txID, outputCount-1, txID, outtype, true, models.OutputTypesSECP2556K1Transfer, 0, nil)
-				amount, err = avalancheMath.Add64(amount, outtype.Amount())
-				if err != nil {
+				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
 					_ = ctx.Job().EventErr("add_to_amount", err)
 				}
 			default:
 				_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 			}
+
+			outputCount++
 		}
 	}
 
@@ -253,29 +241,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		Pair("current_supply", amount).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
-	if err != nil && !services.ErrIsDuplicateEntryError(err) {
-		return err
-	}
-
-	// If the tx or memo is too big we can't store it in the db
-	if len(txBytes) > MaxSerializationLen {
-		txBytes = []byte{}
-	}
-
-	if len(tx.Memo) > MaxMemoLen {
-		tx.Memo = nil
-	}
-
-	_, err = ctx.DB().
-		InsertInto("avm_transactions").
-		Pair("id", txID.String()).
-		Pair("chain_id", w.chainID).
-		Pair("type", models.TransactionTypeCreateAsset).
-		Pair("memo", tx.Memo).
-		Pair("created_at", ctx.Time()).
-		Pair("canonical_serialization", txBytes).
-		ExecContext(ctx.Ctx())
-	if err != nil && !services.ErrIsDuplicateEntryError(err) {
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
 	}
 	return nil

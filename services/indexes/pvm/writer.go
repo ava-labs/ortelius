@@ -15,8 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/gocraft/dbr/v2"
-	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
@@ -30,17 +28,18 @@ var (
 )
 
 type Writer struct {
+	chainID   string
 	networkID uint32
-	stream    *health.Stream
-	db        *dbr.Connection
-	avax      *avaxIndexer.Writer
+
+	conns *services.Connections
+	avax  *avaxIndexer.Writer
 }
 
-func NewWriter(conns *services.Connections, networkID uint32) (*Writer, error) {
+func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
 	return &Writer{
+		conns:     conns,
+		chainID:   chainID,
 		networkID: networkID,
-		stream:    conns.Stream(),
-		db:        conns.DB(),
 		avax:      avaxIndexer.NewWriter(ChainID.String(), conns.Stream()),
 	}, nil
 }
@@ -48,8 +47,8 @@ func NewWriter(conns *services.Connections, networkID uint32) (*Writer, error) {
 func (*Writer) Name() string { return "pvm-index" }
 
 func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
-	job := w.stream.NewJob("index")
-	sess := w.db.NewSession(job)
+	job := w.conns.Stream().NewJob("index")
+	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
 	// Create w tx
 	dbTx, err := sess.Begin()
@@ -67,7 +66,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 }
 
 func (w *Writer) Bootstrap(ctx context.Context) error {
-	job := w.stream.NewJob("bootstrap")
+	job := w.conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID)
 	if err != nil {
@@ -83,7 +82,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	}
 
 	var (
-		db   = w.db.NewSession(job)
+		db   = w.conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
 		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp))
 	)
@@ -99,8 +98,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, false, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
+
 	for _, tx := range append(platformGenesis.Validators, platformGenesis.Chains...) {
 		select {
 		case <-ctx.Done():
@@ -154,6 +154,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	_, err := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
+		Pair("chain_id", w.chainID).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
 		Pair("serialization", blockBytes).
@@ -195,10 +196,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, tx p
 		typ = models.TransactionTypePVMExport
 	case *platformvm.UnsignedAdvanceTimeTx:
 		typ = models.TransactionTypeAdvanceTime
-	// baseTxs = append(baseTxs, castTx)
 	case *platformvm.UnsignedRewardValidatorTx:
 		typ = models.TransactionTypeRewardValidator
-		// baseTxs = append(baseTxs, castTx.BaseTx.BaseTx)
 	}
 	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ)
 }

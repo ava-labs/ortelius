@@ -15,6 +15,7 @@ import (
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
@@ -55,13 +56,11 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		redeemedOutputs = append(redeemedOutputs, inputID.String())
 
 		// Upsert this input as an output in case we haven't seen the parent tx
-		w.InsertOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
-			Amt: in.In.Amount(),
-			OutputOwners: secp256k1fx.OutputOwners{
-				// We leave Addrs blank because we inserted them above with their signatures
-				Addrs: []ids.ShortID{},
-			},
-		}, false, models.OutputTypesSECP2556K1Transfer, 0, nil)
+		// We leave Addrs blank because we inserted them above with their signatures
+		// w.InsertOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
+		// 	Amt:          in.In.Amount(),
+		// 	OutputOwners: secp256k1fx.OutputOwners{},
+		// }, models.OutputTypesSECP2556K1Transfer, 0, nil)
 
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[i].(*secp256k1fx.Credential)
@@ -112,7 +111,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
 		ExecContext(ctx.Ctx())
-	if err != nil && !services.ErrIsDuplicateEntryError(err) {
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
 	}
 
@@ -122,12 +121,12 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		if !ok {
 			continue
 		}
-		w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, true, models.OutputTypesSECP2556K1Transfer, 0, nil)
+		w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil)
 	}
 	return nil
 }
 
-func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, upd bool, outputType models.OutputType, groupID uint32, payload []byte) error {
+func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte) error {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -141,33 +140,14 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("asset_id", assetID.String()).
 		Pair("output_type", outputType).
 		Pair("amount", out.Amount()).
-		Pair("created_at", ctx.Time()).
 		Pair("locktime", out.Locktime).
 		Pair("threshold", out.Threshold).
 		Pair("group_id", groupID).
 		Pair("payload", payload).
+		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
-
-	if err != nil {
-		// We got an error and it's not a duplicate entry error, so log it
-		if !services.ErrIsDuplicateEntryError(err) {
-			errs.Add(w.stream.EventErr("insert_output.insert", err))
-			// We got a duplicate entry error and we want to update
-		} else if upd {
-			if _, err = ctx.DB().
-				Update("avm_outputs").
-				Set("chain_id", w.chainID).
-				Set("output_type", outputType).
-				Set("amount", out.Amount()).
-				Set("locktime", out.Locktime).
-				Set("threshold", out.Threshold).
-				Set("group_id", groupID).
-				Set("payload", payload).
-				Where("avm_outputs.id = ?", outputID.String()).
-				ExecContext(ctx.Ctx()); err != nil {
-				errs.Add(w.stream.EventErr("insert_output.update", err))
-			}
-		}
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		errs.Add(w.stream.EventErr("insert_output.insert", err))
 	}
 
 	// Ingest each Output Address
@@ -186,7 +166,7 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 		Pair("public_key", publicKey.Bytes()).
 		ExecContext(ctx.Ctx())
 
-	if err != nil && !services.ErrIsDuplicateEntryError(err) {
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		_ = ctx.Job().EventErr("insert_address_from_public_key", err)
 	}
 }
@@ -206,7 +186,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 	switch {
 	case err == nil:
 		return nil
-	case !services.ErrIsDuplicateEntryError(err):
+	case !db.ErrIsDuplicateEntryError(err):
 		errs.Add(ctx.Job().EventErr("insert_output_address", err))
 	case sig == nil:
 		return nil

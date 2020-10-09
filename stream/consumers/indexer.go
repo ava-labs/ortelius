@@ -10,16 +10,14 @@ import (
 	"github.com/ava-labs/ortelius/stream"
 )
 
-func NewIndexerFactory() stream.ProcessorFactory {
-	return stream.NewConsumerFactory(func(conns *services.Connections, networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
-		switch chainVM {
-		case avm.VMName:
-			indexer, err = avm.NewWriter(conns, networkID, chainID)
-		case pvm.VMName:
-			indexer, err = pvm.NewWriter(conns, networkID)
-		default:
-			return nil, stream.ErrUnknownVM
-		}
-		return indexer, err
-	}, stream.EventTypeDecisions)
-}
+var Indexer = stream.NewConsumerFactory(func(conns *services.Connections, networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
+	switch chainVM {
+	case avm.VMName:
+		indexer, err = avm.NewWriter(conns, networkID, chainID)
+	case pvm.VMName:
+		indexer, err = pvm.NewWriter(conns, networkID, chainID)
+	default:
+		return nil, stream.ErrUnknownVM
+	}
+	return indexer, err
+})

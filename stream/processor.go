@@ -14,18 +14,22 @@ import (
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
 )
 
 var (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 10 * time.Second
 
+	processorFailureRetryInterval = 200 * time.Millisecond
+
 	// ErrUnknownProcessorType is returned when encountering a client type with no
 	// known implementation
 	ErrUnknownProcessorType = errors.New("unknown processor type")
 )
 
-type ProcessorFactory func(cfg.Config, uint32, string, string) (Processor, error)
+// ProcessorFactory takes in configuration and returns a stream Processor
+type ProcessorFactory func(cfg.Config, string, string) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
@@ -33,63 +37,70 @@ type Processor interface {
 	Close() error
 }
 
-// ProcessorManager reads or writes from/to the event stream backend
+// ProcessorManager supervises the Processor lifecycle; it will use the given
+// configuration and ProcessorFactory to keep a Processor active
 type ProcessorManager struct {
 	conf    cfg.Config
 	log     *logging.Log
 	factory ProcessorFactory
+	conns   *services.Connections
 
 	// Concurrency control
-	workerWG *sync.WaitGroup
-	quitCh   chan struct{}
-	doneCh   chan struct{}
+	quitCh chan struct{}
+	doneCh chan struct{}
 }
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
 func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorManager, error) {
-	loggingConf, err := logging.DefaultConfig()
-	if err != nil {
-		return nil, err
-	}
-	loggingConf.Directory = conf.LogDirectory
-
-	log, err := logging.New(loggingConf)
+	conns, err := services.NewConnectionsFromConfig(conf.Services)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ProcessorManager{
 		conf:    conf,
-		log:     log,
+		conns:   conns,
 		factory: factory,
 
-		workerWG: &sync.WaitGroup{},
-		quitCh:   make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		quitCh: make(chan struct{}),
+		doneCh: make(chan struct{}),
 	}, nil
 }
 
 // Listen sets a client to listen for and handle incoming messages
 func (c *ProcessorManager) Listen() error {
 	// Create a backend for each chain we want to watch and wait for them to exit
-	workerManagerWG := &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
+	wg.Add(len(c.conf.Chains))
 	for _, chainConfig := range c.conf.Chains {
-		workerManagerWG.Add(1)
 		go func(chainConfig cfg.Chain) {
-			defer workerManagerWG.Done()
 			c.log.Info("Started worker manager for chain %s", chainConfig.ID)
+			defer c.log.Info("Exiting worker manager for chain %s", chainConfig.ID)
+			defer wg.Done()
 
-			// Keep running the worker until it exits without an error
-			for err := c.runProcessor(chainConfig); err != nil; err = c.runProcessor(chainConfig) {
-				c.log.Error("Error running worker: %s", err.Error())
-				<-time.After(200 * time.Millisecond)
+			// Keep running the worker until we're asked to stop
+			var err error
+			for !c.isStopping() {
+				err = c.runProcessor(chainConfig)
+
+				// If there was an error we want to log it, and iff we are not stopping
+				// we want to add a retry delay.
+				if err != nil {
+					c.log.Error("Error running worker: %s", err.Error())
+				}
+				if c.isStopping() {
+					return
+				}
+				if err != nil {
+					<-time.After(processorFailureRetryInterval)
+				}
 			}
-			c.log.Info("Exiting worker manager for chain %s", chainConfig.ID)
+
 		}(chainConfig)
 	}
 
-	// Wait for all workers to finish without an error
-	workerManagerWG.Wait()
+	// Wait for all workers to finish
+	wg.Wait()
 	c.log.Info("All workers stopped")
 	close(c.doneCh)
 
@@ -100,9 +111,11 @@ func (c *ProcessorManager) Listen() error {
 func (c *ProcessorManager) Close() error {
 	close(c.quitCh)
 	<-c.doneCh
+	c.conns.Close()
 	return nil
 }
 
+// isStopping returns true iff quitCh has been signaled
 func (c *ProcessorManager) isStopping() bool {
 	select {
 	case <-c.quitCh:
@@ -123,19 +136,8 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	c.log.Info("Starting worker for chain %s", chainConfig.ID)
 	defer c.log.Info("Exiting worker for chain %s", chainConfig.ID)
 
-	var err error
-	for {
-		err = c.runProcessorLoop(chainConfig)
-		if err != io.EOF {
-			break
-		}
-	}
-	return err
-}
-
-func (c *ProcessorManager) runProcessorLoop(chainConfig cfg.Chain) error {
 	// Create a backend to get messages from
-	backend, err := c.factory(c.conf, c.conf.NetworkID, chainConfig.VMType, chainConfig.ID)
+	backend, err := c.factory(c.conf, chainConfig.VMType, chainConfig.ID)
 	if err != nil {
 		return err
 	}

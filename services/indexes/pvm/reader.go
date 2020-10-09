@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -15,21 +14,17 @@ import (
 )
 
 type Reader struct {
-	stream *health.Stream
-	db     *services.DB
+	conns *services.Connections
 }
 
 func NewReader(conns *services.Connections) *Reader {
-	return &Reader{
-		stream: conns.Stream(),
-		db:     services.NewDB(conns.Stream(), conns.DB()),
-	}
+	return &Reader{conns: conns}
 }
 
 func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams) (*models.BlockList, error) {
 	blocks := []*models.Block{}
 
-	_, err := params.Apply(r.db.NewSession("list_blocks").
+	_, err := params.Apply(r.conns.DB().NewSession("list_blocks").
 		Select("id", "type", "parent_id", "chain_id", "created_at").
 		From("pvm_blocks")).
 		LoadContext(ctx, &blocks)
@@ -42,7 +37,7 @@ func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams)
 
 func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParams) (*models.SubnetList, error) {
 	subnets := []*models.Subnet{}
-	_, err := params.Apply(r.db.NewSession("list_subnets").
+	_, err := params.Apply(r.conns.DB().NewSession("list_subnets").
 		Select("id", "network_id", "threshold", "created_at").
 		From("pvm_subnets")).
 		LoadContext(ctx, &subnets)
@@ -60,7 +55,7 @@ func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParam
 func (r *Reader) ListValidators(ctx context.Context, params params.ListValidatorsParams) (*models.ValidatorList, error) {
 	validators := []*models.Validator{}
 
-	_, err := params.Apply(r.db.NewSession("list_blocks").
+	_, err := params.Apply(r.conns.DB().NewSession("list_blocks").
 		Select("transaction_id", "node_id", "weight", "start_time", "end_time", "destination", "shares", "subnet_id").
 		From("pvm_validators")).
 		LoadContext(ctx, &validators)
@@ -74,7 +69,7 @@ func (r *Reader) ListValidators(ctx context.Context, params params.ListValidator
 func (r *Reader) ListChains(ctx context.Context, params params.ListChainsParams) (*models.ChainList, error) {
 	chains := []*models.Chain{}
 
-	_, err := params.Apply(r.db.NewSession("list_chains").
+	_, err := params.Apply(r.conns.DB().NewSession("list_chains").
 		Select("id", "network_id", "subnet_id", "name", "vm_id", "genesis_data", "created_at").
 		From("pvm_chains")).
 		LoadContext(ctx, &chains)
@@ -141,7 +136,7 @@ func (r *Reader) loadControlKeys(ctx context.Context, subnets []*models.Subnet) 
 		SubnetID models.StringID
 		Key      models.ControlKey
 	}{}
-	_, err := r.db.NewSession("load_control_keys").
+	_, err := r.conns.DB().NewSession("load_control_keys").
 		Select("subnet_id", "address", "public_key").
 		From("pvm_subnet_control_keys").
 		Where("pvm_subnet_control_keys.subnet_id IN ?", ids).
@@ -176,7 +171,7 @@ func (r *Reader) loadControlSignatures(ctx context.Context, chains []*models.Cha
 		ChainID   models.StringID
 		Signature models.ControlSignature
 	}{}
-	_, err := r.db.NewSession("load_control_signatures").
+	_, err := r.conns.DB().NewSession("load_control_signatures").
 		Select("chain_id", "signature").
 		From("pvm_chains_control_signatures").
 		Where("pvm_chains_control_signatures.chain_id IN ?", ids).
@@ -211,7 +206,7 @@ func (r *Reader) loadFXIDs(ctx context.Context, chains []*models.Chain) error {
 		ChainID models.StringID
 		FXID    models.StringID `r:"fx_id"`
 	}{}
-	_, err := r.db.NewSession("load_control_signatures").
+	_, err := r.conns.DB().NewSession("load_control_signatures").
 		Select("chain_id", "fx_id").
 		From("pvm_chains_fx_ids").
 		Where("pvm_chains_fx_ids.chain_id IN ?", ids).

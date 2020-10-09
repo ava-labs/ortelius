@@ -7,7 +7,7 @@ var (
 	OutputTypesSECP2556K1Transfer OutputType = 7
 	OutputTypesSECP2556K1Mint     OutputType = 6
 	OutputTypesNFTMint            OutputType = 10
-	OutputTypesNFTTransferOutput  OutputType = 11
+	OutputTypesNFTTransfer        OutputType = 11
 
 	BlockTypeProposal BlockType = 0x0
 	BlockTypeAbort    BlockType = 0x1
@@ -42,25 +42,62 @@ type BlockType uint16
 // TransactionType represents a sub class of Transaction.
 type TransactionType uint16
 
-// OutputType represents a sub class of Output.
-type OutputType uint32
-
-// SearchResultType is the type for an object found from a search query.
-type SearchResultType string
-
 func (t TransactionType) String() string {
 	switch t {
 	case TransactionTypeBase:
 		return "base"
+
+		// AVM
 	case TransactionTypeCreateAsset:
 		return "create_asset"
 	case TransactionTypeOperation:
 		return "operation"
-
 	case TransactionTypeAVMImport:
 		return "avm_import"
 	case TransactionTypeAVMExport:
 		return "avm_export"
+
+		// PVM
+	case TransactionTypeAddValidator:
+		return "add_validator"
+	case TransactionTypeAddSubnetValidator:
+		return "add_subnet_validator"
+	case TransactionTypeAddDelegator:
+		return "add_delegator"
+	case TransactionTypeCreateChain:
+		return "create_chain"
+	case TransactionTypeCreateSubnet:
+		return "create_subnet"
+	case TransactionTypePVMImport:
+		return "pvm_import"
+	case TransactionTypePVMExport:
+		return "pvm_export"
+	case TransactionTypeAdvanceTime:
+		return "advance_time"
+	case TransactionTypeRewardValidator:
+		return "reward_validator"
+	default:
+		return "unknown"
 	}
-	return "unknown"
 }
+
+// OutputType represents a sub class of Output.
+type OutputType uint32
+
+func (t OutputType) String() string {
+	switch t {
+	case OutputTypesSECP2556K1Transfer:
+		return "secp256k1_transfer"
+	case OutputTypesSECP2556K1Mint:
+		return "secp256k1_mint"
+	case OutputTypesNFTTransfer:
+		return "nft_transfer"
+	case OutputTypesNFTMint:
+		return "nft_mint"
+	default:
+		return "unknown"
+	}
+}
+
+// SearchResultType is the type for an object found from a search query.
+type SearchResultType string
