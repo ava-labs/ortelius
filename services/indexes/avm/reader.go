@@ -302,11 +302,13 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			if p.NeedsDistinct() {
 				selector = p.Apply(dbRunner.
 					Select("COUNT(DISTINCT(avm_transactions.id))").
-					From("avm_transactions"))
+					From("avm_transactions").
+					Where("avm_transactions.chain_id = ?", r.chainID))
 			} else {
 				selector = p.Apply(dbRunner.
 					Select("COUNT(avm_transactions.id)").
-					From("avm_transactions"))
+					From("avm_transactions").
+					Where("avm_transactions.chain_id = ?", r.chainID))
 			}
 			err := selector.
 				LoadOneContext(ctx, &count)
@@ -398,7 +400,9 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 	outputs := []*models.Output{}
 	_, err := p.Apply(dbRunner.
 		Select(outputSelectColumns...).
-		From("avm_outputs")).LoadContext(ctx, &outputs)
+		From("avm_outputs").
+		Where("avm_outputs.chain_id = ?", r.chainID)).
+		LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
 	}
@@ -424,6 +428,7 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 		).
 		From("avm_output_addresses").
 		Where("avm_output_addresses.output_id IN ?", outputIDs).
+		Where("avm_outputs.chain_id = ?", r.chainID).
 		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
@@ -444,7 +449,8 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
 				Select("COUNT(avm_outputs.id)").
-				From("avm_outputs")).
+				From("avm_outputs").
+				Where("avm_outputs.chain_id = ?", r.chainID)).
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
@@ -513,6 +519,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context) (time.Time, error)
 	err := r.db.NewSession("get_first_transaction_time").
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions").
+		Where("avm_transactions.chain_id = ?", r.chainID).
 		LoadOneContext(ctx, &ts)
 	if err != nil {
 		return time.Time{}, err
