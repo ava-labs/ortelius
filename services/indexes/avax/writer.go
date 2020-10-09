@@ -105,7 +105,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	_, err = ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", baseTx.ID().String()).
-		Pair("chain_id", baseTx.BlockchainID.String()).
+		Pair("chain_id", w.chainID).
 		Pair("type", txType.String()).
 		Pair("memo", baseTx.Memo).
 		Pair("created_at", ctx.Time()).

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/codec"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -31,6 +32,7 @@ type Writer struct {
 	chainID   string
 	networkID uint32
 
+	codec codec.Codec
 	conns *services.Connections
 	avax  *avaxIndexer.Writer
 }
@@ -40,7 +42,8 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 		conns:     conns,
 		chainID:   chainID,
 		networkID: networkID,
-		avax:      avaxIndexer.NewWriter(ChainID.String(), conns.Stream()),
+		codec:     platformvm.Codec,
+		avax:      avaxIndexer.NewWriter(chainID, conns.Stream()),
 	}, nil
 }
 
@@ -114,9 +117,22 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return errs.Err
 }
 
+func initializeTx(c codec.Codec, tx platformvm.Tx) error {
+	unsignedBytes, err := c.Marshal(&tx.UnsignedTx)
+	if err != nil {
+		return err
+	}
+	signedBytes, err := c.Marshal(&tx)
+	if err != nil {
+		return err
+	}
+	tx.Initialize(unsignedBytes, signedBytes)
+	return nil
+}
+
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	var block platformvm.Block
-	if err := platformvm.Codec.Unmarshal(blockBytes, &block); err != nil {
+	if err := w.codec.Unmarshal(blockBytes, &block); err != nil {
 		return ctx.Job().EventErr("index_block.unmarshal_block", err)
 	}
 
@@ -125,16 +141,21 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	switch blk := block.(type) {
 	case *platformvm.ProposalBlock:
 		errs.Add(
+			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blk.ID(), blk.Tx),
 		)
 	case *platformvm.StandardBlock:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
-			errs.Add(w.indexTransaction(ctx, blk.ID(), *tx))
+			errs.Add(
+				initializeTx(w.codec, *tx),
+				w.indexTransaction(ctx, blk.ID(), *tx),
+			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
+			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blk.ID(), blk.Tx),
 		)
@@ -195,10 +216,11 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, tx p
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypePVMExport
 	case *platformvm.UnsignedAdvanceTimeTx:
-		typ = models.TransactionTypeAdvanceTime
+		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
-		typ = models.TransactionTypeRewardValidator
+		return nil
 	}
+
 	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ)
 }
 

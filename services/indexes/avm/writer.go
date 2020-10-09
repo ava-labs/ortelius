@@ -8,9 +8,7 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/codec"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/avm"
@@ -151,15 +149,19 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
-	var txID ids.ID
 	for i, tx := range avmGenesis.Txs {
 		txBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: &tx.CreateAssetTx})
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
 		}
-		txID = ids.NewID(hashing.ComputeHash256Array(txBytes))
+		unsignedBytes, err := w.codec.Marshal(&tx.CreateAssetTx)
+		if err != nil {
+			return err
+		}
 
-		if err = w.insertCreateAssetTx(ctx, txID, txBytes, &tx.CreateAssetTx, nil, tx.Alias); err != nil {
+		tx.Initialize(unsignedBytes, txBytes)
+
+		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, nil, tx.Alias); err != nil {
 			return stacktrace.Propagate(err, "Failed to index avm genesis tx %d", i)
 		}
 	}
@@ -177,10 +179,12 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 		return err
 	}
 
+	tx.Initialize(unsignedBytes, txBytes)
+
 	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:
-		return w.insertCreateAssetTx(ctx, castTx.ID(), txBytes, castTx, tx.Credentials(), "")
+		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "")
 	case *avm.OperationTx:
 		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation)
 	case *avm.ImportTx:
@@ -194,7 +198,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	}
 }
 
-func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txID ids.ID, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string) error {
+func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string) error {
 	var (
 		err         error
 		outputCount uint32
@@ -212,13 +216,13 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txID ids.ID, txBy
 		for _, out := range state.Outs {
 			switch typedOut := out.(type) {
 			case *nftfx.TransferOutput:
-				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload))
 			case *nftfx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil))
 			case *secp256k1fx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil))
 			case *secp256k1fx.TransferOutput:
-				errs.Add(w.avax.InsertOutput(ctx, txID, outputCount, txID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
 					_ = ctx.Job().EventErr("add_to_amount", err)
 				}
@@ -232,7 +236,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txID ids.ID, txBy
 
 	_, err = ctx.DB().
 		InsertInto("avm_assets").
-		Pair("id", txID.String()).
+		Pair("id", tx.ID().String()).
 		Pair("chain_Id", w.chainID).
 		Pair("name", tx.Name).
 		Pair("symbol", tx.Symbol).
