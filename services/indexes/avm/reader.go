@@ -62,7 +62,7 @@ func NewReader(stream *health.Stream, db *services.DB, chainID string) *Reader {
 	}
 }
 
-func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.SearchResults, error) {
+func (r *Reader) Search(ctx context.Context, p *params.SearchParams, assetID ids.ID) (*models.SearchResults, error) {
 	if len(p.Query) < MinSearchQueryLength {
 		return nil, ErrSearchQueryTooShort
 	}
@@ -73,7 +73,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.Se
 		return r.searchByShortID(ctx, shortID)
 	}
 	if id, err := ids.FromString(p.Query); err == nil {
-		return r.searchByID(ctx, id)
+		return r.searchByID(ctx, id, assetID)
 	}
 
 	// copy the list params, and inject DisableCounting for subsequent List* calls.
@@ -90,7 +90,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.Se
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
+	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query}, assetID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	return aggs, nil
 }
 
-func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
+func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, assetID ids.ID) (*models.TransactionList, error) {
 	dbRunner := r.db.NewSession("get_transactions")
 
 	txs := []*models.Transaction{}
@@ -317,7 +317,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs); err != nil {
+	if err := r.dressTransactions(ctx, dbRunner, txs, assetID, p.ID); err != nil {
 		return nil, err
 	}
 
@@ -455,8 +455,8 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 	return &models.OutputList{ListMetadata: models.ListMetadata{Count: count}, Outputs: outputs}, err
 }
 
-func (r *Reader) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {
-	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id})
+func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, assetID ids.ID) (*models.Transaction, error) {
+	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id}, assetID)
 	if err != nil {
 		return nil, err
 	}
@@ -520,7 +520,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context) (time.Time, error)
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction) error {
+func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, assetID ids.ID, txID *ids.ID) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -636,6 +636,9 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
+		if txID == nil && string(tx.ID) == assetID.String() {
+			continue
+		}
 		if inputs, ok := inputsMap[tx.ID]; ok {
 			for _, input := range inputs {
 				tx.Inputs = append(tx.Inputs, input)
@@ -713,7 +716,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func (r *Reader) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults, error) {
+func (r *Reader) searchByID(ctx context.Context, id ids.ID, assetID ids.ID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
 	if assets, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
@@ -722,7 +725,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID) (*models.SearchResul
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
+	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}, assetID); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
