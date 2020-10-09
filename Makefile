@@ -102,3 +102,6 @@ DOCKER_IMAGE_NAME ?= ${DOCKER_REPO}:${DOCKER_TAG}
 
 image: ## Build the Docker image
 	docker build -t ${DOCKER_IMAGE_NAME} .
+
+image_push: ## Push the Docker image to the registry
+	docker push ${DOCKER_IMAGE_NAME}
