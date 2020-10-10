@@ -13,7 +13,6 @@ import (
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
@@ -36,10 +35,7 @@ type APIContext struct {
 }
 
 func NewAPIRouter(params api.RouterParams) error {
-	reader := NewReader(
-		params.Connections.Stream(),
-		services.NewDB(params.Connections.Stream(), params.Connections.DB()),
-		params.ChainConfig.ID)
+	reader := NewReader(params.Connections, params.ChainConfig.ID)
 
 	_, avaxAssetID, err := genesis.Genesis(params.NetworkID)
 	if err != nil {
@@ -110,6 +106,10 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
+	}
+
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
@@ -123,6 +123,10 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
+	}
+
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
 	}
 
 	c.WriteCacheable(w, api.Cachable{
@@ -211,6 +215,10 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
+	}
+
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
 	}
 
 	c.WriteCacheable(w, api.Cachable{
