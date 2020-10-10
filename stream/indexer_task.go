@@ -31,6 +31,7 @@ var (
 		"COUNT(avm_outputs.id) AS output_count",
 	}
 	additionalHours = (365 * 24) * time.Hour
+	blank           = models.AvmAssetAggregateState{}
 )
 
 type ProducerTasker struct {
@@ -74,6 +75,74 @@ func initializeConsumerTasker(conf cfg.Config, log *logging.Log) error {
 	return nil
 }
 
+// under lock control.  update live state, and copy into backup state
+func (t *ProducerTasker) updateBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
+	var err error
+
+	var sessTX *dbr.Tx
+	sessTX, err = sess.Begin()
+	if err != nil {
+		return blank, err
+	}
+
+	defer sessTX.RollbackUnlessCommitted()
+
+	// make a copy of the last created_at, and reset to now + 1 years in the future
+	// we are using the db as an atomic swap...
+	// current_created_at is set to the newest aggregation timestamp from the message queue.
+	// and in the same update we reset created_at to a time in the future.
+	// when we get new messages from the queue, they will execute the sql _after_ this update, and set created_at to an earlier date.
+	updatedCurrentCreated := t.timeStampProducer().Add(additionalHours)
+	_, err = sessTX.ExecContext(ctx, "update avm_asset_aggregation_state "+
+		"set current_created_at=created_at, created_at=? "+
+		"where id=?", updatedCurrentCreated, models.StateLiveID)
+	if err != nil {
+		t.log.Error("atomic swap %s", err)
+		return blank, err
+	}
+
+	backupAggregateState := liveAggregationState
+	backupAggregateState.ID = models.StateBackupID
+
+	// id=stateBackupId backup row - for crash recovery
+	_, err = models.InsertAvmAssetAggregationState(ctx, sess, backupAggregateState)
+	if db.ErrIsDuplicateEntryError(err) {
+		var sqlResult sql.Result
+		sqlResult, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
+			"set current_created_at=? "+
+			"where id=? and current_created_at > ?",
+			backupAggregateState.CurrentCreatedAt, backupAggregateState.ID, backupAggregateState.CurrentCreatedAt)
+		if err != nil {
+			t.log.Error("update backup state %s", err.Error())
+			return blank, err
+		}
+
+		var rowsAffected int64
+		rowsAffected, err = sqlResult.RowsAffected()
+
+		if err != nil {
+			t.log.Error("update backup state failed %s", err)
+			return blank, err
+		}
+
+		if rowsAffected > 0 {
+			// if we updated, refresh the backup state
+			backupAggregateState, err = models.SelectAvmAssetAggregationState(ctx, sess, backupAggregateState.ID)
+			if err != nil {
+				t.log.Error("refresh backup state %s", err)
+				return blank, err
+			}
+		}
+	}
+
+	err = sessTX.Commit()
+	if err != nil {
+		return blank, err
+	}
+
+	return backupAggregateState, nil
+}
+
 func (t *ProducerTasker) RefreshAggregates() error {
 	t.plock.Lock()
 	defer t.plock.Unlock()
@@ -111,29 +180,11 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		// re-process from backup row..
 		liveAggregationState = backupAggregateState
 	} else {
-		// make a copy of the last created_at, and reset to now + 1 years in the future
-		// we are using the db as an atomic swap...
-		// current_created_at is set to the newest aggregation timestamp from the message queue.
-		// and in the same update we reset created_at to a time in the future.
-		// when we get new messages from the queue, they will execute the sql _after_ this update, and set created_at to an earlier date.
-		updatedCurrentCreated := t.timeStampProducer().Add(additionalHours)
-		_, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
-			"set current_created_at=created_at, created_at=? "+
-			"where id=?", updatedCurrentCreated, models.StateLiveID)
+		backupAggregateState, err = t.updateBackupState(ctx, sess, liveAggregationState)
 		if err != nil {
-			t.log.Error("atomic swap %s", err.Error())
+			t.log.Error("unable to update backup state %s", err)
 			return err
 		}
-
-		// reload the live state
-		liveAggregationState, _ = models.SelectAvmAssetAggregationState(ctx, sess, models.StateLiveID)
-		// this is really bad, the state live row was not created..  we cannot proceed safely.
-		if liveAggregationState.ID != models.StateLiveID {
-			t.log.Error("unable to reload live state")
-			return err
-		}
-
-		backupAggregateState, _ = t.handleBackupState(ctx, sess, liveAggregationState)
 	}
 
 	aggregateTS := computeAndRoundCurrentAggregateTS(liveAggregationState.CurrentCreatedAt)
@@ -262,30 +313,6 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 		}
 	}
 	return nil
-}
-
-func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
-	// setup the backup as a copy of the live state.
-	backupAggregateState := liveAggregationState
-	backupAggregateState.ID = models.StateBackupID
-
-	var err error
-	// id=stateBackupId backup row - for crash recovery
-	_, _ = models.InsertAvmAssetAggregationState(ctx, sess, backupAggregateState)
-
-	// update the backup state to the earliest creation time..
-	_, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
-		"set current_created_at=? "+
-		"where id=? and current_created_at > ?",
-		backupAggregateState.CurrentCreatedAt, backupAggregateState.ID, backupAggregateState.CurrentCreatedAt)
-	if err != nil {
-		_, err = models.InsertAvmAssetAggregationState(ctx, sess, backupAggregateState)
-		if err != nil {
-			t.log.Error("update backup state %s", err.Error())
-		}
-	}
-
-	return models.SelectAvmAssetAggregationState(ctx, sess, backupAggregateState.ID)
 }
 
 func (t *ProducerTasker) replaceAvmAggregate(ctx context.Context, sess *dbr.Session, avmAggregates models.AvmAggregate) error {

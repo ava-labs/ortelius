@@ -173,8 +173,21 @@ func TestHandleBackupState(t *testing.T) {
 		CreatedAt:        time.Unix(1, 0),
 		CurrentCreatedAt: time.Unix(1, 0)}
 
-	var producerTask ProducerTasker
-	backupState, _ := producerTask.handleBackupState(ctx, sess, state)
+	timenow := time.Now().Round(1 * time.Minute)
+	timeProducerFunc := func() time.Time {
+		return timenow
+	}
+
+	producerTask := ProducerTasker{connections: co,
+		avmOutputsCursor:        AvmOutputsAggregateCursor,
+		insertAvmAggregate:      models.InsertAvmAssetAggregation,
+		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
+		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
+		updateAvmAggregateCount: models.UpdateAvmAssetAggregationCount,
+		timeStampProducer:       timeProducerFunc,
+	}
+
+	backupState, _ := producerTask.updateBackupState(ctx, sess, state)
 	if backupState.ID != models.StateBackupID {
 		t.Fatal("invalid state")
 	}
