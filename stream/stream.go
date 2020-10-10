@@ -7,10 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"strconv"
-	"strings"
-
-	"github.com/ava-labs/avalanchego/ids"
 )
 
 var (
@@ -21,7 +17,7 @@ var (
 	ErrWrongTopicNetworkID = errors.New("wrong topic networkID")
 )
 
-var (
+const (
 	EventTypeConsensus EventType = "consensus"
 	EventTypeDecisions EventType = "decisions"
 )
@@ -47,21 +43,4 @@ func getSocketName(root string, networkID uint32, chainID string, eventType Even
 
 func GetTopicName(networkID uint32, chainID string, eventType EventType) string {
 	return fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType)
-}
-
-func parseTopicNameToChainID(topic string, networkID uint32, eventType EventType) (ids.ID, error) {
-	parts := strings.Split(topic, "-")
-	if len(parts) != 3 {
-		return ids.Empty, ErrInvalidTopicName
-	}
-
-	if parts[0] != strconv.Itoa(int(networkID)) {
-		return ids.Empty, ErrWrongTopicNetworkID
-	}
-
-	if parts[2] != string(eventType) {
-		return ids.Empty, ErrWrongTopicEventType
-	}
-
-	return ids.FromString(parts[1])
 }

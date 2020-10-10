@@ -14,6 +14,7 @@ import (
 
 const (
 	KeyID           = "id"
+	KeyChainID      = "chainID"
 	KeyAddress      = "address"
 	KeyAssetID      = "assetID"
 	KeySearchQuery  = "query"

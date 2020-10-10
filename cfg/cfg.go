@@ -6,6 +6,8 @@ package cfg
 import (
 	"errors"
 	"time"
+
+	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 const appName = "ortelius"
@@ -21,11 +23,10 @@ var (
 )
 
 type Config struct {
-	NetworkID    uint32 `json:"networkID"`
-	LogDirectory string `json:"logDirectory"`
-	Chains       `json:"chains"`
-	Stream       `json:"stream"`
-	Services     `json:"services"`
+	NetworkID uint32 `json:"networkID"`
+	Chains    `json:"chains"`
+	Stream    `json:"stream"`
+	Services  `json:"services"`
 }
 
 type Chain struct {
@@ -37,6 +38,8 @@ type Chain struct {
 type Chains map[string]Chain
 
 type Services struct {
+	Logging logging.Config `json:"logging"`
+
 	API    `json:"api"`
 	*DB    `json:"db"`
 	*Redis `json:"redis"`
@@ -109,12 +112,19 @@ func NewFromFile(filePath string) (*Config, error) {
 		return nil, err
 	}
 
+	// Build logging config
+	loggingConf, err := logging.DefaultConfig()
+	if err != nil {
+		return nil, err
+	}
+	loggingConf.Directory = v.GetString(keysLogDirectory)
+
 	// Put it all together
 	return &Config{
-		NetworkID:    v.GetUint32(keysNetworkID),
-		LogDirectory: v.GetString(keysLogDirectory),
-		Chains:       chains,
+		NetworkID: v.GetUint32(keysNetworkID),
+		Chains:    chains,
 		Services: Services{
+			Logging: loggingConf,
 			API: API{
 				ListenAddr: servicesAPIViper.GetString(keysServicesAPIListenAddr),
 			},

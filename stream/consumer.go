@@ -16,41 +16,45 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
+const (
+	consumerEventType = EventTypeDecisions
+)
+
+var (
+	consumerInitializeTimeout = 3 * time.Minute
+)
+
 type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	networkID uint32
-	eventType EventType
-	reader    *kafka.Reader
-	consumer  services.Consumer
+	chainID  string
+	reader   *kafka.Reader
+	consumer services.Consumer
+	conns    *services.Connections
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactory {
-	return func(conf cfg.Config, networkID uint32, chainVM string, chainID string) (Processor, error) {
-		var (
-			err error
-			c   = &consumer{
-				networkID: networkID,
-				eventType: eventType,
-			}
-		)
-
+func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
+	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 		conns, err := services.NewConnectionsFromConfig(conf.Services)
 		if err != nil {
 			return nil, err
 		}
-		defer conns.Close()
+
+		c := &consumer{
+			chainID: chainID,
+			conns:   conns,
+		}
 
 		// Create consumer backend
-		c.consumer, err = factory(conns, networkID, chainVM, chainID)
+		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
 		if err != nil {
 			return nil, err
 		}
 
 		// Bootstrap our service
-		ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
+		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
 		if err = c.consumer.Bootstrap(ctx); err != nil {
 			return nil, err
@@ -67,7 +71,7 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(networkID, chainID, eventType),
+			Topic:       GetTopicName(conf.NetworkID, chainID, consumerEventType),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
@@ -90,11 +94,8 @@ func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) Pro
 
 // Close closes the consumer
 func (c *consumer) Close() error {
-	ctx, cancelFn := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancelFn()
-
 	errs := wrappers.Errs{}
-	errs.Add(c.reader.Close(), c.consumer.Close(ctx))
+	errs.Add(c.conns.Close(), c.reader.Close())
 	return errs.Err
 }
 
@@ -121,12 +122,6 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 		return nil, err
 	}
 
-	// Extract chainID from topic
-	chainID, err := parseTopicNameToChainID(msg.Topic, c.networkID, c.eventType)
-	if err != nil {
-		return nil, err
-	}
-
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
@@ -134,9 +129,9 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	}
 
 	return &Message{
+		chainID:   c.chainID,
 		body:      msg.Value,
 		id:        id.String(),
-		chainID:   chainID.String(),
 		timestamp: msg.Time.UTC().Unix(),
 	}, nil
 }
