@@ -18,6 +18,7 @@ require (
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/klauspost/compress v1.10.8 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/prometheus/client_golang v1.7.1
 	github.com/segmentio/kafka-go v0.3.6
 	github.com/spf13/cobra v1.0.0

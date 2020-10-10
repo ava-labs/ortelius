@@ -5,39 +5,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/db"
+
 	"github.com/ava-labs/ortelius/services"
-	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
 
-type EventReceiverTest struct {
-}
-
-func (*EventReceiverTest) Event(eventName string)                          {}
-func (*EventReceiverTest) EventKv(eventName string, kvs map[string]string) {}
-func (*EventReceiverTest) EventErr(eventName string, err error) error      { return nil }
-func (*EventReceiverTest) EventErrKv(eventName string, err error, kvs map[string]string) error {
-	return nil
-}
-func (*EventReceiverTest) Timing(eventName string, nanoseconds int64)                          {}
-func (*EventReceiverTest) TimingKv(eventName string, nanoseconds int64, kvs map[string]string) {}
-
 func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
-	var eventReceiver EventReceiverTest
-
-	c, err := dbr.Open("mysql", "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true", &eventReceiver)
-	if err != nil {
-		t.Errorf("open db %s", err.Error())
-	}
-
+	var err error
 	h := health.NewStream()
 
-	co := services.NewConnections(h, c, nil)
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
 
 	ctx := context.Background()
 
-	job := co.Stream().NewJob("model_aggregation_test")
-	sess := co.DB().NewSession(job)
+	// job := co.Stream().NewJob("model_aggregation_test")
+	sess := co.DB().NewSession("model_aggregation_test")
 
 	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
@@ -94,21 +83,20 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 }
 
 func TestInsertUpdateAvmAssetCount(t *testing.T) {
-	var eventReceiver EventReceiverTest
-
-	c, err := dbr.Open("mysql", "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true", &eventReceiver)
-	if err != nil {
-		t.Errorf("open db %s", err.Error())
-	}
+	var err error
 
 	h := health.NewStream()
 
-	co := services.NewConnections(h, c, nil)
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
 
 	ctx := context.Background()
 
-	job := co.Stream().NewJob("model_aggregation_test")
-	sess := co.DB().NewSession(job)
+	// job := co.Stream().NewJob("model_aggregation_test")
+	sess := co.DB().NewSession("model_aggregation_test")
 
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 

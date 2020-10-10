@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
-	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -50,14 +49,12 @@ var (
 
 type Reader struct {
 	chainID string
-	stream  *health.Stream
-	db      *services.DB
+	conns   *services.Connections
 }
 
-func NewReader(stream *health.Stream, db *services.DB, chainID string) *Reader {
+func NewReader(conns *services.Connections, chainID string) *Reader {
 	return &Reader{
-		db:      db,
-		stream:  stream,
+		conns:   conns,
 		chainID: chainID,
 	}
 }
@@ -113,13 +110,10 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	// Validate params and set defaults if necessary
 	if params.StartTime.IsZero() {
 		var err error
-		params.StartTime, err = r.getFirstTransactionTime(ctx)
+		params.StartTime, err = r.getFirstTransactionTime(ctx, params.ChainIDs)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if params.EndTime.IsZero() {
-		params.EndTime = time.Now().UTC()
 	}
 
 	intervals := []models.Aggregates{}
@@ -138,7 +132,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	// Build the query and load the base data
-	dbRunner := r.db.NewSession("get_transaction_aggregates_histogram")
+	dbRunner := r.conns.DB().NewSession("get_transaction_aggregates_histogram")
 
 	var builder *dbr.SelectStmt
 
@@ -292,13 +286,12 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
-	dbRunner := r.db.NewSession("get_transactions")
+	dbRunner := r.conns.DB().NewSession("get_transactions")
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
-		From("avm_transactions").
-		Where("avm_transactions.chain_id = ?", r.chainID))
+		From("avm_transactions"))
 	if p.NeedsDistinct() {
 		builder = builder.Distinct()
 	}
@@ -353,17 +346,16 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{models.ListMetadata{count}, txs}, nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner := r.db.NewSession("list_assets")
+	dbRunner := r.conns.DB().NewSession("list_assets")
 
 	assets := []*models.Asset{}
 	_, err := p.Apply(dbRunner.
 		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
-		From("avm_assets").
-		Where("chain_id = ?", r.chainID)).
+		From("avm_assets")).
 		LoadContext(ctx, &assets)
 	if err != nil {
 		return nil, err
@@ -376,8 +368,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 			p.ListParams = params.ListParams{}
 			err := p.Apply(dbRunner.
 				Select("COUNT(avm_assets.id)").
-				From("avm_assets").
-				Where("chain_id = ?", r.chainID)).
+				From("avm_assets")).
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
@@ -385,11 +376,11 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		}
 	}
 
-	return &models.AssetList{models.ListMetadata{count}, assets}, nil
+	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner := r.db.NewSession("list_addresses")
+	dbRunner := r.conns.DB().NewSession("list_addresses")
 
 	addresses := []*models.AddressInfo{}
 	_, err := p.Apply(dbRunner.
@@ -421,16 +412,17 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		return nil, err
 	}
 
-	return &models.AddressList{models.ListMetadata{count}, addresses}, nil
+	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner := r.db.NewSession("list_transaction_outputs")
+	dbRunner := r.conns.DB().NewSession("list_transaction_outputs")
 
 	outputs := []*models.Output{}
 	_, err := p.Apply(dbRunner.
 		Select(outputSelectColumns...).
-		From("avm_outputs")).LoadContext(ctx, &outputs)
+		From("avm_outputs")).
+		LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +476,7 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 		}
 	}
 
-	return &models.OutputList{models.ListMetadata{count}, outputs}, err
+	return &models.OutputList{ListMetadata: models.ListMetadata{Count: count}, Outputs: outputs}, err
 }
 
 func (r *Reader) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {
@@ -540,12 +532,17 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 	return nil, err
 }
 
-func (r *Reader) getFirstTransactionTime(ctx context.Context) (time.Time, error) {
+func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string) (time.Time, error) {
 	var ts int64
-	err := r.db.NewSession("get_first_transaction_time").
+	builder := r.conns.DB().NewSession("get_first_transaction_time").
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
-		From("avm_transactions").
-		LoadOneContext(ctx, &ts)
+		From("avm_transactions")
+
+	if len(chainIDs) > 0 {
+		builder.Where("avm_transactions.chain_id = ?", chainIDs)
+	}
+
+	err := builder.LoadOneContext(ctx, &ts)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -571,16 +568,16 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		models.OutputAddress
 	}
 
-	outputs := []*compositeRecord{}
-	_, err := outputSelector(dbRunner, r.chainID).
+	var outputs []*compositeRecord
+	_, err := selectOutputs(dbRunner).
 		Where("avm_outputs.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &outputs)
 	if err != nil {
 		return err
 	}
 
-	inputs := []*compositeRecord{}
-	_, err = outputSelector(dbRunner, r.chainID).
+	var inputs []*compositeRecord
+	_, err = selectOutputs(dbRunner).
 		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
@@ -852,7 +849,7 @@ func collateSearchResults(assetResults *models.AssetList, addressResults *models
 	return collatedResults, nil
 }
 
-func outputSelector(dbRunner dbr.SessionRunner, chainID string) *dbr.SelectBuilder {
+func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 	return dbRunner.Select("avm_outputs.id",
 		"avm_outputs.transaction_id",
 		"avm_outputs.output_index",
@@ -870,7 +867,6 @@ func outputSelector(dbRunner dbr.SessionRunner, chainID string) *dbr.SelectBuild
 		"addresses.public_key AS public_key",
 	).
 		From("avm_outputs").
-		Where("avm_outputs.chain_id = ?", chainID).
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }

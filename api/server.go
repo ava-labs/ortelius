@@ -27,13 +27,7 @@ type Server struct {
 
 // NewServer creates a new *Server based on the given config
 func NewServer(conf cfg.Config) (*Server, error) {
-	loggingConf, err := logging.DefaultConfig()
-	if err != nil {
-		return nil, err
-	}
-	loggingConf.Directory = conf.LogDirectory
-
-	log, err := logging.New(loggingConf)
+	log, err := logging.New(conf.Logging)
 	if err != nil {
 		return nil, err
 	}

@@ -5,37 +5,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/db"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
 
-type EventReceiverTest struct {
-}
-
-func (*EventReceiverTest) Event(eventName string)                          {}
-func (*EventReceiverTest) EventKv(eventName string, kvs map[string]string) {}
-func (*EventReceiverTest) EventErr(eventName string, err error) error      { return nil }
-func (*EventReceiverTest) EventErrKv(eventName string, err error, kvs map[string]string) error {
-	return nil
-}
-func (*EventReceiverTest) Timing(eventName string, nanoseconds int64)                          {}
-func (*EventReceiverTest) TimingKv(eventName string, nanoseconds int64, kvs map[string]string) {}
-
 func TestIntegration(t *testing.T) {
-	var eventReceiver EventReceiverTest
-
-	c, err := dbr.Open("mysql", "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true", &eventReceiver)
-	if err != nil {
-		t.Errorf("open db %s", err.Error())
-	}
+	var err error
 
 	h := health.NewStream()
 
-	co := services.NewConnections(h, c, nil)
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
 
 	// produce an expected timestamp to test..
 	timenow := time.Now().Round(1 * time.Minute)
@@ -54,12 +43,11 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	job := co.Stream().NewJob("producertasker")
-	sess := co.DB().NewSession(job)
+	sess := co.DB().NewSession("producertask")
 
 	// cleanup for run.
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupID)
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
@@ -107,9 +95,9 @@ func TestIntegration(t *testing.T) {
 		t.Errorf("refresh failed %s", err.Error())
 	}
 
-	backupAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupID)
-	liveAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
-	if liveAggregationState.ID != params.StateLiveID {
+	backupAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, models.StateBackupID)
+	liveAggregationState, _ := models.SelectAvmAssetAggregationState(ctx, sess, models.StateLiveID)
+	if liveAggregationState.ID != models.StateLiveID {
 		t.Errorf("state live not created")
 	}
 	if !liveAggregationState.CreatedAt.Equal(timenow.Add(additionalHours)) {
@@ -157,41 +145,37 @@ func TestIntegration(t *testing.T) {
 }
 
 func TestHandleBackupState(t *testing.T) {
-	var eventReceiver EventReceiverTest
-
-	c, err := dbr.Open("mysql", "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true", &eventReceiver)
-	if err != nil {
-		t.Errorf("open db %s", err.Error())
-	}
-
 	h := health.NewStream()
 
-	co := services.NewConnections(h, c, nil)
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
 
 	ctx := context.Background()
 
-	job := co.Stream().NewJob("producertasker")
-	sess := co.DB().NewSession(job)
+	sess := co.DB().NewSession("producertasker")
 
 	// cleanup for run.
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateBackupID)
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, params.StateLiveID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 
 	timeNow := time.Now().Round(1 * time.Minute)
 
 	_, _ = models.InsertAvmAssetAggregationState(ctx, sess, models.AvmAssetAggregateState{
-		ID:               params.StateBackupID,
+		ID:               models.StateBackupID,
 		CreatedAt:        timeNow,
 		CurrentCreatedAt: timeNow})
 
 	state := models.AvmAssetAggregateState{
-		ID:               params.StateLiveID,
+		ID:               models.StateLiveID,
 		CreatedAt:        time.Unix(1, 0),
 		CurrentCreatedAt: time.Unix(1, 0)}
 
 	var producerTask ProducerTasker
 	backupState, _ := producerTask.handleBackupState(ctx, sess, state)
-	if backupState.ID != params.StateBackupID {
+	if backupState.ID != models.StateBackupID {
 		t.Fatal("invalid state")
 	}
 

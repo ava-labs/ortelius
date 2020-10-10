@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
-	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -82,8 +81,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	job := t.connections.Stream().NewJob("producertasker")
-	sess := t.connections.DB().NewSession(job)
+	sess := t.connections.DB().NewSession("producertasker")
 
 	var err error
 	var liveAggregationState models.AvmAssetAggregateState
@@ -94,22 +92,22 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	// created at and current created at set to time(0), so the first run will re-build aggregates for the entire db.
 	_, _ = models.InsertAvmAssetAggregationState(ctx, sess,
 		models.AvmAssetAggregateState{
-			ID:               params.StateLiveID,
+			ID:               models.StateLiveID,
 			CreatedAt:        time.Unix(1, 0),
 			CurrentCreatedAt: time.Unix(1, 0)},
 	)
 
-	liveAggregationState, err = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
+	liveAggregationState, err = models.SelectAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 	// this is really bad, the state live row was not created..  we cannot proceed safely.
-	if liveAggregationState.ID != params.StateLiveID {
+	if liveAggregationState.ID != models.StateLiveID {
 		t.log.Error("unable to find live state")
 		return err
 	}
 
 	// check if the backup row exists, if found we crashed from a previous run.
-	backupAggregateState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateBackupID)
+	backupAggregateState, _ = models.SelectAvmAssetAggregationState(ctx, sess, models.StateBackupID)
 
-	if backupAggregateState.ID == uint64(params.StateBackupID) {
+	if backupAggregateState.ID == uint64(models.StateBackupID) {
 		// re-process from backup row..
 		liveAggregationState = backupAggregateState
 	} else {
@@ -121,16 +119,16 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		updatedCurrentCreated := t.timeStampProducer().Add(additionalHours)
 		_, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
 			"set current_created_at=created_at, created_at=? "+
-			"where id=?", updatedCurrentCreated, params.StateLiveID)
+			"where id=?", updatedCurrentCreated, models.StateLiveID)
 		if err != nil {
 			t.log.Error("atomic swap %s", err.Error())
 			return err
 		}
 
 		// reload the live state
-		liveAggregationState, _ = models.SelectAvmAssetAggregationState(ctx, sess, params.StateLiveID)
+		liveAggregationState, _ = models.SelectAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 		// this is really bad, the state live row was not created..  we cannot proceed safely.
-		if liveAggregationState.ID != params.StateLiveID {
+		if liveAggregationState.ID != models.StateLiveID {
 			t.log.Error("unable to reload live state")
 			return err
 		}
@@ -157,7 +155,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	// if things go really bad, then when the process restarts the row will be re-selected and deleted then..
 	_, _ = sess.
 		DeleteFrom("avm_asset_aggregation_state").
-		Where("id = ? and current_created_at = ?", params.StateBackupID, backupAggregateState.CurrentCreatedAt).
+		Where("id = ? and current_created_at = ?", models.StateBackupID, backupAggregateState.CurrentCreatedAt).
 		ExecContext(ctx)
 
 	// delete aggregate data before aggregateDeleteFrame
@@ -269,7 +267,7 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 func (t *ProducerTasker) handleBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
 	// setup the backup as a copy of the live state.
 	backupAggregateState := liveAggregationState
-	backupAggregateState.ID = params.StateBackupID
+	backupAggregateState.ID = models.StateBackupID
 
 	var err error
 	// id=stateBackupId backup row - for crash recovery

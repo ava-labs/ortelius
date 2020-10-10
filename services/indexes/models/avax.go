@@ -7,15 +7,6 @@ import (
 	"time"
 )
 
-// ChainInfo represents an overview of data about a given chain
-type ChainInfo struct {
-	ID          StringID `json:"chainID"`
-	Alias       string   `json:"chainAlias"`
-	VM          string   `json:"vm"`
-	AVAXAssetID StringID `json:"avaxAssetID"`
-	NetworkID   uint32   `json:"networkID"`
-}
-
 type Transaction struct {
 	ID      StringID `json:"id"`
 	ChainID StringID `json:"chainID"`

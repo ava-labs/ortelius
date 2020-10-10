@@ -21,6 +21,7 @@ import (
 
 	// Register service plugins
 	_ "github.com/ava-labs/ortelius/services/indexes/avm"
+	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
 )
 
 const (
@@ -146,7 +147,7 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, consumers.NewIndexerFactory()),
+		Run:   runStreamProcessorManagers(config, runErr, consumers.Indexer),
 	})
 
 	return streamCmd

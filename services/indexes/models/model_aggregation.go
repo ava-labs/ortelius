@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
+)
+
+const (
+	StateLiveID   = 1
+	StateBackupID = 2
 )
 
 type AvmAggregate struct {
@@ -128,7 +132,7 @@ func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.S
 	return sess.
 		Update("avm_asset_aggregation_state").
 		Set("created_at", time).
-		Where("id = ? and created_at > ?", params.StateLiveID, time).
+		Where("id = ? and created_at > ?", StateLiveID, time).
 		ExecContext(ctx)
 }
 

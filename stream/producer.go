@@ -22,17 +22,16 @@ type Producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, eventType EventType, log *logging.Log) (*Producer, error) {
-	var err error
-
+func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType, log *logging.Log) (*Producer, error) {
 	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(networkID, chainID, eventType)),
+		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 	}
 
-	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, networkID, chainID, eventType))
+	var err error
+	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
 	if err != nil {
 		return nil, err
 	}
@@ -41,13 +40,13 @@ func NewProducer(conf cfg.Config, networkID uint32, _ string, chainID string, ev
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string, log *logging.Log) (Processor, error) {
-	return NewProducer(conf, networkID, chainVM, chainID, EventTypeConsensus, log)
+func NewConsensusProducerProcessor(conf cfg.Config, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, chainVM, chainID, EventTypeConsensus, log)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(conf cfg.Config, networkID uint32, chainVM string, chainID string, log *logging.Log) (Processor, error) {
-	return NewProducer(conf, networkID, chainVM, chainID, EventTypeDecisions, log)
+func NewDecisionsProducerProcessor(conf cfg.Config, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, chainVM, chainID, EventTypeDecisions, log)
 }
 
 // Close shuts down the producer

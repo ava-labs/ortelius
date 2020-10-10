@@ -1,49 +1,40 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
-package avm
+package pvm
 
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
-var (
-	testXChainID = ids.NewID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
-)
-
-func TestIndexBootstrap(t *testing.T) {
-	writer, reader, closeFn := newTestIndex(t, 5, testXChainID)
+func TestBootstrap(t *testing.T) {
+	w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
-	err := writer.Bootstrap(newTestContext())
-	if err != nil {
-		t.Fatal("Failed to bootstrap index:", err.Error())
+	if err := w.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 
-	txList, err := reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
-		ChainIDs: []string{testXChainID.String()},
+	txList, err := r.ListTransactions(context.Background(), &params.ListTransactionsParams{
+		ChainIDs: []string{ChainID.String()},
 	})
 	if err != nil {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count != 1 {
+	if txList.Count != 7 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avm.Reader, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -78,15 +69,9 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Rea
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := NewReader(conns, chainID.String())
+	reader := avm.NewReader(conns, ChainID.String())
 	return writer, reader, func() {
 		s.Close()
 		conns.Close()
 	}
-}
-
-func newTestContext() context.Context {
-	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
-	time.AfterFunc(5*time.Second, cancelFn)
-	return ctx
 }

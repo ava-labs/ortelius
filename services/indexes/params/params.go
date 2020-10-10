@@ -14,6 +14,7 @@ import (
 
 const (
 	KeyID           = "id"
+	KeyChainID      = "chainID"
 	KeyAddress      = "address"
 	KeyAssetID      = "assetID"
 	KeySearchQuery  = "query"
@@ -55,11 +56,6 @@ var (
 
 	// Ensure params types satisfy the interface
 	_ Param = &ListParams{}
-)
-
-const (
-	StateLiveID   = 1
-	StateBackupID = 2
 )
 
 type Param interface {

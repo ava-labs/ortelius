@@ -6,15 +6,13 @@ package db
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"time"
 
-	"github.com/DATA-DOG/go-txdb"
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/dbr/v2/dialect"
 	"github.com/gocraft/health"
+
+	"github.com/ava-labs/ortelius/cfg"
 )
 
 const (
@@ -23,7 +21,38 @@ const (
 	driverTXDB  = "txdb"
 )
 
-func New(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
+// Conn is a wrapper around a dbr connection and a health stream
+type Conn struct {
+	stream *health.Stream
+	conn   *dbr.Connection
+}
+
+// New creates a new DB for the given config
+func New(stream *health.Stream, conf cfg.DB) (*Conn, error) {
+	conn, err := newDBRConnection(stream, conf)
+	if err != nil {
+		return nil, err
+	}
+	return &Conn{
+		conn:   conn,
+		stream: stream,
+	}, nil
+}
+
+func (c *Conn) Close(context.Context) error {
+	c.stream.Event("close")
+	return c.conn.Close()
+}
+
+func (c *Conn) NewSession(name string) *dbr.Session {
+	return c.NewSessionForEventReceiver(c.stream.NewJob(name))
+}
+
+func (c *Conn) NewSessionForEventReceiver(er health.EventReceiver) *dbr.Session {
+	return c.conn.NewSession(er)
+}
+
+func newDBRConnection(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
 	var (
 		err error
 
@@ -65,41 +94,4 @@ func New(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
 		EventReceiver: stream,
 		Dialect:       dbrDialect,
 	}, nil
-}
-
-var registerTxDBOnce = sync.Once{}
-
-func registerTxDB(c cfg.DB) {
-	registerTxDBOnce.Do(func() {
-		txdb.Register(driverTXDB, c.Driver, c.DSN)
-	})
-}
-
-func forceParseTimeParam(dsn string) (string, error) {
-	// Parse dsn into a url
-	u, err := mysql.ParseDSN(dsn)
-	if err != nil {
-		return "", err
-	}
-
-	if u.Params == nil {
-		u.Params = make(map[string]string)
-	}
-	u.Params["parseTime"] = "true"
-
-	// Re-encode as a string
-	return u.FormatDSN(), nil
-}
-
-func SanitizedDSN(cfg *cfg.DB) (string, error) {
-	if cfg == nil || cfg.Driver != DriverMysql {
-		return "", nil
-	}
-
-	dsn, err := mysql.ParseDSN(cfg.DSN)
-	if err != nil {
-		return "", err
-	}
-	dsn.Passwd = "[removed]"
-	return dsn.FormatDSN(), nil
 }
