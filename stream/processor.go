@@ -95,7 +95,6 @@ func (c *ProcessorManager) Listen() error {
 					<-time.After(processorFailureRetryInterval)
 				}
 			}
-
 		}(chainConfig)
 	}
 

@@ -187,7 +187,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	return nil
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blockID ids.ID, tx platformvm.Tx) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx) error {
 	var (
 		baseTx avax.BaseTx
 		typ    models.TransactionType

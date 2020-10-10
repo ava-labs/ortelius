@@ -41,13 +41,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	var (
 		err   error
 		total uint64 = 0
+		errs         = wrappers.Errs{}
 	)
 
 	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
 	for i, in := range baseTx.Ins {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
-			return err
+			errs.Add(err)
 		}
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
@@ -63,19 +64,17 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		// }, models.OutputTypesSECP2556K1Transfer, 0, nil)
 
 		// For each signature we recover the public key and the data to the db
-		cred, ok := creds[i].(*secp256k1fx.Credential)
-		if !ok {
-			return nil
-		}
-
+		cred, _ := creds[i].(*secp256k1fx.Credential)
 		for _, sig := range cred.Sigs {
 			publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
 			if err != nil {
 				return err
 			}
 
-			w.InsertAddressFromPublicKey(ctx, publicKey)
-			w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+			errs.Add(
+				w.InsertAddressFromPublicKey(ctx, publicKey),
+				w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
+			)
 		}
 	}
 
@@ -88,7 +87,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			Where("id IN ?", redeemedOutputs).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			return err
+			errs.Add(err)
 		}
 	}
 
@@ -112,7 +111,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		Pair("canonical_serialization", txBytes).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		errs.Add(err)
 	}
 
 	// Process baseTx outputs by adding to the outputs table
@@ -121,9 +120,9 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		if !ok {
 			continue
 		}
-		w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil)
+		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
-	return nil
+	return errs.Err
 }
 
 func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte) error {
@@ -159,7 +158,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 	return errs.Err
 }
 
-func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) {
+func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) error {
 	_, err := ctx.DB().
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
@@ -167,8 +166,9 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 		ExecContext(ctx.Ctx())
 
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		_ = ctx.Job().EventErr("insert_address_from_public_key", err)
+		return ctx.Job().EventErr("insert_address_from_public_key", err)
 	}
+	return nil
 }
 
 func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) error {
