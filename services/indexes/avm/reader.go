@@ -115,9 +115,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			return nil, err
 		}
 	}
-	if params.EndTime.IsZero() {
-		params.EndTime = time.Now().UTC()
-	}
 
 	// Ensure the interval count requested isn't too large
 	intervalSeconds := int64(params.IntervalSize.Seconds())
@@ -151,16 +148,10 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			intervalSeconds))
 	}
 
-	builder := dbRunner.
+	builder := params.Apply(dbRunner.
 		Select(columns...).
 		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		Where("avm_outputs.created_at >= ?", params.StartTime).
-		Where("avm_outputs.created_at < ?", params.EndTime)
-
-	if params.AssetID != nil {
-		builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
-	}
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id"))
 
 	if requestedIntervalCount > 0 {
 		builder.

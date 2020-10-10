@@ -82,6 +82,10 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 		return err
 	}
 
+	if p.EndTime.IsZero() {
+		p.EndTime = time.Now().UTC()
+	}
+
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
 		return err
@@ -105,6 +109,21 @@ func (p *AggregateParams) CacheKey() []string {
 	)
 
 	return k
+}
+
+func (p *AggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	b.Where("avm_outputs.created_at >= ?", p.StartTime)
+	b.Where("avm_outputs.created_at < ?", p.EndTime)
+
+	if p.AssetID != nil {
+		b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+	}
+
+	if len(p.ChainIDs) > 0 {
+		b.Where("avm_outputs.chain_id = ?", p.ChainIDs)
+	}
+
+	return b
 }
 
 //
