@@ -5,29 +5,47 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis"
-	"github.com/gocraft/health"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
-const testNetworkID = 0
-
 func TestBootstrap(t *testing.T) {
-	w, closeFn := newTestWriter(t)
+	w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
 	if err := w.Bootstrap(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+
+	txList, err := r.ListTransactions(context.Background(), &params.ListTransactionsParams{})
+	if err != nil {
+		t.Fatal("Failed to list transactions:", err.Error())
+	}
+
+	if txList.Count != 7 {
+		t.Fatal("Incorrect number of transactions:", txList.Count)
+	}
 }
 
-func newTestWriter(t *testing.T) (*Writer, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avm.Reader, func()) {
+	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
 		t.Fatal("Failed to create miniredis server:", err.Error())
 	}
 
+	logConf, err := logging.DefaultConfig()
+	if err != nil {
+		t.Fatal("Failed to create logging config:", err.Error())
+	}
+
 	conf := cfg.Services{
+		Logging: logConf,
 		DB: &cfg.DB{
 			TXDB:   true,
 			Driver: "mysql",
@@ -38,15 +56,20 @@ func newTestWriter(t *testing.T) (*Writer, func()) {
 		},
 	}
 
-	w, err := NewWriter(conf, testNetworkID)
+	conns, err := services.NewConnectionsFromConfig(conf)
 	if err != nil {
-		t.Fatal("Failed to bootstrap index:", err.Error())
+		t.Fatal("Failed to create connections:", err.Error())
 	}
 
-	w.stream = health.NewStream()
+	// Create index
+	writer, err := NewWriter(conns, networkID, chainID.String())
+	if err != nil {
+		t.Fatal("Failed to create writer:", err.Error())
+	}
 
-	return w, func() {
+	reader := avm.NewReader(conns, ChainID.String())
+	return writer, reader, func() {
 		s.Close()
-		w.Close(context.Background())
+		conns.Close()
 	}
 }
