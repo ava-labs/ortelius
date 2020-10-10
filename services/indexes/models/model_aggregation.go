@@ -136,7 +136,7 @@ func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.S
 		ExecContext(ctx)
 }
 
-func SelectAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, id uint64) (AvmAssetAggregateState, error) {
+func SelectAvmAssetAggregationState(ctx context.Context, sess dbr.SessionRunner, id uint64) (AvmAssetAggregateState, error) {
 	var avmAssetAggregateState AvmAssetAggregateState
 	err := sess.
 		Select("id", "created_at", "current_created_at").
@@ -155,7 +155,7 @@ func UpdateAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmA
 		ExecContext(ctx)
 }
 
-func InsertAvmAssetAggregationState(ctx context.Context, sess *dbr.Session, avmAssetAggregationState AvmAssetAggregateState) (sql.Result, error) {
+func InsertAvmAssetAggregationState(ctx context.Context, sess dbr.SessionRunner, avmAssetAggregationState AvmAssetAggregateState) (sql.Result, error) {
 	return sess.
 		InsertInto("avm_asset_aggregation_state").
 		Pair("id", avmAssetAggregationState.ID).

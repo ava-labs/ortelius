@@ -76,11 +76,11 @@ func initializeConsumerTasker(conf cfg.Config, log *logging.Log) error {
 }
 
 // under lock control.  update live state, and copy into backup state
-func (t *ProducerTasker) updateBackupState(ctx context.Context, sess *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
+func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.Session, liveAggregationState models.AvmAssetAggregateState) (models.AvmAssetAggregateState, error) {
 	var err error
 
 	var sessTX *dbr.Tx
-	sessTX, err = sess.Begin()
+	sessTX, err = dbSession.Begin()
 	if err != nil {
 		return blank, err
 	}
@@ -105,10 +105,10 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, sess *dbr.Sessio
 	backupAggregateState.ID = models.StateBackupID
 
 	// id=stateBackupId backup row - for crash recovery
-	_, err = models.InsertAvmAssetAggregationState(ctx, sess, backupAggregateState)
+	_, err = models.InsertAvmAssetAggregationState(ctx, sessTX, backupAggregateState)
 	if db.ErrIsDuplicateEntryError(err) {
 		var sqlResult sql.Result
-		sqlResult, err = sess.ExecContext(ctx, "update avm_asset_aggregation_state "+
+		sqlResult, err = sessTX.ExecContext(ctx, "update avm_asset_aggregation_state "+
 			"set current_created_at=? "+
 			"where id=? and current_created_at > ?",
 			backupAggregateState.CurrentCreatedAt, backupAggregateState.ID, backupAggregateState.CurrentCreatedAt)
@@ -127,7 +127,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, sess *dbr.Sessio
 
 		if rowsAffected > 0 {
 			// if we updated, refresh the backup state
-			backupAggregateState, err = models.SelectAvmAssetAggregationState(ctx, sess, backupAggregateState.ID)
+			backupAggregateState, err = models.SelectAvmAssetAggregationState(ctx, sessTX, backupAggregateState.ID)
 			if err != nil {
 				t.log.Error("refresh backup state %s", err)
 				return blank, err
