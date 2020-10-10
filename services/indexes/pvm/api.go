@@ -7,6 +7,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/genesis"
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/gocraft/web"
 
 	"github.com/ava-labs/ortelius/api"
@@ -28,11 +31,17 @@ type APIContext struct {
 
 	reader     *Reader
 	avaxReader *avm.Reader
+	assetID    ids.ID
 }
 
 func NewAPIRouter(params api.RouterParams) error {
 	reader := NewReader(params.Connections)
 	avaxReader := avm.NewReader(params.Connections, ChainID.String())
+
+	_, avaxAssetID, err := genesis.Genesis(params.NetworkID)
+	if err != nil {
+		return err
+	}
 
 	params.Router.
 		// Setup the context for each request
@@ -42,6 +51,7 @@ func NewAPIRouter(params api.RouterParams) error {
 
 			c.networkID = params.NetworkID
 			c.chainAlias = params.ChainConfig.Alias
+			c.assetID = avaxAssetID
 			next(w, r)
 		}).
 
@@ -83,7 +93,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.ListTransactions(ctx, p)
+			return c.avaxReader.ListTransactions(ctx, p, c.assetID)
 		},
 	})
 }
