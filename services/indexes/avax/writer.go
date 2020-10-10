@@ -175,7 +175,8 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).
-		Pair("address", address.String())
+		Pair("address", address.String()).
+		Pair("created_at", ctx.Time())
 
 	if sig != nil {
 		builder = builder.Pair("redeeming_signature", sig)
