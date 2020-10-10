@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// const (
-// 	BlockTypeProposal BlockType = iota
-// 	BlockTypeAbort
-// 	BlockTypeCommit
-// 	BlockTypeStandard
-// 	BlockTypeAtomic
-// )
-//
+// ChainInfo represents an overview of data about a given chain
+type ChainInfo struct {
+	ID          StringID `json:"chainID"`
+	Alias       string   `json:"chainAlias"`
+	VM          string   `json:"vm"`
+	AVAXAssetID StringID `json:"avaxAssetID"`
+	NetworkID   uint32   `json:"networkID"`
+}
 
 type Block struct {
 	ID        StringID  `json:"id"`
