@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -56,6 +57,7 @@ func (p *SearchParams) CacheKey() []string {
 }
 
 type AggregateParams struct {
+	ChainIDs     []string
 	AssetID      *ids.ID
 	StartTime    time.Time
 	EndTime      time.Time
@@ -63,6 +65,8 @@ type AggregateParams struct {
 }
 
 func (p *AggregateParams) ForValues(q url.Values) (err error) {
+	p.ChainIDs = q[KeyChainID]
+
 	p.AssetID, err = GetQueryID(q, KeyAssetID)
 	if err != nil {
 		return err
@@ -97,6 +101,7 @@ func (p *AggregateParams) CacheKey() []string {
 		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
 		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 	)
 
 	return k
@@ -109,7 +114,8 @@ func (p *AggregateParams) CacheKey() []string {
 type ListTransactionsParams struct {
 	ListParams
 
-	ID *ids.ID
+	ID       *ids.ID
+	ChainIDs []string
 
 	Query string
 
@@ -138,6 +144,8 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	if err != nil {
 		return err
 	}
+
+	p.ChainIDs = q[KeyChainID]
 
 	p.AssetID, err = GetQueryID(q, KeyAssetID)
 	if err != nil {
@@ -185,6 +193,7 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	k = append(k,
 		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
 		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
+		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 	)
 
 	return k
@@ -231,6 +240,10 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	if p.Query != "" {
 		b.Where(dbr.Like("avm_transactions.id", p.Query+"%"))
+	}
+
+	if len(p.ChainIDs) > 0 {
+		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
 	}
 
 	return b
@@ -345,6 +358,7 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 type ListOutputsParams struct {
 	ListParams
 	ID        *ids.ID
+	ChainIDs  []string
 	Addresses []ids.ShortID
 	Spent     *bool
 	Query     string
@@ -360,6 +374,8 @@ func (p *ListOutputsParams) ForValues(q url.Values) error {
 	if err != nil {
 		return err
 	}
+
+	p.ChainIDs = q[KeyChainID]
 
 	addressStrs := q[KeyAddress]
 	for _, addressStr := range addressStrs {
@@ -384,6 +400,8 @@ func (p *ListOutputsParams) ForValues(q url.Values) error {
 
 func (p *ListOutputsParams) CacheKey() []string {
 	k := p.ListParams.CacheKey()
+
+	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
 
 	if p.ID != nil {
 		k = append(k, CacheKey(KeyID, p.ID.String()))
@@ -432,6 +450,10 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Query != "" {
 		b.Where(dbr.Like("avm_outputs.id", p.Query+"%"))
+	}
+
+	if len(p.ChainIDs) > 0 {
+		b.Where("avm_outputs.chain_id = ?", p.ChainIDs)
 	}
 
 	return b

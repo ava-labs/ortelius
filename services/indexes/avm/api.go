@@ -104,6 +104,10 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
+	}
+
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
@@ -117,6 +121,10 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
+	}
+
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
 	}
 
 	c.WriteCacheable(w, api.Cachable{
@@ -205,6 +213,10 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 	if err := p.ForValues(r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
+	}
+
+	if len(p.ChainIDs) < 1 {
+		p.ChainIDs = []string{c.chainID}
 	}
 
 	c.WriteCacheable(w, api.Cachable{
