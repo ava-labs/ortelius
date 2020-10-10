@@ -53,9 +53,9 @@ func (t TransactionType) String() string {
 	case TransactionTypeOperation:
 		return "operation"
 	case TransactionTypeAVMImport:
-		return "avm_import"
+		return "import"
 	case TransactionTypeAVMExport:
-		return "avm_export"
+		return "export"
 
 		// PVM
 	case TransactionTypeAddValidator:
