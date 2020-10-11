@@ -743,7 +743,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	}
 
 	for _, asset := range assets {
-		if variableCap, ok := assetMap[asset.ID]; !ok {
+		if variableCap, ok := assetMap[asset.ID]; ok {
 			asset.VariableCap = variableCap
 		}
 	}
