@@ -26,10 +26,10 @@ func init() {
 type APIContext struct {
 	*api.RootRequestContext
 
-	reader     *Reader
-	chainID    string
-	chainAlias string
-	assetID    ids.ID
+	reader      *Reader
+	chainID     string
+	chainAlias  string
+	avaxAssetID ids.ID
 
 	rw web.ResponseWriter
 }
@@ -56,7 +56,7 @@ func NewAPIRouter(params api.RouterParams) error {
 			c.reader = reader
 			c.chainID = params.ChainConfig.ID
 			c.chainAlias = params.ChainConfig.Alias
-			c.assetID = avaxAssetID
+			c.avaxAssetID = avaxAssetID
 
 			c.rw = w
 
@@ -94,7 +94,7 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("search", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.Search(ctx, p, c.assetID)
+			return c.reader.Search(ctx, p, c.avaxAssetID)
 		},
 	})
 }
@@ -133,7 +133,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.ListTransactions(ctx, p, c.assetID)
+			return c.reader.ListTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
 }
@@ -149,7 +149,7 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.GetTransaction(ctx, id, c.assetID)
+			return c.reader.GetTransaction(ctx, id, c.avaxAssetID)
 		},
 	})
 }

@@ -29,9 +29,9 @@ type APIContext struct {
 	networkID  uint32
 	chainAlias string
 
-	reader     *Reader
-	avaxReader *avm.Reader
-	assetID    ids.ID
+	reader      *Reader
+	avaxReader  *avm.Reader
+	avaxAssetID ids.ID
 }
 
 func NewAPIRouter(params api.RouterParams) error {
@@ -51,7 +51,7 @@ func NewAPIRouter(params api.RouterParams) error {
 
 			c.networkID = params.NetworkID
 			c.chainAlias = params.ChainConfig.Alias
-			c.assetID = avaxAssetID
+			c.avaxAssetID = avaxAssetID
 			next(w, r)
 		}).
 
@@ -93,7 +93,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.ListTransactions(ctx, p, c.assetID)
+			return c.avaxReader.ListTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
 }
