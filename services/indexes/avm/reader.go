@@ -519,6 +519,9 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	// Get the IDs returned so we can get Input/Output data
 	txIDs := make([]models.StringID, len(txs))
 	for i, tx := range txs {
+		if txs[i].Memo == nil {
+			txs[i].Memo = []byte("")
+		}
 		txIDs[i] = tx.ID
 	}
 
