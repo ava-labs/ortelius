@@ -338,6 +338,11 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		}
 	}
 
+	// Add all the addition information we might want
+	if err = r.dressAssets(ctx, dbRunner, assets); err != nil {
+		return nil, err
+	}
+
 	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil
 }
 
@@ -699,6 +704,48 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			continue
 		}
 		addr.Assets[row.AssetID] = row.AssetInfo
+	}
+
+	return nil
+}
+
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset) error {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	// Create a list of ids for querying, and a map for accumulating results later
+	assetIDs := make([]models.StringID, len(assets))
+	for i, asset := range assets {
+		assetIDs[i] = asset.ID
+	}
+
+	rows := []*struct {
+		AssetID     models.StringID `json:"assetID"`
+		VariableCap uint8           `json:"variableCap"`
+	}{}
+
+	mintOutputs := make([]models.OutputType, 0, 2)
+	mintOutputs = append(mintOutputs, models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint)
+	_, err := dbRunner.Select("avm_outputs.asset_id", "CASE WHEN count(avm_outputs.asset_id) > 0 THEN 1 ELSE 0 END AS variable_cap").
+		From("avm_outputs").
+		Where("avm_outputs.output_type IN ?", mintOutputs).
+		GroupBy("avm_outputs.asset_id").
+		Having("count(avm_outputs.asset_id) > 0").
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return err
+	}
+
+	assetMap := make(map[models.StringID]uint8)
+	for pos, row := range rows {
+		assetMap[row.AssetID] = rows[pos].VariableCap
+	}
+
+	for _, asset := range assets {
+		if variableCap, ok := assetMap[asset.ID]; !ok {
+			asset.VariableCap = variableCap
+		}
 	}
 
 	return nil
