@@ -37,7 +37,7 @@ func NewWriter(chainID string, stream *health.Stream) *Writer {
 	return &Writer{chainID: chainID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType) error {
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, exportedIns []*avax.TransferableInput, exportedOuts []*avax.TransferableOutput) error {
 	var (
 		err   error
 		total uint64 = 0
@@ -45,7 +45,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	)
 
 	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
-	for i, in := range baseTx.Ins {
+	for i, in := range append(baseTx.Ins, exportedIns...) {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
 			errs.Add(err)
@@ -115,7 +115,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Process baseTx outputs by adding to the outputs table
-	for idx, out := range baseTx.Outs {
+	for idx, out := range append(baseTx.Outs, exportedOuts...) {
 		xOut, ok := out.Output().(*secp256k1fx.TransferOutput)
 		if !ok {
 			continue
