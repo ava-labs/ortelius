@@ -128,7 +128,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		case *platformvm.StakeableLockOut:
 			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
 			if !ok {
-				return fmt.Errorf("invalid output *secp256k1fx.TransferOutput")
+				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
 			xOut.Locktime = transferOutput.Locktime
 			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
