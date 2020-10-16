@@ -5,3 +5,4 @@ create table avm_outputs_redeeming
     redeeming_transaction_id varchar(50)       not null default "",
     created_at               timestamp         not null default current_timestamp
 );
+create index avm_outputs_redeeming_redeeming_transaction_id ON avm_outputs_redeeming (redeeming_transaction_id);
