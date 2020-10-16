@@ -83,14 +83,15 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Mark all inputs as redeemed
-	if len(redeemedOutputs) > 0 {
+	for _, redeemedOutput := range redeemedOutputs {
 		_, err = ctx.DB().
-			Update("avm_outputs").
-			Set("redeemed_at", dbr.Now).
-			Set("redeeming_transaction_id", baseTx.ID().String()).
-			Where("id IN ?", redeemedOutputs).
+			InsertInto("avm_outputs_redeeming").
+			Pair("id", redeemedOutput).
+			Pair("redeemed_at", dbr.Now).
+			Pair("redeeming_transaction_id", baseTx.ID().String()).
+			Pair("created_at", ctx.Time()).
 			ExecContext(ctx.Ctx())
-		if err != nil {
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
 			errs.Add(err)
 		}
 	}
