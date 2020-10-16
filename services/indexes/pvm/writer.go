@@ -6,6 +6,8 @@ package pvm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/genesis"
@@ -97,11 +99,17 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		xOut, ok := utxo.Out.(*secp256k1fx.TransferOutput)
-		if !ok {
-			continue
+		switch transferOutput := utxo.Out.(type) {
+		case *platformvm.StakeableLockOut:
+			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
+			}
+			xOut.Locktime = transferOutput.Locktime
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		default:
+			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
-		errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
 
 	for _, tx := range append(platformGenesis.Validators, platformGenesis.Chains...) {
