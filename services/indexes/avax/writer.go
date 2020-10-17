@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/gocraft/dbr/v2"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -15,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
@@ -48,7 +49,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		errs         = wrappers.Errs{}
 	)
 
-	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
 	for i, in := range append(baseTx.Ins, addIns...) {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
@@ -57,8 +57,17 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
-		// Save id so we can mark this output as consumed
-		redeemedOutputs = append(redeemedOutputs, inputID.String())
+		_, err = ctx.DB().
+			InsertInto("avm_outputs_redeeming").
+			Pair("id", inputID.String()).
+			Pair("redeemed_at", dbr.Now).
+			Pair("redeeming_transaction_id", baseTx.ID().String()).
+			Pair("output_index", in.OutputIndex).
+			Pair("created_at", ctx.Time()).
+			ExecContext(ctx.Ctx())
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
+			errs.Add(err)
+		}
 
 		// Upsert this input as an output in case we haven't seen the parent tx
 		// We leave Addrs blank because we inserted them above with their signatures
@@ -79,20 +88,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 				w.InsertAddressFromPublicKey(ctx, publicKey),
 				w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
 			)
-		}
-	}
-
-	// Mark all inputs as redeemed
-	for _, redeemedOutput := range redeemedOutputs {
-		_, err = ctx.DB().
-			InsertInto("avm_outputs_redeeming").
-			Pair("id", redeemedOutput).
-			Pair("redeemed_at", dbr.Now).
-			Pair("redeeming_transaction_id", baseTx.ID().String()).
-			Pair("created_at", ctx.Time()).
-			ExecContext(ctx.Ctx())
-		if err != nil && !db.ErrIsDuplicateEntryError(err) {
-			errs.Add(err)
 		}
 	}
 
