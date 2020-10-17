@@ -76,6 +76,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if err != nil {
 		return err
 	}
+	p.StartTime = p.StartTime.Round(5 * time.Second)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
@@ -85,6 +86,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if p.EndTime.IsZero() {
 		p.EndTime = time.Now().UTC()
 	}
+	p.EndTime = p.EndTime.Round(5 * time.Second)
 
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
@@ -102,8 +104,8 @@ func (p *AggregateParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
-		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
+		CacheKey(KeyStartTime, p.StartTime.Unix()),
+		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 	)
