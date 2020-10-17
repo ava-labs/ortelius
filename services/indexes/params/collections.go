@@ -184,11 +184,13 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	if err != nil {
 		return err
 	}
+	p.StartTime = p.StartTime.Round(5 * time.Second)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
 		return err
 	}
+	p.EndTime = p.EndTime.Round(5 * time.Second)
 
 	return nil
 }
@@ -210,8 +212,8 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
-		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
+		CacheKey(KeyStartTime, p.StartTime.Unix()),
+		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 	)
 
