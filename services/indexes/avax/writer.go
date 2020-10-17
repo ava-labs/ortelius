@@ -121,17 +121,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	// Process baseTx outputs by adding to the outputs table
 	for idx, out := range append(baseTx.Outs, addOuts...) {
-		// there will be empty outs inserted to make sure the idx is correct.
-		if out == nil {
-			continue
-		}
 		switch transferOutput := out.Out.(type) {
 		case *platformvm.StakeableLockOut:
 			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			xOut.Locktime = transferOutput.Locktime
+			// needs to support StakeableLockOut Locktime...
+			// xOut.Locktime = transferOutput.Locktime
 			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		case *secp256k1fx.TransferOutput:
 			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
