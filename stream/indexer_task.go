@@ -210,7 +210,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		ExecContext(ctx)
 
 	// delete aggregate data before aggregateDeleteFrame
-	_, _ = models.PurgeOldAvmAssetAggregation(ctx, sess, aggregateTS.Add(aggregateDeleteFrame))
+	// *disable* _, _ = models.PurgeOldAvmAssetAggregation(ctx, sess, aggregateTS.Add(aggregateDeleteFrame))
 
 	t.log.Info("processed up to %s", aggregateTS.String())
 
