@@ -273,13 +273,14 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS total_received",
-			"CAST(COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS CHAR) AS total_sent",
-			"CAST(COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS CHAR) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
+			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_output_addresses.address IN ?", subquery).
 		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 		RowsContext(ctx)
