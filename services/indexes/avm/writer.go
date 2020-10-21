@@ -240,7 +240,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	for _, txOut := range tx.Outs {
 		switch xOutOut := txOut.Out.(type) {
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		default:
 			_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 		}
