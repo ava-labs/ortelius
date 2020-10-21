@@ -62,6 +62,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			Pair("id", inputID.String()).
 			Pair("redeemed_at", dbr.Now).
 			Pair("redeeming_transaction_id", baseTx.ID().String()).
+			Pair("amount", in.Input().Amount()).
 			Pair("output_index", in.OutputIndex).
 			Pair("created_at", ctx.Time()).
 			ExecContext(ctx.Ctx())
