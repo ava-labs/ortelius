@@ -6,6 +6,8 @@ package pvm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/genesis"
@@ -97,11 +99,20 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		xOut, ok := utxo.Out.(*secp256k1fx.TransferOutput)
-		if !ok {
-			continue
+		switch transferOutput := utxo.Out.(type) {
+		case *platformvm.StakeableLockOut:
+			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
+			}
+			// needs to support StakeableLockOut Locktime...
+			// xOut.Locktime = transferOutput.Locktime
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		case *secp256k1fx.TransferOutput:
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		default:
+			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
-		errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
 
 	for _, tx := range append(platformGenesis.Validators, platformGenesis.Chains...) {
@@ -193,15 +204,20 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		typ    models.TransactionType
 	)
 
+	var ins []*avax.TransferableInput
+	var outs []*avax.TransferableOutput
+
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
+		outs = castTx.Stake
 		typ = models.TransactionTypeAddValidator
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
 	case *platformvm.UnsignedAddDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
+		outs = castTx.Stake
 		typ = models.TransactionTypeAddDelegator
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -211,9 +227,11 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		typ = models.TransactionTypeCreateChain
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
+		ins = castTx.ImportedInputs
 		typ = models.TransactionTypePVMImport
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
+		outs = castTx.ExportedOutputs
 		typ = models.TransactionTypePVMExport
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
@@ -221,7 +239,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs)
 }
 
 // func (w *Writer) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {

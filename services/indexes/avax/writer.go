@@ -4,14 +4,19 @@
 package avax
 
 import (
+	"fmt"
+	"reflect"
+
+	"github.com/gocraft/dbr/v2"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
@@ -37,15 +42,14 @@ func NewWriter(chainID string, stream *health.Stream) *Writer {
 	return &Writer{chainID: chainID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType) error {
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, addOuts []*avax.TransferableOutput) error {
 	var (
 		err   error
 		total uint64 = 0
 		errs         = wrappers.Errs{}
 	)
 
-	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
-	for i, in := range baseTx.Ins {
+	for i, in := range append(baseTx.Ins, addIns...) {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
 			errs.Add(err)
@@ -53,8 +57,18 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
-		// Save id so we can mark this output as consumed
-		redeemedOutputs = append(redeemedOutputs, inputID.String())
+		_, err = ctx.DB().
+			InsertInto("avm_outputs_redeeming").
+			Pair("id", inputID.String()).
+			Pair("redeemed_at", dbr.Now).
+			Pair("redeeming_transaction_id", baseTx.ID().String()).
+			Pair("amount", in.Input().Amount()).
+			Pair("output_index", in.OutputIndex).
+			Pair("created_at", ctx.Time()).
+			ExecContext(ctx.Ctx())
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
+			errs.Add(err)
+		}
 
 		// Upsert this input as an output in case we haven't seen the parent tx
 		// We leave Addrs blank because we inserted them above with their signatures
@@ -75,19 +89,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 				w.InsertAddressFromPublicKey(ctx, publicKey),
 				w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
 			)
-		}
-	}
-
-	// Mark all inputs as redeemed
-	if len(redeemedOutputs) > 0 {
-		_, err = ctx.DB().
-			Update("avm_outputs").
-			Set("redeemed_at", dbr.Now).
-			Set("redeeming_transaction_id", baseTx.ID().String()).
-			Where("id IN ?", redeemedOutputs).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			errs.Add(err)
 		}
 	}
 
@@ -115,12 +116,21 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Process baseTx outputs by adding to the outputs table
-	for idx, out := range baseTx.Outs {
-		xOut, ok := out.Output().(*secp256k1fx.TransferOutput)
-		if !ok {
-			continue
+	for idx, out := range append(baseTx.Outs, addOuts...) {
+		switch transferOutput := out.Out.(type) {
+		case *platformvm.StakeableLockOut:
+			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
+			}
+			// needs to support StakeableLockOut Locktime...
+			// xOut.Locktime = transferOutput.Locktime
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		case *secp256k1fx.TransferOutput:
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		default:
+			errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
 	return errs.Err
 }
