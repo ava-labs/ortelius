@@ -686,7 +686,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.output_id = avm_outputs_redeeming.id").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_output_addresses.address IN ?", addrIDs).
 		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &rows)
