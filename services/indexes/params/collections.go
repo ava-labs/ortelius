@@ -241,8 +241,14 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	needOutputsJoin := len(p.Addresses) > 0 || p.AssetID != nil
 	if needOutputsJoin {
-		b = b.LeftJoin("avm_outputs", "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs_redeeming.redeeming_transaction_id = avm_transactions.id)").
-			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")
+		subquery := dbr.Select("avm_outputs.id",
+			"avm_outputs.transaction_id",
+			"avm_outputs_redeeming.redeeming_transaction_id").
+			From("avm_outputs").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+			As("avm_outputs")
+
+		b = b.LeftJoin(subquery, "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id)")
 	}
 
 	if len(p.Addresses) > 0 {
