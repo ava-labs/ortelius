@@ -59,13 +59,12 @@ func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmA
 func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update avm_asset_aggregation "+
 		"set "+
-		" transaction_volume=CONVERT(?,DECIMAL(65)),"+
+		" transaction_volume="+avmAggregate.TransactionVolume+","+
 		" transaction_count=?,"+
 		" address_count=?,"+
 		" asset_count=?,"+
 		" output_count=? "+
 		"where aggregate_ts = ? AND asset_id = ?",
-		avmAggregate.TransactionVolume,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.OutputCount,
@@ -77,10 +76,9 @@ func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_aggregation "+
 		"(aggregate_ts,asset_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
-		"values (?,?,CONVERT(?,DECIMAL(65)),?,?,?,?)",
+		"values (?,?,"+avmAggregate.TransactionVolume+",?,?,?,?)",
 		avmAggregate.AggregateTS,
 		avmAggregate.AssetID,
-		avmAggregate.TransactionVolume,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.AssetCount,
@@ -101,15 +99,12 @@ func UpdateAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmA
 	return sess.ExecContext(ctx, "update avm_asset_address_counts "+
 		"set "+
 		" transaction_count=?,"+
-		" total_received=CONVERT(?,DECIMAL(65)),"+
-		" total_sent=CONVERT(?,DECIMAL(65)),"+
-		" balance=CONVERT(?,DECIMAL(65)),"+
+		" total_received="+avmAggregate.TotalReceived+","+
+		" total_sent="+avmAggregate.TotalSent+","+
+		" balance="+avmAggregate.Balance+","+
 		" utxo_count=? "+
 		"where address = ? AND asset_id = ?",
 		avmAggregate.TransactionCount,
-		avmAggregate.TotalReceived,
-		avmAggregate.TotalSent,
-		avmAggregate.Balance,
 		avmAggregate.UtxoCount,
 		avmAggregate.Address,
 		avmAggregate.AssetID)
@@ -118,13 +113,10 @@ func UpdateAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmA
 func InsertAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregateCount) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_address_counts "+
 		"(address,asset_id,transaction_count,total_received,total_sent,balance,utxo_count) "+
-		"values (?,?,?,CONVERT(?,DECIMAL(65)),CONVERT(?,DECIMAL(65)),CONVERT(?,DECIMAL(65)),?)",
+		"values (?,?,?,"+avmAggregate.TotalReceived+","+avmAggregate.TotalSent+","+avmAggregate.Balance+",?)",
 		avmAggregate.Address,
 		avmAggregate.AssetID,
 		avmAggregate.TransactionCount,
-		avmAggregate.TotalReceived,
-		avmAggregate.TotalSent,
-		avmAggregate.Balance,
 		avmAggregate.UtxoCount)
 }
 
