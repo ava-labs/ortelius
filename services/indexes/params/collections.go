@@ -241,7 +241,8 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 	needOutputsJoin := len(p.Addresses) > 0 || p.AssetID != nil
 	if needOutputsJoin {
-		b = b.LeftJoin("avm_outputs", "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id)")
+		b = b.LeftJoin("avm_outputs", "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs_redeeming.redeeming_transaction_id = avm_transactions.id)").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")
 	}
 
 	if len(p.Addresses) > 0 {
@@ -461,9 +462,9 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Spent != nil {
 		if *p.Spent {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NOT NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL")
 		} else {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NULL")
 		}
 	}
 

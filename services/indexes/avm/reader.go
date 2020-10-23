@@ -469,7 +469,8 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
 				Select("COUNT(avm_outputs.id)").
-				From("avm_outputs")).
+				From("avm_outputs").
+				LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")).
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
