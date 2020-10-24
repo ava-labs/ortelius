@@ -41,7 +41,7 @@ var (
 		"avm_outputs.locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
-		"case when avm_outputs_redeeming.redeeming_transaction_id is null then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
 		"avm_outputs.group_id",
 		"avm_outputs.payload",
 	}
@@ -671,9 +671,9 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
 			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
@@ -793,7 +793,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
-		"case when avm_outputs_redeeming.redeeming_transaction_id is null then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
 		"avm_outputs.group_id",
 		"avm_output_addresses.output_id AS output_id",
 		"avm_output_addresses.address AS address",
