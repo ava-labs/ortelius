@@ -1,1 +1,1 @@
-CREATE INDEX avm_outputs_addresss_address ON `avm_outputs_address` (address);
+CREATE INDEX avm_output_addresses_address ON `avm_output_addresses` (address);
