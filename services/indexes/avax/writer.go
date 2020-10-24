@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/gocraft/dbr/v2"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -17,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
