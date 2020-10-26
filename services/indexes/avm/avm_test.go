@@ -42,14 +42,22 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 
+	addr, _ := ids.ToShortID([]byte("addr"))
+
+	sess := writer.conns.DB().NewSession("address_chain")
+	_, _ = sess.InsertInto("address_chain").
+		Pair("address", addr.String()).
+		Pair("chain_id", "ch1").
+		Pair("created_at", time.Now()).
+		ExecContext(context.Background())
+
 	addressChains, err := reader.AddressChains(context.Background(), &params.AddressChainsParams{
-		Addresses: []ids.ShortID{ids.ShortEmpty},
+		Addresses: []ids.ShortID{addr},
 	})
 	if err != nil {
 		t.Fatal("Failed to get address chains:", err.Error())
 	}
-
-	if len(addressChains.AddressChain) != 0 {
+	if len(addressChains.AddressChain) != 1 {
 		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChain))
 	}
 }
