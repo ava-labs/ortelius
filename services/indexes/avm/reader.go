@@ -377,6 +377,21 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
 }
 
+func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChainList, error) {
+	dbRunner := r.conns.DB().NewSession("addressChains")
+
+	addressesChain := []*models.AddressChainInfo{}
+	_, err := p.Apply(dbRunner.
+		Select("address", "chain_id", "created_at").
+		From("address_chain")).
+		LoadContext(ctx, &addressesChain)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.AddressChainList{AddressChain: addressesChain}, nil
+}
+
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
 	dbRunner := r.conns.DB().NewSession("list_transaction_outputs")
 

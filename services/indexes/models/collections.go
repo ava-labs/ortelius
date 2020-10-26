@@ -74,3 +74,7 @@ type Aggregates struct {
 	OutputCount      uint64 `json:"outputCount"`
 	AssetCount       uint64 `json:"assetCount"`
 }
+
+type AddressChainList struct {
+	AddressChain []*AddressChainInfo `json:"addressChain"`
+}

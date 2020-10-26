@@ -41,6 +41,17 @@ func TestIndexBootstrap(t *testing.T) {
 	if txList.Count != 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
+
+	addressChains, err := reader.AddressChains(context.Background(), &params.AddressChainsParams{
+		Addresses: []ids.ShortID{ids.ShortEmpty},
+	})
+	if err != nil {
+		t.Fatal("Failed to get address chains:", err.Error())
+	}
+
+	if len(addressChains.AddressChain) != 0 {
+		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChain))
+	}
 }
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
