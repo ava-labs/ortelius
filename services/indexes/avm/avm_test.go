@@ -60,6 +60,9 @@ func TestIndexBootstrap(t *testing.T) {
 	if len(addressChains.AddressChain) != 1 {
 		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChain))
 	}
+	if addressChains.AddressChain[0].ChainID != "ch1" {
+		t.Fatal("Incorrect chain id:", addressChains.AddressChain[0].ChainID)
+	}
 }
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
