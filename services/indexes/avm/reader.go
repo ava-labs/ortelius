@@ -381,6 +381,12 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 	dbRunner := r.conns.DB().NewSession("addressChains")
 
 	addressesChain := []*models.AddressChainInfo{}
+
+	// if there are no addresses specified don't query.
+	if len(p.Addresses) == 0 {
+		return &models.AddressChainList{AddressChain: addressesChain}, nil
+	}
+
 	_, err := p.Apply(dbRunner.
 		Select("address", "chain_id", "created_at").
 		From("address_chain")).
