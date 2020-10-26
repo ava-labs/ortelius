@@ -78,3 +78,4 @@ type Aggregates struct {
 type AddressChainList struct {
 	AddressChain []*AddressChainInfo `json:"addressChain"`
 }
+
