@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/api"
 	"math"
 	"math/big"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
+	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
