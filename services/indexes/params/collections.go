@@ -446,9 +446,9 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Spent != nil {
 		if *p.Spent {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NOT NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL")
 		} else {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NULL")
 		}
 	}
 
