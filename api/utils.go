@@ -18,7 +18,7 @@ type ErrorResponse struct {
 // WriteJSON writes the given bytes to the http response as JSON
 func WriteJSON(w http.ResponseWriter, msg []byte) {
 	w.WriteHeader(200)
-	fmt.Fprint(w, string(msg))
+	w.Write(msg)
 }
 
 // WriteObject writes the given object to the http response as JSON
@@ -43,5 +43,5 @@ func WriteErr(w http.ResponseWriter, code int, msg string) {
 	}
 
 	w.WriteHeader(code)
-	fmt.Fprint(w, string(errBytes))
+	w.Write(errBytes)
 }
