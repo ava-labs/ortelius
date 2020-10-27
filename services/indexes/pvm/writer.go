@@ -129,7 +129,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		errs.Add(w.indexTransaction(cCtx, ChainID, *tx))
+		errs.Add(w.indexTransaction(cCtx, ChainID, *tx, true))
 	}
 
 	return errs.Err
@@ -161,21 +161,21 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx),
+			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
 		)
 	case *platformvm.StandardBlock:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
 			errs.Add(
 				initializeTx(w.codec, *tx),
-				w.indexTransaction(ctx, blk.ID(), *tx),
+				w.indexTransaction(ctx, blk.ID(), *tx, false),
 			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx),
+			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
 		)
 	case *platformvm.Abort:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
@@ -205,7 +205,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	return nil
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx, bootstrap bool) error {
 	var (
 		baseTx avax.BaseTx
 		typ    models.TransactionType
@@ -246,7 +246,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, bootstrap)
 }
 
 // func (w *Writer) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {

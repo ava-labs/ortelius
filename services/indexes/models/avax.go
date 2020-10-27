@@ -24,6 +24,8 @@ type Transaction struct {
 	CanonicalSerialization []byte    `json:"canonicalSerialization,omitempty"`
 	CreatedAt              time.Time `json:"timestamp"`
 
+	TxFee uint64 `json:"txFee"`
+
 	Score uint64 `json:"-"`
 }
 

@@ -259,7 +259,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
+		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at", "avm_transactions.txfee").
 		From("avm_transactions"))
 	if p.NeedsDistinct() {
 		builder = builder.Distinct()
