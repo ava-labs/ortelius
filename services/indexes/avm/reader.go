@@ -261,9 +261,6 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
 		From("avm_transactions"))
-	if p.NeedsDistinct() {
-		builder = builder.Distinct()
-	}
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -292,16 +289,9 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		count = uint64(p.Offset) + uint64(len(txs))
 		if len(txs) >= p.Limit {
 			p.ListParams = params.ListParams{}
-			var selector *dbr.SelectStmt
-			if p.NeedsDistinct() {
-				selector = p.Apply(dbRunner.
-					Select("COUNT(DISTINCT(avm_transactions.id))").
-					From("avm_transactions"))
-			} else {
-				selector = p.Apply(dbRunner.
-					Select("COUNT(avm_transactions.id)").
-					From("avm_transactions"))
-			}
+			selector := p.Apply(dbRunner.
+				Select("COUNT(avm_transactions.id)").
+				From("avm_transactions"))
 			err := selector.
 				LoadOneContext(ctx, &count)
 			if err != nil {
