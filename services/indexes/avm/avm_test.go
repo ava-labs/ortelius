@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/ortelius/api"
+
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -40,6 +42,28 @@ func TestIndexBootstrap(t *testing.T) {
 
 	if txList.Count != 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
+	}
+
+	if !txList.Transactions[0].Genesis {
+		t.Fatal("Transaction is not genesis")
+	}
+	if txList.Transactions[0].Txfee != 0 {
+		t.Fatal("Transaction fee is not 0")
+	}
+
+	// inject a txfee for testing
+	session, _ := writer.conns.DB().NewSession("test_tx", api.RequestTimeout)
+	_, _ = session.Update("avm_transactions").
+		Set("txfee", 101).
+		Where("id = ?", txList.Transactions[0].ID).
+		ExecContext(context.Background())
+
+	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
+		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
+	})
+
+	if txList.Transactions[0].Txfee != 101 {
+		t.Fatal("Transaction fee is not 101")
 	}
 }
 

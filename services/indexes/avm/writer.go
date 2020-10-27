@@ -173,7 +173,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 
 		tx.Initialize(unsignedBytes, txBytes)
 
-		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, nil, tx.Alias); err != nil {
+		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, nil, tx.Alias, true); err != nil {
 			return stacktrace.Propagate(err, "Failed to index avm genesis tx %d", i)
 		}
 	}
@@ -196,7 +196,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:
-		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "")
+		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "", false)
 	case *avm.OperationTx:
 		addlOuts := make([]*avalancheAvax.TransferableOutput, 0, 1)
 		for _, castTxOps := range castTx.Ops {
@@ -232,7 +232,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	}
 }
 
-func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string) error {
+func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
 	var (
 		err         error
 		outputCount uint32
@@ -298,7 +298,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		return err
 	}
 
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, false))
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis))
 
 	return nil
 }
