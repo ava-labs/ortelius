@@ -6,6 +6,8 @@ package pvm
 import (
 	"context"
 
+	"github.com/ava-labs/ortelius/api"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services"
@@ -22,9 +24,14 @@ func NewReader(conns *services.Connections) *Reader {
 }
 
 func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams) (*models.BlockList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_blocks", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	blocks := []*models.Block{}
 
-	_, err := params.Apply(r.conns.DB().NewSession("list_blocks").
+	_, err = params.Apply(dbRunner.
 		Select("id", "type", "parent_id", "chain_id", "created_at").
 		From("pvm_blocks")).
 		LoadContext(ctx, &blocks)
@@ -36,8 +43,13 @@ func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams)
 }
 
 func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParams) (*models.SubnetList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_subnets", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	subnets := []*models.Subnet{}
-	_, err := params.Apply(r.conns.DB().NewSession("list_subnets").
+	_, err = params.Apply(dbRunner.
 		Select("id", "network_id", "threshold", "created_at").
 		From("pvm_subnets")).
 		LoadContext(ctx, &subnets)
@@ -53,9 +65,14 @@ func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParam
 }
 
 func (r *Reader) ListValidators(ctx context.Context, params params.ListValidatorsParams) (*models.ValidatorList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_blocks", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	validators := []*models.Validator{}
 
-	_, err := params.Apply(r.conns.DB().NewSession("list_blocks").
+	_, err = params.Apply(dbRunner.
 		Select("transaction_id", "node_id", "weight", "start_time", "end_time", "destination", "shares", "subnet_id").
 		From("pvm_validators")).
 		LoadContext(ctx, &validators)
@@ -67,9 +84,14 @@ func (r *Reader) ListValidators(ctx context.Context, params params.ListValidator
 }
 
 func (r *Reader) ListChains(ctx context.Context, params params.ListChainsParams) (*models.ChainList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_chains", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	chains := []*models.Chain{}
 
-	_, err := params.Apply(r.conns.DB().NewSession("list_chains").
+	_, err = params.Apply(dbRunner.
 		Select("id", "network_id", "subnet_id", "name", "vm_id", "genesis_data", "created_at").
 		From("pvm_chains")).
 		LoadContext(ctx, &chains)
@@ -132,11 +154,16 @@ func (r *Reader) loadControlKeys(ctx context.Context, subnets []*models.Subnet) 
 		s.ControlKeys = []models.ControlKey{}
 	}
 
+	dbRunner, err := r.conns.DB().NewSession("load_control_keys", api.RequestTimeout)
+	if err != nil {
+		return err
+	}
+
 	keys := []struct {
 		SubnetID models.StringID
 		Key      models.ControlKey
 	}{}
-	_, err := r.conns.DB().NewSession("load_control_keys").
+	_, err = dbRunner.
 		Select("subnet_id", "address", "public_key").
 		From("pvm_subnet_control_keys").
 		Where("pvm_subnet_control_keys.subnet_id IN ?", ids).
@@ -167,11 +194,16 @@ func (r *Reader) loadControlSignatures(ctx context.Context, chains []*models.Cha
 		c.ControlSignatures = []models.ControlSignature{}
 	}
 
+	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", api.RequestTimeout)
+	if err != nil {
+		return err
+	}
+
 	sigs := []struct {
 		ChainID   models.StringID
 		Signature models.ControlSignature
 	}{}
-	_, err := r.conns.DB().NewSession("load_control_signatures").
+	_, err = dbRunner.
 		Select("chain_id", "signature").
 		From("pvm_chains_control_signatures").
 		Where("pvm_chains_control_signatures.chain_id IN ?", ids).
@@ -202,11 +234,16 @@ func (r *Reader) loadFXIDs(ctx context.Context, chains []*models.Chain) error {
 		c.FxIDs = []models.StringID{}
 	}
 
+	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", api.RequestTimeout)
+	if err != nil {
+		return err
+	}
+
 	fxIDs := []struct {
 		ChainID models.StringID
 		FXID    models.StringID `r:"fx_id"`
 	}{}
-	_, err := r.conns.DB().NewSession("load_control_signatures").
+	_, err = dbRunner.
 		Select("chain_id", "fx_id").
 		From("pvm_chains_fx_ids").
 		Where("pvm_chains_fx_ids.chain_id IN ?", ids).

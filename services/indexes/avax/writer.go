@@ -4,12 +4,16 @@
 package avax
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
@@ -37,7 +41,7 @@ func NewWriter(chainID string, stream *health.Stream) *Writer {
 	return &Writer{chainID: chainID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType) error {
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, addOuts []*avax.TransferableOutput) error {
 	var (
 		err   error
 		total uint64 = 0
@@ -45,7 +49,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	)
 
 	redeemedOutputs := make([]string, 0, 2*len(baseTx.Ins))
-	for i, in := range baseTx.Ins {
+	for i, in := range append(baseTx.Ins, addIns...) {
 		total, err = math.Add64(total, in.Input().Amount())
 		if err != nil {
 			errs.Add(err)
@@ -115,12 +119,21 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Process baseTx outputs by adding to the outputs table
-	for idx, out := range baseTx.Outs {
-		xOut, ok := out.Output().(*secp256k1fx.TransferOutput)
-		if !ok {
-			continue
+	for idx, out := range append(baseTx.Outs, addOuts...) {
+		switch transferOutput := out.Out.(type) {
+		case *platformvm.StakeableLockOut:
+			xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
+			}
+			// needs to support StakeableLockOut Locktime...
+			// xOut.Locktime = transferOutput.Locktime
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		case *secp256k1fx.TransferOutput:
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+		default:
+			errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 	}
 	return errs.Err
 }

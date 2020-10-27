@@ -74,6 +74,8 @@ type Asset struct {
 	CurrentSupply TokenAmount `json:"currentSupply"`
 	CreatedAt     time.Time   `json:"timestamp"`
 
+	VariableCap uint8 `json:"variableCap"`
+
 	Score uint64 `json:"-"`
 }
 
