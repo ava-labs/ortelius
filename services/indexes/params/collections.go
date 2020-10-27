@@ -304,13 +304,13 @@ func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.ID != nil {
 		b = b.
-			Where("id = ?", p.ID.String()).
+			Where("avm_assets.id = ?", p.ID.String()).
 			Limit(1)
 	}
 
 	if p.Alias != "" {
 		b = b.
-			Where("alias = ?", p.Alias)
+			Where("avm_assets.alias = ?", p.Alias)
 	}
 
 	if p.Query != "" {
