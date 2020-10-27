@@ -31,8 +31,9 @@ var (
 )
 
 type Writer struct {
-	chainID   string
-	networkID uint32
+	chainID     string
+	networkID   uint32
+	avaxAssetID ids.ID
 
 	codec codec.Codec
 	conns *services.Connections
@@ -40,12 +41,18 @@ type Writer struct {
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
+	_, avaxAssetID, err := genesis.Genesis(networkID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Writer{
-		conns:     conns,
-		chainID:   chainID,
-		networkID: networkID,
-		codec:     platformvm.Codec,
-		avax:      avaxIndexer.NewWriter(chainID, conns.Stream()),
+		conns:       conns,
+		chainID:     chainID,
+		networkID:   networkID,
+		avaxAssetID: avaxAssetID,
+		codec:       platformvm.Codec,
+		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID, conns.Stream()),
 	}, nil
 }
 
@@ -239,7 +246,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0)
 }
 
 // func (w *Writer) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {
