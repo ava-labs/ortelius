@@ -46,7 +46,7 @@ func (c *Conn) Close(context.Context) error {
 }
 
 func (c *Conn) NewSession(name string, timeout time.Duration) (*dbr.Session, error) {
-	session := c.conn.NewSession(c.stream.NewJob(name))
+	session := c.NewSessionForEventReceiver(c.stream.NewJob(name))
 	if _, err := session.Exec(fmt.Sprintf("SET SESSION MAX_EXECUTION_TIME=%d", timeout.Milliseconds())); err != nil {
 		return nil, err
 	}
