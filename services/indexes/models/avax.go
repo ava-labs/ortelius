@@ -98,12 +98,6 @@ type AddressInfo struct {
 	Score uint64 `json:"-"`
 }
 
-type AddressChainDB struct {
-	Address   Address   `json:"address"`
-	ChainID   StringID  `json:"chainID"`
-	CreatedAt time.Time `json:"timestamp"`
-}
-
 type AddressChainInfo struct {
 	Address   Address   `json:"address"`
 	ChainID   StringID  `json:"chainID"`

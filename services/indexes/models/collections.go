@@ -75,6 +75,6 @@ type Aggregates struct {
 	AssetCount       uint64 `json:"assetCount"`
 }
 
-type AddressChainList struct {
-	AddressChain map[string][]StringID `json:"addressChain"`
+type AddressChains struct {
+	AddressChains map[string][]StringID `json:"addressChain"`
 }

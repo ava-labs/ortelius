@@ -59,11 +59,11 @@ func TestIndexBootstrap(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failed to get address chains:", err.Error())
 	}
-	if len(addressChains.AddressChain) != 1 {
-		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChain))
+	if len(addressChains.AddressChains) != 1 {
+		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChains))
 	}
 	addrf, _ := models.Address(addr.String()).MarshalString()
-	if addressChains.AddressChain[string(addrf)][0] != "ch1" {
+	if addressChains.AddressChains[string(addrf)][0] != "ch1" {
 		t.Fatal("Incorrect chain id")
 	}
 

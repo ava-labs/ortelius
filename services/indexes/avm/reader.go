@@ -385,17 +385,17 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
 }
 
-func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChainList, error) {
+func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
 	dbRunner, err := r.conns.DB().NewSession("addressChains", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	addressChains := []*models.AddressChainDB{}
+	addressChains := []*models.AddressChainInfo{}
 
 	// if there are no addresses specified don't query.
 	if len(p.Addresses) == 0 {
-		return &models.AddressChainList{}, nil
+		return &models.AddressChains{}, nil
 	}
 
 	_, err = p.Apply(dbRunner.
@@ -406,18 +406,18 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 		return nil, err
 	}
 
-	resp := models.AddressChainList{}
-	resp.AddressChain = make(map[string][]models.StringID)
+	resp := models.AddressChains{}
+	resp.AddressChains = make(map[string][]models.StringID)
 	for _, addressChain := range addressChains {
 		addr, err := addressChain.Address.MarshalString()
 		if err != nil {
 			return nil, err
 		}
 		addrAsStr := string(addr)
-		if _, ok := resp.AddressChain[addrAsStr]; !ok {
-			resp.AddressChain[addrAsStr] = make([]models.StringID, 0, 2)
+		if _, ok := resp.AddressChains[addrAsStr]; !ok {
+			resp.AddressChains[addrAsStr] = make([]models.StringID, 0, 2)
 		}
-		resp.AddressChain[addrAsStr] = append(resp.AddressChain[addrAsStr], addressChain.ChainID)
+		resp.AddressChains[addrAsStr] = append(resp.AddressChains[addrAsStr], addressChain.ChainID)
 	}
 
 	return &resp, nil
