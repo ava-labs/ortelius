@@ -49,7 +49,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		c := &consumer{
 			chainID:                 chainID,
 			conns:                   conns,
-			metricProcessedCountKey: fmt.Sprintf("records-processed-%s", chainID),
+			metricProcessedCountKey: fmt.Sprintf("records_processed_%s", chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 

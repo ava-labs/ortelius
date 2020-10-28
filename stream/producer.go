@@ -32,8 +32,8 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		eventType:               eventType,
 		binFilterFn:             newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
 		writeBuffer:             newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
-		metricProcessedCountKey: fmt.Sprintf("records-processed-%s", eventType),
-		metricWrittenCountKey:   fmt.Sprintf("records-written-%s", eventType),
+		metricProcessedCountKey: fmt.Sprintf("records_processed_%s", eventType),
+		metricWrittenCountKey:   fmt.Sprintf("records_written_%s", eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricWrittenCountKey, "records written")
