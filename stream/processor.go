@@ -176,11 +176,11 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 				c.log.Error("EOF")
 				return io.EOF
 			default:
+				backend.Failure()
 				c.log.Error("Unknown error: %s", err.Error())
 			}
 
 			failures++
-			backend.Failure()
 			return nil
 		}
 	)
