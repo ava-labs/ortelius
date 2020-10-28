@@ -74,6 +74,8 @@ type Asset struct {
 	CurrentSupply TokenAmount `json:"currentSupply"`
 	CreatedAt     time.Time   `json:"timestamp"`
 
+	VariableCap uint8 `json:"variableCap"`
+
 	Score uint64 `json:"-"`
 }
 
@@ -94,6 +96,12 @@ type AddressInfo struct {
 	Assets map[StringID]AssetInfo `json:"assets"`
 
 	Score uint64 `json:"-"`
+}
+
+type AddressChainDB struct {
+	Address   Address   `json:"address"`
+	ChainID   StringID  `json:"chainID"`
+	CreatedAt time.Time `json:"timestamp"`
 }
 
 type AddressChainInfo struct {

@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
+	"github.com/ava-labs/ortelius/api"
+
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -44,7 +48,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	addr, _ := ids.ToShortID([]byte("addr"))
 
-	sess := writer.conns.DB().NewSession("address_chain")
+	sess, _ := writer.conns.DB().NewSession("address_chain", api.RequestTimeout)
 	_, _ = sess.InsertInto("address_chain").
 		Pair("address", addr.String()).
 		Pair("chain_id", "ch1").
@@ -60,8 +64,23 @@ func TestIndexBootstrap(t *testing.T) {
 	if len(addressChains.AddressChain) != 1 {
 		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChain))
 	}
-	if addressChains.AddressChain[0].ChainID != "ch1" {
-		t.Fatal("Incorrect chain id:", addressChains.AddressChain[0].ChainID)
+	if addressChains.AddressChain[models.Address(addr.String())][0] != "ch1" {
+		t.Fatal("Incorrect chain id")
+	}
+
+	// invoke the addrss and asset logic to test the db.
+	txList, err = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
+		ChainIDs:  []string{testXChainID.String()},
+		Addresses: []ids.ShortID{ids.ShortEmpty},
+		AssetID:   &ids.Empty,
+	})
+
+	if err != nil {
+		t.Fatal("Failed to list transactions:", err.Error())
+	}
+
+	if txList.Count != 0 {
+		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 }
 
