@@ -90,12 +90,6 @@ func execute() error {
 		}
 	)
 
-	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(":2112", nil)
-	if err != nil {
-		return err
-	}
-
 	// Add flags and commands
 	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "")
 	cmd.AddCommand(
