@@ -150,9 +150,12 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	sess := t.connections.DB().NewSession("producertasker")
-
 	var err error
+	sess, err := t.connections.DB().NewSession("producertasker", 5*time.Minute)
+	if err != nil {
+		return err
+	}
+
 	var liveAggregationState models.AvmAssetAggregateState
 	var backupAggregateState models.AvmAssetAggregateState
 
@@ -274,9 +277,9 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
 			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").

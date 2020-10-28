@@ -204,7 +204,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	_, err = builder.LoadContext(ctx, &intervals)
-
 	if err != nil {
 		return nil, err
 	}
