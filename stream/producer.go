@@ -6,29 +6,37 @@ package stream
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ipcs/socket"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/metrics"
 )
 
 // producer reads from the socket and writes to the event stream
 type Producer struct {
-	chainID     string
-	eventType   EventType
-	sock        *socket.Client
-	binFilterFn binFilterFn
-	writeBuffer *bufferedWriter
+	chainID                 string
+	eventType               EventType
+	sock                    *socket.Client
+	binFilterFn             binFilterFn
+	writeBuffer             *bufferedWriter
+	metricProcessedCountKey string
+	metricWrittenCountKey   string
 }
 
 // NewProducer creates a producer using the given config
 func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
 	p := &Producer{
-		chainID:     chainID,
-		eventType:   eventType,
-		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
-		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		chainID:                 chainID,
+		eventType:               eventType,
+		binFilterFn:             newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
+		writeBuffer:             newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		metricProcessedCountKey: fmt.Sprintf("records-processed-%s", eventType),
+		metricWrittenCountKey:   fmt.Sprintf("records-written-%s", eventType),
 	}
+	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	metrics.Prometheus.CounterInit(p.metricWrittenCountKey, "records written")
 
 	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
@@ -63,6 +71,8 @@ func (p *Producer) ProcessNextMessage(_ context.Context, log logging.Logger) err
 		return err
 	}
 
+	metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+
 	if p.binFilterFn(rawMsg) {
 		return nil
 	}
@@ -75,6 +85,8 @@ func (p *Producer) ProcessNextMessage(_ context.Context, log logging.Logger) err
 }
 
 func (p *Producer) Write(msg []byte) (int, error) {
+	defer metrics.Prometheus.CounterInc(p.metricWrittenCountKey)
+
 	return p.writeBuffer.Write(msg)
 }
 

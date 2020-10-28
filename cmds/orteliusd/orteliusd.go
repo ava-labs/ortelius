@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/cobra"
 
@@ -76,6 +79,9 @@ func execute() error {
 			},
 		}
 	)
+
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(":2112", nil)
 
 	// Add flags and commands
 	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "")
