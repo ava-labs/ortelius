@@ -222,11 +222,6 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	return k
 }
 
-// true if we will need to left join
-func (p *ListTransactionsParams) NeedsDistinct() bool {
-	return len(p.Addresses) > 0 || p.AssetID != nil
-}
-
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.Apply(b)
 
@@ -236,22 +231,27 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 			Limit(1)
 	}
 
-	needOutputsJoin := len(p.Addresses) > 0 || p.AssetID != nil
-	if needOutputsJoin {
-		b = b.LeftJoin("avm_outputs", "(avm_outputs.transaction_id = avm_transactions.id OR avm_outputs.redeeming_transaction_id = avm_transactions.id)")
-	}
+	var dosq bool
+	subquery := dbr.Select("avm_outputs.transaction_id").
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
 
 	if len(p.Addresses) > 0 {
+		dosq = true
 		addrs := make([]string, len(p.Addresses))
 		for i, id := range p.Addresses {
 			addrs[i] = id.String()
 		}
-		b = b.LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-			Where("avm_output_addresses.address IN ?", addrs)
+		subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
 	}
 
 	if p.AssetID != nil {
-		b = b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+		dosq = true
+		subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+	}
+
+	if dosq {
+		b = b.Where("avm_transactions.id in ?", subquery)
 	}
 
 	if !p.StartTime.IsZero() {
@@ -308,13 +308,13 @@ func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.ID != nil {
 		b = b.
-			Where("id = ?", p.ID.String()).
+			Where("avm_assets.id = ?", p.ID.String()).
 			Limit(1)
 	}
 
 	if p.Alias != "" {
 		b = b.
-			Where("alias = ?", p.Alias)
+			Where("avm_assets.alias = ?", p.Alias)
 	}
 
 	if p.Query != "" {
@@ -450,9 +450,9 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if p.Spent != nil {
 		if *p.Spent {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NOT NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL")
 		} else {
-			b = b.Where("avm_outputs.redeeming_transaction_id IS NULL")
+			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NULL")
 		}
 	}
 

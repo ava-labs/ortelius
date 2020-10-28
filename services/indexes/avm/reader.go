@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
+	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -41,7 +42,7 @@ var (
 		"avm_outputs.locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
-		"avm_outputs.redeeming_transaction_id",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
 		"avm_outputs.group_id",
 		"avm_outputs.payload",
 	}
@@ -130,7 +131,10 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	// Build the query and load the base data
-	dbRunner := r.conns.DB().NewSession("get_transaction_aggregates_histogram")
+	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	columns := []string{
 		"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
@@ -161,7 +165,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	intervals := []models.Aggregates{}
-	_, err := builder.LoadContext(ctx, &intervals)
+	_, err = builder.LoadContext(ctx, &intervals)
 	if err != nil {
 		return nil, err
 	}
@@ -248,15 +252,15 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
-	dbRunner := r.conns.DB().NewSession("get_transactions")
+	dbRunner, err := r.conns.DB().NewSession("get_transactions", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
 		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
 		From("avm_transactions"))
-	if p.NeedsDistinct() {
-		builder = builder.Distinct()
-	}
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -285,16 +289,9 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		count = uint64(p.Offset) + uint64(len(txs))
 		if len(txs) >= p.Limit {
 			p.ListParams = params.ListParams{}
-			var selector *dbr.SelectStmt
-			if p.NeedsDistinct() {
-				selector = p.Apply(dbRunner.
-					Select("COUNT(DISTINCT(avm_transactions.id))").
-					From("avm_transactions"))
-			} else {
-				selector = p.Apply(dbRunner.
-					Select("COUNT(avm_transactions.id)").
-					From("avm_transactions"))
-			}
+			selector := p.Apply(dbRunner.
+				Select("COUNT(avm_transactions.id)").
+				From("avm_transactions"))
 			err := selector.
 				LoadOneContext(ctx, &count)
 			if err != nil {
@@ -312,10 +309,13 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner := r.conns.DB().NewSession("list_assets")
+	dbRunner, err := r.conns.DB().NewSession("list_assets", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	assets := []*models.Asset{}
-	_, err := p.Apply(dbRunner.
+	_, err = p.Apply(dbRunner.
 		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
 		From("avm_assets")).
 		LoadContext(ctx, &assets)
@@ -338,14 +338,22 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		}
 	}
 
+	// Add all the addition information we might want
+	if err = r.dressAssets(ctx, dbRunner, assets); err != nil {
+		return nil, err
+	}
+
 	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner := r.conns.DB().NewSession("list_addresses")
+	dbRunner, err := r.conns.DB().NewSession("list_addresses", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	addresses := []*models.AddressInfo{}
-	_, err := p.Apply(dbRunner.
+	_, err = p.Apply(dbRunner.
 		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
 		From("avm_output_addresses").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")).
@@ -378,12 +386,16 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner := r.conns.DB().NewSession("list_transaction_outputs")
+	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	outputs := []*models.Output{}
-	_, err := p.Apply(dbRunner.
+	_, err = p.Apply(dbRunner.
 		Select(outputSelectColumns...).
-		From("avm_outputs")).
+		From("avm_outputs").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")).
 		LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
@@ -430,7 +442,8 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
 				Select("COUNT(avm_outputs.id)").
-				From("avm_outputs")).
+				From("avm_outputs").
+				LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")).
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
@@ -495,8 +508,13 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string) (time.Time, error) {
+	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", api.RequestTimeout)
+	if err != nil {
+		return time.Time{}, err
+	}
+
 	var ts int64
-	builder := r.conns.DB().NewSession("get_first_transaction_time").
+	builder := dbRunner.
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions")
 
@@ -504,7 +522,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 		builder.Where("avm_transactions.chain_id = ?", chainIDs)
 	}
 
-	err := builder.LoadOneContext(ctx, &ts)
+	err = builder.LoadOneContext(ctx, &ts)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -540,7 +558,7 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 
 	var inputs []*compositeRecord
 	_, err = selectOutputs(dbRunner).
-		Where("avm_outputs.redeeming_transaction_id IN ?", txIDs).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
 		return err
@@ -679,12 +697,13 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
 			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id != '' THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs.redeeming_transaction_id = '' THEN 1 ELSE 0 END), 0) AS utxo_count",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
 		).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_output_addresses.address IN ?", addrIDs).
 		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &rows)
@@ -699,6 +718,48 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			continue
 		}
 		addr.Assets[row.AssetID] = row.AssetInfo
+	}
+
+	return nil
+}
+
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset) error {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	// Create a list of ids for querying, and a map for accumulating results later
+	assetIDs := make([]models.StringID, len(assets))
+	for i, asset := range assets {
+		assetIDs[i] = asset.ID
+	}
+
+	rows := []*struct {
+		AssetID     models.StringID `json:"assetID"`
+		VariableCap uint8           `json:"variableCap"`
+	}{}
+
+	mintOutputs := make([]models.OutputType, 0, 2)
+	mintOutputs = append(mintOutputs, models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint)
+	_, err := dbRunner.Select("avm_outputs.asset_id", "CASE WHEN count(avm_outputs.asset_id) > 0 THEN 1 ELSE 0 END AS variable_cap").
+		From("avm_outputs").
+		Where("avm_outputs.output_type IN ?", mintOutputs).
+		GroupBy("avm_outputs.asset_id").
+		Having("count(avm_outputs.asset_id) > 0").
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return err
+	}
+
+	assetMap := make(map[models.StringID]uint8)
+	for pos, row := range rows {
+		assetMap[row.AssetID] = rows[pos].VariableCap
+	}
+
+	for _, asset := range assets {
+		if variableCap, ok := assetMap[asset.ID]; ok {
+			asset.VariableCap = variableCap
+		}
 	}
 
 	return nil
@@ -800,7 +861,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
-		"avm_outputs.redeeming_transaction_id",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
 		"avm_outputs.group_id",
 		"avm_output_addresses.output_id AS output_id",
 		"avm_output_addresses.address AS address",
@@ -809,5 +870,6 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }

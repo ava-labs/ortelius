@@ -88,7 +88,7 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
-    image: "avaplatform/avalanchego:23642a8d"
+    image: "avaplatform/avalanchego:v1.0.3"
     command: [
       "./build/avalanchego",
       "-network-id=1",

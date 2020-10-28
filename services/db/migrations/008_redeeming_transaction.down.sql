@@ -1,0 +1,2 @@
+drop table avm_outputs_redeeming;
+drop index avm_outputs_redeeming_redeeming_transaction_id ON avm_outputs_redeeming;
