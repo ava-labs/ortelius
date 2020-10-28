@@ -125,7 +125,7 @@ func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) e
 	metrics.Prometheus.CounterInc(c.metricProcessedCountKey)
 
 	timeNow := time.Now()
-	defer metrics.Prometheus.CounterAdd(c.metricProcessMillisCountKey, float64(time.Now().Sub(timeNow).Milliseconds()))
+	defer metrics.Prometheus.CounterAdd(c.metricProcessMillisCountKey, float64(time.Since(timeNow).Milliseconds()))
 	if err = c.consumer.Consume(ctx, msg); err != nil {
 		log.Error("consumer.Consume: %s", err.Error())
 		return err
