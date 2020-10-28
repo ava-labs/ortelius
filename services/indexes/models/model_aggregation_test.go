@@ -96,7 +96,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	ctx := context.Background()
 
 	// job := co.Stream().NewJob("model_aggregation_test")
-	sess, err := co.DB().NewSession("model_aggregation_test", 5*time.Second)
+	sess, _ := co.DB().NewSession("model_aggregation_test", 5*time.Second)
 
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
