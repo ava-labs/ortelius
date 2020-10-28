@@ -92,7 +92,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 		return err
 	}
 
-	p.Version = GetQueryVersion(q, KeyVersion)
+	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func (p *ListAddressesParams) ForValues(q url.Values) error {
 		p.Address = &addr
 	}
 
-	p.Version = GetQueryVersion(q, KeyVersion)
+	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
 	if err != nil {
 		return err
 	}
