@@ -305,7 +305,11 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count},
+			Transactions: txs,
+			StartTime:    p.StartTime,
+			EndTime:      p.EndTime},
+		nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {

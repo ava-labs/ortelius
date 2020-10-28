@@ -76,7 +76,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if err != nil {
 		return err
 	}
-	p.StartTime = p.StartTime.Round(1 * time.Second)
+	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
@@ -86,7 +86,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if p.EndTime.IsZero() {
 		p.EndTime = time.Now().UTC()
 	}
-	p.EndTime = p.EndTime.Round(1 * time.Second)
+	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
 
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
@@ -186,13 +186,13 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	if err != nil {
 		return err
 	}
-	p.StartTime = p.StartTime.Round(1 * time.Second)
+	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
 		return err
 	}
-	p.EndTime = p.EndTime.Round(1 * time.Second)
+	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
 
 	return nil
 }

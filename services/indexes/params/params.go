@@ -54,6 +54,8 @@ var (
 
 	// Ensure params types satisfy the interface
 	_ Param = &ListParams{}
+
+	TransactionRoundDuration = time.Second
 )
 
 type Param interface {

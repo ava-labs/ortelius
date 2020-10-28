@@ -14,6 +14,12 @@ type ListMetadata struct {
 type TransactionList struct {
 	ListMetadata
 	Transactions []*Transaction `json:"transactions"`
+
+	// the calculated start time rounded to the nearest TransactionRoundDuration.
+	StartTime time.Time `json:"startTime"`
+
+	// the calculated end time rounded to the nearest TransactionRoundDuration.
+	EndTime time.Time `json:"endTime"`
 }
 
 type AssetList struct {
