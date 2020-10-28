@@ -301,7 +301,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ID); err != nil {
+	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ID, p.DisableGenesis); err != nil {
 		return nil, err
 	}
 
@@ -529,7 +529,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID) error {
+func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -648,7 +648,7 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
-		if txID == nil && string(tx.ID) == avaxAssetID.String() {
+		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
 			continue
 		}
 		if inputs, ok := inputsMap[tx.ID]; ok {
