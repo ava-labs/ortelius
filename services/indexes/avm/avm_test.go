@@ -41,6 +41,21 @@ func TestIndexBootstrap(t *testing.T) {
 	if txList.Count != 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
+
+	// invoke the addrss and asset logic to test the db.
+	txList, err = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
+		ChainIDs:  []string{testXChainID.String()},
+		Addresses: []ids.ShortID{ids.ShortEmpty},
+		AssetID:   &ids.Empty,
+	})
+
+	if err != nil {
+		t.Fatal("Failed to list transactions:", err.Error())
+	}
+
+	if txList.Count != 0 {
+		t.Fatal("Incorrect number of transactions:", txList.Count)
+	}
 }
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
