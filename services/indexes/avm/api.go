@@ -77,7 +77,8 @@ func NewAPIRouter(params api.RouterParams) error {
 		Get("/addresses", (*APIContext).ListAddresses).
 		Get("/addresses/:id", (*APIContext).GetAddress).
 		Get("/outputs", (*APIContext).ListOutputs).
-		Get("/outputs/:id", (*APIContext).GetOutput)
+		Get("/outputs/:id", (*APIContext).GetOutput).
+		Get("/addressChains", (*APIContext).AddressChains)
 
 	return nil
 }
@@ -188,6 +189,22 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListAddresses(ctx, p)
+		},
+	})
+}
+
+func (c *APIContext) AddressChains(w web.ResponseWriter, r *web.Request) {
+	p := &params.AddressChainsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("address_chains", p),
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.reader.AddressChains(ctx, p)
 		},
 	})
 }

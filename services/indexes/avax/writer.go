@@ -208,6 +208,18 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 }
 
 func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) error {
+	errs := wrappers.Errs{}
+
+	_, err := ctx.DB().
+		InsertInto("address_chain").
+		Pair("address", address.String()).
+		Pair("chain_id", w.chainID).
+		Pair("created_at", ctx.Time()).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		errs.Add(w.stream.EventErr("address_chain.insert", err))
+	}
+
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).
@@ -218,8 +230,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 		builder = builder.Pair("redeeming_signature", sig)
 	}
 
-	_, err := builder.ExecContext(ctx.Ctx())
-	errs := wrappers.Errs{}
+	_, err = builder.ExecContext(ctx.Ctx())
 	switch {
 	case err == nil:
 		return nil
