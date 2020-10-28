@@ -23,10 +23,11 @@ var (
 )
 
 type Config struct {
-	NetworkID uint32 `json:"networkID"`
-	Chains    `json:"chains"`
-	Stream    `json:"stream"`
-	Services  `json:"services"`
+	NetworkID         uint32 `json:"networkID"`
+	Chains            `json:"chains"`
+	Stream            `json:"stream"`
+	Services          `json:"services"`
+	MetricsListenAddr string `json:"metricsListenAddr"`
 }
 
 type Chain struct {

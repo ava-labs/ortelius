@@ -76,6 +76,16 @@ func execute() error {
 					log.Fatalln("Failed to read config file", *configFile, ":", err.Error())
 				}
 				*config = *c
+
+				if config.MetricsListenAddr != "" {
+					http.Handle("/metrics", promhttp.Handler())
+					go func() {
+						err = http.ListenAndServe(config.MetricsListenAddr, nil)
+						if err != nil {
+							log.Fatalln("Failed to start metrics listener", err.Error())
+						}
+					}()
+				}
 			},
 		}
 	)
