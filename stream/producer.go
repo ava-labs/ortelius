@@ -23,6 +23,8 @@ type Producer struct {
 	writeBuffer             *bufferedWriter
 	metricProcessedCountKey string
 	metricWrittenCountKey   string
+	metricSuccessCountKey   string
+	metricFailureCountKey   string
 }
 
 // NewProducer creates a producer using the given config
@@ -34,9 +36,13 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		writeBuffer:             newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		metricProcessedCountKey: fmt.Sprintf("records_processed_%s", eventType),
 		metricWrittenCountKey:   fmt.Sprintf("records_written_%s", eventType),
+		metricSuccessCountKey:   fmt.Sprintf("records_success_%s", eventType),
+		metricFailureCountKey:   fmt.Sprintf("records_failure_%s", eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricWrittenCountKey, "records written")
+	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 
 	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
@@ -88,6 +94,14 @@ func (p *Producer) Write(msg []byte) (int, error) {
 	defer metrics.Prometheus.CounterInc(p.metricWrittenCountKey)
 
 	return p.writeBuffer.Write(msg)
+}
+
+func (p *Producer) Failure() {
+	metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+}
+
+func (p *Producer) Success() {
+	metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
 }
 
 type binFilterFn func([]byte) bool

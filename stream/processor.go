@@ -35,6 +35,8 @@ type ProcessorFactory func(cfg.Config, string, string) (Processor, error)
 type Processor interface {
 	ProcessNextMessage(context.Context, logging.Logger) error
 	Close() error
+	Failure()
+	Success()
 }
 
 // ProcessorManager supervises the Processor lifecycle; it will use the given
@@ -156,6 +158,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			err = backend.ProcessNextMessage(ctx, c.log)
 			if err == nil {
 				successes++
+				backend.Success()
 				return nil
 			}
 
@@ -177,6 +180,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			}
 
 			failures++
+			backend.Failure()
 			return nil
 		}
 	)
