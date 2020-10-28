@@ -407,12 +407,17 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 	}
 
 	resp := models.AddressChainList{}
-	resp.AddressChain = make(map[models.Address][]models.StringID)
+	resp.AddressChain = make(map[string][]models.StringID)
 	for _, addressChain := range addressChains {
-		if _, ok := resp.AddressChain[addressChain.Address]; !ok {
-			resp.AddressChain[addressChain.Address] = make([]models.StringID, 0, 2)
+		addr, err := addressChain.Address.MarshalString()
+		if err != nil {
+			return nil, err
 		}
-		resp.AddressChain[addressChain.Address] = append(resp.AddressChain[addressChain.Address], addressChain.ChainID)
+		addrAsStr := string(addr)
+		if _, ok := resp.AddressChain[addrAsStr]; !ok {
+			resp.AddressChain[addrAsStr] = make([]models.StringID, 0, 2)
+		}
+		resp.AddressChain[addrAsStr] = append(resp.AddressChain[addrAsStr], addressChain.ChainID)
 	}
 
 	return &resp, nil

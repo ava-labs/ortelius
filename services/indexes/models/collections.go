@@ -76,5 +76,5 @@ type Aggregates struct {
 }
 
 type AddressChainList struct {
-	AddressChain map[Address][]StringID `json:"addressChain"`
+	AddressChain map[string][]StringID `json:"addressChain"`
 }
