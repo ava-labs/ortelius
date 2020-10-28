@@ -43,7 +43,7 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	sess := co.DB().NewSession("producertask")
+	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
 
 	// cleanup for run.
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
@@ -155,7 +155,7 @@ func TestHandleBackupState(t *testing.T) {
 
 	ctx := context.Background()
 
-	sess := co.DB().NewSession("producertasker")
+	sess, _ := co.DB().NewSession("producertasker", 5*time.Second)
 
 	// cleanup for run.
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
