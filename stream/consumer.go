@@ -5,7 +5,10 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -28,10 +31,11 @@ type serviceConsumerFactory func(*services.Connections, uint32, string, string) 
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	chainID  string
-	reader   *kafka.Reader
-	consumer services.Consumer
-	conns    *services.Connections
+	chainID                 string
+	reader                  *kafka.Reader
+	consumer                services.Consumer
+	conns                   *services.Connections
+	metricProcessedCountKey string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -43,9 +47,11 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		c := &consumer{
-			chainID: chainID,
-			conns:   conns,
+			chainID:                 chainID,
+			conns:                   conns,
+			metricProcessedCountKey: fmt.Sprintf("records-processed-%s", chainID),
 		}
+		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
@@ -106,6 +112,8 @@ func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) e
 		log.Error("consumer.getNextMessage: %s", err.Error())
 		return err
 	}
+
+	metrics.Prometheus.CounterInc(c.metricProcessedCountKey)
 
 	if err = c.consumer.Consume(ctx, msg); err != nil {
 		log.Error("consumer.Consume: %s", err.Error())
