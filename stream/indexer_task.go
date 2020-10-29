@@ -190,7 +190,9 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		}
 	}
 
-	aggregateTS := computeAndRoundCurrentAggregateTS(liveAggregationState.CurrentCreatedAt)
+	// truncate to earliest minute.
+	aggregateTS := liveAggregationState.CurrentCreatedAt.Truncate(1 * time.Minute)
+
 	baseAggregateTS := aggregateTS
 
 	aggregateTS, err = t.processAvmOutputs(ctx, sess, baseAggregateTS)
@@ -349,21 +351,6 @@ func (t *ProducerTasker) replaceAvmAggregateCount(ctx context.Context, sess *dbr
 		return err
 	}
 	return nil
-}
-
-func computeAndRoundCurrentAggregateTS(aggregateTS time.Time) time.Time {
-	// round to the nearest minute..
-	roundedAggregateTS := aggregateTS.Round(1 * time.Minute)
-
-	// if we rounded half up, then lets just step back 1 minute to avoid losing anything.
-	// better to redo a minute than lose one.
-	if roundedAggregateTS.After(aggregateTS) {
-		aggregateTS = roundedAggregateTS.Add(-1 * time.Minute)
-	} else {
-		aggregateTS = roundedAggregateTS
-	}
-
-	return aggregateTS
 }
 
 func AvmOutputsAggregateCursor(ctx context.Context, sess *dbr.Session, aggregateTS time.Time) (*sql.Rows, error) {
