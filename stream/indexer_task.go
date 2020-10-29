@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	contextDuration = 5 * time.Minute
+	contextDuration = 10 * time.Minute
 
 	aggregationTick      = 20 * time.Second
 	aggregateDeleteFrame = (-1 * 24 * 366) * time.Hour
