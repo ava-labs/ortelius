@@ -984,27 +984,3 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
-
-// match selectOutputs but based from avm_outputs_redeeming
-func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs_redeeming.id",
-		"avm_outputs_redeeming.intx as transaction_id",
-		"avm_outputs_redeeming.output_index",
-		"avm_outputs_redeeming.asset_id",
-		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
-		"avm_outputs_redeeming.amount",
-		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
-		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
-		"avm_outputs_redeeming.created_at",
-		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
-		"case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id",
-		"case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id",
-		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
-		"avm_output_addresses.redeeming_signature AS signature",
-		"addresses.public_key AS public_key",
-	).
-		From("avm_outputs_redeeming").
-		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
-		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
-}
