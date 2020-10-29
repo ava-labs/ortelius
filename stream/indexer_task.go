@@ -24,8 +24,11 @@ var (
 	// rollup all aggregates to 1 minute.
 	timestampRollup = 1 * time.Minute
 
+	// == timestampRollup.Seconds() but not a float...
+	timestampRollupSecs = 60
+
 	aggregateColumns = []string{
-		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollup.Seconds(), timestampRollup.Seconds()),
+		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
 		"avm_outputs.asset_id",
 		"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS transaction_volume",
 		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
