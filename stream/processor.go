@@ -41,7 +41,6 @@ type Processor interface {
 // configuration and ProcessorFactory to keep a Processor active
 type ProcessorManager struct {
 	conf    cfg.Config
-	log     logging.Logger
 	factory ProcessorFactory
 	conns   *services.Connections
 
@@ -61,9 +60,6 @@ func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorM
 		conf:  conf,
 		conns: conns,
 
-		// copy the logger from conns.
-		log: conns.Logger(),
-
 		factory: factory,
 
 		quitCh: make(chan struct{}),
@@ -78,8 +74,8 @@ func (c *ProcessorManager) Listen() error {
 	wg.Add(len(c.conf.Chains))
 	for _, chainConfig := range c.conf.Chains {
 		go func(chainConfig cfg.Chain) {
-			c.log.Info("Started worker manager for chain %s", chainConfig.ID)
-			defer c.log.Info("Exiting worker manager for chain %s", chainConfig.ID)
+			c.conns.Logger().Info("Started worker manager for chain %s", chainConfig.ID)
+			defer c.conns.Logger().Info("Exiting worker manager for chain %s", chainConfig.ID)
 			defer wg.Done()
 
 			// Keep running the worker until we're asked to stop
@@ -90,7 +86,7 @@ func (c *ProcessorManager) Listen() error {
 				// If there was an error we want to log it, and iff we are not stopping
 				// we want to add a retry delay.
 				if err != nil {
-					c.log.Error("Error running worker: %s", err.Error())
+					c.conns.Logger().Error("Error running worker: %s", err.Error())
 				}
 				if c.isStopping() {
 					return
@@ -104,7 +100,7 @@ func (c *ProcessorManager) Listen() error {
 
 	// Wait for all workers to finish
 	wg.Wait()
-	c.log.Info("All workers stopped")
+	c.conns.Logger().Info("All workers stopped")
 	close(c.doneCh)
 
 	return nil
@@ -132,12 +128,12 @@ func (c *ProcessorManager) isStopping() bool {
 // finished
 func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	if c.isStopping() {
-		c.log.Info("Not starting worker for chain %s because we're stopping", chainConfig.ID)
+		c.conns.Logger().Info("Not starting worker for chain %s because we're stopping", chainConfig.ID)
 		return nil
 	}
 
-	c.log.Info("Starting worker for chain %s", chainConfig.ID)
-	defer c.log.Info("Exiting worker for chain %s", chainConfig.ID)
+	c.conns.Logger().Info("Starting worker for chain %s", chainConfig.ID)
+	defer c.conns.Logger().Info("Exiting worker for chain %s", chainConfig.ID)
 
 	// Create a backend to get messages from
 	backend, err := c.factory(c.conf, chainConfig.VMType, chainConfig.ID)
@@ -157,7 +153,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
-			err = backend.ProcessNextMessage(ctx, c.log)
+			err = backend.ProcessNextMessage(ctx, c.conns.Logger())
 			if err == nil {
 				successes++
 				return nil
@@ -167,17 +163,17 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
-				c.log.Debug("context deadline exceeded")
+				c.conns.Logger().Debug("context deadline exceeded")
 				return nil
 
 			// These are always errors
 			case kafka.RequestTimedOut:
-				c.log.Debug("kafka timeout")
+				c.conns.Logger().Debug("kafka timeout")
 			case io.EOF:
-				c.log.Error("EOF")
+				c.conns.Logger().Error("EOF")
 				return io.EOF
 			default:
-				c.log.Error("Unknown error: %s", err.Error())
+				c.conns.Logger().Error("Unknown error: %s", err.Error())
 			}
 
 			failures++
@@ -190,7 +186,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
-			c.log.Info("IProcessor successes=%d failures=%d nomsg=%d", successes, failures, nomsg)
+			c.conns.Logger().Info("IProcessor successes=%d failures=%d nomsg=%d", successes, failures, nomsg)
 			if c.isStopping() {
 				return
 			}
