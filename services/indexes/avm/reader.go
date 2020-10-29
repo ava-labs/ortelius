@@ -636,11 +636,34 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	}
 
 	var inputs []*compositeRecord
-	_, err = selectOutputs(dbRunner).
+	_, err = selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
 		return err
+	}
+
+	var inputsRedeeming []*compositeRecord
+	_, err = selectOutputsRedeeming(dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
+		LoadContext(ctx, &inputsRedeeming)
+	if err != nil {
+		return err
+	}
+
+	// add in missing redeeming rows
+	// these are from genesis txs.
+	for _, input := range inputsRedeeming {
+		found := false
+		for _, input2 := range inputs {
+			if input.ID.Equals(input2.ID) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			inputs = append(inputs, input)
+		}
 	}
 
 	outputs = append(outputs, inputs...)
@@ -974,5 +997,29 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+// match selectOutputs but based from avm_outputs_redeeming
+func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select("avm_outputs.id",
+		"avm_outputs_redeeming.intx",
+		"avm_outputs_redeeming.output_index",
+		"avm_outputs_redeeming.asset_id",
+		"avm_outputs.output_type",
+		"avm_outputs_redeeming.amount",
+		"avm_outputs.locktime",
+		"avm_outputs.threshold",
+		"avm_outputs_redeeming.created_at",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
+		"avm_outputs.group_id",
+		"avm_output_addresses.output_id AS output_id",
+		"avm_output_addresses.address AS address",
+		"avm_output_addresses.redeeming_signature AS signature",
+		"addresses.public_key AS public_key",
+	).
+		From("avm_outputs_redeeming").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
