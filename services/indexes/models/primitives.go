@@ -60,6 +60,15 @@ func (addr Address) Equals(oAddr2 Address) bool {
 
 // MarshalJSON encodes an Address to JSON by converting it to bech32.
 func (addr Address) MarshalJSON() ([]byte, error) {
+	if len(addr) == 0 {
+		bech32Addr, err := formatting.FormatBech32(bech32HRP, ids.ShortEmpty.Bytes())
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(bech32Addr)
+	}
+
 	id, err := ids.ShortFromString(string(addr))
 	if err != nil {
 		return nil, err

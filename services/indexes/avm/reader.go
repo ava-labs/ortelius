@@ -749,7 +749,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	}
 
 	var inputs []*compositeRecord
-	_, err = selectOutputsRedeeming(dbRunner).
+	_, err = selectOutputs(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
 		LoadContext(ctx, &inputs)
 	if err != nil {
@@ -759,6 +759,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	var inputsRedeeming []*compositeRecord
 	_, err = selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
+		Where("avm_outputs.id is null").
 		LoadContext(ctx, &inputsRedeeming)
 	if err != nil {
 		return nil, err
@@ -1011,18 +1012,18 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 // match selectOutputs but based from avm_outputs_redeeming
 func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 	return dbRunner.Select("avm_outputs_redeeming.id",
-		"avm_outputs_redeeming.intx",
+		"avm_outputs_redeeming.intx as transaction_id",
 		"avm_outputs_redeeming.output_index",
 		"avm_outputs_redeeming.asset_id",
-		"avm_outputs.output_type",
+		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
 		"avm_outputs_redeeming.amount",
-		"avm_outputs.locktime",
-		"avm_outputs.threshold",
+		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
+		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
 		"avm_outputs_redeeming.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
-		"avm_outputs.group_id",
-		"avm_output_addresses.output_id AS output_id",
-		"avm_output_addresses.address AS address",
+		"case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id",
+		"case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id",
+		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
 		"avm_output_addresses.redeeming_signature AS signature",
 		"addresses.public_key AS public_key",
 	).
