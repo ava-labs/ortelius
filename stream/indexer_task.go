@@ -18,6 +18,8 @@ import (
 )
 
 var (
+	contextDuration = 5 * time.Minute
+
 	aggregationTick      = 20 * time.Second
 	aggregateDeleteFrame = (-1 * 24 * 366) * time.Hour
 
@@ -44,7 +46,7 @@ var (
 type ProducerTasker struct {
 	initlock                sync.RWMutex
 	connections             *services.Connections
-	log                     *logging.Log
+	log                     logging.Logger
 	plock                   sync.Mutex
 	avmOutputsCursor        func(ctx context.Context, sess *dbr.Session, aggregateTs time.Time) (*sql.Rows, error)
 	insertAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
@@ -63,7 +65,7 @@ var producerTaskerInstance = ProducerTasker{
 	timeStampProducer:       time.Now,
 }
 
-func initializeConsumerTasker(conf cfg.Config, log *logging.Log) error {
+func initializeConsumerTasker(conf cfg.Config, log logging.Logger) error {
 	producerTaskerInstance.initlock.Lock()
 	defer producerTaskerInstance.initlock.Unlock()
 
@@ -154,11 +156,11 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	t.plock.Lock()
 	defer t.plock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
 	defer cancel()
 
 	var err error
-	sess, err := t.connections.DB().NewSession("producertasker", 5*time.Minute)
+	sess, err := t.connections.DB().NewSession("producertasker", contextDuration)
 	if err != nil {
 		return err
 	}
