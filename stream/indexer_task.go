@@ -370,8 +370,14 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 	timer := time.NewTicker(aggregationTick)
 	defer timer.Stop()
 
-	_ = t.RefreshAggregates()
+	err := t.RefreshAggregates()
+	if err != nil {
+		t.connections.Logger().Error("Refresh Aggegates %s", err)
+	}
 	for range timer.C {
-		_ = t.RefreshAggregates()
+		err := t.RefreshAggregates()
+		if err != nil {
+			t.connections.Logger().Error("Refresh Aggegates %s", err)
+		}
 	}
 }
