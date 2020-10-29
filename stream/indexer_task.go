@@ -20,9 +20,12 @@ import (
 var (
 	aggregationTick      = 20 * time.Second
 	aggregateDeleteFrame = (-1 * 24 * 366) * time.Hour
-	timestampRollup      = 60
-	aggregateColumns     = []string{
-		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollup, timestampRollup),
+
+	// rollup all aggregates to 1 minute.
+	timestampRollup = 1 * time.Minute
+
+	aggregateColumns = []string{
+		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollup.Seconds(), timestampRollup.Seconds()),
 		"avm_outputs.asset_id",
 		"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS transaction_volume",
 		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
@@ -30,6 +33,7 @@ var (
 		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
 		"COUNT(avm_outputs.id) AS output_count",
 	}
+
 	additionalHours = (365 * 24) * time.Hour
 	blank           = models.AvmAssetAggregateState{}
 )
@@ -191,7 +195,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	}
 
 	// truncate to earliest minute.
-	aggregateTS := liveAggregationState.CurrentCreatedAt.Truncate(1 * time.Minute)
+	aggregateTS := liveAggregationState.CurrentCreatedAt.Truncate(timestampRollup)
 
 	baseAggregateTS := aggregateTS
 
