@@ -1002,7 +1002,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 
 // match selectOutputs but based from avm_outputs_redeeming
 func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs.id",
+	return dbRunner.Select("avm_outputs_redeeming.id",
 		"avm_outputs_redeeming.intx",
 		"avm_outputs_redeeming.output_index",
 		"avm_outputs_redeeming.asset_id",
