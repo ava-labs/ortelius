@@ -367,7 +367,7 @@ func (t *ProducerTasker) Start() {
 }
 
 func initRefreshAggregatesTick(t *ProducerTasker) {
-	timer := time.NewTicker(aggregationTick)
+	timer := time.NewTimer(aggregationTick)
 	defer timer.Stop()
 
 	err := t.RefreshAggregates()
