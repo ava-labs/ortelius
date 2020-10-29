@@ -14,7 +14,9 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 
+	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
@@ -40,6 +42,51 @@ func TestIndexBootstrap(t *testing.T) {
 
 	if txList.Count != 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
+	}
+
+	if !txList.Transactions[0].Genesis {
+		t.Fatal("Transaction is not genesis")
+	}
+	if txList.Transactions[0].Txfee != 0 {
+		t.Fatal("Transaction fee is not 0")
+	}
+
+	// inject a txfee for testing
+	session, _ := writer.conns.DB().NewSession("test_tx", api.RequestTimeout)
+	_, _ = session.Update("avm_transactions").
+		Set("txfee", 101).
+		Where("id = ?", txList.Transactions[0].ID).
+		ExecContext(context.Background())
+
+	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
+		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
+	})
+
+	if txList.Transactions[0].Txfee != 101 {
+		t.Fatal("Transaction fee is not 101")
+	}
+
+	addr, _ := ids.ToShortID([]byte("addr"))
+
+	sess, _ := writer.conns.DB().NewSession("address_chain", api.RequestTimeout)
+	_, _ = sess.InsertInto("address_chain").
+		Pair("address", addr.String()).
+		Pair("chain_id", "ch1").
+		Pair("created_at", time.Now()).
+		ExecContext(context.Background())
+
+	addressChains, err := reader.AddressChains(context.Background(), &params.AddressChainsParams{
+		Addresses: []ids.ShortID{addr},
+	})
+	if err != nil {
+		t.Fatal("Failed to get address chains:", err.Error())
+	}
+	if len(addressChains.AddressChains) != 1 {
+		t.Fatal("Incorrect number of address chains:", len(addressChains.AddressChains))
+	}
+	addrf, _ := models.Address(addr.String()).MarshalString()
+	if addressChains.AddressChains[string(addrf)][0] != "ch1" {
+		t.Fatal("Incorrect chain id")
 	}
 
 	// invoke the addrss and asset logic to test the db.

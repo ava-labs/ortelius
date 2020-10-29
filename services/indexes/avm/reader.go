@@ -259,7 +259,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
+		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at", "avm_transactions.txfee", "avm_transactions.genesis").
 		From("avm_transactions"))
 
 	var applySort func(sort params.TransactionSort)
@@ -383,6 +383,44 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
+}
+
+func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
+	dbRunner, err := r.conns.DB().NewSession("addressChains", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	addressChains := []*models.AddressChainInfo{}
+
+	// if there are no addresses specified don't query.
+	if len(p.Addresses) == 0 {
+		return &models.AddressChains{}, nil
+	}
+
+	_, err = p.Apply(dbRunner.
+		Select("address", "chain_id", "created_at").
+		From("address_chain")).
+		LoadContext(ctx, &addressChains)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := models.AddressChains{}
+	resp.AddressChains = make(map[string][]models.StringID)
+	for _, addressChain := range addressChains {
+		addr, err := addressChain.Address.MarshalString()
+		if err != nil {
+			return nil, err
+		}
+		addrAsStr := string(addr)
+		if _, ok := resp.AddressChains[addrAsStr]; !ok {
+			resp.AddressChains[addrAsStr] = make([]models.StringID, 0, 2)
+		}
+		resp.AddressChains[addrAsStr] = append(resp.AddressChains[addrAsStr], addressChain.ChainID)
+	}
+
+	return &resp, nil
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {

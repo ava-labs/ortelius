@@ -73,6 +73,20 @@ func (addr Address) MarshalJSON() ([]byte, error) {
 	return json.Marshal(bech32Addr)
 }
 
+func (addr Address) MarshalString() ([]byte, error) {
+	id, err := ids.ShortFromString(string(addr))
+	if err != nil {
+		return nil, err
+	}
+
+	bech32Addr, err := formatting.FormatBech32(bech32HRP, id.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(bech32Addr), nil
+}
+
 // AssetTokenCounts maps asset IDs to a TokenAmount for that asset.
 type AssetTokenCounts map[StringID]TokenAmount
 
