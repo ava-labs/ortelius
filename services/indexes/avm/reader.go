@@ -1019,7 +1019,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 	).
 		From("avm_outputs_redeeming").
-		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
