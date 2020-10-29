@@ -20,9 +20,15 @@ import (
 var (
 	aggregationTick      = 20 * time.Second
 	aggregateDeleteFrame = (-1 * 24 * 366) * time.Hour
-	timestampRollup      = 60
-	aggregateColumns     = []string{
-		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollup, timestampRollup),
+
+	// rollup all aggregates to 1 minute.
+	timestampRollup = 1 * time.Minute
+
+	// == timestampRollup.Seconds() but not a float...
+	timestampRollupSecs = 60
+
+	aggregateColumns = []string{
+		fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
 		"avm_outputs.asset_id",
 		"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS transaction_volume",
 		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
@@ -30,6 +36,7 @@ var (
 		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
 		"COUNT(avm_outputs.id) AS output_count",
 	}
+
 	additionalHours = (365 * 24) * time.Hour
 	blank           = models.AvmAssetAggregateState{}
 )
@@ -190,7 +197,9 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		}
 	}
 
-	aggregateTS := computeAndRoundCurrentAggregateTS(liveAggregationState.CurrentCreatedAt)
+	// truncate to earliest minute.
+	aggregateTS := liveAggregationState.CurrentCreatedAt.Truncate(timestampRollup)
+
 	baseAggregateTS := aggregateTS
 
 	aggregateTS, err = t.processAvmOutputs(ctx, sess, baseAggregateTS)
@@ -349,21 +358,6 @@ func (t *ProducerTasker) replaceAvmAggregateCount(ctx context.Context, sess *dbr
 		return err
 	}
 	return nil
-}
-
-func computeAndRoundCurrentAggregateTS(aggregateTS time.Time) time.Time {
-	// round to the nearest minute..
-	roundedAggregateTS := aggregateTS.Round(1 * time.Minute)
-
-	// if we rounded half up, then lets just step back 1 minute to avoid losing anything.
-	// better to redo a minute than lose one.
-	if roundedAggregateTS.After(aggregateTS) {
-		aggregateTS = roundedAggregateTS.Add(-1 * time.Minute)
-	} else {
-		aggregateTS = roundedAggregateTS
-	}
-
-	return aggregateTS
 }
 
 func AvmOutputsAggregateCursor(ctx context.Context, sess *dbr.Session, aggregateTS time.Time) (*sql.Rows, error) {
