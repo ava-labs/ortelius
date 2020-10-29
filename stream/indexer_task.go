@@ -379,5 +379,6 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 		if err != nil {
 			t.connections.Logger().Error("Refresh Aggegates %s", err)
 		}
+		timer.Reset(aggregationTick)
 	}
 }
