@@ -47,7 +47,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			conns:   conns,
 		}
 
-		err = initializeConsumerTasker(conf, conns.Logger())
+		err = initializeConsumerTasker(conns)
 		if err != nil {
 			return nil, err
 		}

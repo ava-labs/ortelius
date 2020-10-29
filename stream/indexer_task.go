@@ -12,9 +12,6 @@ import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/gocraft/dbr/v2"
-
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/ortelius/cfg"
 )
 
 var (
@@ -64,7 +61,7 @@ var producerTaskerInstance = ProducerTasker{
 	timeStampProducer:       time.Now,
 }
 
-func initializeConsumerTasker(conf cfg.Config, log logging.Logger) error {
+func initializeConsumerTasker(conns *services.Connections) error {
 	producerTaskerInstance.initlock.Lock()
 	defer producerTaskerInstance.initlock.Unlock()
 
@@ -72,12 +69,7 @@ func initializeConsumerTasker(conf cfg.Config, log logging.Logger) error {
 		return nil
 	}
 
-	connections, err := services.NewConnectionsFromConfig(conf.Services)
-	if err != nil {
-		return err
-	}
-
-	producerTaskerInstance.connections = connections
+	producerTaskerInstance.connections = conns
 	producerTaskerInstance.Start()
 	return nil
 }
