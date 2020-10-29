@@ -60,7 +60,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
-	})
+	}, ids.Empty)
 
 	if txList.Transactions[0].Txfee != 101 {
 		t.Fatal("Transaction fee is not 101")
