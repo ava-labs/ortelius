@@ -46,7 +46,6 @@ var (
 type ProducerTasker struct {
 	initlock                sync.RWMutex
 	connections             *services.Connections
-	log                     logging.Logger
 	plock                   sync.Mutex
 	avmOutputsCursor        func(ctx context.Context, sess *dbr.Session, aggregateTs time.Time) (*sql.Rows, error)
 	insertAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
@@ -79,7 +78,6 @@ func initializeConsumerTasker(conf cfg.Config, log logging.Logger) error {
 	}
 
 	producerTaskerInstance.connections = connections
-	producerTaskerInstance.log = log
 	producerTaskerInstance.Start()
 	return nil
 }
@@ -106,7 +104,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.S
 		"set current_created_at=created_at, created_at=? "+
 		"where id=?", updatedCurrentCreated, models.StateLiveID)
 	if err != nil {
-		t.log.Error("atomic swap %s", err)
+		t.connections.Logger().Error("atomic swap %s", err)
 		return blank, err
 	}
 
@@ -122,7 +120,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.S
 			"where id=? and current_created_at > ?",
 			backupAggregateState.CurrentCreatedAt, backupAggregateState.ID, backupAggregateState.CurrentCreatedAt)
 		if err != nil {
-			t.log.Error("update backup state %s", err.Error())
+			t.connections.Logger().Error("update backup state %s", err.Error())
 			return blank, err
 		}
 
@@ -130,7 +128,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.S
 		rowsAffected, err = sqlResult.RowsAffected()
 
 		if err != nil {
-			t.log.Error("update backup state failed %s", err)
+			t.connections.Logger().Error("update backup state failed %s", err)
 			return blank, err
 		}
 
@@ -138,7 +136,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.S
 			// if we updated, refresh the backup state
 			backupAggregateState, err = models.SelectAvmAssetAggregationState(ctx, sessTX, backupAggregateState.ID)
 			if err != nil {
-				t.log.Error("refresh backup state %s", err)
+				t.connections.Logger().Error("refresh backup state %s", err)
 				return blank, err
 			}
 		}
@@ -181,7 +179,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	liveAggregationState, err = models.SelectAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 	// this is really bad, the state live row was not created..  we cannot proceed safely.
 	if liveAggregationState.ID != models.StateLiveID {
-		t.log.Error("unable to find live state")
+		t.connections.Logger().Error("unable to find live state")
 		return err
 	}
 
@@ -194,7 +192,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	} else {
 		backupAggregateState, err = t.updateBackupState(ctx, sess, liveAggregationState)
 		if err != nil {
-			t.log.Error("unable to update backup state %s", err)
+			t.connections.Logger().Error("unable to update backup state %s", err)
 			return err
 		}
 	}
@@ -226,7 +224,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	// delete aggregate data before aggregateDeleteFrame
 	// *disable* _, _ = models.PurgeOldAvmAssetAggregation(ctx, sess, aggregateTS.Add(aggregateDeleteFrame))
 
-	t.log.Info("processed up to %s", aggregateTS.String())
+	t.connections.Logger().Info("processed up to %s", aggregateTS.String())
 
 	return nil
 }
@@ -236,11 +234,11 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 	var rows *sql.Rows
 	rows, err = t.avmOutputsCursor(ctx, sess, aggregateTS)
 	if err != nil {
-		t.log.Error("error query %s", err)
+		t.connections.Logger().Error("error query %s", err)
 		return time.Time{}, err
 	}
 	if rows.Err() != nil {
-		t.log.Error("error query %s", rows.Err())
+		t.connections.Logger().Error("error query %s", rows.Err())
 		return time.Time{}, rows.Err()
 	}
 
@@ -254,7 +252,7 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 			&avmAggregate.AssetCount,
 			&avmAggregate.OutputCount)
 		if err != nil {
-			t.log.Error("row fetch %s", err)
+			t.connections.Logger().Error("row fetch %s", err)
 			return time.Time{}, err
 		}
 
@@ -266,7 +264,7 @@ func (t *ProducerTasker) processAvmOutputs(ctx context.Context, sess *dbr.Sessio
 
 		err = t.replaceAvmAggregate(ctx, sess, avmAggregate)
 		if err != nil {
-			t.log.Error("replace avm aggregate %s", err)
+			t.connections.Logger().Error("replace avm aggregate %s", err)
 			return time.Time{}, err
 		}
 	}
@@ -299,11 +297,11 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 		RowsContext(ctx)
 	if err != nil {
-		t.log.Error("error query %s", err)
+		t.connections.Logger().Error("error query %s", err)
 		return err
 	}
 	if rows.Err() != nil {
-		t.log.Error("error query %s", rows.Err())
+		t.connections.Logger().Error("error query %s", rows.Err())
 		return rows.Err()
 	}
 
@@ -317,13 +315,13 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(ctx context.Context, se
 			&avmAggregateCount.Balance,
 			&avmAggregateCount.UtxoCount)
 		if err != nil {
-			t.log.Error("row fetch %s", err)
+			t.connections.Logger().Error("row fetch %s", err)
 			return err
 		}
 
 		err = t.replaceAvmAggregateCount(ctx, sess, avmAggregateCount)
 		if err != nil {
-			t.log.Error("replace avm aggregate count %s", err)
+			t.connections.Logger().Error("replace avm aggregate count %s", err)
 			return err
 		}
 	}
