@@ -688,6 +688,10 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	for _, out := range outputs {
 		out.Addresses = make([]models.Address, 0, len(outputAddrs[out.ID]))
 		for addr := range outputAddrs[out.ID] {
+			// mock in records have a blank address.  Drop them.
+			if len(addr) == 0 {
+				continue
+			}
 			out.Addresses = append(out.Addresses, addr)
 		}
 
@@ -756,6 +760,8 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		return nil, err
 	}
 
+	// find any Ins without a matching Out
+	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
 	var inputsRedeeming []*compositeRecord
 	_, err = selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
@@ -768,6 +774,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	// add in missing redeeming rows
 	// these are from genesis txs.
 	for _, input := range inputsRedeeming {
+		// if we don't have an input then use the "mock" in..
 		found := false
 		for _, input2 := range inputs {
 			if input.ID.Equals(input2.ID) {
