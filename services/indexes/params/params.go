@@ -27,10 +27,12 @@ const (
 	KeyIntervalSize   = "intervalSize"
 	KeyDisableCount   = "disableCount"
 	KeyDisableGenesis = "disableGenesis"
+	KeyVersion        = "version"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
 	PaginationDefaultOffset = 0
+	VersionDefault          = 0
 )
 
 var (

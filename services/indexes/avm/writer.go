@@ -186,6 +186,12 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 		return err
 	}
 
+	// fire and forget..
+	// update the created_at on the state table if we have an earlier date in ctx.Time().
+	// which means we need to re-run aggregation calculations from this earlier date.
+	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx.Ctx(), ctx.DB(), ctx.Time())
+
+	// Finish processing with a type-specific ingestion routine
 	unsignedBytes, err := w.codec.Marshal(&tx.UnsignedTx)
 	if err != nil {
 		return err

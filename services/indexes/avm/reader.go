@@ -117,6 +117,8 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		}
 	}
 
+	intervals := []models.Aggregates{}
+
 	// Ensure the interval count requested isn't too large
 	intervalSeconds := int64(params.IntervalSize.Seconds())
 	requestedIntervalCount := 0
@@ -136,26 +138,63 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		return nil, err
 	}
 
-	columns := []string{
-		"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
+	var builder *dbr.SelectStmt
 
-		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-		"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
-		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
-		"COUNT(avm_outputs.id) AS output_count",
+	switch params.Version {
+	// new requests v=1 use the avm_asset_aggregation tables
+	case 1:
+		columns := []string{
+			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
+			"SUM(avm_asset_aggregation.transaction_count) AS transaction_count",
+			"SUM(avm_asset_aggregation.address_count) AS address_count",
+			"SUM(avm_asset_aggregation.asset_count) AS asset_count",
+			"SUM(avm_asset_aggregation.output_count) AS output_count",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_asset_aggregation.aggregate_ts)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder = dbRunner.
+			Select(columns...).
+			From("avm_asset_aggregation").
+			Where("avm_asset_aggregation.aggregate_ts >= ?", params.StartTime).
+			Where("avm_asset_aggregation.aggregate_ts < ?", params.EndTime)
+
+		if params.AssetID != nil {
+			builder.Where("avm_asset_aggregation.asset_id = ?", params.AssetID.String())
+		}
+	default:
+		columns := []string{
+			"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
+
+			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+			"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
+			"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
+			"COUNT(avm_outputs.id) AS output_count",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder = dbRunner.
+			Select(columns...).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			Where("avm_outputs.created_at >= ?", params.StartTime).
+			Where("avm_outputs.created_at < ?", params.EndTime)
+
+		if params.AssetID != nil {
+			builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
+		}
 	}
-
-	if requestedIntervalCount > 0 {
-		columns = append(columns, fmt.Sprintf(
-			"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
-			params.StartTime.Unix(),
-			intervalSeconds))
-	}
-
-	builder := params.Apply(dbRunner.
-		Select(columns...).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id"))
 
 	if requestedIntervalCount > 0 {
 		builder.
@@ -164,7 +203,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			Limit(uint64(requestedIntervalCount))
 	}
 
-	intervals := []models.Aggregates{}
 	_, err = builder.LoadContext(ctx, &intervals)
 	if err != nil {
 		return nil, err
@@ -378,7 +416,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAddresses(ctx, dbRunner, addresses); err != nil {
+	if err = r.dressAddresses(ctx, dbRunner, addresses, p.Version); err != nil {
 		return nil, err
 	}
 
@@ -714,7 +752,7 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo) error {
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -735,24 +773,45 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		models.AssetInfo
 	}{}
 
-	_, err := dbRunner.
-		Select(
-			"avm_output_addresses.address",
-			"avm_outputs.asset_id",
-			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-		).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		Where("avm_output_addresses.address IN ?", addrIDs).
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return err
+	switch version {
+	case 1:
+		_, err := dbRunner.
+			Select(
+				"avm_asset_address_counts.address",
+				"avm_asset_address_counts.asset_id",
+				"avm_asset_address_counts.transaction_count",
+				"avm_asset_address_counts.total_received",
+				"avm_asset_address_counts.total_sent",
+				"avm_asset_address_counts.balance",
+				"avm_asset_address_counts.utxo_count",
+			).
+			From("avm_asset_address_counts").
+			Where("avm_asset_address_counts.address IN ?", addrIDs).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return err
+		}
+	default:
+		_, err := dbRunner.
+			Select(
+				"avm_output_addresses.address",
+				"avm_outputs.asset_id",
+				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+			).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+			Where("avm_output_addresses.address IN ?", addrIDs).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Accumulate rows into addresses

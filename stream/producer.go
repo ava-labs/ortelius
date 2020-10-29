@@ -22,7 +22,7 @@ type Producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
+func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType, log *logging.Log) (*Producer, error) {
 	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
@@ -40,13 +40,13 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, chainVM, chainID, EventTypeConsensus)
+func NewConsensusProducerProcessor(conf cfg.Config, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, chainVM, chainID, EventTypeConsensus, log)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, chainVM, chainID, EventTypeDecisions)
+func NewDecisionsProducerProcessor(conf cfg.Config, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return NewProducer(conf, chainVM, chainID, EventTypeDecisions, log)
 }
 
 // Close shuts down the producer

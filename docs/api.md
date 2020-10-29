@@ -73,6 +73,8 @@ The transaction object
 
 `intervalSize` - If given, a list of intervals of the given size from startTime to endTime will be returned, with the aggregates for each interval. Valid values are `minute`, `hour`, `day`, `week`, `month`, `year`, or a valid Go duration string as described here: https://golang.org/pkg/Time/#ParseDuration 
 
+`version` - If 1 will use new asset aggregate tables
+
 #### Response:
 
 ```json
@@ -131,6 +133,8 @@ Array of asset objects
 #### Global list Address Params:
 
 `disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
+
+`version` - If 1 will use new asset aggregate count tables
 
 #### Params:
 
