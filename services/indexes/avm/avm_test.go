@@ -35,7 +35,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	txList, err := reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{testXChainID.String()},
-	})
+	}, ids.Empty)
 	if err != nil {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
@@ -93,8 +93,7 @@ func TestIndexBootstrap(t *testing.T) {
 	txList, err = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs:  []string{testXChainID.String()},
 		Addresses: []ids.ShortID{ids.ShortEmpty},
-		AssetID:   &ids.Empty,
-	})
+	}, ids.Empty)
 
 	if err != nil {
 		t.Fatal("Failed to list transactions:", err.Error())

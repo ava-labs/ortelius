@@ -144,6 +144,8 @@ type ListTransactionsParams struct {
 	StartTime time.Time
 	EndTime   time.Time
 
+	DisableGenesis bool
+
 	Sort TransactionSort
 }
 
@@ -190,6 +192,11 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 		return err
 	}
 
+	p.DisableGenesis, err = GetQueryBool(q, KeyDisableGenesis, false)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -213,6 +220,7 @@ func (p *ListTransactionsParams) CacheKey() []string {
 		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
 		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
+		CacheKey(KeyDisableGenesis, p.DisableGenesis),
 	)
 
 	return k

@@ -47,6 +47,8 @@ Params:
 
 `sort` - The sorting method to use. Options: timestamp-asc, timestamp-desc. Default: timestamp-asc
 
+'disableGenesis' - Bool value = true will suppress genesis input/output records in results.
+
 #### Response:
 
 Array of transaction objects
