@@ -756,32 +756,6 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		return nil, err
 	}
 
-	if false {
-		var inputsRedeeming []*compositeRecord
-		_, err = selectOutputsRedeeming(dbRunner).
-			Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-			Where("avm_outputs.id is null").
-			LoadContext(ctx, &inputsRedeeming)
-		if err != nil {
-			return nil, err
-		}
-
-		// add in missing redeeming rows
-		// these are from genesis txs.
-		for _, input := range inputsRedeeming {
-			found := false
-			for _, input2 := range inputs {
-				if input.ID.Equals(input2.ID) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				inputs = append(inputs, input)
-			}
-		}
-	}
-
 	outputs = append(outputs, inputs...)
 	return outputs, nil
 }
