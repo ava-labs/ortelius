@@ -36,7 +36,7 @@ type consumer struct {
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(conf cfg.Config, chainVM string, chainID string, log *logging.Log) (Processor, error) {
+	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 		conns, err := services.NewConnectionsFromConfig(conf.Services)
 		if err != nil {
 			return nil, err
@@ -47,10 +47,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			conns:   conns,
 		}
 
-		err = initializeConsumerTasker(conf, log)
-		if err != nil {
-			return nil, err
-		}
+		initializeConsumerTasker(conns)
 
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
