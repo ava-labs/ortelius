@@ -605,6 +605,14 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 	return time.Unix(ts, 0).UTC(), nil
 }
 
+// Load output data for all inputs and outputs into a single list
+// We can't treat them separately because some my be both inputs and outputs
+// for different transactions
+type compositeRecord struct {
+	models.Output
+	models.OutputAddress
+}
+
 func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
 	if len(txs) == 0 {
 		return nil
@@ -619,31 +627,10 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		txIDs[i] = tx.ID
 	}
 
-	// Load output data for all inputs and outputs into a single list
-	// We can't treat them separately because some my be both inputs and outputs
-	// for different transactions
-	type compositeRecord struct {
-		models.Output
-		models.OutputAddress
-	}
-
-	var outputs []*compositeRecord
-	_, err := selectOutputs(dbRunner).
-		Where("avm_outputs.transaction_id IN ?", txIDs).
-		LoadContext(ctx, &outputs)
+	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
-
-	var inputs []*compositeRecord
-	_, err = selectOutputs(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-		LoadContext(ctx, &inputs)
-	if err != nil {
-		return err
-	}
-
-	outputs = append(outputs, inputs...)
 
 	// Create a map of addresses for each output and maps of transaction ids to
 	// inputs, outputs, and the total amounts of the inputs and outputs
@@ -750,6 +737,27 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 	return nil
+}
+
+func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
+	var outputs []*compositeRecord
+	_, err := selectOutputs(dbRunner).
+		Where("avm_outputs.transaction_id IN ?", txIDs).
+		LoadContext(ctx, &outputs)
+	if err != nil {
+		return nil, err
+	}
+
+	var inputs []*compositeRecord
+	_, err = selectOutputs(dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
+		LoadContext(ctx, &inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	outputs = append(outputs, inputs...)
+	return outputs, nil
 }
 
 func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {

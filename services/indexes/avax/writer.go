@@ -68,18 +68,13 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			Pair("redeeming_transaction_id", baseTx.ID().String()).
 			Pair("amount", in.Input().Amount()).
 			Pair("output_index", in.OutputIndex).
+			Pair("intx", in.TxID.String()).
+			Pair("asset_id", in.AssetID().String()).
 			Pair("created_at", ctx.Time()).
 			ExecContext(ctx.Ctx())
 		if err != nil && !db.ErrIsDuplicateEntryError(err) {
 			errs.Add(err)
 		}
-
-		// Upsert this input as an output in case we haven't seen the parent tx
-		// We leave Addrs blank because we inserted them above with their signatures
-		// w.InsertOutput(ctx, in.UTXOID.TxID, in.UTXOID.OutputIndex, in.AssetID(), &secp256k1fx.TransferOutput{
-		// 	Amt:          in.In.Amount(),
-		// 	OutputOwners: secp256k1fx.OutputOwners{},
-		// }, models.OutputTypesSECP2556K1Transfer, 0, nil)
 
 		// For each signature we recover the public key and the data to the db
 		cred, _ := creds[i].(*secp256k1fx.Credential)
