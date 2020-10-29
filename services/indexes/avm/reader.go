@@ -765,17 +765,24 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		inputids = append(inputids, input.ID)
 	}
 
-	// find any Ins without a matching Out
+	// find any Ins without a matching Out and make mock out records for display..
 	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
 	// we're looking for any with my redeeming_transaction_id
 	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
 	// and not in the known inputids list.
 	var inputsRedeeming []*compositeRecord
-	_, err = selectOutputsRedeeming(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
+	q := selectOutputsRedeeming(dbRunner)
+	if len(inputids) != 0 {
+		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
 			"and avm_outputs.id is null "+
 			"and avm_outputs_redeeming.id not in ?",
-			txIDs, inputids).
+			txIDs, inputids)
+	} else {
+		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
+			"and avm_outputs.id is null ",
+			txIDs)
+	}
+	_, err = q.
 		LoadContext(ctx, &inputsRedeeming)
 	if err != nil {
 		return nil, err
