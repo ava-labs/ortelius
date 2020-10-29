@@ -34,25 +34,29 @@ var (
 var ecdsaRecoveryFactory = crypto.FactorySECP256K1R{}
 
 type Writer struct {
-	chainID string
-	stream  *health.Stream
+	chainID     string
+	avaxAssetID ids.ID
+	stream      *health.Stream
 }
 
-func NewWriter(chainID string, stream *health.Stream) *Writer {
-	return &Writer{chainID: chainID, stream: stream}
+func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Writer {
+	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, addOuts []*avax.TransferableOutput) error {
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, addOuts []*avax.TransferableOutput, addlOutTxfee uint64, genesis bool) error {
 	var (
-		err   error
-		total uint64 = 0
-		errs         = wrappers.Errs{}
+		err      error
+		totalin  uint64 = 0
+		totalout uint64 = 0
+		errs            = wrappers.Errs{}
 	)
 
 	for i, in := range append(baseTx.Ins, addIns...) {
-		total, err = math.Add64(total, in.Input().Amount())
-		if err != nil {
-			errs.Add(err)
+		if in.AssetID().Equals(w.avaxAssetID) {
+			totalin, err = math.Add64(totalin, in.Input().Amount())
+			if err != nil {
+				errs.Add(err)
+			}
 		}
 
 		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
@@ -101,20 +105,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		baseTx.Memo = nil
 	}
 
-	// Add baseTx to the table
-	_, err = ctx.DB().
-		InsertInto("avm_transactions").
-		Pair("id", baseTx.ID().String()).
-		Pair("chain_id", w.chainID).
-		Pair("type", txType.String()).
-		Pair("memo", baseTx.Memo).
-		Pair("created_at", ctx.Time()).
-		Pair("canonical_serialization", txBytes).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(err)
-	}
-
 	// Process baseTx outputs by adding to the outputs table
 	for idx, out := range append(baseTx.Outs, addOuts...) {
 		switch transferOutput := out.Out.(type) {
@@ -125,13 +115,50 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			}
 			// needs to support StakeableLockOut Locktime...
 			// xOut.Locktime = transferOutput.Locktime
+
+			if out.AssetID().Equals(w.avaxAssetID) {
+				totalout, err = math.Add64(totalout, xOut.Amt)
+				if err != nil {
+					errs.Add(err)
+				}
+			}
 			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		case *secp256k1fx.TransferOutput:
+			if out.AssetID().Equals(w.avaxAssetID) {
+				totalout, err = math.Add64(totalout, transferOutput.Amt)
+				if err != nil {
+					errs.Add(err)
+				}
+			}
 			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		default:
 			errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 		}
 	}
+
+	txfee := totalin - (totalout + addlOutTxfee)
+	if genesis {
+		txfee = 0
+	} else if totalin < (totalout + addlOutTxfee) {
+		txfee = 0
+	}
+
+	// Add baseTx to the table
+	_, err = ctx.DB().
+		InsertInto("avm_transactions").
+		Pair("id", baseTx.ID().String()).
+		Pair("chain_id", w.chainID).
+		Pair("type", txType.String()).
+		Pair("memo", baseTx.Memo).
+		Pair("created_at", ctx.Time()).
+		Pair("canonical_serialization", txBytes).
+		Pair("txfee", txfee).
+		Pair("genesis", genesis).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		errs.Add(err)
+	}
+
 	return errs.Err
 }
 
@@ -182,6 +209,18 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 }
 
 func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) error {
+	errs := wrappers.Errs{}
+
+	_, err := ctx.DB().
+		InsertInto("address_chain").
+		Pair("address", address.String()).
+		Pair("chain_id", w.chainID).
+		Pair("created_at", ctx.Time()).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		errs.Add(w.stream.EventErr("address_chain.insert", err))
+	}
+
 	builder := ctx.DB().
 		InsertInto("avm_output_addresses").
 		Pair("output_id", outputID.String()).
@@ -192,8 +231,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 		builder = builder.Pair("redeeming_signature", sig)
 	}
 
-	_, err := builder.ExecContext(ctx.Ctx())
-	errs := wrappers.Errs{}
+	_, err = builder.ExecContext(ctx.Ctx())
 	switch {
 	case err == nil:
 		return nil

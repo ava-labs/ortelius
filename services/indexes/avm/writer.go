@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/utils/codec"
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
@@ -34,8 +36,9 @@ var (
 )
 
 type Writer struct {
-	chainID   string
-	networkID uint32
+	chainID     string
+	networkID   uint32
+	avaxAssetID ids.ID
 
 	codec codec.Codec
 	avax  *avax.Writer
@@ -48,12 +51,18 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 		return nil, err
 	}
 
+	_, avaxAssetID, err := genesis.Genesis(networkID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Writer{
-		conns:     conns,
-		chainID:   chainID,
-		codec:     avmCodec,
-		networkID: networkID,
-		avax:      avax.NewWriter(chainID, conns.Stream()),
+		conns:       conns,
+		chainID:     chainID,
+		codec:       avmCodec,
+		networkID:   networkID,
+		avaxAssetID: avaxAssetID,
+		avax:        avax.NewWriter(chainID, avaxAssetID, conns.Stream()),
 	}, nil
 }
 
@@ -164,7 +173,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 
 		tx.Initialize(unsignedBytes, txBytes)
 
-		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, nil, tx.Alias); err != nil {
+		if err = w.insertCreateAssetTx(ctx, txBytes, &tx.CreateAssetTx, nil, tx.Alias, true); err != nil {
 			return stacktrace.Propagate(err, "Failed to index avm genesis tx %d", i)
 		}
 	}
@@ -193,7 +202,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:
-		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "")
+		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "", false)
 	case *avm.OperationTx:
 		addlOuts := make([]*avalancheAvax.TransferableOutput, 0, 1)
 		for _, castTxOps := range castTx.Ops {
@@ -217,27 +226,26 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 				addlOuts = append(addlOuts, &transferableOutput)
 			}
 		}
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, addlOuts)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, addlOuts, 0, false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, nil)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, nil, 0, false)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, castTx.ExportedOuts)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, castTx.ExportedOuts, 0, false)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, nil)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, nil, 0, false)
 	default:
 		return errors.New("unknown tx type")
 	}
 }
 
-func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string) error {
+func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
 	var (
 		err         error
 		outputCount uint32
 		amount      uint64
-		errs        = wrappers.Errs{}
+		errs               = wrappers.Errs{}
+		totalout    uint64 = 0
 	)
-
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil))
 
 	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
 		return &secp256k1fx.TransferOutput{OutputOwners: oo}
@@ -263,6 +271,12 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 			case *secp256k1fx.MintOutput:
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil))
 			case *secp256k1fx.TransferOutput:
+				if tx.ID().Equals(w.avaxAssetID) {
+					totalout, err = avalancheMath.Add64(totalout, typedOut.Amt)
+					if err != nil {
+						errs.Add(err)
+					}
+				}
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
 					_ = ctx.Job().EventErr("add_to_amount", err)
@@ -289,5 +303,8 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
 	}
+
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis))
+
 	return nil
 }

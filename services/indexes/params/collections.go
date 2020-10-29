@@ -151,6 +151,8 @@ type ListTransactionsParams struct {
 	StartTime time.Time
 	EndTime   time.Time
 
+	DisableGenesis bool
+
 	Sort TransactionSort
 }
 
@@ -197,6 +199,11 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 		return err
 	}
 
+	p.DisableGenesis, err = GetQueryBool(q, KeyDisableGenesis, false)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -220,6 +227,7 @@ func (p *ListTransactionsParams) CacheKey() []string {
 		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
 		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
+		CacheKey(KeyDisableGenesis, p.DisableGenesis),
 	)
 
 	return k
@@ -384,6 +392,53 @@ func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		b = b.
 			Where("avm_output_addresses.address = ?", p.Address.String()).
 			Limit(1)
+	}
+
+	return b
+}
+
+type AddressChainsParams struct {
+	ListParams
+	Addresses []ids.ShortID
+}
+
+func (p *AddressChainsParams) ForValues(q url.Values) error {
+	err := p.ListParams.ForValues(q)
+	if err != nil {
+		return err
+	}
+
+	addressStrs := q[KeyAddress]
+	for _, addressStr := range addressStrs {
+		addr, err := AddressFromString(addressStr)
+		if err != nil {
+			return err
+		}
+		p.Addresses = append(p.Addresses, addr)
+	}
+
+	return nil
+}
+
+func (p *AddressChainsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+
+	for _, address := range p.Addresses {
+		k = append(k, CacheKey(KeyAddress, address.String()))
+	}
+
+	return k
+}
+
+func (p *AddressChainsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	p.ListParams.Apply(b)
+
+	if len(p.Addresses) > 0 {
+		addrs := make([]string, len(p.Addresses))
+		for i, id := range p.Addresses {
+			addrs[i] = id.String()
+		}
+		b = b.Where("address_chain.address IN ?", addrs)
 	}
 
 	return b

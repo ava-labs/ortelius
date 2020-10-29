@@ -24,7 +24,7 @@ func TestBootstrap(t *testing.T) {
 
 	txList, err := r.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{ChainID.String()},
-	})
+	}, ids.Empty)
 	if err != nil {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
