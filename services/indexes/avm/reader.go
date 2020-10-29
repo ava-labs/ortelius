@@ -760,34 +760,29 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		return nil, err
 	}
 
+	inputids := make([]models.StringID, 0, len(inputs))
+	for _, input := range inputs {
+		inputids = append(inputids, input.ID)
+	}
+
 	// find any Ins without a matching Out
 	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
+	// we're looking for any with my redeeming_transaction_id
+	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
+	// and not in the known inputids list.
 	var inputsRedeeming []*compositeRecord
 	_, err = selectOutputsRedeeming(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-		Where("avm_outputs.id is null").
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
+			"and avm_outputs.id is null "+
+			"and avm_outputs_redeeming.id not in ?",
+			txIDs, inputids).
 		LoadContext(ctx, &inputsRedeeming)
 	if err != nil {
 		return nil, err
 	}
 
-	// add in missing redeeming rows
-	// these are from genesis txs.
-	for _, input := range inputsRedeeming {
-		// if we don't have an input then use the "mock" in..
-		found := false
-		for _, input2 := range inputs {
-			if input.ID.Equals(input2.ID) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			inputs = append(inputs, input)
-		}
-	}
-
 	outputs = append(outputs, inputs...)
+	outputs = append(outputs, inputsRedeeming...)
 	return outputs, nil
 }
 
