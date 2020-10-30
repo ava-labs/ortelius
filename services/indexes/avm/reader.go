@@ -216,14 +216,9 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		if len(intervals) > 0 {
 			intervals[0].StartTime = params.StartTime
 			intervals[0].EndTime = params.EndTime
-			return &models.AggregatesHistogram{Aggregates: intervals[0],
-					StartTime: params.StartTime,
-					EndTime:   params.EndTime},
-				nil
+			return &models.AggregatesHistogram{Aggregates: intervals[0]}, nil
 		}
-		return &models.AggregatesHistogram{StartTime: params.StartTime,
-				EndTime: params.EndTime},
-			nil
+		return &models.AggregatesHistogram{}, nil
 	}
 
 	// We need to return multiple intervals so build them now.
@@ -291,9 +286,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
 
-	aggs.StartTime = params.StartTime
-	aggs.EndTime = params.EndTime
-
 	return aggs, nil
 }
 
@@ -351,11 +343,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count},
-			Transactions: txs,
-			StartTime:    p.StartTime,
-			EndTime:      p.EndTime},
-		nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {

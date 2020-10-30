@@ -14,12 +14,6 @@ type ListMetadata struct {
 type TransactionList struct {
 	ListMetadata
 	Transactions []*Transaction `json:"transactions"`
-
-	// the calculated start time rounded to the nearest TransactionRoundDuration.
-	StartTime time.Time `json:"startTime"`
-
-	// the calculated end time rounded to the nearest TransactionRoundDuration.
-	EndTime time.Time `json:"endTime"`
 }
 
 type AssetList struct {
@@ -63,12 +57,6 @@ type AggregatesHistogram struct {
 	Aggregates   Aggregates    `json:"aggregates"`
 	IntervalSize time.Duration `json:"intervalSize,omitempty"`
 	Intervals    []Aggregates  `json:"intervals,omitempty"`
-
-	// the calculated start time rounded to the nearest TransactionRoundDuration.
-	StartTime time.Time `json:"startTime"`
-
-	// the calculated end time rounded to the nearest TransactionRoundDuration.
-	EndTime time.Time `json:"endTime"`
 }
 
 type Aggregates struct {
