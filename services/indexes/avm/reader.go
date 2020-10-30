@@ -827,7 +827,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 				"avm_asset_address_counts.utxo_count",
 			).
 			From("avm_asset_address_counts").
-			Where("avm_asset_address_counts.address IN ?", addrIDs).
+			Where("avm_asset_address_counts.address IN ? and avm_asset_address_counts.chain_id = ?", addrIDs, r.chainID).
 			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {

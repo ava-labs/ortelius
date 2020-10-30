@@ -51,6 +51,8 @@ func TestIntegration(t *testing.T) {
 
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
 
+	aggregationTime := pastime.Truncate(timestampRollup)
+
 	_, err = sess.InsertInto("avm_outputs").
 		Pair("id", "id1").
 		Pair("chain_id", "cid").
@@ -123,7 +125,9 @@ func TestIntegration(t *testing.T) {
 	avmAggregateModels, _ := models.SelectAvmAssetAggregations(ctx, sess)
 
 	for _, aggregateMapValue := range avmAggregateModels {
-		if aggregateMapValue.AssetID != "testasset" &&
+		if !aggregateMapValue.AggregateTS.Equal(aggregationTime.UTC()) &&
+			aggregateMapValue.AssetID != "testasset" &&
+			aggregateMapValue.ChainID != "cid1" &&
 			aggregateMapValue.TransactionVolume != "200" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -139,6 +143,7 @@ func TestIntegration(t *testing.T) {
 	for _, aggregateCountMapValue := range avmAggregateCounts {
 		if aggregateCountMapValue.Address != "id1" &&
 			aggregateCountMapValue.AssetID != "testasset" &&
+			aggregateCountMapValue.AssetID != "ch1" &&
 			aggregateCountMapValue.TransactionCount != 1 &&
 			aggregateCountMapValue.TotalSent != "0" &&
 			aggregateCountMapValue.TotalReceived != "100" &&
