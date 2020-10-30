@@ -14,7 +14,6 @@ type Worker interface {
 type worker struct {
 	jobCh     chan interface{}
 	doneCh    chan bool
-	quitCh    map[int]chan bool
 	processor func(int, interface{})
 	wgWorker  sync.WaitGroup
 	queueCnt  int
@@ -26,7 +25,6 @@ func NewWorker(queueSize int, queueCnt int, processor func(int, interface{})) Wo
 		queueCnt:  queueCnt,
 		jobCh:     make(chan interface{}, queueSize),
 		doneCh:    make(chan bool),
-		quitCh:    make(map[int]chan bool),
 		processor: processor,
 		wgWorker:  sync.WaitGroup{},
 		jobCnt:    new(int64),
@@ -35,7 +33,6 @@ func NewWorker(queueSize int, queueCnt int, processor func(int, interface{})) Wo
 	var iproc int
 	for iproc = 0; iproc < queueCnt; iproc++ {
 		w.wgWorker.Add(1)
-		w.quitCh[iproc] = make(chan bool)
 		go w.worker(iproc)
 	}
 
@@ -50,7 +47,6 @@ func (w *worker) worker(wn int) {
 			w.processor(wn, update)
 			atomic.AddInt64(w.jobCnt, -1)
 		case <-w.doneCh:
-			w.quitCh[wn] <- true
 			return
 		}
 	}
@@ -69,13 +65,6 @@ func (w *worker) Finish(sleepTime time.Duration) {
 		time.Sleep(sleepTime)
 	}
 	close(w.doneCh)
-
-	var iproc int
-	for iproc = 0; iproc < w.queueCnt; iproc++ {
-		<-w.quitCh[iproc]
-
-		close(w.quitCh[iproc])
-	}
 
 	w.wgWorker.Wait()
 }
