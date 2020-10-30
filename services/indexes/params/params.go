@@ -57,6 +57,8 @@ var (
 
 	// Ensure params types satisfy the interface
 	_ Param = &ListParams{}
+
+	TransactionRoundDuration = time.Second
 )
 
 type Param interface {
@@ -66,12 +68,6 @@ type Param interface {
 
 func CacheKey(name string, val interface{}) string {
 	return fmt.Sprintf("%s=%v", name, val)
-}
-
-func RoundTime(t time.Time, precision time.Duration) time.Time {
-	ts := t.Unix()
-	ts -= (ts % int64(precision.Seconds()))
-	return time.Unix(ts, 0)
 }
 
 //
