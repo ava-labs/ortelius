@@ -892,14 +892,14 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 
 		asset.Aggregates = make(map[string]*models.Aggregates)
 
-		for itm := range params.IntervalNames {
-			if itm == "all" {
+		for intervalName := range params.IntervalNames {
+			if intervalName == "all" {
 				continue
 			}
 			aparams := params.AggregateParams{
 				AssetID:      &id,
-				IntervalSize: params.IntervalNames[itm],
-				StartTime:    tnow.Add(-1 * params.IntervalNames[itm]),
+				IntervalSize: params.IntervalNames[intervalName],
+				StartTime:    tnow.Add(-1 * params.IntervalNames[intervalName]),
 				EndTime:      tnow,
 				Version:      1,
 			}
@@ -908,7 +908,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				r.conns.Logger().Warn("aggregate query failed %s", err)
 				continue
 			}
-			asset.Aggregates[itm] = &hm.Aggregates
+			asset.Aggregates[intervalName] = &hm.Aggregates
 		}
 	}
 
