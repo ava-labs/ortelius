@@ -165,7 +165,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	}
 }
 
-func TestInsertUpdateFeeBurn(t *testing.T) {
+func TestInsertUpdateAggregateTxFee(t *testing.T) {
 	var err error
 
 	h := health.NewStream()
@@ -189,12 +189,12 @@ func TestInsertUpdateFeeBurn(t *testing.T) {
 	feeBurn.AggregateTS = tNow
 	feeBurn.TxFee = "1"
 
-	_, err = InsertFeeBurn(ctx, sess, feeBurn)
+	_, err = InsertAggregateTxFee(ctx, sess, feeBurn)
 	if err != nil {
 		t.Errorf("insert failed %s", err.Error())
 	}
 
-	feeBurns, _ := SelectFeeBurn(ctx, sess)
+	feeBurns, _ := SelectAggregateTxFee(ctx, sess)
 	if len(feeBurns) != 1 {
 		t.Errorf("not created")
 	}
@@ -207,12 +207,12 @@ func TestInsertUpdateFeeBurn(t *testing.T) {
 	}
 
 	feeBurn.TxFee = "2"
-	_, err = UpdateFeeBurn(ctx, sess, feeBurn)
+	_, err = UpdateAggregateTxFee(ctx, sess, feeBurn)
 	if err != nil {
 		t.Errorf("update failed %s", err.Error())
 	}
 
-	feeBurns, _ = SelectFeeBurn(ctx, sess)
+	feeBurns, _ = SelectAggregateTxFee(ctx, sess)
 	if len(feeBurns) != 1 {
 		t.Errorf("update")
 	}

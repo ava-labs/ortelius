@@ -133,7 +133,7 @@ func InsertAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmA
 		avmAggregate.UtxoCount)
 }
 
-func SelectFeeBurn(ctx context.Context, sess *dbr.Session) ([]*AggregateTxFee, error) {
+func SelectAggregateTxFee(ctx context.Context, sess *dbr.Session) ([]*AggregateTxFee, error) {
 	resuls := make([]*AggregateTxFee, 0, 2)
 
 	_, err := sess.Select("aggregate_ts", "tx_fee").
@@ -143,7 +143,7 @@ func SelectFeeBurn(ctx context.Context, sess *dbr.Session) ([]*AggregateTxFee, e
 	return resuls, err
 }
 
-func UpdateFeeBurn(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+func UpdateAggregateTxFee(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update aggregate_txfee "+
 		"set "+
 		"tx_fee="+feeBurn.TxFee+" "+
@@ -151,7 +151,7 @@ func UpdateFeeBurn(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFe
 		feeBurn.AggregateTS)
 }
 
-func InsertFeeBurn(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+func InsertAggregateTxFee(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into aggregate_txfee "+
 		"(aggregate_ts, tx_fee) "+
 		"values (?,"+feeBurn.TxFee+")",

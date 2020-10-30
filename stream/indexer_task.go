@@ -440,8 +440,8 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
 		).
 		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 		GroupBy("avm_output_addresses.address", "avm_outputs.chain_id", "avm_outputs.asset_id").
 		Where("avm_output_addresses.address IN ?", subquery).
 		RowsContext(ctx)
@@ -586,9 +586,9 @@ func (t *ProducerTasker) replaceFeeBurn(feeBurn models.AggregateTxFee) error {
 		return err
 	}
 
-	_, err = models.InsertFeeBurn(ctx, sess, feeBurn)
+	_, err = models.InsertAggregateTxFee(ctx, sess, feeBurn)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = models.UpdateFeeBurn(ctx, sess, feeBurn)
+		_, err = models.UpdateAggregateTxFee(ctx, sess, feeBurn)
 		if err != nil {
 			return err
 		}

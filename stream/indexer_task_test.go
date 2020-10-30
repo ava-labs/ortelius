@@ -163,7 +163,7 @@ func TestIntegration(t *testing.T) {
 		}
 	}
 
-	aggregateTxFees, _ := models.SelectFeeBurn(ctx, sess)
+	aggregateTxFees, _ := models.SelectAggregateTxFee(ctx, sess)
 	if len(aggregateTxFees) != 1 {
 		t.Errorf("aggregate map count not created")
 	}
