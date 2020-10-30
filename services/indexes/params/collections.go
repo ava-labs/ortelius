@@ -285,9 +285,10 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 
 type ListAssetsParams struct {
 	ListParams
-	ID    *ids.ID
-	Query string
-	Alias string
+	ID              *ids.ID
+	Query           string
+	Alias           string
+	EnableAggregate bool
 }
 
 func (p *ListAssetsParams) ForValue(q url.Values) error {
@@ -301,11 +302,20 @@ func (p *ListAssetsParams) ForValue(q url.Values) error {
 		return err
 	}
 
+	p.EnableAggregate, err = GetQueryBool(q, KeyEnableAggregate, false)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (p *ListAssetsParams) CacheKey() []string {
 	k := p.ListParams.CacheKey()
+
+	k = append(k,
+		CacheKey(KeyEnableAggregate, p.EnableAggregate),
+	)
 
 	if p.ID != nil {
 		k = append(k, CacheKey(KeyID, p.ID.String()))

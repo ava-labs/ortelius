@@ -114,6 +114,8 @@ The transaction object
 
 `disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
 
+`enableAggregate` - Bool value = true will include aggregates for minute, hour, day, week, month, year (from aggregate cache - not real time)
+
 #### Response:
 
 Array of asset objects

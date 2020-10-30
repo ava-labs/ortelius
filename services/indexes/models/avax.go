@@ -81,6 +81,8 @@ type Asset struct {
 	VariableCap uint8 `json:"variableCap"`
 
 	Score uint64 `json:"-"`
+
+	Aggregates map[string]*Aggregates
 }
 
 type AssetInfo struct {

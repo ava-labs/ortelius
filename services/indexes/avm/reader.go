@@ -377,7 +377,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets); err != nil {
+	if err = r.dressAssets(ctx, dbRunner, assets, p.EnableAggregate); err != nil {
 		return nil, err
 	}
 
@@ -867,15 +867,49 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset) error {
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, aggregate bool) error {
 	if len(assets) == 0 {
 		return nil
 	}
+
+	tnow := time.Now().UTC()
+	tnow = tnow.Truncate(1 * time.Minute)
 
 	// Create a list of ids for querying, and a map for accumulating results later
 	assetIDs := make([]models.StringID, len(assets))
 	for i, asset := range assets {
 		assetIDs[i] = asset.ID
+
+		if !aggregate {
+			continue
+		}
+
+		id, err := ids.FromString(string(asset.ID))
+		if err != nil {
+			r.conns.Logger().Warn("asset to id convert failed %s", err)
+			continue
+		}
+
+		asset.Aggregates = make(map[string]*models.Aggregates)
+
+		for itm := range params.IntervalNames {
+			if itm == "all" {
+				continue
+			}
+			aparams := params.AggregateParams{
+				AssetID:      &id,
+				IntervalSize: params.IntervalNames[itm],
+				StartTime:    tnow.Add(-1 * params.IntervalNames[itm]),
+				EndTime:      tnow,
+				Version:      1,
+			}
+			hm, err := r.Aggregate(ctx, &aparams)
+			if err != nil {
+				r.conns.Logger().Warn("aggregate query failed %s", err)
+				continue
+			}
+			asset.Aggregates[itm] = &hm.Aggregates
+		}
 	}
 
 	rows := []*struct {
