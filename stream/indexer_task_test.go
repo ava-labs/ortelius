@@ -48,7 +48,6 @@ func TestIntegration(t *testing.T) {
 	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
 
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
 
