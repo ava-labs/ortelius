@@ -33,7 +33,6 @@ func TestIntegration(t *testing.T) {
 	}
 
 	tasker := ProducerTasker{connections: co,
-		avmOutputsCursor:        AvmOutputsAggregateCursor,
 		insertAvmAggregate:      models.InsertAvmAssetAggregation,
 		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
 		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
@@ -179,7 +178,6 @@ func TestHandleBackupState(t *testing.T) {
 	}
 
 	producerTask := ProducerTasker{connections: co,
-		avmOutputsCursor:        AvmOutputsAggregateCursor,
 		insertAvmAggregate:      models.InsertAvmAssetAggregation,
 		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
 		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
