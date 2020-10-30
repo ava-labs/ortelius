@@ -203,7 +203,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		err = t.processAvmOutputAddressesCounts(baseAggregateTS, updatesChanmel, errs)
 		if err != nil {
 			errs.SetValue(err)
-			return
 		}
 	}()
 
