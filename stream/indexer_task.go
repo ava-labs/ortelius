@@ -198,7 +198,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		defer wg.Done()
 		defer func() {
 			doneCh <- 2
-			t.connections.Logger().Info("finished address counts")
 		}()
 
 		err = t.processAvmOutputAddressesCounts(baseAggregateTS, updatesChanmel, errs)
