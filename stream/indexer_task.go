@@ -175,8 +175,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	aggregateTSUpdate := &utils.AtomicInterface{}
 
 	updatesChanmel := make(chan updateJob, updateChannelSize)
-	doneChOutputs := make(chan (struct{}))
-	doneChOutputsCounts := make(chan (struct{}))
+	doneCh := make(chan int, 2)
 
 	wg := sync.WaitGroup{}
 
@@ -184,8 +183,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	go func() {
 		defer wg.Done()
 		defer func() {
-			doneChOutputs <- struct{}{}
-			t.connections.Logger().Info("finished outputs")
+			doneCh <- 1
 		}()
 
 		aggregateTSUpdateRes, err := t.processAvmOutputs(baseAggregateTS, updatesChanmel, errs)
@@ -199,7 +197,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	go func() {
 		defer wg.Done()
 		defer func() {
-			doneChOutputsCounts <- struct{}{}
+			doneCh <- 2
 			t.connections.Logger().Info("finished address counts")
 		}()
 
@@ -210,24 +208,23 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		}
 	}()
 
-	for iproc := 0; iproc < updatesCount; iproc++ {
-		var doneCntOutputs bool = false
-		var doneCntOutputsCounts bool = false
+	processedLock := sync.Mutex{}
+	processed := make(map[int]bool)
+	processed[1] = false
+	processed[2] = false
 
+	for iproc := 0; iproc < updatesCount; iproc++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			select {
-			case <-doneChOutputs:
-				t.connections.Logger().Info("finalize outputs")
-				doneCntOutputs = true
-				if doneCntOutputs && doneCntOutputsCounts {
-					return
-				}
-			case <-doneChOutputsCounts:
-				t.connections.Logger().Info("finalize address counts")
-				doneCntOutputsCounts = true
-				if doneCntOutputs && doneCntOutputsCounts {
+			case itm := <-doneCh:
+				processedLock.Lock()
+				processed[itm] = true
+				// nolint:staticcheck
+				isprocessed := (processed[1] && processed[2])
+				processedLock.Unlock()
+				if isprocessed {
 					return
 				}
 			case update := <-updatesChanmel:
@@ -251,6 +248,8 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	}
 
 	wg.Wait()
+	close(doneCh)
+	close(updatesChanmel)
 
 	if err, ok := errs.GetValue().(error); ok {
 		return nil, err
