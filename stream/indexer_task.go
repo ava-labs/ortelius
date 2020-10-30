@@ -223,7 +223,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	for iproc := 0; iproc < updatesCount; iproc++ {
 		wg.Add(1)
 		go func() {
-			processedLock := sync.Mutex{}
 			processed := make(map[int]bool)
 			processed[1] = false
 			processed[2] = false
@@ -258,10 +257,8 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 						}
 					}
 				case itm := <-doneCh:
-					processedLock.Lock()
 					processed[itm] = true
 					isprocessed := (processed[1] && processed[2] && processed[3])
-					processedLock.Unlock()
 					if isprocessed {
 						return
 					}
