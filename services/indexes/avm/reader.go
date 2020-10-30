@@ -845,10 +845,10 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
 			).
 			From("avm_outputs").
-			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id = ?", addrIDs, r.chainID).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {
 			return err
