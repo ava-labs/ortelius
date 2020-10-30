@@ -90,6 +90,15 @@ func TestIntegration(t *testing.T) {
 	if err != nil {
 		t.Error("insert avm_output_addresses", err)
 	}
+	_, err = sess.InsertInto("avm_transactions").
+		Pair("id", "id1").
+		Pair("chain_id", "cid").
+		Pair("type", "type").
+		Pair("created_at", pastime).
+		Exec()
+	if err != nil {
+		t.Error("insert avm_transactions", err)
+	}
 
 	avmAggregate := models.AvmAggregate{}
 	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
@@ -145,6 +154,18 @@ func TestIntegration(t *testing.T) {
 			aggregateCountMapValue.TotalReceived != "100" &&
 			aggregateCountMapValue.Balance != "100" &&
 			aggregateCountMapValue.UtxoCount != 1 {
+			t.Errorf("aggregate map count invalid")
+		}
+	}
+
+	aggregateTxFees, _ := models.SelectFeeBurn(ctx, sess)
+	if len(aggregateTxFees) != 1 {
+		t.Errorf("aggregate map count not created")
+	}
+
+	for _, aggregateTxFee := range aggregateTxFees {
+		if aggregateTxFee.AggregateTS.Equal(pastime) &&
+			aggregateTxFee.TxFee != "1" {
 			t.Errorf("aggregate map count invalid")
 		}
 	}

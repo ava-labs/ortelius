@@ -473,7 +473,7 @@ func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChan
 	var rows *sql.Rows
 	rows, err = sess.
 		Select(fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_transactions.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
-			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
+			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS tx_fee",
 		).
 		From("avm_transactions").
 		GroupBy("aggregate_ts").
