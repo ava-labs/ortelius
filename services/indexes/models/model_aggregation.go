@@ -33,6 +33,11 @@ type AvmAggregateCount struct {
 	UtxoCount        uint64
 }
 
+type AggregateTxFee struct {
+	AggregateTS time.Time `json:"aggregateTS"`
+	TxFee       string    `json:"txFee"`
+}
+
 type AvmAssetAggregateState struct {
 	ID               uint64    `json:"id"`
 	CreatedAt        time.Time `json:"createdAt"`
@@ -118,6 +123,31 @@ func InsertAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmA
 		avmAggregate.AssetID,
 		avmAggregate.TransactionCount,
 		avmAggregate.UtxoCount)
+}
+
+func SelectFeeBurn(ctx context.Context, sess *dbr.Session) ([]*AggregateTxFee, error) {
+	resuls := make([]*AggregateTxFee, 0, 2)
+
+	_, err := sess.Select("aggregate_ts", "tx_fee").
+		From("aggregate_txfee").
+		LoadContext(ctx, &resuls)
+
+	return resuls, err
+}
+
+func UpdateFeeBurn(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+	return sess.ExecContext(ctx, "update aggregate_txfee "+
+		"set "+
+		"tx_fee="+feeBurn.TxFee+" "+
+		"where aggregate_ts = ? ",
+		feeBurn.AggregateTS)
+}
+
+func InsertFeeBurn(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+	return sess.ExecContext(ctx, "insert into aggregate_txfee "+
+		"(aggregate_ts, tx_fee) "+
+		"values (?,"+feeBurn.TxFee+")",
+		feeBurn.AggregateTS)
 }
 
 func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.SessionRunner, time time.Time) (sql.Result, error) {

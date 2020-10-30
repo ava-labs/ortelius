@@ -158,3 +158,63 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 		}
 	}
 }
+
+func TestInsertUpdateFeeBurn(t *testing.T) {
+	var err error
+
+	h := health.NewStream()
+
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
+
+	ctx := context.Background()
+
+	// job := co.Stream().NewJob("model_aggregation_test")
+	sess, _ := co.DB().NewSession("model_aggregation_test", 5*time.Second)
+
+	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
+
+	tNow := time.Now()
+
+	var feeBurn AggregateTxFee
+	feeBurn.AggregateTS = tNow
+	feeBurn.TxFee = "1"
+
+	_, err = InsertFeeBurn(ctx, sess, feeBurn)
+	if err != nil {
+		t.Errorf("insert failed %s", err.Error())
+	}
+
+	feeBurns, _ := SelectFeeBurn(ctx, sess)
+	if len(feeBurns) != 1 {
+		t.Errorf("not created")
+	}
+
+	for _, feeBurnValue := range feeBurns {
+		if feeBurnValue.AggregateTS.Equal(tNow) &&
+			feeBurnValue.TxFee != "1" {
+			t.Errorf("insert invalid")
+		}
+	}
+
+	feeBurn.TxFee = "2"
+	_, err = UpdateFeeBurn(ctx, sess, feeBurn)
+	if err != nil {
+		t.Errorf("update failed %s", err.Error())
+	}
+
+	feeBurns, _ = SelectFeeBurn(ctx, sess)
+	if len(feeBurns) != 1 {
+		t.Errorf("update")
+	}
+
+	for _, feeBurnValue := range feeBurns {
+		if feeBurnValue.AggregateTS.Equal(tNow) &&
+			feeBurnValue.TxFee != "2" {
+			t.Errorf("update invalid")
+		}
+	}
+}

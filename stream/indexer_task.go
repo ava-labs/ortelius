@@ -135,6 +135,7 @@ func (t *ProducerTasker) updateBackupState(ctx context.Context, dbSession *dbr.S
 type updateJob struct {
 	avmAggregate      *models.AvmAggregate
 	avmAggregateCount *models.AvmAggregateCount
+	aggregateTxFee    *models.AggregateTxFee
 }
 
 func (t *ProducerTasker) RefreshAggregates() error {
@@ -175,7 +176,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	aggregateTSUpdate := &utils.AtomicInterface{}
 
 	updatesChanmel := make(chan updateJob, updateChannelSize)
-	doneCh := make(chan int, 2)
+	doneCh := make(chan int, 3)
 
 	wg := sync.WaitGroup{}
 
@@ -198,7 +199,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		defer wg.Done()
 		defer func() {
 			doneCh <- 2
-			t.connections.Logger().Info("finished address counts")
 		}()
 
 		err = t.processAvmOutputAddressesCounts(baseAggregateTS, updatesChanmel, errs)
@@ -208,10 +208,24 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		}
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			doneCh <- 3
+		}()
+
+		err := t.processAggregateTxFee(baseAggregateTS, updatesChanmel, errs)
+		if err != nil {
+			errs.SetValue(err)
+		}
+	}()
+
 	processedLock := sync.Mutex{}
 	processed := make(map[int]bool)
 	processed[1] = false
 	processed[2] = false
+	processed[3] = false
 
 	for iproc := 0; iproc < updatesCount; iproc++ {
 		wg.Add(1)
@@ -222,11 +236,12 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 				processedLock.Lock()
 				processed[itm] = true
 				// nolint:staticcheck
-				isprocessed := (processed[1] && processed[2])
+				isprocessed := (processed[1] && processed[2] && processed[3])
 				processedLock.Unlock()
 				if isprocessed {
 					return
 				}
+
 			case update := <-updatesChanmel:
 				if update.avmAggregate != nil {
 					err := t.replaceAvmAggregate(*update.avmAggregate)
@@ -240,6 +255,14 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 					err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
 					if err != nil {
 						t.connections.Logger().Error("replace avm aggregate count %s", err)
+						errs.SetValue(err)
+					}
+				}
+
+				if update.aggregateTxFee != nil {
+					err := t.replaceFeeBurn(*update.aggregateTxFee)
+					if err != nil {
+						t.connections.Logger().Error("replace fee burn %s", err)
 						errs.SetValue(err)
 					}
 				}
@@ -438,6 +461,51 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 	return nil
 }
 
+func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChannel chan updateJob, errs *utils.AtomicInterface) error {
+	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
+	defer cancel()
+
+	sess, err := t.connections.DB().NewSession("producertasker_aggregatetxfee", queryContextDuration)
+	if err != nil {
+		return err
+	}
+
+	var rows *sql.Rows
+	rows, err = sess.
+		Select(fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_transactions.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
+			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
+		).
+		From("avm_transactions").
+		GroupBy("aggregate_ts").
+		Where("avm_transactions.created_at >= ?", aggregateTS).
+		RowsContext(ctx)
+	if err != nil {
+		t.connections.Logger().Error("error query %s", err)
+		return err
+	}
+	if rows.Err() != nil {
+		t.connections.Logger().Error("error query %s", rows.Err())
+		return rows.Err()
+	}
+
+	for ok := rows.Next(); ok && errs.GetValue() == nil; ok = rows.Next() {
+		var aggregateTxFee models.AggregateTxFee
+		err = rows.Scan(&aggregateTxFee.AggregateTS,
+			&aggregateTxFee.TxFee)
+		if err != nil {
+			t.connections.Logger().Error("row fetch %s", err)
+			return err
+		}
+
+		update := updateJob{
+			aggregateTxFee: &aggregateTxFee,
+		}
+		updateChannel <- update
+	}
+
+	return nil
+}
+
 func AddressAssetQuery(sess dbr.SessionRunner) *dbr.SelectStmt {
 	return sess.Select(
 		"avm_output_addresses.address",
@@ -485,6 +553,25 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 	_, err = models.InsertAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
 		_, err = models.UpdateAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *ProducerTasker) replaceFeeBurn(feeBurn models.AggregateTxFee) error {
+	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
+	defer cancel()
+
+	sess, err := t.connections.DB().NewSession("producertasker_feeburn", contextDuration)
+	if err != nil {
+		return err
+	}
+
+	_, err = models.InsertFeeBurn(ctx, sess, feeBurn)
+	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
+		_, err = models.UpdateFeeBurn(ctx, sess, feeBurn)
 		if err != nil {
 			return err
 		}
