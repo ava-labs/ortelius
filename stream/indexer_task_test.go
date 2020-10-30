@@ -131,6 +131,7 @@ func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *test
 	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
 
 	_, err := sess.InsertInto("avm_outputs").
 		Pair("id", "id1").

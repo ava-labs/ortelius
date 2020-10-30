@@ -204,7 +204,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		err = t.processAvmOutputAddressesCounts(baseAggregateTS, updatesChanmel, errs)
 		if err != nil {
 			errs.SetValue(err)
-			return
 		}
 	}()
 
@@ -221,49 +220,51 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		}
 	}()
 
-	processedLock := sync.Mutex{}
-	processed := make(map[int]bool)
-	processed[1] = false
-	processed[2] = false
-	processed[3] = false
-
 	for iproc := 0; iproc < updatesCount; iproc++ {
 		wg.Add(1)
 		go func() {
+			processedLock := sync.Mutex{}
+			processed := make(map[int]bool)
+			processed[1] = false
+			processed[2] = false
+			processed[3] = false
+
 			defer wg.Done()
-			select {
-			case update := <-updatesChanmel:
-				if update.avmAggregate != nil {
-					err := t.replaceAvmAggregate(*update.avmAggregate)
-					if err != nil {
-						t.connections.Logger().Error("replace avm aggregate %s", err)
-						errs.SetValue(err)
-					}
-				}
 
-				if update.avmAggregateCount != nil {
-					err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
-					if err != nil {
-						t.connections.Logger().Error("replace avm aggregate count %s", err)
-						errs.SetValue(err)
+			for {
+				select {
+				case update := <-updatesChanmel:
+					if update.avmAggregate != nil {
+						err := t.replaceAvmAggregate(*update.avmAggregate)
+						if err != nil {
+							t.connections.Logger().Error("replace avm aggregate %s", err)
+							errs.SetValue(err)
+						}
 					}
-				}
 
-				if update.aggregateTxFee != nil {
-					err := t.replaceAggregateTxFee(*update.aggregateTxFee)
-					if err != nil {
-						t.connections.Logger().Error("replace aggregate txfee %s", err)
-						errs.SetValue(err)
+					if update.avmAggregateCount != nil {
+						err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
+						if err != nil {
+							t.connections.Logger().Error("replace avm aggregate count %s", err)
+							errs.SetValue(err)
+						}
 					}
-				}
-			case itm := <-doneCh:
-				processedLock.Lock()
-				processed[itm] = true
-				// nolint:staticcheck
-				isprocessed := (processed[1] && processed[2] && processed[3])
-				processedLock.Unlock()
-				if isprocessed {
-					return
+
+					if update.aggregateTxFee != nil {
+						err := t.replaceAggregateTxFee(*update.aggregateTxFee)
+						if err != nil {
+							t.connections.Logger().Error("replace aggregate txfee %s", err)
+							errs.SetValue(err)
+						}
+					}
+				case itm := <-doneCh:
+					processedLock.Lock()
+					processed[itm] = true
+					isprocessed := (processed[1] && processed[2] && processed[3])
+					processedLock.Unlock()
+					if isprocessed {
+						return
+					}
 				}
 			}
 		}()
