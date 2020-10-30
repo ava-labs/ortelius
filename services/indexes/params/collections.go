@@ -289,6 +289,7 @@ type ListAssetsParams struct {
 	Query           string
 	Alias           string
 	EnableAggregate bool
+	PathParamID     string
 }
 
 func (p *ListAssetsParams) ForValues(q url.Values) error {
@@ -315,6 +316,7 @@ func (p *ListAssetsParams) CacheKey() []string {
 
 	k = append(k,
 		CacheKey(KeyEnableAggregate, p.EnableAggregate),
+		CacheKey("PathParamID", p.PathParamID),
 	)
 
 	if p.ID != nil {

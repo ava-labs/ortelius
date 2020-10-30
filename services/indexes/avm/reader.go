@@ -541,17 +541,15 @@ func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.
 	return nil, nil
 }
 
-func (r *Reader) GetAsset(ctx context.Context, idStrOrAlias string) (*models.Asset, error) {
-	params := &params.ListAssetsParams{}
-
+func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStrOrAlias string) (*models.Asset, error) {
 	id, err := ids.FromString(idStrOrAlias)
 	if err == nil {
-		params.ID = &id
+		p.ID = &id
 	} else {
-		params.Alias = idStrOrAlias
+		p.Alias = idStrOrAlias
 	}
 
-	assetList, err := r.ListAssets(ctx, params)
+	assetList, err := r.ListAssets(ctx, p)
 	if err != nil {
 		return nil, err
 	}
