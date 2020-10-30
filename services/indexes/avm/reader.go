@@ -11,8 +11,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ava-labs/ortelius/stream"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
@@ -218,14 +216,9 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		if len(intervals) > 0 {
 			intervals[0].StartTime = params.StartTime
 			intervals[0].EndTime = params.EndTime
-			return &models.AggregatesHistogram{Aggregates: intervals[0],
-					StartTime: params.StartTime,
-					EndTime:   params.EndTime},
-				nil
+			return &models.AggregatesHistogram{Aggregates: intervals[0]}, nil
 		}
-		return &models.AggregatesHistogram{StartTime: params.StartTime,
-				EndTime: params.EndTime},
-			nil
+		return &models.AggregatesHistogram{}, nil
 	}
 
 	// We need to return multiple intervals so build them now.
@@ -293,9 +286,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
 
-	aggs.StartTime = params.StartTime
-	aggs.EndTime = params.EndTime
-
 	return aggs, nil
 }
 
@@ -353,11 +343,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count},
-			Transactions: txs,
-			StartTime:    p.StartTime,
-			EndTime:      p.EndTime},
-		nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
@@ -848,8 +834,21 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			return err
 		}
 	default:
-		_, err := stream.AddressAssetQuery(dbRunner).
-			Where("avm_output_addresses.address IN ?", addrIDs).
+		_, err := dbRunner.
+			Select(
+				"avm_output_addresses.address",
+				"avm_outputs.asset_id",
+				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+			).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id = ?", addrIDs, r.chainID).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {
 			return err
