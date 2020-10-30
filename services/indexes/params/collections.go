@@ -291,7 +291,7 @@ type ListAssetsParams struct {
 	EnableAggregate bool
 }
 
-func (p *ListAssetsParams) ForValue(q url.Values) error {
+func (p *ListAssetsParams) ForValues(q url.Values) error {
 	err := p.ListParams.ForValues(q)
 	if err != nil {
 		return err
