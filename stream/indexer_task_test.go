@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gocraft/dbr/v2"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/db"
@@ -40,57 +42,11 @@ func TestIntegration(t *testing.T) {
 
 	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
 
-	// cleanup for run.
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
-	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
-	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
-
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
 
 	aggregationTime := pastime.Truncate(timestampRollup)
 
-	_, err = sess.InsertInto("avm_outputs").
-		Pair("id", "id1").
-		Pair("chain_id", "cid").
-		Pair("output_index", 1).
-		Pair("output_type", 1).
-		Pair("locktime", 1).
-		Pair("threshold", 1).
-		Pair("created_at", pastime).
-		Pair("asset_id", "testasset").
-		Pair("amount", 100).
-		Pair("transaction_id", 1).
-		Exec()
-	if err != nil {
-		t.Error("insert avm_outputs", err)
-	}
-	_, err = sess.InsertInto("avm_outputs").
-		Pair("id", "id2").
-		Pair("chain_id", "cid").
-		Pair("output_index", 2).
-		Pair("output_type", 1).
-		Pair("locktime", 1).
-		Pair("threshold", 1).
-		Pair("created_at", pastime).
-		Pair("asset_id", "testasset").
-		Pair("amount", 100).
-		Pair("transaction_id", 1).
-		Exec()
-	if err != nil {
-		t.Error("insert avm_outputs", err)
-	}
-	_, err = sess.InsertInto("avm_output_addresses").
-		Pair("output_id", "id1").
-		Pair("address", "addr1").
-		Pair("created_at", pastime).
-		Exec()
-	if err != nil {
-		t.Error("insert avm_output_addresses", err)
-	}
+	initData(t, ctx, sess, err, pastime)
 
 	avmAggregate := models.AvmAggregate{}
 	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
@@ -151,6 +107,56 @@ func TestIntegration(t *testing.T) {
 			aggregateCountMapValue.UtxoCount != 1 {
 			t.Errorf("aggregate map count invalid")
 		}
+	}
+}
+
+func initData(t *testing.T, ctx context.Context, sess *dbr.Session, err error, pastime time.Time) {
+	// cleanup for run.
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
+	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
+	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
+	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
+
+	_, err = sess.InsertInto("avm_outputs").
+		Pair("id", "id1").
+		Pair("chain_id", "cid").
+		Pair("output_index", 1).
+		Pair("output_type", 1).
+		Pair("locktime", 1).
+		Pair("threshold", 1).
+		Pair("created_at", pastime).
+		Pair("asset_id", "testasset").
+		Pair("amount", 100).
+		Pair("transaction_id", 1).
+		Exec()
+	if err != nil {
+		t.Error("insert avm_outputs", err)
+	}
+	_, err = sess.InsertInto("avm_outputs").
+		Pair("id", "id2").
+		Pair("chain_id", "cid").
+		Pair("output_index", 2).
+		Pair("output_type", 1).
+		Pair("locktime", 1).
+		Pair("threshold", 1).
+		Pair("created_at", pastime).
+		Pair("asset_id", "testasset").
+		Pair("amount", 100).
+		Pair("transaction_id", 1).
+		Exec()
+	if err != nil {
+		t.Error("insert avm_outputs", err)
+	}
+	_, err = sess.InsertInto("avm_output_addresses").
+		Pair("output_id", "id1").
+		Pair("address", "addr1").
+		Pair("created_at", pastime).
+		Exec()
+	if err != nil {
+		t.Error("insert avm_output_addresses", err)
 	}
 }
 
