@@ -402,7 +402,20 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 		From("avm_output_addresses").
 		Where("avm_output_addresses.created_at >= ?", aggregateTS)
 
-	rows, err = AddressAssetQuery(sess).
+	rows, err = sess.Select(
+		"avm_output_addresses.address",
+		"avm_outputs.asset_id",
+		"avm_outputs.chain_id",
+		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+		"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+	).
+		From("avm_outputs").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		GroupBy("avm_output_addresses.address", "avm_outputs.chain_id", "avm_outputs.asset_id").
 		Where("avm_output_addresses.address IN ?", subquery).
 		RowsContext(ctx)
 	if err != nil {
@@ -418,6 +431,7 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 		var avmAggregateCount models.AvmAggregateCount
 		err = rows.Scan(&avmAggregateCount.Address,
 			&avmAggregateCount.AssetID,
+			&avmAggregateCount.ChainID,
 			&avmAggregateCount.TransactionCount,
 			&avmAggregateCount.TotalReceived,
 			&avmAggregateCount.TotalSent,
@@ -435,22 +449,6 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 	}
 
 	return nil
-}
-
-func AddressAssetQuery(sess dbr.SessionRunner) *dbr.SelectStmt {
-	return sess.Select(
-		"avm_output_addresses.address",
-		"avm_outputs.asset_id",
-		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-		"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-		"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-	).
-		From("avm_outputs").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id")
 }
 
 func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) error {
