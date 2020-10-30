@@ -814,9 +814,6 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		models.AssetInfo
 	}{}
 
-	// temporarily force version to 0..  Aggregate logic needs to be knowledgeable of chainID
-	version = 0
-
 	switch version {
 	case 1:
 		_, err := dbRunner.
