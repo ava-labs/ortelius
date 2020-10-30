@@ -7,7 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/ortelius/utils"
+
+	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -152,7 +154,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 
 	baseAggregateTS := aggregateTS
 
-	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS, err)
+	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS)
 	if err != nil {
 		return err
 	}
@@ -171,109 +173,72 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	return nil
 }
 
-func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error) (*utils.AtomicInterface, error) {
-	errs := &utils.AtomicInterface{}
-	aggregateTSUpdate := &utils.AtomicInterface{}
+func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalancheGoUtils.AtomicInterface, error) {
+	errs := &avalancheGoUtils.AtomicInterface{}
+	aggregateTSUpdate := &avalancheGoUtils.AtomicInterface{}
 
-	updatesChanmel := make(chan updateJob, updateChannelSize)
-	doneCh := make(chan int, 3)
-
+	pf := func(wn int, i interface{}) {
+		if update, ok := i.(*updateJob); ok {
+			if update.avmAggregate != nil {
+				err := t.replaceAvmAggregate(*update.avmAggregate)
+				if err != nil {
+					t.connections.Logger().Error("replace avm aggregate %s", err)
+					errs.SetValue(err)
+				}
+			}
+			if update.avmAggregateCount != nil {
+				err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
+				if err != nil {
+					t.connections.Logger().Error("replace avm aggregate count %s", err)
+					errs.SetValue(err)
+				}
+			}
+			if update.aggregateTxFee != nil {
+				err := t.replaceAggregateTxFee(*update.aggregateTxFee)
+				if err != nil {
+					t.connections.Logger().Error("replace aggregate tx fee %s", err)
+					errs.SetValue(err)
+				}
+			}
+		}
+	}
+	worker := utils.NewWorker(updateChannelSize, updatesCount, pf)
 	wg := sync.WaitGroup{}
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer func() {
-			doneCh <- 1
-		}()
 
-		aggregateTSUpdateRes, err := t.processAvmOutputs(baseAggregateTS, updatesChanmel, errs)
+		aggregateTSUpdateRes, err := t.processAvmOutputs(baseAggregateTS, worker, errs)
 		if err != nil {
 			errs.SetValue(err)
 		}
 		aggregateTSUpdate.SetValue(aggregateTSUpdateRes)
 	}()
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer func() {
-			doneCh <- 2
-		}()
 
-		err = t.processAvmOutputAddressesCounts(baseAggregateTS, updatesChanmel, errs)
+		err := t.processAvmOutputAddressesCounts(baseAggregateTS, worker, errs)
 		if err != nil {
 			errs.SetValue(err)
 		}
 	}()
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer func() {
-			doneCh <- 3
-		}()
 
-		err := t.processAggregateTxFee(baseAggregateTS, updatesChanmel, errs)
+		err := t.processAggregateTxFee(baseAggregateTS, worker, errs)
 		if err != nil {
 			errs.SetValue(err)
 		}
 	}()
-
-	for iproc := 0; iproc < updatesCount; iproc++ {
-		wg.Add(1)
-		go func() {
-			processed := make(map[int]bool)
-			processed[1] = false
-			processed[2] = false
-			processed[3] = false
-
-			defer wg.Done()
-
-			for {
-				select {
-				case update := <-updatesChanmel:
-					if update.avmAggregate != nil {
-						err := t.replaceAvmAggregate(*update.avmAggregate)
-						if err != nil {
-							t.connections.Logger().Error("replace avm aggregate %s", err)
-							errs.SetValue(err)
-						}
-					}
-
-					if update.avmAggregateCount != nil {
-						err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
-						if err != nil {
-							t.connections.Logger().Error("replace avm aggregate count %s", err)
-							errs.SetValue(err)
-						}
-					}
-
-					if update.aggregateTxFee != nil {
-						err := t.replaceAggregateTxFee(*update.aggregateTxFee)
-						if err != nil {
-							t.connections.Logger().Error("replace aggregate txfee %s", err)
-							errs.SetValue(err)
-						}
-					}
-				case itm := <-doneCh:
-					processed[itm] = true
-					isprocessed := (processed[1] && processed[2] && processed[3])
-					if isprocessed {
-						return
-					}
-				}
-			}
-		}()
-	}
-
 	wg.Wait()
-	close(doneCh)
-	close(updatesChanmel)
+	worker.Finish(100 * time.Millisecond)
 
 	if err, ok := errs.GetValue().(error); ok {
 		return nil, err
 	}
+
 	return aggregateTSUpdate, nil
 }
 
@@ -347,7 +312,7 @@ func (t *ProducerTasker) fetchState() (models.AvmAssetAggregateState, models.Avm
 	return liveAggregationState, backupAggregateState, nil
 }
 
-func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel chan updateJob, errs *utils.AtomicInterface) (time.Time, error) {
+func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
@@ -404,12 +369,12 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 		update := updateJob{
 			avmAggregate: &avmAggregate,
 		}
-		updateChannel <- update
+		updateChannel.Enque(&update)
 	}
 	return aggregateTS, nil
 }
 
-func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, updateChannel chan updateJob, errs *utils.AtomicInterface) error {
+func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) error {
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
@@ -469,13 +434,13 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 		update := updateJob{
 			avmAggregateCount: &avmAggregateCount,
 		}
-		updateChannel <- update
+		updateChannel.Enque(&update)
 	}
 
 	return nil
 }
 
-func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChannel chan updateJob, errs *utils.AtomicInterface) error {
+func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) error {
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
@@ -514,7 +479,7 @@ func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChan
 		update := updateJob{
 			aggregateTxFee: &aggregateTxFee,
 		}
-		updateChannel <- update
+		updateChannel.Enque(&update)
 	}
 
 	return nil
