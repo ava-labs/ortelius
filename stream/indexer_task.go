@@ -339,6 +339,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 	rows, err = sess.
 		Select(fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_outputs.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
 			"avm_outputs.asset_id",
+			"avm_outputs.chain_id",
 			"CAST(COALESCE(SUM(avm_outputs.amount), 0) AS CHAR) AS transaction_volume",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
 			"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
@@ -346,7 +347,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 			"COUNT(avm_outputs.id) AS output_count").
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		GroupBy("aggregate_ts", "avm_outputs.asset_id").
+		GroupBy("aggregate_ts", "avm_outputs.chain_id", "avm_outputs.asset_id").
 		Where("avm_outputs.created_at >= ?", aggregateTS).
 		RowsContext(ctx)
 	if err != nil {
@@ -362,6 +363,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 		var avmAggregate models.AvmAggregate
 		err = rows.Scan(&avmAggregate.AggregateTS,
 			&avmAggregate.AssetID,
+			&avmAggregate.ChainID,
 			&avmAggregate.TransactionVolume,
 			&avmAggregate.TransactionCount,
 			&avmAggregate.AddressCount,

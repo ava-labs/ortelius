@@ -16,6 +16,7 @@ const (
 type AvmAggregate struct {
 	AggregateTS       time.Time `json:"aggregateTS"`
 	AssetID           string    `json:"assetId"`
+	ChainID           string    `json:"chainId"`
 	TransactionVolume string    `json:"transactionVolume"`
 	TransactionCount  uint64    `json:"transactionCount"`
 	AddressCount      uint64    `json:"addresCount"`
@@ -50,7 +51,7 @@ func PurgeOldAvmAssetAggregation(ctx context.Context, sess *dbr.Session, time ti
 func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmAggregate, error) {
 	avmAggregates := make([]*AvmAggregate, 0, 2)
 
-	_, err := sess.Select("aggregate_ts", "asset_id", "transaction_volume", "transaction_count", "address_count", "asset_count", "output_count").
+	_, err := sess.Select("aggregate_ts", "asset_id", "chain_id", "transaction_volume", "transaction_count", "address_count", "asset_count", "output_count").
 		From("avm_asset_aggregation").
 		LoadContext(ctx, &avmAggregates)
 
@@ -60,12 +61,14 @@ func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmA
 func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update avm_asset_aggregation "+
 		"set "+
+		" chain_id=?,"+
 		" transaction_volume="+avmAggregate.TransactionVolume+","+
 		" transaction_count=?,"+
 		" address_count=?,"+
 		" asset_count=?,"+
 		" output_count=? "+
 		"where aggregate_ts = ? AND asset_id = ?",
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.OutputCount,
@@ -76,10 +79,11 @@ func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 
 func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_aggregation "+
-		"(aggregate_ts,asset_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
-		"values (?,?,"+avmAggregate.TransactionVolume+",?,?,?,?)",
+		"(aggregate_ts,asset_id,chain_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
+		"values (?,?,?,"+avmAggregate.TransactionVolume+",?,?,?,?)",
 		avmAggregate.AggregateTS,
 		avmAggregate.AssetID,
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.AssetCount,
