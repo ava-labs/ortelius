@@ -814,6 +814,9 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		models.AssetInfo
 	}{}
 
+	// temporarily force version to 0..  Aggregate logic needs to be knowledgeable of chainID
+	version = 0
+
 	switch version {
 	case 1:
 		_, err := dbRunner.
@@ -847,7 +850,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			From("avm_outputs").
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-			Where("avm_output_addresses.address IN ?", addrIDs).
+			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id = ?", addrIDs, r.chainID).
 			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {
