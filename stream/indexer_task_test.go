@@ -46,7 +46,7 @@ func TestIntegration(t *testing.T) {
 
 	aggregationTime := pastime.Truncate(timestampRollup)
 
-	initData(t, ctx, sess, err, pastime)
+	initData(ctx, sess, pastime, t)
 
 	avmAggregate := models.AvmAggregate{}
 	avmAggregate.AggregateTS = time.Now().Add(time.Duration(aggregateDeleteFrame.Milliseconds()+1) * time.Millisecond)
@@ -122,7 +122,7 @@ func TestIntegration(t *testing.T) {
 	}
 }
 
-func initData(t *testing.T, ctx context.Context, sess *dbr.Session, err error, pastime time.Time) {
+func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *testing.T) {
 	// cleanup for run.
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateBackupID)
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
@@ -132,7 +132,7 @@ func initData(t *testing.T, ctx context.Context, sess *dbr.Session, err error, p
 	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
 
-	_, err = sess.InsertInto("avm_outputs").
+	_, err := sess.InsertInto("avm_outputs").
 		Pair("id", "id1").
 		Pair("chain_id", "cid").
 		Pair("output_index", 1).
