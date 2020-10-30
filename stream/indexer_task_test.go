@@ -137,6 +137,7 @@ func TestIntegration(t *testing.T) {
 	for _, aggregateMapValue := range avmAggregateModels {
 		if !aggregateMapValue.AggregateTS.Equal(aggregationTime.UTC()) &&
 			aggregateMapValue.AssetID != "testasset" &&
+			aggregateMapValue.ChainID != "cid1" &&
 			aggregateMapValue.TransactionVolume != "200" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -152,6 +153,7 @@ func TestIntegration(t *testing.T) {
 	for _, aggregateCountMapValue := range avmAggregateCounts {
 		if aggregateCountMapValue.Address != "id1" &&
 			aggregateCountMapValue.AssetID != "testasset" &&
+			aggregateCountMapValue.AssetID != "ch1" &&
 			aggregateCountMapValue.TransactionCount != 1 &&
 			aggregateCountMapValue.TotalSent != "0" &&
 			aggregateCountMapValue.TotalReceived != "100" &&
