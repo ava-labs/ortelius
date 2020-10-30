@@ -153,7 +153,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 
 	baseAggregateTS := aggregateTS
 
-	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS, err)
+	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS)
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	return nil
 }
 
-func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error) (*avalancheGoUtils.AtomicInterface, error) {
+func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalancheGoUtils.AtomicInterface, error) {
 	errs := &avalancheGoUtils.AtomicInterface{}
 	aggregateTSUpdate := &avalancheGoUtils.AtomicInterface{}
 
@@ -185,7 +185,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 					errs.SetValue(err)
 				}
 			}
-
 			if update.avmAggregateCount != nil {
 				err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
 				if err != nil {
@@ -211,7 +210,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 	go func() {
 		defer wg.Done()
 
-		err = t.processAvmOutputAddressesCounts(baseAggregateTS, worker, errs)
+		err := t.processAvmOutputAddressesCounts(baseAggregateTS, worker, errs)
 		if err != nil {
 			errs.SetValue(err)
 		}
