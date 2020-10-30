@@ -33,11 +33,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	tasker := ProducerTasker{connections: co,
-		insertAvmAggregate:      models.InsertAvmAssetAggregation,
-		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
-		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
-		updateAvmAggregateCount: models.UpdateAvmAssetAggregationCount,
-		timeStampProducer:       timeProducerFunc,
+		timeStampProducer: timeProducerFunc,
 	}
 
 	ctx := context.Background()
@@ -178,11 +174,7 @@ func TestHandleBackupState(t *testing.T) {
 	}
 
 	producerTask := ProducerTasker{connections: co,
-		insertAvmAggregate:      models.InsertAvmAssetAggregation,
-		updateAvmAggregate:      models.UpdateAvmAssetAggregation,
-		insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
-		updateAvmAggregateCount: models.UpdateAvmAssetAggregationCount,
-		timeStampProducer:       timeProducerFunc,
+		timeStampProducer: timeProducerFunc,
 	}
 
 	backupState, _ := producerTask.updateBackupState(ctx, sess, state)

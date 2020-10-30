@@ -42,22 +42,14 @@ var (
 )
 
 type ProducerTasker struct {
-	initlock                sync.RWMutex
-	connections             *services.Connections
-	plock                   sync.Mutex
-	insertAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
-	updateAvmAggregate      func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregate) (sql.Result, error)
-	insertAvmAggregateCount func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateCount) (sql.Result, error)
-	updateAvmAggregateCount func(ctx context.Context, sess *dbr.Session, avmAggregate models.AvmAggregateCount) (sql.Result, error)
-	timeStampProducer       func() time.Time
+	initlock          sync.RWMutex
+	connections       *services.Connections
+	plock             sync.Mutex
+	timeStampProducer func() time.Time
 }
 
 var producerTaskerInstance = ProducerTasker{
-	insertAvmAggregate:      models.InsertAvmAssetAggregation,
-	updateAvmAggregate:      models.UpdateAvmAssetAggregation,
-	insertAvmAggregateCount: models.InsertAvmAssetAggregationCount,
-	updateAvmAggregateCount: models.UpdateAvmAssetAggregationCount,
-	timeStampProducer:       time.Now,
+	timeStampProducer: time.Now,
 }
 
 func initializeConsumerTasker(conns *services.Connections) {
@@ -159,6 +151,26 @@ func (t *ProducerTasker) RefreshAggregates() error {
 
 	baseAggregateTS := aggregateTS
 
+	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS, err)
+	if err != nil {
+		return err
+	}
+
+	err = t.cleanupState(backupAggregateState)
+	if err != nil {
+		return err
+	}
+
+	if aggregateTSF, ok := aggregateTSUpdate.GetValue().(time.Time); ok {
+		aggregateTS = aggregateTSF
+	}
+
+	t.connections.Logger().Info("processed up to %s", aggregateTS.String())
+
+	return nil
+}
+
+func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error) (*utils.AtomicInterface, error) {
 	errs := &utils.AtomicInterface{}
 	aggregateTSUpdate := &utils.AtomicInterface{}
 
@@ -241,21 +253,9 @@ func (t *ProducerTasker) RefreshAggregates() error {
 	wg.Wait()
 
 	if err, ok := errs.GetValue().(error); ok {
-		return err
+		return nil, err
 	}
-
-	err = t.cleanupState(backupAggregateState)
-	if err != nil {
-		return err
-	}
-
-	if aggregateTSF, ok := aggregateTSUpdate.GetValue().(time.Time); ok {
-		aggregateTS = aggregateTSF
-	}
-
-	t.connections.Logger().Info("processed up to %s", aggregateTS.String())
-
-	return nil
+	return aggregateTSUpdate, nil
 }
 
 func (t *ProducerTasker) cleanupState(backupAggregateState models.AvmAssetAggregateState) error {
@@ -464,9 +464,9 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 		return err
 	}
 
-	_, err = t.insertAvmAggregate(ctx, sess, avmAggregates)
+	_, err = models.InsertAvmAssetAggregation(ctx, sess, avmAggregates)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = t.updateAvmAggregate(ctx, sess, avmAggregates)
+		_, err = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregates)
 		if err != nil {
 			return err
 		}
@@ -474,7 +474,7 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 	return nil
 }
 
-func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregates models.AvmAggregateCount) error {
+func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmAggregateCount) error {
 	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
 	defer cancel()
 
@@ -483,9 +483,9 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregates models.AvmAggreg
 		return err
 	}
 
-	_, err = t.insertAvmAggregateCount(ctx, sess, avmAggregates)
+	_, err = models.InsertAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = t.updateAvmAggregateCount(ctx, sess, avmAggregates)
+		_, err = models.UpdateAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
 		if err != nil {
 			return err
 		}
