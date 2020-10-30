@@ -217,15 +217,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		go func() {
 			defer wg.Done()
 			select {
-			case itm := <-doneCh:
-				processedLock.Lock()
-				processed[itm] = true
-				// nolint:staticcheck
-				isprocessed := (processed[1] && processed[2])
-				processedLock.Unlock()
-				if isprocessed {
-					return
-				}
 			case update := <-updatesChanmel:
 				if update.avmAggregate != nil {
 					err := t.replaceAvmAggregate(*update.avmAggregate)
@@ -241,6 +232,15 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 						t.connections.Logger().Error("replace avm aggregate count %s", err)
 						errs.SetValue(err)
 					}
+				}
+			case itm := <-doneCh:
+				processedLock.Lock()
+				processed[itm] = true
+				// nolint:staticcheck
+				isprocessed := (processed[1] && processed[2])
+				processedLock.Unlock()
+				if isprocessed {
+					return
 				}
 			}
 		}()
