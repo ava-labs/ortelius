@@ -143,19 +143,19 @@ func SelectAggregateTxFee(ctx context.Context, sess *dbr.Session) ([]*AggregateT
 	return resuls, err
 }
 
-func UpdateAggregateTxFee(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+func UpdateAggregateTxFee(ctx context.Context, sess *dbr.Session, aTxFee AggregateTxFee) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update aggregate_txfee "+
 		"set "+
-		"tx_fee="+feeBurn.TxFee+" "+
+		"tx_fee="+aTxFee.TxFee+" "+
 		"where aggregate_ts = ? ",
-		feeBurn.AggregateTS)
+		aTxFee.AggregateTS)
 }
 
-func InsertAggregateTxFee(ctx context.Context, sess *dbr.Session, feeBurn AggregateTxFee) (sql.Result, error) {
+func InsertAggregateTxFee(ctx context.Context, sess *dbr.Session, aTxFee AggregateTxFee) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into aggregate_txfee "+
 		"(aggregate_ts, tx_fee) "+
-		"values (?,"+feeBurn.TxFee+")",
-		feeBurn.AggregateTS)
+		"values (?,"+aTxFee.TxFee+")",
+		aTxFee.AggregateTS)
 }
 
 func UpdateAvmAssetAggregationLiveStateTimestamp(ctx context.Context, sess dbr.SessionRunner, time time.Time) (sql.Result, error) {

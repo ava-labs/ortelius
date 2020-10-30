@@ -232,16 +232,6 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 		go func() {
 			defer wg.Done()
 			select {
-			case itm := <-doneCh:
-				processedLock.Lock()
-				processed[itm] = true
-				// nolint:staticcheck
-				isprocessed := (processed[1] && processed[2] && processed[3])
-				processedLock.Unlock()
-				if isprocessed {
-					return
-				}
-
 			case update := <-updatesChanmel:
 				if update.avmAggregate != nil {
 					err := t.replaceAvmAggregate(*update.avmAggregate)
@@ -260,11 +250,20 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time, err error)
 				}
 
 				if update.aggregateTxFee != nil {
-					err := t.replaceFeeBurn(*update.aggregateTxFee)
+					err := t.replaceAggregateTxFee(*update.aggregateTxFee)
 					if err != nil {
-						t.connections.Logger().Error("replace fee burn %s", err)
+						t.connections.Logger().Error("replace aggregate txfee %s", err)
 						errs.SetValue(err)
 					}
+				}
+			case itm := <-doneCh:
+				processedLock.Lock()
+				processed[itm] = true
+				// nolint:staticcheck
+				isprocessed := (processed[1] && processed[2] && processed[3])
+				processedLock.Unlock()
+				if isprocessed {
+					return
 				}
 			}
 		}()
@@ -561,18 +560,18 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 	return nil
 }
 
-func (t *ProducerTasker) replaceFeeBurn(feeBurn models.AggregateTxFee) error {
+func (t *ProducerTasker) replaceAggregateTxFee(aggregateTxFee models.AggregateTxFee) error {
 	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_feeburn", contextDuration)
+	sess, err := t.connections.DB().NewSession("producertasker_aggregatetxfee", contextDuration)
 	if err != nil {
 		return err
 	}
 
-	_, err = models.InsertAggregateTxFee(ctx, sess, feeBurn)
+	_, err = models.InsertAggregateTxFee(ctx, sess, aggregateTxFee)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = models.UpdateAggregateTxFee(ctx, sess, feeBurn)
+		_, err = models.UpdateAggregateTxFee(ctx, sess, aggregateTxFee)
 		if err != nil {
 			return err
 		}

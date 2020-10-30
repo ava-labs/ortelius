@@ -185,41 +185,41 @@ func TestInsertUpdateAggregateTxFee(t *testing.T) {
 
 	tNow := time.Now()
 
-	var feeBurn AggregateTxFee
-	feeBurn.AggregateTS = tNow
-	feeBurn.TxFee = "1"
+	var aTxFee AggregateTxFee
+	aTxFee.AggregateTS = tNow
+	aTxFee.TxFee = "1"
 
-	_, err = InsertAggregateTxFee(ctx, sess, feeBurn)
+	_, err = InsertAggregateTxFee(ctx, sess, aTxFee)
 	if err != nil {
 		t.Errorf("insert failed %s", err.Error())
 	}
 
-	feeBurns, _ := SelectAggregateTxFee(ctx, sess)
-	if len(feeBurns) != 1 {
+	aggregateTxFees, _ := SelectAggregateTxFee(ctx, sess)
+	if len(aggregateTxFees) != 1 {
 		t.Errorf("not created")
 	}
 
-	for _, feeBurnValue := range feeBurns {
-		if feeBurnValue.AggregateTS.Equal(tNow) &&
-			feeBurnValue.TxFee != "1" {
+	for _, aggregateTxFee := range aggregateTxFees {
+		if aggregateTxFee.AggregateTS.Equal(tNow) &&
+			aggregateTxFee.TxFee != "1" {
 			t.Errorf("insert invalid")
 		}
 	}
 
-	feeBurn.TxFee = "2"
-	_, err = UpdateAggregateTxFee(ctx, sess, feeBurn)
+	aTxFee.TxFee = "2"
+	_, err = UpdateAggregateTxFee(ctx, sess, aTxFee)
 	if err != nil {
 		t.Errorf("update failed %s", err.Error())
 	}
 
-	feeBurns, _ = SelectAggregateTxFee(ctx, sess)
-	if len(feeBurns) != 1 {
+	aggregateTxFees, _ = SelectAggregateTxFee(ctx, sess)
+	if len(aggregateTxFees) != 1 {
 		t.Errorf("update")
 	}
 
-	for _, feeBurnValue := range feeBurns {
-		if feeBurnValue.AggregateTS.Equal(tNow) &&
-			feeBurnValue.TxFee != "2" {
+	for _, aggregateTxFee := range aggregateTxFees {
+		if aggregateTxFee.AggregateTS.Equal(tNow) &&
+			aggregateTxFee.TxFee != "2" {
 			t.Errorf("update invalid")
 		}
 	}
