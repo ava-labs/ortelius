@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	stateContextDuration = 10 * time.Second
-	contextDuration      = 5 * time.Second
+	stateContextDuration = time.Minute
+	contextDuration      = time.Minute
 
 	queryContextDuration = 10 * time.Minute
 
