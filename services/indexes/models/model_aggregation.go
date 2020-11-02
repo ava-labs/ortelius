@@ -16,6 +16,7 @@ const (
 type AvmAggregate struct {
 	AggregateTS       time.Time `json:"aggregateTS"`
 	AssetID           string    `json:"assetId"`
+	ChainID           string    `json:"chainId"`
 	TransactionVolume string    `json:"transactionVolume"`
 	TransactionCount  uint64    `json:"transactionCount"`
 	AddressCount      uint64    `json:"addresCount"`
@@ -26,6 +27,7 @@ type AvmAggregate struct {
 type AvmAggregateCount struct {
 	Address          string
 	AssetID          string
+	ChainID          string
 	TransactionCount uint64
 	TotalReceived    string
 	TotalSent        string
@@ -49,7 +51,7 @@ func PurgeOldAvmAssetAggregation(ctx context.Context, sess *dbr.Session, time ti
 func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmAggregate, error) {
 	avmAggregates := make([]*AvmAggregate, 0, 2)
 
-	_, err := sess.Select("aggregate_ts", "asset_id", "transaction_volume", "transaction_count", "address_count", "asset_count", "output_count").
+	_, err := sess.Select("aggregate_ts", "asset_id", "chain_id", "transaction_volume", "transaction_count", "address_count", "asset_count", "output_count").
 		From("avm_asset_aggregation").
 		LoadContext(ctx, &avmAggregates)
 
@@ -59,12 +61,14 @@ func SelectAvmAssetAggregations(ctx context.Context, sess *dbr.Session) ([]*AvmA
 func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update avm_asset_aggregation "+
 		"set "+
+		" chain_id=?,"+
 		" transaction_volume="+avmAggregate.TransactionVolume+","+
 		" transaction_count=?,"+
 		" address_count=?,"+
 		" asset_count=?,"+
 		" output_count=? "+
 		"where aggregate_ts = ? AND asset_id = ?",
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.OutputCount,
@@ -75,10 +79,11 @@ func UpdateAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 
 func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregate) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_aggregation "+
-		"(aggregate_ts,asset_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
-		"values (?,?,"+avmAggregate.TransactionVolume+",?,?,?,?)",
+		"(aggregate_ts,asset_id,chain_id,transaction_volume,transaction_count,address_count,asset_count,output_count) "+
+		"values (?,?,?,"+avmAggregate.TransactionVolume+",?,?,?,?)",
 		avmAggregate.AggregateTS,
 		avmAggregate.AssetID,
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.AddressCount,
 		avmAggregate.AssetCount,
@@ -88,7 +93,7 @@ func InsertAvmAssetAggregation(ctx context.Context, sess *dbr.Session, avmAggreg
 func SelectAvmAssetAggregationCounts(ctx context.Context, sess *dbr.Session) ([]*AvmAggregateCount, error) {
 	avmAggregateCounts := make([]*AvmAggregateCount, 0, 2)
 
-	_, err := sess.Select("address", "asset_id", "transaction_count", "total_received", "total_sent", "balance", "utxo_count").
+	_, err := sess.Select("address", "asset_id", "chain_id", "transaction_count", "total_received", "total_sent", "balance", "utxo_count").
 		From("avm_asset_address_counts").
 		LoadContext(ctx, &avmAggregateCounts)
 
@@ -98,12 +103,14 @@ func SelectAvmAssetAggregationCounts(ctx context.Context, sess *dbr.Session) ([]
 func UpdateAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregateCount) (sql.Result, error) {
 	return sess.ExecContext(ctx, "update avm_asset_address_counts "+
 		"set "+
+		" chain_id=?,"+
 		" transaction_count=?,"+
 		" total_received="+avmAggregate.TotalReceived+","+
 		" total_sent="+avmAggregate.TotalSent+","+
 		" balance="+avmAggregate.Balance+","+
 		" utxo_count=? "+
 		"where address = ? AND asset_id = ?",
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.UtxoCount,
 		avmAggregate.Address,
@@ -112,10 +119,11 @@ func UpdateAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmA
 
 func InsertAvmAssetAggregationCount(ctx context.Context, sess *dbr.Session, avmAggregate AvmAggregateCount) (sql.Result, error) {
 	return sess.ExecContext(ctx, "insert into avm_asset_address_counts "+
-		"(address,asset_id,transaction_count,total_received,total_sent,balance,utxo_count) "+
-		"values (?,?,?,"+avmAggregate.TotalReceived+","+avmAggregate.TotalSent+","+avmAggregate.Balance+",?)",
+		"(address,asset_id,chain_id,transaction_count,total_received,total_sent,balance,utxo_count) "+
+		"values (?,?,?,?,"+avmAggregate.TotalReceived+","+avmAggregate.TotalSent+","+avmAggregate.Balance+",?)",
 		avmAggregate.Address,
 		avmAggregate.AssetID,
+		avmAggregate.ChainID,
 		avmAggregate.TransactionCount,
 		avmAggregate.UtxoCount)
 }
