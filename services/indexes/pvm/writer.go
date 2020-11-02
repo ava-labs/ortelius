@@ -188,9 +188,10 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	case *platformvm.Commit:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
-		ctx.Job().EventErr("index_block", ErrUnknownBlockType)
+		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
 	}
-	return nil
+
+	return errs.Err
 }
 
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
