@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	stateContextDuration = 10 * time.Second
-	contextDuration      = 5 * time.Second
+	stateContextDuration = time.Minute
+	contextDuration      = time.Minute
 
 	queryContextDuration = 10 * time.Minute
 
@@ -490,14 +490,11 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 	defer cancel()
 
 	sess, err := t.connections.DB().NewSession("producertasker_aggregate", contextDuration)
-	if err != nil {
-		return err
-	}
-
 	_, err = models.InsertAvmAssetAggregation(ctx, sess, avmAggregates)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
 		_, err = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregates)
 		if err != nil {
+			t.connections.Logger().Error("row fetch %s", err)
 			return err
 		}
 	}
@@ -520,6 +517,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 			return err
 		}
 	}
+
 	return nil
 }
 
