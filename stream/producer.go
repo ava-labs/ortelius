@@ -25,13 +25,8 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
-<<<<<<< HEAD
-		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
 		writeBuffer: newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		log:         conf.Log,
-=======
-		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
->>>>>>> origin/dev
 	}
 
 	var err error
@@ -69,12 +64,5 @@ func (p *Producer) ProcessNextMessage(_ context.Context) error {
 
 	p.writeBuffer.Write(rawMsg)
 
-<<<<<<< HEAD
-	if _, err = p.writeBuffer.Write(rawMsg); err != nil {
-		p.log.Error("bufferedWriter.Write: %s", err.Error())
-		return err
-	}
-=======
->>>>>>> origin/dev
 	return nil
 }
