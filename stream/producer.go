@@ -67,15 +67,9 @@ func (p *Producer) ProcessNextMessage(_ context.Context, log logging.Logger) err
 		return nil
 	}
 
-	if _, err = p.writeBuffer.Write(rawMsg); err != nil {
-		log.Error("bufferedWriter.Write: %s", err.Error())
-		return err
-	}
-	return nil
-}
+	p.writeBuffer.Write(rawMsg)
 
-func (p *Producer) Write(msg []byte) (int, error) {
-	return p.writeBuffer.Write(msg)
+	return nil
 }
 
 type binFilterFn func([]byte) bool

@@ -5,7 +5,6 @@ package stream
 
 import (
 	"context"
-	"io"
 	"log"
 	"time"
 
@@ -20,8 +19,6 @@ const (
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
-
-var _ io.Writer = &bufferedWriter{}
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
@@ -52,10 +49,9 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 	return wb
 }
 
-// Write adds the message to the buffer. It implements the io.Writer interface.
-func (wb *bufferedWriter) Write(msg []byte) (int, error) {
+// Write adds the message to the buffer.
+func (wb *bufferedWriter) Write(msg []byte) {
 	wb.buffer <- &msg
-	return len(msg), nil
 }
 
 // loop takes in messages from the buffer and commits them to Kafka when in
@@ -89,7 +85,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer cancelFn()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
-			log.Print("Error writing to kafka:", err.Error())
+			log.Print("Error writing to kafka:", err)
 		}
 
 		bufferSize = 0
