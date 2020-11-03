@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	consumerEventType       = EventTypeDecisions
-	ConsumerMaxBytesDefault = 10e8
+	ConsumerEventTypeDefault = EventTypeDecisions
+	ConsumerMaxBytesDefault  = 10e8
 )
 
 var (
@@ -74,11 +74,11 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, consumerEventType),
+			Topic:       GetTopicName(conf.NetworkID, chainID, ConsumerEventTypeDefault),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
-			MaxBytes:    10e6,
+			MaxBytes:    ConsumerMaxBytesDefault,
 		})
 
 		// If the start time is set then seek to the correct offset
