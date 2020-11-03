@@ -188,22 +188,29 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	case *platformvm.Commit:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
-		ctx.Job().EventErr("index_block", ErrUnknownBlockType)
+		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
 	}
-	return nil
+
+	return errs.Err
 }
 
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
 	blkID := ids.NewID(hashing.ComputeHash256Array(blockBytes))
 
-	_, err := ctx.DB().
+	blockInsert := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
 		Pair("chain_id", w.chainID).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
-		Pair("serialization", blockBytes).
-		Pair("created_at", ctx.Time()).
+		Pair("created_at", ctx.Time())
+
+	if len(blockBytes) <= 32000 {
+		blockInsert = blockInsert.Pair("serialization", blockBytes)
+	} else {
+		blockInsert = blockInsert.Pair("serialization", []byte(""))
+	}
+	_, err := blockInsert.
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_common_block.upsert_block", err)
