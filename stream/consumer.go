@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/segmentio/kafka-go"
 
@@ -102,15 +101,15 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) error {
+func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	msg, err := c.getNextMessage(ctx)
 	if err != nil {
-		log.Error("consumer.getNextMessage: %s", err.Error())
+		c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
 		return err
 	}
 
 	if err = c.consumer.Consume(ctx, msg); err != nil {
-		log.Error("consumer.Consume: %s", err.Error())
+		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
 		return err
 	}
 	return nil
