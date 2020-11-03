@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	readTimeout  = 10 * time.Second
-	writeTimeout = 10 * time.Second
+	readTimeout = 10 * time.Second
 
 	processorFailureRetryInterval = 200 * time.Millisecond
 
