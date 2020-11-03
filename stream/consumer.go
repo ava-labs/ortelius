@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	consumerEventType = EventTypeDecisions
+	consumerEventType       = EventTypeDecisions
+	ConsumerMaxBytesDefault = 10e8
 )
 
 var (

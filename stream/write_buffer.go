@@ -13,7 +13,10 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const defaultBufferedWriterSize = 256
+const (
+	defaultBufferedWriterSize = 256
+	defaultWriteTimeout       = 1 * time.Minute
+)
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 
@@ -22,7 +25,7 @@ var _ io.Writer = &bufferedWriter{}
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
 	writer *kafka.Writer
-	buffer chan (*kafka.Message)
+	buffer chan (*[]byte)
 	doneCh chan (struct{})
 }
 
@@ -31,11 +34,15 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 
 	wb := &bufferedWriter{
 		writer: kafka.NewWriter(kafka.WriterConfig{
-			Brokers:  brokers,
-			Topic:    topic,
-			Balancer: &kafka.LeastBytes{},
+			Brokers:      brokers,
+			Topic:        topic,
+			Balancer:     &kafka.LeastBytes{},
+			BatchBytes:   ConsumerMaxBytesDefault,
+			BatchSize:    defaultBufferedWriterSize,
+			WriteTimeout: defaultWriteTimeout,
+			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer: make(chan *kafka.Message),
+		buffer: make(chan *[]byte),
 		doneCh: make(chan struct{}),
 	}
 
@@ -46,7 +53,7 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 
 // Write adds the message to the buffer. It implements the io.Writer interface.
 func (wb *bufferedWriter) Write(msg []byte) (int, error) {
-	wb.buffer <- &kafka.Message{Key: hashing.ComputeHash256(msg), Value: msg}
+	wb.buffer <- &msg
 	return len(msg), nil
 }
 
@@ -58,14 +65,23 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		flushTicker = time.NewTicker(flushInterval)
 
 		bufferSize = 0
-		buffer     = make([]kafka.Message, size)
+		buffer     = make([](*[]byte), size)
+		buffer2    = make([]kafka.Message, size)
 	)
 
 	flush := func() {
+		for bpos, b := range buffer[:bufferSize] {
+			// reset the message..
+			buffer2[bpos] = kafka.Message{}
+			buffer2[bpos].Value = *b
+			// compute hash before processing.
+			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
+		}
+
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(writeTimeout))
 		defer cancelFn()
 
-		if err := wb.writer.WriteMessages(ctx, buffer[:bufferSize]...); err != nil {
+		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
 			log.Print("Error writing to kafka:", err.Error())
 		}
 
@@ -93,7 +109,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 
 			// Add this message to the buffer and if it's full we flush and
-			buffer[bufferSize] = *msg
+			buffer[bufferSize] = msg
 			bufferSize++
 		case <-flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
