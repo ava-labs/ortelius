@@ -31,13 +31,10 @@ type Connections struct {
 func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
-	log, err := logging.New(conf.Logging)
-	if err != nil {
-		return nil, err
-	}
 
 	// Create db and redis connections if configured
 	var (
+		err         error
 		dbConn      *db.Conn
 		redisClient *redis.Client
 	)
@@ -76,7 +73,7 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 		stream.Event("connect.db.skip")
 	}
 
-	return NewConnections(log, stream, dbConn, redisClient), nil
+	return NewConnections(conf.Log, stream, dbConn, redisClient), nil
 }
 
 func NewConnections(l logging.Logger, s *health.Stream, db *db.Conn, r *redis.Client) *Connections {

@@ -5,8 +5,9 @@ package stream
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/segmentio/kafka-go"
@@ -25,9 +26,10 @@ type bufferedWriter struct {
 	writer *kafka.Writer
 	buffer chan (*[]byte)
 	doneCh chan (struct{})
+	log    logging.Logger
 }
 
-func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
+func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
 	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
@@ -42,6 +44,7 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 		}),
 		buffer: make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
 		doneCh: make(chan struct{}),
+		log:    log,
 	}
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
@@ -85,7 +88,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer cancelFn()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
-			log.Print("Error writing to kafka:", err)
+			wb.log.Error("Error writing to kafka:", err)
 		}
 
 		bufferSize = 0
