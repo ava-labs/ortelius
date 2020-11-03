@@ -64,7 +64,6 @@ type Redis struct {
 
 type Stream struct {
 	Kafka    `json:"kafka"`
-	Filter   `json:"filter"`
 	Producer Producer `json:"producer"`
 	Consumer Consumer `json:"consumer"`
 }
@@ -103,7 +102,6 @@ func NewFromFile(filePath string) (*Config, error) {
 
 	streamViper := newSubViper(v, keysStream)
 	streamKafkaViper := newSubViper(streamViper, keysStreamKafka)
-	streamFilterViper := newSubViper(streamViper, keysStreamFilter)
 	streamProducerViper := newSubViper(streamViper, keysStreamProducer)
 	streamConsumerViper := newSubViper(streamViper, keysStreamConsumer)
 
@@ -143,10 +141,6 @@ func NewFromFile(filePath string) (*Config, error) {
 		Stream: Stream{
 			Kafka: Kafka{
 				Brokers: streamKafkaViper.GetStringSlice(keysStreamKafkaBrokers),
-			},
-			Filter: Filter{
-				Min: streamFilterViper.GetUint32(keysStreamFilterMin),
-				Max: streamFilterViper.GetUint32(keysStreamFilterMax),
 			},
 			Producer: Producer{
 				IPCRoot: streamProducerViper.GetString(keysStreamProducerIPCRoot),

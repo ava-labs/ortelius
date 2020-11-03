@@ -5,7 +5,6 @@ package stream
 
 import (
 	"context"
-	"encoding/binary"
 
 	"github.com/ava-labs/avalanchego/ipcs/socket"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -17,7 +16,6 @@ type Producer struct {
 	chainID     string
 	eventType   EventType
 	sock        *socket.Client
-	binFilterFn binFilterFn
 	writeBuffer *bufferedWriter
 	log         logging.Logger
 }
@@ -27,9 +25,13 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 	p := &Producer{
 		chainID:     chainID,
 		eventType:   eventType,
+<<<<<<< HEAD
 		binFilterFn: newBinFilterFn(conf.Filter.Min, conf.Filter.Max),
 		writeBuffer: newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		log:         conf.Log,
+=======
+		writeBuffer: newBufferedWriter(conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+>>>>>>> origin/dev
 	}
 
 	var err error
@@ -65,27 +67,14 @@ func (p *Producer) ProcessNextMessage(_ context.Context) error {
 		return err
 	}
 
-	if p.binFilterFn(rawMsg) {
-		return nil
-	}
+	p.writeBuffer.Write(rawMsg)
 
+<<<<<<< HEAD
 	if _, err = p.writeBuffer.Write(rawMsg); err != nil {
 		p.log.Error("bufferedWriter.Write: %s", err.Error())
 		return err
 	}
+=======
+>>>>>>> origin/dev
 	return nil
-}
-
-func (p *Producer) Write(msg []byte) (int, error) {
-	return p.writeBuffer.Write(msg)
-}
-
-type binFilterFn func([]byte) bool
-
-// newBinFilterFn returns a binFilterFn with the given range
-func newBinFilterFn(min uint32, max uint32) binFilterFn {
-	return func(input []byte) bool {
-		value := binary.LittleEndian.Uint32(input[:4])
-		return !(value < min || value > max)
-	}
 }
