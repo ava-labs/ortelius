@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	defaultBufferedWriterSize = 256
-	defaultWriteTimeout       = 1 * time.Minute
+	defaultBufferedWriterSize         = 256
+	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 5
+	defaultWriteTimeout               = 1 * time.Minute
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
@@ -42,7 +43,7 @@ func newBufferedWriter(brokers []string, topic string) *bufferedWriter {
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer: make(chan *[]byte),
+		buffer: make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
 		doneCh: make(chan struct{}),
 	}
 
@@ -70,6 +71,12 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	)
 
 	flush := func() {
+		defer func() { lastFlush = time.Now() }()
+
+		if bufferSize == 0 {
+			return
+		}
+
 		for bpos, b := range buffer[:bufferSize] {
 			// reset the message..
 			buffer2[bpos] = kafka.Message{}
@@ -78,7 +85,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
-		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(writeTimeout))
+		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
 		defer cancelFn()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
@@ -86,7 +93,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		}
 
 		bufferSize = 0
-		lastFlush = time.Now()
 	}
 
 	defer func() {
