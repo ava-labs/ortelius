@@ -56,18 +56,17 @@ var producerTaskerInstance = ProducerTasker{
 	timeStampProducer: time.Now,
 }
 
-func initializeConsumerTasker(_ cfg.Config, conns *services.Connections) error {
+func initializeConsumerTasker(_ cfg.Config, conns *services.Connections) {
 	producerTaskerInstance.initlock.Lock()
 	defer producerTaskerInstance.initlock.Unlock()
 
 	if producerTaskerInstance.connections != nil {
-		return nil
+		return
 	}
 
 	producerTaskerInstance.connections = conns
 
 	producerTaskerInstance.Start()
-	return nil
 }
 
 // under lock control.  update live state, and copy into backup state
