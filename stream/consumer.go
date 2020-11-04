@@ -47,7 +47,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			conns:   conns,
 		}
 
-		initializeConsumerTasker(conf, conns)
+		initializeConsumerTasker(conns)
 
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)

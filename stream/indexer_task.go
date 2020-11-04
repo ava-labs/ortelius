@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/ortelius/utils"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -56,7 +54,7 @@ var producerTaskerInstance = ProducerTasker{
 	timeStampProducer: time.Now,
 }
 
-func initializeConsumerTasker(_ cfg.Config, conns *services.Connections) {
+func initializeConsumerTasker(conns *services.Connections) {
 	producerTaskerInstance.initlock.Lock()
 	defer producerTaskerInstance.initlock.Unlock()
 
@@ -65,7 +63,6 @@ func initializeConsumerTasker(_ cfg.Config, conns *services.Connections) {
 	}
 
 	producerTaskerInstance.connections = conns
-
 	producerTaskerInstance.Start()
 }
 
