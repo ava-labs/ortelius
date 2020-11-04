@@ -348,7 +348,7 @@ func TestReplaceAvmAggregateCount(t *testing.T) {
 		t.Fatal("failed", err)
 	}
 	if len(values) != 1 {
-		t.Fatal("replaceAvmAggregate failed")
+		t.Fatal("failed", err)
 	}
 	if values[0].TransactionCount != 1 {
 		t.Fatal("failed", err)
