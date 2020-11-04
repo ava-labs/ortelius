@@ -34,7 +34,7 @@ type Cache struct {
 func New(redisConn *redis.Client) *Cache {
 	c := cache.New(&cache.Options{
 		Redis:      redisConn,
-		LocalCache: cache.NewTinyLFU(100<<20, time.Minute), // 100 MB
+		LocalCache: cache.NewTinyLFU(100<<20, 5*time.Second), // 100 MB
 	})
 
 	return &Cache{cache: c, defaultTTL: DefaultTTL}
