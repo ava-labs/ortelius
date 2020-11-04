@@ -13,6 +13,12 @@ import (
 	"github.com/gocraft/health"
 )
 
+const (
+	modeAggregationTestAssetID = "as1"
+	modeAggregationTestChainID = "ch1"
+	modeAggregationTestAddress = "ad1"
+)
+
 func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	var err error
 	h := health.NewStream()
@@ -33,8 +39,8 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 
 	var avmAggregate AvmAggregate
 	avmAggregate.AggregateTS = time.Now()
-	avmAggregate.AssetID = "as1"
-	avmAggregate.ChainID = "ch1"
+	avmAggregate.AssetID = modeAggregationTestAssetID
+	avmAggregate.ChainID = modeAggregationTestChainID
 	avmAggregate.TransactionVolume = "1"
 	avmAggregate.TransactionCount = 1
 	avmAggregate.AddressCount = 1
@@ -51,8 +57,8 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	}
 
 	for _, aggregateMapValue := range avmAggregateCounts {
-		if aggregateMapValue.AssetID != "as1" &&
-			aggregateMapValue.ChainID != "ch1" &&
+		if aggregateMapValue.AssetID != modeAggregationTestAssetID &&
+			aggregateMapValue.ChainID != modeAggregationTestChainID &&
 			aggregateMapValue.TransactionVolume != "1" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 1 {
@@ -75,8 +81,8 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	}
 
 	for _, aggregateMapValue := range avmAggregateCounts {
-		if aggregateMapValue.AssetID != "as1" &&
-			aggregateMapValue.ChainID != "ch1" &&
+		if aggregateMapValue.AssetID != modeAggregationTestAssetID &&
+			aggregateMapValue.ChainID != modeAggregationTestChainID &&
 			aggregateMapValue.TransactionVolume != "2" &&
 			aggregateMapValue.TransactionCount != 2 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -104,9 +110,9 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
 
 	var avmAggregate AvmAggregateCount
-	avmAggregate.Address = "ad1"
-	avmAggregate.AssetID = "as1"
-	avmAggregate.ChainID = "ch1"
+	avmAggregate.Address = modeAggregationTestAddress
+	avmAggregate.AssetID = modeAggregationTestAssetID
+	avmAggregate.ChainID = modeAggregationTestChainID
 	avmAggregate.TransactionCount = 1
 	avmAggregate.TotalReceived = "1"
 	avmAggregate.TotalSent = "1"
@@ -124,9 +130,9 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	}
 
 	for _, aggregateCountMapValue := range avmAggregateCounts {
-		if aggregateCountMapValue.Address != "ad1" &&
-			aggregateCountMapValue.AssetID != "as1" &&
-			aggregateCountMapValue.ChainID != "ch1" &&
+		if aggregateCountMapValue.Address != modeAggregationTestChainID &&
+			aggregateCountMapValue.AssetID != modeAggregationTestAssetID &&
+			aggregateCountMapValue.ChainID != modeAggregationTestChainID &&
 			aggregateCountMapValue.TransactionCount != 1 &&
 			aggregateCountMapValue.TotalSent != "1" &&
 			aggregateCountMapValue.TotalReceived != "1" &&
@@ -152,9 +158,9 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	}
 
 	for _, aggregateCountMapValue := range avmAggregateCounts {
-		if aggregateCountMapValue.Address != "ad1" &&
-			aggregateCountMapValue.AssetID != "as1" &&
-			aggregateCountMapValue.ChainID != "ch1" &&
+		if aggregateCountMapValue.Address != modeAggregationTestChainID &&
+			aggregateCountMapValue.AssetID != modeAggregationTestAssetID &&
+			aggregateCountMapValue.ChainID != modeAggregationTestChainID &&
 			aggregateCountMapValue.TransactionCount != 2 &&
 			aggregateCountMapValue.TotalSent != "2" &&
 			aggregateCountMapValue.TotalReceived != "2" &&

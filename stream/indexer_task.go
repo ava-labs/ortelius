@@ -180,24 +180,22 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) error {
 			return
 		}
 		if update.avmAggregate != nil {
-			err := t.replaceAvmAggregate(*update.avmAggregate)
-			if err != nil {
+			if err := t.replaceAvmAggregate(*update.avmAggregate); err != nil {
 				t.connections.Logger().Error("replace avm aggregate %s", err)
 				errs.SetValue(err)
 			}
 		}
+
 		if update.avmAggregateCount != nil {
-			err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
-			if err != nil {
+			if err := t.replaceAvmAggregateCount(*update.avmAggregateCount); err != nil {
 				t.connections.Logger().Error("replace avm aggregate count %s", err)
 				errs.SetValue(err)
 			}
 		}
+
 		if update.aggregateTxFee != nil {
-			err := t.replaceAggregateTxFee(*update.aggregateTxFee)
-			if err != nil {
+			if err := t.replaceAggregateTxFee(*update.aggregateTxFee); err != nil {
 				t.connections.Logger().Error("replace aggregate tx fee %s", err)
-				errs.SetValue(err)
 			}
 		}
 	}
