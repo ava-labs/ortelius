@@ -92,6 +92,7 @@ type Collector interface {
 	Collect() error
 }
 
+// Increment to keySuccess or keyFail.
 type successFailCounterInc struct {
 	success    bool
 	keySuccess string
@@ -118,6 +119,7 @@ func (hc *successFailCounterInc) Collect() error {
 	return Prometheus.CounterInc(hc.keyFail)
 }
 
+// Add count to keySucess or keyFail
 type successFailCounterAdd struct {
 	success    bool
 	keySuccess string
