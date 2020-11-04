@@ -33,10 +33,12 @@ type serviceConsumerFactory func(*services.Connections, uint32, string, string) 
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	chainID                         string
-	reader                          *kafka.Reader
-	consumer                        services.Consumer
-	conns                           *services.Connections
+	chainID  string
+	reader   *kafka.Reader
+	consumer services.Consumer
+	conns    *services.Connections
+
+	// metrics
 	metricProcessedCountKey         string
 	metricFailureCountKey           string
 	metricProcessMillisHistogramKey string
