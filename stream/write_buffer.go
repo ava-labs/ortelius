@@ -27,10 +27,12 @@ var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
-	writer                          *kafka.Writer
-	buffer                          chan (*[]byte)
-	doneCh                          chan (struct{})
-	log                             logging.Logger
+	writer *kafka.Writer
+	buffer chan (*[]byte)
+	doneCh chan (struct{})
+	log    logging.Logger
+
+	// metrics
 	metricSuccessCountKey           string
 	metricFailureCountKey           string
 	metricWriteCountKey             string
