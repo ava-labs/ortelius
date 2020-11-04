@@ -76,11 +76,11 @@ func newExportReadWriter(fileName string, brokers []string, networkID uint32, ch
 	}
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		MaxBytes:    10e8,
+		MaxBytes:    stream.ConsumerMaxBytesDefault,
 		Brokers:     brokers,
 		StartOffset: kafka.FirstOffset,
 		GroupID:     fmt.Sprintf("exporter-%d", time.Now().UTC().Unix()),
-		Topic:       stream.GetTopicName(networkID, chainID, stream.EventTypeConsensus),
+		Topic:       stream.GetTopicName(networkID, chainID, stream.ConsumerEventTypeDefault),
 	})
 
 	// Create functions for exporting and closing
