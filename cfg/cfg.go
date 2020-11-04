@@ -121,8 +121,9 @@ func NewFromFile(filePath string) (*Config, error) {
 
 	// Put it all together
 	return &Config{
-		NetworkID: v.GetUint32(keysNetworkID),
-		Chains:    chains,
+		NetworkID:         v.GetUint32(keysNetworkID),
+		Chains:            chains,
+		MetricsListenAddr: v.GetString(keysServicesMetricsListenAddr),
 		Services: Services{
 			Logging: loggingConf,
 			API: API{
