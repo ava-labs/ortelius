@@ -23,6 +23,8 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 )
 
+var ConsumerBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
+
 var (
 	consumerInitializeTimeout = 3 * time.Minute
 )
@@ -58,7 +60,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			metricFailureCountKey:           fmt.Sprintf("consume_records_failure_%s", chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.HistogramInit(c.metricProcessMillisHistogramKey, "records process millis")
+		metrics.Prometheus.HistogramInit(c.metricProcessMillisHistogramKey, "records process millis", ConsumerBuckets)
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 

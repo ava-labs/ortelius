@@ -43,6 +43,8 @@ var (
 
 	// number of updaters
 	updatesCount = 4
+
+	IndexTaskerBufferBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
 )
 
 type ProducerTasker struct {
@@ -490,7 +492,7 @@ func (t *ProducerTasker) Start() {
 	metrics.Prometheus.CounterInit(t.metricCountAggregateCountKey, "records count aggregate count")
 	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
-	metrics.Prometheus.HistogramInit(t.metricProcessMillisHistogramKey, "records process millis")
+	metrics.Prometheus.HistogramInit(t.metricProcessMillisHistogramKey, "records process millis", IndexTaskerBufferBuckets)
 
 	go initRefreshAggregatesTick(t)
 }

@@ -66,11 +66,12 @@ func (m *Metrics) CounterAdd(name string, v float64) error {
 	return fmt.Errorf("metric not found: %s", name)
 }
 
-func (m *Metrics) HistogramInit(name string, help string) {
+func (m *Metrics) HistogramInit(name string, help string, buckets []float64) {
 	m.Init()
 	histogram := promauto.NewHistogram(prometheus.HistogramOpts{
-		Name: name,
-		Help: help,
+		Name:    name,
+		Help:    help,
+		Buckets: buckets,
 	})
 	m.metricsLock.Lock()
 	defer m.metricsLock.Unlock()

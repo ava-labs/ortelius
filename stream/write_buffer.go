@@ -21,6 +21,8 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 )
 
+var defaultBufferBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
+
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
@@ -60,7 +62,7 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
-	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis")
+	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis", defaultBufferBuckets)
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
