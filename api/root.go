@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	// ErrCacheableFnFailed is returned when the execution of a CachableFn fails
+	// ErrCacheableFnFailed is returned when the execution of a CacheableFn fails
 	ErrCacheableFnFailed = errors.New("failed to load resource")
 )
 
@@ -57,16 +57,16 @@ func (c *RootRequestContext) NetworkID() uint32 {
 	return c.networkID
 }
 
-// WriteCacheable writes to the http response the output of the given Cachable's
+// WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
-func (c *RootRequestContext) WriteCacheable(w http.ResponseWriter, cachable Cachable) {
-	key := cacheKey(c.NetworkID(), cachable.Key...)
+func (c *RootRequestContext) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
+	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
-	// Get from cache or, if there is a cache miss, from the cachablefn
+	// Get from cache or, if there is a cache miss, from the cacheablefn
 	resp, err := c.cache.Get(c.Ctx(), key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
-		resp, err = updateCachable(c.ctx, c.cache, key, cachable.CachableFn, cachable.TTL)
+		resp, err = updateCacheable(c.ctx, c.cache, key, cacheable.CacheableFn, cacheable.TTL)
 	} else if err == nil {
 		c.job.KeyValue("cache", "hit")
 	}

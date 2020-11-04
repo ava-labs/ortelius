@@ -1,17 +1,21 @@
 run:
-  skip-dirs:
-    - vendor
+  max-same-issues: 0
+  max-issues-per-linter: 0
 
 issues:
   exclude:
     - Error return value of `.*\.EventErr(Kv)?` is not checked
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - goconst
 
 linters-settings:
   errcheck:
     check-type-assertions: false
     check-blank: false
   goconst:
-    min-occurrences: 20
+    min-occurrences: 2
   gocyclo:
     min-complexity: 30
   misspell:
@@ -24,6 +28,7 @@ linters-settings:
 
 linters:
   enable:
+    - asciicheck
     - bodyclose
     - deadcode
     - depguard
@@ -32,6 +37,7 @@ linters:
     - goconst
     - gocritic
     - gocyclo
+    - godox
     - gofmt
     - goimports
     - golint
@@ -40,9 +46,11 @@ linters:
     - gosimple
     - govet
     - ineffassign
+    - maligned
     - misspell
     - nakedret
     - nolintlint
+    - prealloc
     - rowserrcheck
     - scopelint
     - staticcheck
