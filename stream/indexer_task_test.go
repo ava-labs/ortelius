@@ -143,7 +143,7 @@ func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *test
 		Pair("created_at", pastime).
 		Pair("asset_id", "testasset").
 		Pair("amount", 100).
-		Pair("transaction_id", 1).
+		Pair("transaction_id", "id1").
 		Exec()
 	if err != nil {
 		t.Error("insert avm_outputs", err)
@@ -158,7 +158,7 @@ func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *test
 		Pair("created_at", pastime).
 		Pair("asset_id", "testasset").
 		Pair("amount", 100).
-		Pair("transaction_id", 1).
+		Pair("transaction_id", "id1").
 		Exec()
 	if err != nil {
 		t.Error("insert avm_outputs", err)

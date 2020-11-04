@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -54,16 +56,18 @@ var producerTaskerInstance = ProducerTasker{
 	timeStampProducer: time.Now,
 }
 
-func initializeConsumerTasker(conns *services.Connections) {
+func initializeConsumerTasker(_ cfg.Config, conns *services.Connections) error {
 	producerTaskerInstance.initlock.Lock()
 	defer producerTaskerInstance.initlock.Unlock()
 
 	if producerTaskerInstance.connections != nil {
-		return
+		return nil
 	}
 
 	producerTaskerInstance.connections = conns
+
 	producerTaskerInstance.Start()
+	return nil
 }
 
 // under lock control.  update live state, and copy into backup state
@@ -154,7 +158,7 @@ func (t *ProducerTasker) RefreshAggregates() error {
 
 	baseAggregateTS := aggregateTS
 
-	aggregateTSUpdate, err := t.processAggregates(baseAggregateTS)
+	err = t.processAggregates(baseAggregateTS)
 	if err != nil {
 		return err
 	}
@@ -164,41 +168,36 @@ func (t *ProducerTasker) RefreshAggregates() error {
 		return err
 	}
 
-	if aggregateTSF, ok := aggregateTSUpdate.GetValue().(time.Time); ok {
-		aggregateTS = aggregateTSF
-	}
-
-	t.connections.Logger().Info("processed up to %s", aggregateTS.String())
-
 	return nil
 }
 
-func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalancheGoUtils.AtomicInterface, error) {
+func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) error {
 	errs := &avalancheGoUtils.AtomicInterface{}
-	aggregateTSUpdate := &avalancheGoUtils.AtomicInterface{}
 
 	pf := func(wn int, i interface{}) {
-		if update, ok := i.(*updateJob); ok {
-			if update.avmAggregate != nil {
-				err := t.replaceAvmAggregate(*update.avmAggregate)
-				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate %s", err)
-					errs.SetValue(err)
-				}
+		update, ok := i.(*updateJob)
+		if !ok {
+			return
+		}
+		if update.avmAggregate != nil {
+			err := t.replaceAvmAggregate(*update.avmAggregate)
+			if err != nil {
+				t.connections.Logger().Error("replace avm aggregate %s", err)
+				errs.SetValue(err)
 			}
-			if update.avmAggregateCount != nil {
-				err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
-				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate count %s", err)
-					errs.SetValue(err)
-				}
+		}
+		if update.avmAggregateCount != nil {
+			err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
+			if err != nil {
+				t.connections.Logger().Error("replace avm aggregate count %s", err)
+				errs.SetValue(err)
 			}
-			if update.aggregateTxFee != nil {
-				err := t.replaceAggregateTxFee(*update.aggregateTxFee)
-				if err != nil {
-					t.connections.Logger().Error("replace aggregate tx fee %s", err)
-					errs.SetValue(err)
-				}
+		}
+		if update.aggregateTxFee != nil {
+			err := t.replaceAggregateTxFee(*update.aggregateTxFee)
+			if err != nil {
+				t.connections.Logger().Error("replace aggregate tx fee %s", err)
+				errs.SetValue(err)
 			}
 		}
 	}
@@ -208,11 +207,10 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 	go func() {
 		defer wg.Done()
 
-		aggregateTSUpdateRes, err := t.processAvmOutputs(baseAggregateTS, worker, errs)
+		err := t.processAvmOutputs(baseAggregateTS, worker, errs)
 		if err != nil {
 			errs.SetValue(err)
 		}
-		aggregateTSUpdate.SetValue(aggregateTSUpdateRes)
 	}()
 	wg.Add(1)
 	go func() {
@@ -236,10 +234,10 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 	worker.Finish(100 * time.Millisecond)
 
 	if err, ok := errs.GetValue().(error); ok {
-		return nil, err
+		return err
 	}
 
-	return aggregateTSUpdate, nil
+	return nil
 }
 
 func (t *ProducerTasker) cleanupState(backupAggregateState models.AvmAssetAggregateState) error {
@@ -312,13 +310,13 @@ func (t *ProducerTasker) fetchState() (models.AvmAssetAggregateState, models.Avm
 	return liveAggregationState, backupAggregateState, nil
 }
 
-func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) (time.Time, error) {
+func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) error {
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
 	sess, err := t.connections.DB().NewSession("producertasker_outputs", queryContextDuration)
 	if err != nil {
-		return time.Time{}, err
+		return err
 	}
 
 	var rows *sql.Rows
@@ -338,11 +336,11 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 		RowsContext(ctx)
 	if err != nil {
 		t.connections.Logger().Error("error query %s", err)
-		return time.Time{}, err
+		return err
 	}
 	if rows.Err() != nil {
 		t.connections.Logger().Error("error query %s", rows.Err())
-		return time.Time{}, rows.Err()
+		return rows.Err()
 	}
 
 	for ok := rows.Next(); ok && errs.GetValue() == nil; ok = rows.Next() {
@@ -357,7 +355,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 			&avmAggregate.OutputCount)
 		if err != nil {
 			t.connections.Logger().Error("row fetch %s", err)
-			return time.Time{}, err
+			return err
 		}
 
 		// aggregateTS would be update to the most recent timestamp we processed...
@@ -371,7 +369,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 		}
 		updateChannel.Enque(&update)
 	}
-	return aggregateTS, nil
+	return nil
 }
 
 func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, updateChannel utils.Worker, errs *avalancheGoUtils.AtomicInterface) error {
@@ -452,7 +450,7 @@ func (t *ProducerTasker) processAggregateTxFee(aggregateTS time.Time, updateChan
 	var rows *sql.Rows
 	rows, err = sess.
 		Select(fmt.Sprintf("FROM_UNIXTIME(floor(UNIX_TIMESTAMP(avm_transactions.created_at) / %d) * %d) as aggregate_ts", timestampRollupSecs, timestampRollupSecs),
-			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS tx_fee",
+			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
 		).
 		From("avm_transactions").
 		GroupBy("aggregate_ts").
@@ -490,6 +488,10 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 	defer cancel()
 
 	sess, err := t.connections.DB().NewSession("producertasker_aggregate", contextDuration)
+	if err != nil {
+		return err
+	}
+
 	_, err = models.InsertAvmAssetAggregation(ctx, sess, avmAggregates)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
 		_, err = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregates)
