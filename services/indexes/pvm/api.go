@@ -89,10 +89,10 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.ListTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
