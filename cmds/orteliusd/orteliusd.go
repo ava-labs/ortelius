@@ -92,6 +92,7 @@ func execute() error {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
 					}()
+					alog.Info("Starting metrics handler on %s", config.MetricsListenAddr)
 				}
 			},
 		}
