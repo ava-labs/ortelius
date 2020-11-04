@@ -21,7 +21,7 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 )
 
-var defaultBufferBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
+var defaultBufferBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 

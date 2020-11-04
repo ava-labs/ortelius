@@ -44,7 +44,7 @@ var (
 	// number of updaters
 	updatesCount = 4
 
-	IndexTaskerBufferBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
+	IndexTaskerBufferBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
 )
 
 type ProducerTasker struct {

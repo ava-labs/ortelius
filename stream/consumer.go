@@ -23,7 +23,7 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 )
 
-var ConsumerBuckets = []float64{1, 100, 500, 1000, 2000, 5000}
+var ConsumerBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
 
 var (
 	consumerInitializeTimeout = 3 * time.Minute
