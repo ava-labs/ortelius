@@ -366,12 +366,15 @@ func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 type ListAddressesParams struct {
 	ListParams
-	Address *ids.ShortID
-	Query   string
-	Version int
+	ChainIDs []string
+	Address  *ids.ShortID
+	Query    string
+	Version  int
 }
 
 func (p *ListAddressesParams) ForValues(q url.Values) error {
+	p.ChainIDs = q[KeyChainID]
+
 	err := p.ListParams.ForValues(q)
 	if err != nil {
 		return err

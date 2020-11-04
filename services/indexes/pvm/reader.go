@@ -6,8 +6,6 @@ package pvm
 import (
 	"context"
 
-	"github.com/ava-labs/ortelius/api"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services"
@@ -23,8 +21,8 @@ func NewReader(conns *services.Connections) *Reader {
 	return &Reader{conns: conns}
 }
 
-func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams) (*models.BlockList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_blocks", api.RequestTimeout)
+func (r *Reader) ListBlocks(ctx context.Context, params *params.ListBlocksParams) (*models.BlockList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_blocks", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +40,8 @@ func (r *Reader) ListBlocks(ctx context.Context, params params.ListBlocksParams)
 	return &models.BlockList{Blocks: blocks}, nil
 }
 
-func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParams) (*models.SubnetList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_subnets", api.RequestTimeout)
+func (r *Reader) ListSubnets(ctx context.Context, params *params.ListSubnetsParams) (*models.SubnetList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_subnets", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +62,8 @@ func (r *Reader) ListSubnets(ctx context.Context, params params.ListSubnetsParam
 	return &models.SubnetList{Subnets: subnets}, nil
 }
 
-func (r *Reader) ListValidators(ctx context.Context, params params.ListValidatorsParams) (*models.ValidatorList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_blocks", api.RequestTimeout)
+func (r *Reader) ListValidators(ctx context.Context, params *params.ListValidatorsParams) (*models.ValidatorList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_blocks", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +81,8 @@ func (r *Reader) ListValidators(ctx context.Context, params params.ListValidator
 	return &models.ValidatorList{Validators: validators}, nil
 }
 
-func (r *Reader) ListChains(ctx context.Context, params params.ListChainsParams) (*models.ChainList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_chains", api.RequestTimeout)
+func (r *Reader) ListChains(ctx context.Context, params *params.ListChainsParams) (*models.ChainList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_chains", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +108,7 @@ func (r *Reader) ListChains(ctx context.Context, params params.ListChainsParams)
 }
 
 func (r *Reader) GetBlock(ctx context.Context, id ids.ID) (*models.Block, error) {
-	list, err := r.ListBlocks(ctx, params.ListBlocksParams{ID: &id})
+	list, err := r.ListBlocks(ctx, &params.ListBlocksParams{ID: &id})
 	if err != nil || len(list.Blocks) == 0 {
 		return nil, err
 	}
@@ -118,7 +116,7 @@ func (r *Reader) GetBlock(ctx context.Context, id ids.ID) (*models.Block, error)
 }
 
 func (r *Reader) GetSubnet(ctx context.Context, id ids.ID) (*models.Subnet, error) {
-	list, err := r.ListSubnets(ctx, params.ListSubnetsParams{ID: &id})
+	list, err := r.ListSubnets(ctx, &params.ListSubnetsParams{ID: &id})
 	if err != nil || len(list.Subnets) == 0 {
 		return nil, err
 	}
@@ -126,7 +124,7 @@ func (r *Reader) GetSubnet(ctx context.Context, id ids.ID) (*models.Subnet, erro
 }
 
 func (r *Reader) GetChain(ctx context.Context, id ids.ID) (*models.Chain, error) {
-	list, err := r.ListChains(ctx, params.ListChainsParams{ID: &id})
+	list, err := r.ListChains(ctx, &params.ListChainsParams{ID: &id})
 	if err != nil || len(list.Chains) == 0 {
 		return nil, err
 	}
@@ -134,7 +132,7 @@ func (r *Reader) GetChain(ctx context.Context, id ids.ID) (*models.Chain, error)
 }
 
 func (r *Reader) GetValidator(ctx context.Context, id ids.ID) (*models.Validator, error) {
-	list, err := r.ListValidators(ctx, params.ListValidatorsParams{ID: &id})
+	list, err := r.ListValidators(ctx, &params.ListValidatorsParams{ID: &id})
 	if err != nil || len(list.Validators) == 0 {
 		return nil, err
 	}
@@ -154,7 +152,7 @@ func (r *Reader) loadControlKeys(ctx context.Context, subnets []*models.Subnet) 
 		s.ControlKeys = []models.ControlKey{}
 	}
 
-	dbRunner, err := r.conns.DB().NewSession("load_control_keys", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("load_control_keys", services.RequestTimeout)
 	if err != nil {
 		return err
 	}
@@ -194,7 +192,7 @@ func (r *Reader) loadControlSignatures(ctx context.Context, chains []*models.Cha
 		c.ControlSignatures = []models.ControlSignature{}
 	}
 
-	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", services.RequestTimeout)
 	if err != nil {
 		return err
 	}
@@ -234,7 +232,7 @@ func (r *Reader) loadFXIDs(ctx context.Context, chains []*models.Chain) error {
 		c.FxIDs = []models.StringID{}
 	}
 
-	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("load_control_signatures", services.RequestTimeout)
 	if err != nil {
 		return err
 	}

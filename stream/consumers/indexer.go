@@ -10,11 +10,16 @@ import (
 	"github.com/ava-labs/ortelius/stream"
 )
 
+const (
+	indexerAVMName = "avm"
+	indexerPVMName = "pvm"
+)
+
 var Indexer = stream.NewConsumerFactory(func(conns *services.Connections, networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
 	switch chainVM {
-	case avm.VMName:
+	case indexerAVMName:
 		indexer, err = avm.NewWriter(conns, networkID, chainID)
-	case pvm.VMName:
+	case indexerPVMName:
 		indexer, err = pvm.NewWriter(conns, networkID, chainID)
 	default:
 		return nil, stream.ErrUnknownVM
