@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/metrics"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -23,10 +25,11 @@ var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
-	writer *kafka.Writer
-	buffer chan (*[]byte)
-	doneCh chan (struct{})
-	log    logging.Logger
+	writer                *kafka.Writer
+	buffer                chan (*[]byte)
+	doneCh                chan (struct{})
+	log                   logging.Logger
+	metricFailureCountKey string
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -42,10 +45,13 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer: make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
-		doneCh: make(chan struct{}),
-		log:    log,
+		buffer:                make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		doneCh:                make(chan struct{}),
+		log:                   log,
+		metricFailureCountKey: "records_failure_kafka",
 	}
+
+	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failed")
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
@@ -88,6 +94,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer cancelFn()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
+			metrics.Prometheus.CounterInc(wb.metricFailureCountKey)
 			wb.log.Error("Error writing to kafka:", err)
 		}
 
