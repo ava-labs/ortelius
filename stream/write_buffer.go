@@ -99,11 +99,11 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
 		defer cancelFn()
 
-		histogramCollect := metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey)
-		defer histogramCollect.Collect()
+		collectors := metrics.NewCollectors(metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey))
+		defer collectors.Collect()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
-			histogramCollect.Error()
+			collectors.Error()
 			metrics.Prometheus.CounterInc(wb.metricFailureCountKey)
 			wb.log.Error("Error writing to kafka:", err)
 		}

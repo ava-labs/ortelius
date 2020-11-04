@@ -80,22 +80,22 @@ func (m *Metrics) HistogramObserve(name string, v float64) {
 	}
 }
 
-type HistogramCollectMillis interface {
+type Collector interface {
 	Error()
 	Collect()
 }
 
 type histogramCollectMillis struct {
-	collect      bool
-	timeNow      time.Time
-	histogramKey string
+	collect bool
+	timeNow time.Time
+	key     string
 }
 
-func NewHistogramCollect(histogramKey string) HistogramCollectMillis {
+func NewHistogramCollect(key string) Collector {
 	hc := histogramCollectMillis{
-		collect:      true,
-		timeNow:      time.Now(),
-		histogramKey: histogramKey,
+		collect: true,
+		timeNow: time.Now(),
+		key:     key,
 	}
 	return &hc
 }
@@ -108,5 +108,53 @@ func (hc *histogramCollectMillis) Collect() {
 	if !hc.collect {
 		return
 	}
-	Prometheus.HistogramObserve(hc.histogramKey, float64(time.Since(hc.timeNow).Milliseconds()))
+	Prometheus.HistogramObserve(hc.key, float64(time.Since(hc.timeNow).Milliseconds()))
+}
+
+type counterIncCollect struct {
+	collect bool
+	key     string
+}
+
+func NewCounterIncCollect(key string) Collector {
+	hc := histogramCollectMillis{
+		collect: true,
+		key:     key,
+	}
+	return &hc
+}
+
+func (hc *counterIncCollect) Error() {
+	hc.collect = false
+}
+
+func (hc *counterIncCollect) Collect() {
+	if !hc.collect {
+		return
+	}
+	Prometheus.CounterInc(hc.key)
+}
+
+type collectorsContainer struct {
+	collectors []Collector
+}
+
+func NewCollectors(collectors ...Collector) Collector {
+	cs := collectorsContainer{
+		collectors: make([]Collector, 0, len(collectors)),
+	}
+	cs.collectors = append(cs.collectors, collectors...)
+	return &cs
+}
+
+func (cs *collectorsContainer) Error() {
+	for _, c := range cs.collectors {
+		c.Error()
+	}
+}
+
+func (cs *collectorsContainer) Collect() {
+	for _, c := range cs.collectors {
+		c.Collect()
+	}
 }
