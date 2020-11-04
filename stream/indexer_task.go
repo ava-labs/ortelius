@@ -48,10 +48,12 @@ var (
 )
 
 type ProducerTasker struct {
-	initlock                        sync.RWMutex
-	connections                     *services.Connections
-	plock                           sync.Mutex
-	timeStampProducer               func() time.Time
+	initlock          sync.RWMutex
+	connections       *services.Connections
+	plock             sync.Mutex
+	timeStampProducer func() time.Time
+
+	// metrics
 	metricSuccessCountKey           string
 	metricFailureCountKey           string
 	metricProcessMillisHistogramKey string
