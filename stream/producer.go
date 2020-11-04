@@ -16,11 +16,13 @@ import (
 
 // producer reads from the socket and writes to the event stream
 type Producer struct {
-	chainID                 string
-	eventType               EventType
-	sock                    *socket.Client
-	writeBuffer             *bufferedWriter
-	log                     logging.Logger
+	chainID     string
+	eventType   EventType
+	sock        *socket.Client
+	writeBuffer *bufferedWriter
+	log         logging.Logger
+
+	// metrics
 	metricProcessedCountKey string
 	metricWrittenCountKey   string
 	metricSuccessCountKey   string
