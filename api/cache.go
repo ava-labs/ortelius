@@ -12,14 +12,14 @@ import (
 	"github.com/ava-labs/ortelius/services/cache"
 )
 
-// CachableFn is a function whose output can safely be cached
-type CachableFn func(context.Context) (interface{}, error)
+// CacheableFn is a function whose output can safely be cached
+type CacheableFn func(context.Context) (interface{}, error)
 
-// Cachable is a keyed CachableFn
-type Cachable struct {
-	Key        []string
-	CachableFn CachableFn
-	TTL        time.Duration
+// Cacheable is a keyed CacheableFn
+type Cacheable struct {
+	Key         []string
+	CacheableFn CacheableFn
+	TTL         time.Duration
 }
 
 type cacher interface {
@@ -33,8 +33,8 @@ func cacheKey(networkID uint32, parts ...string) string {
 	return cache.KeyFromParts(append(k, parts...)...)
 }
 
-func updateCachable(ctx context.Context, cache cacher, key string, cachableFn CachableFn, ttl time.Duration) ([]byte, error) {
-	obj, err := cachableFn(ctx)
+func updateCacheable(ctx context.Context, cache cacher, key string, cacheableFn CacheableFn, ttl time.Duration) ([]byte, error) {
+	obj, err := cacheableFn(ctx)
 	if err != nil {
 		return nil, err
 	}
