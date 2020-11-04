@@ -192,6 +192,7 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 		if !ok {
 			return
 		}
+
 		if update.avmAggregate != nil {
 			if err := t.replaceAvmAggregate(*update.avmAggregate); err != nil {
 				t.connections.Logger().Error("replace avm aggregate %s", err)
