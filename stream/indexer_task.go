@@ -511,7 +511,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 		return err
 	}
 	_, err = models.UpdateAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
-	return nil
+	return err
 }
 
 func (t *ProducerTasker) replaceAggregateTxFee(aggregateTxFee models.AggregateTxFee) error {
