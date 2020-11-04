@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -77,4 +78,35 @@ func (m *Metrics) HistogramObserve(name string, v float64) {
 	if histogram, ok := m.histograms[name]; ok {
 		(*histogram).Observe(v)
 	}
+}
+
+type HistogramCollectMillis interface {
+	Error()
+	Collect()
+}
+
+type histogramCollectMillis struct {
+	collect      bool
+	timeNow      time.Time
+	histogramKey string
+}
+
+func NewHistogramCollect(histogramKey string) HistogramCollectMillis {
+	hc := histogramCollectMillis{
+		collect:      true,
+		timeNow:      time.Now(),
+		histogramKey: histogramKey,
+	}
+	return &hc
+}
+
+func (hc *histogramCollectMillis) Error() {
+	hc.collect = false
+}
+
+func (hc *histogramCollectMillis) Collect() {
+	if !hc.collect {
+		return
+	}
+	Prometheus.HistogramObserve(hc.histogramKey, float64(time.Since(hc.timeNow).Milliseconds()))
 }

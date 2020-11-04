@@ -25,11 +25,13 @@ var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
-	writer                *kafka.Writer
-	buffer                chan (*[]byte)
-	doneCh                chan (struct{})
-	log                   logging.Logger
-	metricFailureCountKey string
+	writer                          *kafka.Writer
+	buffer                          chan (*[]byte)
+	doneCh                          chan (struct{})
+	log                             logging.Logger
+	metricFailureCountKey           string
+	metricWriteCountKey             string
+	metricProcessMillisHistogramKey string
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -45,13 +47,17 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer:                make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
-		doneCh:                make(chan struct{}),
-		log:                   log,
-		metricFailureCountKey: "records_failure_kafka",
+		buffer:                          make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		doneCh:                          make(chan struct{}),
+		log:                             log,
+		metricFailureCountKey:           "records_failure_kafka",
+		metricProcessMillisHistogramKey: "records_process_millis_kafka",
+		metricWriteCountKey:             "records_write_kafka",
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failed")
+	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
+	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis")
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
@@ -93,7 +99,11 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
 		defer cancelFn()
 
+		histogramCollect := metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey)
+		defer histogramCollect.Collect()
+
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
+			histogramCollect.Error()
 			metrics.Prometheus.CounterInc(wb.metricFailureCountKey)
 			wb.log.Error("Error writing to kafka:", err)
 		}

@@ -126,9 +126,11 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 
 	metrics.Prometheus.CounterInc(c.metricProcessedCountKey)
 
-	timeNow := time.Now()
-	defer metrics.Prometheus.HistogramObserve(c.metricProcessMillisHistogramKey, float64(time.Since(timeNow).Milliseconds()))
+	histogramCollect := metrics.NewHistogramCollect(c.metricProcessMillisHistogramKey)
+	defer histogramCollect.Collect()
+
 	if err = c.consumer.Consume(ctx, msg); err != nil {
+		histogramCollect.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
 		return err
 	}
