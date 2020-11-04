@@ -235,8 +235,6 @@ func TestReplaceAvmAggregate(t *testing.T) {
 
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
 
-	// aggregationTime := pastime.Truncate(timestampRollup)
-
 	initData(ctx, sess, pastime, t)
 
 	agg := models.AvmAggregate{
@@ -303,8 +301,6 @@ func TestReplaceAvmAggregateCount(t *testing.T) {
 	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
 
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
-
-	// aggregationTime := pastime.Truncate(timestampRollup)
 
 	initData(ctx, sess, pastime, t)
 
