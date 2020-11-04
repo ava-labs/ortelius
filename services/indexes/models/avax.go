@@ -82,7 +82,7 @@ type Asset struct {
 
 	Score uint64 `json:"-"`
 
-	Aggregates map[string]*Aggregates
+	Aggregates map[string]*Aggregates `json:"aggregates"`
 }
 
 type AssetInfo struct {
