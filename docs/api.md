@@ -47,6 +47,8 @@ Params:
 
 `sort` - The sorting method to use. Options: timestamp-asc, timestamp-desc. Default: timestamp-asc
 
+'disableGenesis' - Bool value = true will suppress genesis input/output records in results.
+
 #### Response:
 
 Array of transaction objects
@@ -70,6 +72,8 @@ The transaction object
 `endTime` - The Time to end calculating to. Defaults to the current Time. Valid values are unix timestamps (in seconds) or RFC3339 datetime strings.
 
 `intervalSize` - If given, a list of intervals of the given size from startTime to endTime will be returned, with the aggregates for each interval. Valid values are `minute`, `hour`, `day`, `week`, `month`, `year`, or a valid Go duration string as described here: https://golang.org/pkg/Time/#ParseDuration 
+
+`version` - If 1 will use new asset aggregate tables
 
 #### Response:
 
@@ -129,6 +133,8 @@ Array of asset objects
 #### Global list Address Params:
 
 `disableCount` - Bool value = true will suppress counting in results, count will be 0 in results
+
+`version` - If 1 will use new asset aggregate count tables
 
 #### Params:
 

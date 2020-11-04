@@ -60,7 +60,7 @@ func NewReader(conns *services.Connections, chainID string) *Reader {
 	}
 }
 
-func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.SearchResults, error) {
+func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID ids.ID) (*models.SearchResults, error) {
 	if len(p.Query) < MinSearchQueryLength {
 		return nil, ErrSearchQueryTooShort
 	}
@@ -71,7 +71,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.Se
 		return r.searchByShortID(ctx, shortID)
 	}
 	if id, err := ids.FromString(p.Query); err == nil {
-		return r.searchByID(ctx, id)
+		return r.searchByID(ctx, id, avaxAssetID)
 	}
 
 	// copy the list params, and inject DisableCounting for subsequent List* calls.
@@ -88,7 +88,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams) (*models.Se
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query})
+	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query}, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +117,8 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		}
 	}
 
+	intervals := []models.Aggregates{}
+
 	// Ensure the interval count requested isn't too large
 	intervalSeconds := int64(params.IntervalSize.Seconds())
 	requestedIntervalCount := 0
@@ -136,26 +138,63 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		return nil, err
 	}
 
-	columns := []string{
-		"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
+	var builder *dbr.SelectStmt
 
-		"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-		"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
-		"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
-		"COUNT(avm_outputs.id) AS output_count",
+	switch params.Version {
+	// new requests v=1 use the avm_asset_aggregation tables
+	case 1:
+		columns := []string{
+			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
+			"SUM(avm_asset_aggregation.transaction_count) AS transaction_count",
+			"SUM(avm_asset_aggregation.address_count) AS address_count",
+			"SUM(avm_asset_aggregation.asset_count) AS asset_count",
+			"SUM(avm_asset_aggregation.output_count) AS output_count",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_asset_aggregation.aggregate_ts)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder = dbRunner.
+			Select(columns...).
+			From("avm_asset_aggregation").
+			Where("avm_asset_aggregation.aggregate_ts >= ?", params.StartTime).
+			Where("avm_asset_aggregation.aggregate_ts < ?", params.EndTime)
+
+		if params.AssetID != nil {
+			builder.Where("avm_asset_aggregation.asset_id = ?", params.AssetID.String())
+		}
+	default:
+		columns := []string{
+			"COALESCE(SUM(avm_outputs.amount), 0) AS transaction_volume",
+
+			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+			"COUNT(DISTINCT(avm_output_addresses.address)) AS address_count",
+			"COUNT(DISTINCT(avm_outputs.asset_id)) AS asset_count",
+			"COUNT(avm_outputs.id) AS output_count",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
+				params.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder = dbRunner.
+			Select(columns...).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			Where("avm_outputs.created_at >= ?", params.StartTime).
+			Where("avm_outputs.created_at < ?", params.EndTime)
+
+		if params.AssetID != nil {
+			builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
+		}
 	}
-
-	if requestedIntervalCount > 0 {
-		columns = append(columns, fmt.Sprintf(
-			"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
-			params.StartTime.Unix(),
-			intervalSeconds))
-	}
-
-	builder := params.Apply(dbRunner.
-		Select(columns...).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id"))
 
 	if requestedIntervalCount > 0 {
 		builder.
@@ -164,7 +203,6 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			Limit(uint64(requestedIntervalCount))
 	}
 
-	intervals := []models.Aggregates{}
 	_, err = builder.LoadContext(ctx, &intervals)
 	if err != nil {
 		return nil, err
@@ -251,7 +289,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	return aggs, nil
 }
 
-func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams) (*models.TransactionList, error) {
+func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
 	dbRunner, err := r.conns.DB().NewSession("get_transactions", api.RequestTimeout)
 	if err != nil {
 		return nil, err
@@ -259,7 +297,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	txs := []*models.Transaction{}
 	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at").
+		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at", "avm_transactions.txfee", "avm_transactions.genesis").
 		From("avm_transactions"))
 
 	var applySort func(sort params.TransactionSort)
@@ -301,7 +339,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs); err != nil {
+	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ID, p.DisableGenesis); err != nil {
 		return nil, err
 	}
 
@@ -378,11 +416,49 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAddresses(ctx, dbRunner, addresses); err != nil {
+	if err = r.dressAddresses(ctx, dbRunner, addresses, p.Version); err != nil {
 		return nil, err
 	}
 
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
+}
+
+func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
+	dbRunner, err := r.conns.DB().NewSession("addressChains", api.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	addressChains := []*models.AddressChainInfo{}
+
+	// if there are no addresses specified don't query.
+	if len(p.Addresses) == 0 {
+		return &models.AddressChains{}, nil
+	}
+
+	_, err = p.Apply(dbRunner.
+		Select("address", "chain_id", "created_at").
+		From("address_chain")).
+		LoadContext(ctx, &addressChains)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := models.AddressChains{}
+	resp.AddressChains = make(map[string][]models.StringID)
+	for _, addressChain := range addressChains {
+		addr, err := addressChain.Address.MarshalString()
+		if err != nil {
+			return nil, err
+		}
+		addrAsStr := string(addr)
+		if _, ok := resp.AddressChains[addrAsStr]; !ok {
+			resp.AddressChains[addrAsStr] = make([]models.StringID, 0, 2)
+		}
+		resp.AddressChains[addrAsStr] = append(resp.AddressChains[addrAsStr], addressChain.ChainID)
+	}
+
+	return &resp, nil
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
@@ -454,8 +530,8 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 	return &models.OutputList{ListMetadata: models.ListMetadata{Count: count}, Outputs: outputs}, err
 }
 
-func (r *Reader) GetTransaction(ctx context.Context, id ids.ID) (*models.Transaction, error) {
-	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id})
+func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.Transaction, error) {
+	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id}, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +605,15 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 	return time.Unix(ts, 0).UTC(), nil
 }
 
-func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction) error {
+// Load output data for all inputs and outputs into a single list
+// We can't treat them separately because some my be both inputs and outputs
+// for different transactions
+type compositeRecord struct {
+	models.Output
+	models.OutputAddress
+}
+
+func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -537,34 +621,16 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	// Get the IDs returned so we can get Input/Output data
 	txIDs := make([]models.StringID, len(txs))
 	for i, tx := range txs {
+		if txs[i].Memo == nil {
+			txs[i].Memo = []byte("")
+		}
 		txIDs[i] = tx.ID
 	}
 
-	// Load output data for all inputs and outputs into a single list
-	// We can't treat them separately because some my be both inputs and outputs
-	// for different transactions
-	type compositeRecord struct {
-		models.Output
-		models.OutputAddress
-	}
-
-	var outputs []*compositeRecord
-	_, err := selectOutputs(dbRunner).
-		Where("avm_outputs.transaction_id IN ?", txIDs).
-		LoadContext(ctx, &outputs)
+	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
-
-	var inputs []*compositeRecord
-	_, err = selectOutputs(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-		LoadContext(ctx, &inputs)
-	if err != nil {
-		return err
-	}
-
-	outputs = append(outputs, inputs...)
 
 	// Create a map of addresses for each output and maps of transaction ids to
 	// inputs, outputs, and the total amounts of the inputs and outputs
@@ -622,6 +688,10 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	for _, out := range outputs {
 		out.Addresses = make([]models.Address, 0, len(outputAddrs[out.ID]))
 		for addr := range outputAddrs[out.ID] {
+			// mock in records have a blank address.  Drop them.
+			if len(addr) == 0 {
+				continue
+			}
 			out.Addresses = append(out.Addresses, addr)
 		}
 
@@ -645,6 +715,9 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
+		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
+			continue
+		}
 		if inputs, ok := inputsMap[tx.ID]; ok {
 			for _, input := range inputs {
 				tx.Inputs = append(tx.Inputs, input)
@@ -670,7 +743,57 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo) error {
+func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
+	var outputs []*compositeRecord
+	_, err := selectOutputs(dbRunner).
+		Where("avm_outputs.transaction_id IN ?", txIDs).
+		LoadContext(ctx, &outputs)
+	if err != nil {
+		return nil, err
+	}
+
+	var inputs []*compositeRecord
+	_, err = selectOutputs(dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
+		LoadContext(ctx, &inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	inputids := make([]models.StringID, 0, len(inputs))
+	for _, input := range inputs {
+		inputids = append(inputids, input.ID)
+	}
+
+	// find any Ins without a matching Out and make mock out records for display..
+	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
+	// we're looking for any with my redeeming_transaction_id
+	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
+	// and not in the known inputids list.
+	var inputsRedeeming []*compositeRecord
+	q := selectOutputsRedeeming(dbRunner)
+	if len(inputids) != 0 {
+		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
+			"and avm_outputs.id is null "+
+			"and avm_outputs_redeeming.id not in ?",
+			txIDs, inputids)
+	} else {
+		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
+			"and avm_outputs.id is null ",
+			txIDs)
+	}
+	_, err = q.
+		LoadContext(ctx, &inputsRedeeming)
+	if err != nil {
+		return nil, err
+	}
+
+	outputs = append(outputs, inputs...)
+	outputs = append(outputs, inputsRedeeming...)
+	return outputs, nil
+}
+
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -691,24 +814,45 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		models.AssetInfo
 	}{}
 
-	_, err := dbRunner.
-		Select(
-			"avm_output_addresses.address",
-			"avm_outputs.asset_id",
-			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-		).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		Where("avm_output_addresses.address IN ?", addrIDs).
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return err
+	switch version {
+	case 1:
+		_, err := dbRunner.
+			Select(
+				"avm_asset_address_counts.address",
+				"avm_asset_address_counts.asset_id",
+				"avm_asset_address_counts.transaction_count",
+				"avm_asset_address_counts.total_received",
+				"avm_asset_address_counts.total_sent",
+				"avm_asset_address_counts.balance",
+				"avm_asset_address_counts.utxo_count",
+			).
+			From("avm_asset_address_counts").
+			Where("avm_asset_address_counts.address IN ? and avm_asset_address_counts.chain_id = ?", addrIDs, r.chainID).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return err
+		}
+	default:
+		_, err := dbRunner.
+			Select(
+				"avm_output_addresses.address",
+				"avm_outputs.asset_id",
+				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+			).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id = ?", addrIDs, r.chainID).
+			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Accumulate rows into addresses
@@ -765,7 +909,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	return nil
 }
 
-func (r *Reader) searchByID(ctx context.Context, id ids.ID) (*models.SearchResults, error) {
+func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
 	listParams := params.ListParams{DisableCounting: true}
 
 	if assets, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: listParams, ID: &id}); err != nil {
@@ -774,7 +918,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID) (*models.SearchResul
 		return collateSearchResults(assets, nil, nil, nil)
 	}
 
-	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}); err != nil {
+	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}, avaxAssetID); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, nil, txs, nil)
@@ -871,5 +1015,29 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+// match selectOutputs but based from avm_outputs_redeeming
+func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select("avm_outputs_redeeming.id",
+		"avm_outputs_redeeming.intx as transaction_id",
+		"avm_outputs_redeeming.output_index",
+		"avm_outputs_redeeming.asset_id",
+		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
+		"avm_outputs_redeeming.amount",
+		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
+		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
+		"avm_outputs_redeeming.created_at",
+		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
+		"case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id",
+		"case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id",
+		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
+		"avm_output_addresses.redeeming_signature AS signature",
+		"addresses.public_key AS public_key",
+	).
+		From("avm_outputs_redeeming").
+		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }

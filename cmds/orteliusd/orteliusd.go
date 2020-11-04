@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/spf13/cobra"
 
@@ -75,6 +76,12 @@ func execute() error {
 				if err != nil {
 					log.Fatalln("Failed to read config file", *configFile, ":", err.Error())
 				}
+				alog, err := logging.New(c.Logging)
+				if err != nil {
+					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
+				}
+
+				c.Services.Log = alog
 				*config = *c
 
 				if config.MetricsListenAddr != "" {

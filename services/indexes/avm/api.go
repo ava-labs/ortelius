@@ -26,9 +26,10 @@ func init() {
 type APIContext struct {
 	*api.RootRequestContext
 
-	reader     *Reader
-	chainID    string
-	chainAlias string
+	reader      *Reader
+	chainID     string
+	chainAlias  string
+	avaxAssetID ids.ID
 
 	rw web.ResponseWriter
 }
@@ -55,6 +56,7 @@ func NewAPIRouter(params api.RouterParams) error {
 			c.reader = reader
 			c.chainID = params.ChainConfig.ID
 			c.chainAlias = params.ChainConfig.Alias
+			c.avaxAssetID = avaxAssetID
 
 			c.rw = w
 
@@ -77,7 +79,8 @@ func NewAPIRouter(params api.RouterParams) error {
 		Get("/addresses", (*APIContext).ListAddresses).
 		Get("/addresses/:id", (*APIContext).GetAddress).
 		Get("/outputs", (*APIContext).ListOutputs).
-		Get("/outputs/:id", (*APIContext).GetOutput)
+		Get("/outputs/:id", (*APIContext).GetOutput).
+		Get("/addressChains", (*APIContext).AddressChains)
 
 	return nil
 }
@@ -92,7 +95,7 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, api.Cachable{
 		Key: c.cacheKeyForParams("search", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.Search(ctx, p)
+			return c.reader.Search(ctx, p, c.avaxAssetID)
 		},
 	})
 }
@@ -131,7 +134,7 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.ListTransactions(ctx, p)
+			return c.reader.ListTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
 }
@@ -147,7 +150,7 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.GetTransaction(ctx, id)
+			return c.reader.GetTransaction(ctx, id, c.avaxAssetID)
 		},
 	})
 }
@@ -188,6 +191,22 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CachableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListAddresses(ctx, p)
+		},
+	})
+}
+
+func (c *APIContext) AddressChains(w web.ResponseWriter, r *web.Request) {
+	p := &params.AddressChainsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	c.WriteCacheable(w, api.Cachable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("address_chains", p),
+		CachableFn: func(ctx context.Context) (interface{}, error) {
+			return c.reader.AddressChains(ctx, p)
 		},
 	})
 }

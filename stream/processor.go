@@ -14,12 +14,10 @@ import (
 	"github.com/segmentio/kafka-go"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
 )
 
 var (
-	readTimeout  = 10 * time.Second
-	writeTimeout = 10 * time.Second
+	readTimeout = 10 * time.Second
 
 	processorFailureRetryInterval = 200 * time.Millisecond
 
@@ -33,7 +31,7 @@ type ProcessorFactory func(cfg.Config, string, string) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
-	ProcessNextMessage(context.Context, logging.Logger) error
+	ProcessNextMessage(context.Context) error
 	Close() error
 	Failure()
 	Success()
@@ -43,9 +41,8 @@ type Processor interface {
 // configuration and ProcessorFactory to keep a Processor active
 type ProcessorManager struct {
 	conf    cfg.Config
-	log     *logging.Log
 	factory ProcessorFactory
-	conns   *services.Connections
+	log     logging.Logger
 
 	// Concurrency control
 	quitCh chan struct{}
@@ -54,14 +51,10 @@ type ProcessorManager struct {
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
 func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorManager, error) {
-	conns, err := services.NewConnectionsFromConfig(conf.Services)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ProcessorManager{
-		conf:    conf,
-		conns:   conns,
+		conf: conf,
+		log:  conf.Log,
+
 		factory: factory,
 
 		quitCh: make(chan struct{}),
@@ -112,7 +105,6 @@ func (c *ProcessorManager) Listen() error {
 func (c *ProcessorManager) Close() error {
 	close(c.quitCh)
 	<-c.doneCh
-	c.conns.Close()
 	return nil
 }
 
@@ -155,7 +147,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
 			defer cancelFn()
 
-			err = backend.ProcessNextMessage(ctx, c.log)
+			err = backend.ProcessNextMessage(ctx)
 			if err == nil {
 				successes++
 				backend.Success()

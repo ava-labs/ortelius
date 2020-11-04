@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -31,8 +32,9 @@ var (
 )
 
 type Writer struct {
-	chainID   string
-	networkID uint32
+	chainID     string
+	networkID   uint32
+	avaxAssetID ids.ID
 
 	codec codec.Codec
 	conns *services.Connections
@@ -40,12 +42,18 @@ type Writer struct {
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
+	_, avaxAssetID, err := genesis.Genesis(networkID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Writer{
-		conns:     conns,
-		chainID:   chainID,
-		networkID: networkID,
-		codec:     platformvm.Codec,
-		avax:      avaxIndexer.NewWriter(chainID, conns.Stream()),
+		conns:       conns,
+		chainID:     chainID,
+		networkID:   networkID,
+		avaxAssetID: avaxAssetID,
+		codec:       platformvm.Codec,
+		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID, conns.Stream()),
 	}, nil
 }
 
@@ -54,6 +62,11 @@ func (*Writer) Name() string { return "pvm-index" }
 func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
+
+	// fire and forget..
+	// update the created_at on the state table if we have an earlier date in ctx.Time().
+	// which means we need to re-run aggregation calculations from this earlier date.
+	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
 
 	// Create w tx
 	dbTx, err := sess.Begin()
@@ -122,7 +135,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		errs.Add(w.indexTransaction(cCtx, ChainID, *tx))
+		errs.Add(w.indexTransaction(cCtx, ChainID, *tx, true))
 	}
 
 	return errs.Err
@@ -154,43 +167,50 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx),
+			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
 		)
 	case *platformvm.StandardBlock:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
 			errs.Add(
 				initializeTx(w.codec, *tx),
-				w.indexTransaction(ctx, blk.ID(), *tx),
+				w.indexTransaction(ctx, blk.ID(), *tx, false),
 			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx),
+			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
 		)
 	case *platformvm.Abort:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
 	case *platformvm.Commit:
 		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
-		ctx.Job().EventErr("index_block", ErrUnknownBlockType)
+		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
 	}
-	return nil
+
+	return errs.Err
 }
 
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
 	blkID := ids.NewID(hashing.ComputeHash256Array(blockBytes))
 
-	_, err := ctx.DB().
+	blockInsert := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
 		Pair("chain_id", w.chainID).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
-		Pair("serialization", blockBytes).
-		Pair("created_at", ctx.Time()).
+		Pair("created_at", ctx.Time())
+
+	if len(blockBytes) <= 32000 {
+		blockInsert = blockInsert.Pair("serialization", blockBytes)
+	} else {
+		blockInsert = blockInsert.Pair("serialization", []byte(""))
+	}
+	_, err := blockInsert.
 		ExecContext(ctx.Ctx())
 	if err != nil && !errIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_common_block.upsert_block", err)
@@ -198,7 +218,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	return nil
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx, genesis bool) error {
 	var (
 		baseTx avax.BaseTx
 		typ    models.TransactionType
@@ -239,7 +259,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, genesis)
 }
 
 // func (w *Writer) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {

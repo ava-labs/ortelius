@@ -24,6 +24,10 @@ type Transaction struct {
 	CanonicalSerialization []byte    `json:"canonicalSerialization,omitempty"`
 	CreatedAt              time.Time `json:"timestamp"`
 
+	Txfee uint64 `json:"txFee"`
+
+	Genesis bool `json:"genesis"`
+
 	Score uint64 `json:"-"`
 }
 
@@ -96,6 +100,12 @@ type AddressInfo struct {
 	Assets map[StringID]AssetInfo `json:"assets"`
 
 	Score uint64 `json:"-"`
+}
+
+type AddressChainInfo struct {
+	Address   Address   `json:"address"`
+	ChainID   StringID  `json:"chainID"`
+	CreatedAt time.Time `json:"timestamp"`
 }
 
 type OutputList struct {
