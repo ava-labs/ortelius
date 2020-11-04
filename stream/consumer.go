@@ -125,22 +125,33 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	}
 
 	collectors := metrics.NewCollectors(metrics.NewCounterIncCollect(c.metricProcessedCountKey), metrics.NewHistogramCollect(c.metricProcessMillisHistogramKey))
-	defer collectors.Collect()
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			c.conns.Logger().Error("collectors.Collect: %s", err)
+		}
+	}()
 
 	if err = c.consumer.Consume(ctx, msg); err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
+		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
 }
 
 func (c *consumer) Failure() {
-	metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	if err != nil {
+		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+	}
 }
 
 func (c *consumer) Success() {
-	metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	if err != nil {
+		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+	}
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

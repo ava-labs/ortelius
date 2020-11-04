@@ -29,6 +29,7 @@ type bufferedWriter struct {
 	buffer                          chan (*[]byte)
 	doneCh                          chan (struct{})
 	log                             logging.Logger
+	metricSuccessCountKey           string
 	metricFailureCountKey           string
 	metricWriteCountKey             string
 	metricProcessMillisHistogramKey string
@@ -50,11 +51,13 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 		buffer:                          make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
 		doneCh:                          make(chan struct{}),
 		log:                             log,
+		metricSuccessCountKey:           "records_success_kafka",
 		metricFailureCountKey:           "records_failure_kafka",
 		metricProcessMillisHistogramKey: "records_process_millis_kafka",
 		metricWriteCountKey:             "records_write_kafka",
 	}
 
+	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failed")
 	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
 	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis")
@@ -99,12 +102,19 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
 		defer cancelFn()
 
-		collectors := metrics.NewCollectors(metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey))
-		defer collectors.Collect()
+		collectors := metrics.NewCollectors(
+			metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey),
+			metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
+		)
+		defer func() {
+			err := collectors.Collect()
+			if err != nil {
+				wb.log.Error("collectors.Collect: %s", err)
+			}
+		}()
 
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
 			collectors.Error()
-			metrics.Prometheus.CounterInc(wb.metricFailureCountKey)
 			wb.log.Error("Error writing to kafka:", err)
 		}
 

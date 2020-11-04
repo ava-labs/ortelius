@@ -489,15 +489,20 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 }
 
 func performRefresh(t *ProducerTasker) {
-	collectors := metrics.NewCollectors(metrics.NewHistogramCollect(t.metricProcessMillisHistogramKey))
-	defer collectors.Collect()
+	collectors := metrics.NewCollectors(
+		metrics.NewHistogramCollect(t.metricProcessMillisHistogramKey),
+		metrics.NewSuccessFailCounterInc(t.metricSuccessCountKey, t.metricFailureCountKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			t.connections.Logger().Error("collectors.Collect: %s", err)
+		}
+	}()
 
 	err := t.RefreshAggregates()
 	if err != nil {
 		collectors.Error()
-		metrics.Prometheus.CounterInc(t.metricFailureCountKey)
 		t.connections.Logger().Error("Refresh Aggregates %s", err)
-	} else {
-		metrics.Prometheus.CounterInc(t.metricSuccessCountKey)
 	}
 }

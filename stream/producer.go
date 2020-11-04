@@ -77,17 +77,26 @@ func (p *Producer) ProcessNextMessage(_ context.Context) error {
 		return err
 	}
 
-	metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-
 	p.writeBuffer.Write(rawMsg)
+
+	err = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
 
 	return nil
 }
 
 func (p *Producer) Failure() {
-	metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+	err := metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
 }
 
 func (p *Producer) Success() {
-	metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
+	err := metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
 }
