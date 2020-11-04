@@ -491,13 +491,10 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 
 	_, err = models.InsertAvmAssetAggregation(ctx, sess, avmAggregates)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregates)
-		if err != nil {
-			t.connections.Logger().Error("row fetch %s", err)
-			return err
-		}
+		return err
 	}
-	return nil
+	_, err = models.UpdateAvmAssetAggregation(ctx, sess, avmAggregates)
+	return err
 }
 
 func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmAggregateCount) error {
@@ -511,12 +508,9 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 
 	_, err = models.InsertAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = models.UpdateAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
-		if err != nil {
-			return err
-		}
+		return err
 	}
-
+	_, err = models.UpdateAvmAssetAggregationCount(ctx, sess, avmAggregatesCount)
 	return nil
 }
 
@@ -531,12 +525,10 @@ func (t *ProducerTasker) replaceAggregateTxFee(aggregateTxFee models.AggregateTx
 
 	_, err = models.InsertAggregateTxFee(ctx, sess, aggregateTxFee)
 	if !(err != nil && db.ErrIsDuplicateEntryError(err)) {
-		_, err = models.UpdateAggregateTxFee(ctx, sess, aggregateTxFee)
-		if err != nil {
-			return err
-		}
+		return err
 	}
-	return nil
+	_, err = models.UpdateAggregateTxFee(ctx, sess, aggregateTxFee)
+	return err
 }
 
 func (t *ProducerTasker) Start() {
