@@ -52,10 +52,10 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		c := &consumer{
 			chainID:                         chainID,
 			conns:                           conns,
-			metricProcessedCountKey:         fmt.Sprintf("records_processed_%s", chainID),
-			metricProcessMillisHistogramKey: fmt.Sprintf("records_process_millis_%s", chainID),
-			metricSuccessCountKey:           fmt.Sprintf("records_success_%s", chainID),
-			metricFailureCountKey:           fmt.Sprintf("records_failure_%s", chainID),
+			metricProcessedCountKey:         fmt.Sprintf("consume_records_processed_%s", chainID),
+			metricProcessMillisHistogramKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
+			metricSuccessCountKey:           fmt.Sprintf("consume_records_success_%s", chainID),
+			metricFailureCountKey:           fmt.Sprintf("consume_records_failure_%s", chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.HistogramInit(c.metricProcessMillisHistogramKey, "records process millis")

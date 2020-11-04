@@ -51,14 +51,14 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 		buffer:                          make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
 		doneCh:                          make(chan struct{}),
 		log:                             log,
-		metricSuccessCountKey:           "records_success_kafka",
-		metricFailureCountKey:           "records_failure_kafka",
-		metricProcessMillisHistogramKey: "records_process_millis_kafka",
-		metricWriteCountKey:             "records_write_kafka",
+		metricSuccessCountKey:           "kafka_write_records_success",
+		metricFailureCountKey:           "kafka_write_records_failure",
+		metricProcessMillisHistogramKey: "kafka_write_records_process_millis",
+		metricWriteCountKey:             "kafka_write_records_write",
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
-	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failed")
+	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
 	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis")
 

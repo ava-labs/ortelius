@@ -119,7 +119,7 @@ func (hc *successFailCounterInc) Collect() error {
 	return Prometheus.CounterInc(hc.keyFail)
 }
 
-// Add count to keySucess or keyFail
+// Add count to keySuccess or keyFail
 type successFailCounterAdd struct {
 	success    bool
 	keySuccess string

@@ -53,6 +53,8 @@ type ProducerTasker struct {
 	metricSuccessCountKey           string
 	metricFailureCountKey           string
 	metricProcessMillisHistogramKey string
+	metricAssetAggregateCountKey    string
+	metricCountAggregateCountKey    string
 }
 
 var producerTaskerInstance = ProducerTasker{
@@ -182,19 +184,30 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 	aggregateTSUpdate := &avalancheGoUtils.AtomicInterface{}
 
 	pf := func(wn int, i interface{}) {
-		if update, ok := i.(*updateJob); ok {
-			if update.avmAggregate != nil {
-				err := t.replaceAvmAggregate(*update.avmAggregate)
+		update, ok := i.(*updateJob)
+		if !ok {
+			return
+		}
+		if update.avmAggregate != nil {
+			if err := t.replaceAvmAggregate(*update.avmAggregate); err != nil {
+				t.connections.Logger().Error("replace avm aggregate %s", err)
+				errs.SetValue(err)
+			} else {
+				err := metrics.Prometheus.CounterInc(t.metricAssetAggregateCountKey)
 				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate %s", err)
-					errs.SetValue(err)
+					t.connections.Logger().Error("prometheus.CounterInc: %s", err)
 				}
 			}
-			if update.avmAggregateCount != nil {
-				err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
+		}
+		if update.avmAggregateCount != nil {
+			err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
+			if err != nil {
+				t.connections.Logger().Error("replace avm aggregate count %s", err)
+				errs.SetValue(err)
+			} else {
+				err := metrics.Prometheus.CounterInc(t.metricCountAggregateCountKey)
 				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate count %s", err)
-					errs.SetValue(err)
+					t.connections.Logger().Error("prometheus.CounterInc: %s", err)
 				}
 			}
 		}
@@ -467,10 +480,14 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
-	t.metricSuccessCountKey = "records_success_indexer_task"
-	t.metricFailureCountKey = "records_failure_indexer_task"
-	t.metricProcessMillisHistogramKey = "records_process_millis_indexer_task"
+	t.metricSuccessCountKey = "indexer_task_records_success"
+	t.metricFailureCountKey = "indexer_task_records_failure"
+	t.metricProcessMillisHistogramKey = "indexer_task_records_process_millis"
+	t.metricAssetAggregateCountKey = "index_task_records_asset_aggregate_count"
+	t.metricCountAggregateCountKey = "index_task_records_count_aggregate_count"
 
+	metrics.Prometheus.CounterInit(t.metricAssetAggregateCountKey, "records asset aggregate count")
+	metrics.Prometheus.CounterInit(t.metricCountAggregateCountKey, "records count aggregate count")
 	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
 	metrics.Prometheus.HistogramInit(t.metricProcessMillisHistogramKey, "records process millis")
