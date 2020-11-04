@@ -70,17 +70,16 @@ type Asset struct {
 	ID      StringID `json:"id"`
 	ChainID StringID `json:"chainID"`
 
-	Name         string `json:"name"`
-	Symbol       string `json:"symbol"`
-	Alias        string `json:"alias"`
-	Denomination uint8  `json:"denomination"`
-
+	Name          string      `json:"name"`
+	Symbol        string      `json:"symbol"`
+	Alias         string      `json:"alias"`
 	CurrentSupply TokenAmount `json:"currentSupply"`
 	CreatedAt     time.Time   `json:"timestamp"`
 
-	VariableCap uint8 `json:"variableCap"`
-
 	Score uint64 `json:"-"`
+
+	Denomination uint8 `json:"denomination"`
+	VariableCap  uint8 `json:"variableCap"`
 
 	Aggregates map[string]*Aggregates `json:"aggregates"`
 }

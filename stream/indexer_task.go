@@ -177,20 +177,22 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 	aggregateTSUpdate := &avalancheGoUtils.AtomicInterface{}
 
 	pf := func(wn int, i interface{}) {
-		if update, ok := i.(*updateJob); ok {
-			if update.avmAggregate != nil {
-				err := t.replaceAvmAggregate(*update.avmAggregate)
-				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate %s", err)
-					errs.SetValue(err)
-				}
+		update, ok := i.(*updateJob)
+		if !ok {
+			return
+		}
+
+		if update.avmAggregate != nil {
+			if err := t.replaceAvmAggregate(*update.avmAggregate); err != nil {
+				t.connections.Logger().Error("replace avm aggregate %s", err)
+				errs.SetValue(err)
 			}
-			if update.avmAggregateCount != nil {
-				err := t.replaceAvmAggregateCount(*update.avmAggregateCount)
-				if err != nil {
-					t.connections.Logger().Error("replace avm aggregate count %s", err)
-					errs.SetValue(err)
-				}
+		}
+
+		if update.avmAggregateCount != nil {
+			if err := t.replaceAvmAggregateCount(*update.avmAggregateCount); err != nil {
+				t.connections.Logger().Error("replace avm aggregate count %s", err)
+				errs.SetValue(err)
 			}
 		}
 	}

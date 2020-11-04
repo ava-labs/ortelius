@@ -92,9 +92,9 @@ func (c *APIContext) Search(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		Key: c.cacheKeyForParams("search", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.Search(ctx, p, c.avaxAssetID)
 		},
 	})
@@ -111,9 +111,9 @@ func (c *APIContext) Aggregate(w web.ResponseWriter, r *web.Request) {
 		p.ChainIDs = []string{c.chainID}
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.Aggregate(ctx, p)
 		},
 	})
@@ -130,10 +130,10 @@ func (c *APIContext) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		p.ChainIDs = []string{c.chainID}
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
@@ -146,10 +146,10 @@ func (c *APIContext) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.GetTransaction(ctx, id, c.avaxAssetID)
 		},
 	})
@@ -161,9 +161,9 @@ func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		Key: c.cacheKeyForParams("list_assets", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListAssets(ctx, p)
 		},
 	})
@@ -177,9 +177,9 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 	}
 	id := r.PathParams["id"]
 	p.PathParamID = id
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		Key: c.cacheKeyForParams("get_address", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.GetAsset(ctx, p, id)
 		},
 	})
@@ -192,10 +192,10 @@ func (c *APIContext) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_addresses", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListAddresses(ctx, p)
 		},
 	})
@@ -208,10 +208,10 @@ func (c *APIContext) AddressChains(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("address_chains", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.AddressChains(ctx, p)
 		},
 	})
@@ -224,10 +224,10 @@ func (c *APIContext) GetAddress(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 1 * time.Second,
 		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.GetAddress(ctx, id)
 		},
 	})
@@ -244,10 +244,10 @@ func (c *APIContext) ListOutputs(w web.ResponseWriter, r *web.Request) {
 		p.ChainIDs = []string{c.chainID}
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_outputs", p),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.ListOutputs(ctx, p)
 		},
 	})
@@ -260,9 +260,9 @@ func (c *APIContext) GetOutput(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, api.Cachable{
+	c.WriteCacheable(w, api.Cacheable{
 		Key: c.cacheKeyForID("get_output", r.PathParams["id"]),
-		CachableFn: func(ctx context.Context) (interface{}, error) {
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.GetOutput(ctx, id)
 		},
 	})

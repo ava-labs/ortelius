@@ -34,6 +34,8 @@ var (
 	ResultTypeAsset       SearchResultType = "asset"
 	ResultTypeAddress     SearchResultType = "address"
 	ResultTypeOutput      SearchResultType = "output"
+
+	TypeUnknown = "unknown"
 )
 
 // BlockType represents a sub class of Block.
@@ -77,7 +79,7 @@ func (t TransactionType) String() string {
 	case TransactionTypeRewardValidator:
 		return "reward_validator"
 	default:
-		return "unknown"
+		return TypeUnknown
 	}
 }
 
@@ -95,7 +97,7 @@ func (t OutputType) String() string {
 	case OutputTypesNFTMint:
 		return "nft_mint"
 	default:
-		return "unknown"
+		return TypeUnknown
 	}
 }
 
