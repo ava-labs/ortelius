@@ -36,9 +36,9 @@ type consumer struct {
 	consumer                        services.Consumer
 	conns                           *services.Connections
 	metricProcessedCountKey         string
+	metricFailureCountKey           string
 	metricProcessMillisHistogramKey string
 	metricSuccessCountKey           string
-	metricFailureCountKey           string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -124,7 +124,10 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 		return err
 	}
 
-	collectors := metrics.NewCollectors(metrics.NewCounterIncCollect(c.metricProcessedCountKey), metrics.NewHistogramCollect(c.metricProcessMillisHistogramKey))
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+		metrics.NewHistogramCollect(c.metricProcessMillisHistogramKey),
+	)
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
