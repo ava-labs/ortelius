@@ -207,3 +207,144 @@ func TestHandleBackupState(t *testing.T) {
 		t.Fatal("backup state current created not updated")
 	}
 }
+
+func TestReplaceAvmAggregate(t *testing.T) {
+	var err error
+
+	h := health.NewStream()
+
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
+
+	// produce an expected timestamp to test..
+	timenow := time.Now().Round(1 * time.Minute)
+	timeProducerFunc := func() time.Time {
+		return timenow
+	}
+
+	tasker := ProducerTasker{connections: co,
+		timeStampProducer: timeProducerFunc,
+	}
+
+	ctx := context.Background()
+
+	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
+
+	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
+
+	// aggregationTime := pastime.Truncate(timestampRollup)
+
+	initData(ctx, sess, pastime, t)
+
+	agg := models.AvmAggregate{
+		AggregateTS:       pastime,
+		AssetID:           "aid",
+		TransactionVolume: "1",
+	}
+
+	err = tasker.replaceAvmAggregate(agg)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	values, err := models.SelectAvmAssetAggregations(ctx, sess)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	if len(values) != 1 {
+		t.Fatal("failed", err)
+	}
+	if values[0].TransactionVolume != "1" {
+		t.Fatal("failed", err)
+	}
+
+	agg.TransactionVolume = "2"
+	err = tasker.replaceAvmAggregate(agg)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	values, err = models.SelectAvmAssetAggregations(ctx, sess)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	if len(values) != 1 {
+		t.Fatal("failed", err)
+	}
+	if values[0].TransactionVolume != "2" {
+		t.Fatal("failed", err)
+	}
+}
+
+func TestReplaceAvmAggregateCount(t *testing.T) {
+	var err error
+
+	h := health.NewStream()
+
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	conf, _ := logging.DefaultConfig()
+	log, _ := logging.New(conf)
+
+	co := services.NewConnections(log, h, c, nil)
+
+	// produce an expected timestamp to test..
+	timenow := time.Now().Round(1 * time.Minute)
+	timeProducerFunc := func() time.Time {
+		return timenow
+	}
+
+	tasker := ProducerTasker{connections: co,
+		timeStampProducer: timeProducerFunc,
+	}
+
+	ctx := context.Background()
+
+	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
+
+	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
+
+	// aggregationTime := pastime.Truncate(timestampRollup)
+
+	initData(ctx, sess, pastime, t)
+
+	agg := models.AvmAggregateCount{
+		Address:          "addr1",
+		AssetID:          "aid",
+		TransactionCount: 1,
+		TotalReceived:    "0",
+		TotalSent:        "0",
+		Balance:          "0",
+	}
+
+	err = tasker.replaceAvmAggregateCount(agg)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	values, err := models.SelectAvmAssetAggregationCounts(ctx, sess)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	if len(values) != 1 {
+		t.Fatal("replaceAvmAggregate failed")
+	}
+	if values[0].TransactionCount != 1 {
+		t.Fatal("failed", err)
+	}
+
+	agg.TransactionCount = 2
+	err = tasker.replaceAvmAggregateCount(agg)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	values, err = models.SelectAvmAssetAggregationCounts(ctx, sess)
+	if err != nil {
+		t.Fatal("failed", err)
+	}
+	if len(values) != 1 {
+		t.Fatal("failed", err)
+	}
+	if values[0].TransactionCount != 2 {
+		t.Fatal("failed", err)
+	}
+}
