@@ -2,7 +2,7 @@
   "networkID": 1,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
-  "metricsListenAddr": "localhost:2112",
+  "metricsListenAddr": "",
   "listenAddr": "localhost:8080",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
