@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/ortelius/api"
@@ -72,6 +74,12 @@ func execute() error {
 				if err != nil {
 					log.Fatalln("Failed to read config file", *configFile, ":", err.Error())
 				}
+				alog, err := logging.New(c.Logging)
+				if err != nil {
+					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
+				}
+
+				c.Services.Log = alog
 				*config = *c
 			},
 		}

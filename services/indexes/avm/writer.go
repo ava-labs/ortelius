@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -114,6 +115,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
+
 	return nil
 }
 
@@ -133,6 +135,11 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		}
 		job.Complete(health.Success)
 	}()
+
+	// fire and forget..
+	// update the created_at on the state table if we have an earlier date in ctx.Time().
+	// which means we need to re-run aggregation calculations from this earlier date.
+	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(i.Timestamp(), 0))
 
 	// Create db tx
 	var dbTx *dbr.Tx
@@ -185,11 +192,6 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	if err != nil {
 		return err
 	}
-
-	// fire and forget..
-	// update the created_at on the state table if we have an earlier date in ctx.Time().
-	// which means we need to re-run aggregation calculations from this earlier date.
-	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx.Ctx(), ctx.DB(), ctx.Time())
 
 	// Finish processing with a type-specific ingestion routine
 	unsignedBytes, err := w.codec.Marshal(&tx.UnsignedTx)
@@ -256,7 +258,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		case *secp256k1fx.TransferOutput:
 			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		default:
-			_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 		}
 		outputCount++
 	}
@@ -279,10 +281,10 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 				}
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
-					_ = ctx.Job().EventErr("add_to_amount", err)
+					return ctx.Job().EventErr("add_to_amount", err)
 				}
 			default:
-				_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+				return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 			}
 
 			outputCount++
@@ -306,5 +308,5 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis))
 
-	return nil
+	return errs.Err
 }

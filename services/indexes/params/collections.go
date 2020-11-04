@@ -243,17 +243,24 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	}
 
 	var dosq bool
+	var dosqRedeem bool
 	subquery := dbr.Select("avm_outputs.transaction_id").
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
+	subqueryRedeem := dbr.Select("avm_outputs_redeeming.redeeming_transaction_id").
+		From("avm_outputs_redeeming").
+		LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
+		Where("avm_outputs_redeeming.redeeming_transaction_id is not null")
 
 	if len(p.Addresses) > 0 {
 		dosq = true
+		dosqRedeem = true
 		addrs := make([]string, len(p.Addresses))
 		for i, id := range p.Addresses {
 			addrs[i] = id.String()
 		}
 		subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
+		subqueryRedeem = subqueryRedeem.Where("avm_output_addresses.address IN ?", addrs)
 	}
 
 	if p.AssetID != nil {
@@ -261,7 +268,9 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
 	}
 
-	if dosq {
+	if dosq && dosqRedeem {
+		b = b.Where("avm_transactions.id in ? or avm_transactions.id in ?", subquery, subqueryRedeem)
+	} else if dosq {
 		b = b.Where("avm_transactions.id in ?", subquery)
 	}
 

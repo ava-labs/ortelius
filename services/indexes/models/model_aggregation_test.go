@@ -34,6 +34,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	var avmAggregate AvmAggregate
 	avmAggregate.AggregateTS = time.Now()
 	avmAggregate.AssetID = "as1"
+	avmAggregate.ChainID = "ch1"
 	avmAggregate.TransactionVolume = "1"
 	avmAggregate.TransactionCount = 1
 	avmAggregate.AddressCount = 1
@@ -51,6 +52,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 
 	for _, aggregateMapValue := range avmAggregateCounts {
 		if aggregateMapValue.AssetID != "as1" &&
+			aggregateMapValue.ChainID != "ch1" &&
 			aggregateMapValue.TransactionVolume != "1" &&
 			aggregateMapValue.TransactionCount != 1 &&
 			aggregateMapValue.AssetCount != 1 {
@@ -74,6 +76,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 
 	for _, aggregateMapValue := range avmAggregateCounts {
 		if aggregateMapValue.AssetID != "as1" &&
+			aggregateMapValue.ChainID != "ch1" &&
 			aggregateMapValue.TransactionVolume != "2" &&
 			aggregateMapValue.TransactionCount != 2 &&
 			aggregateMapValue.AssetCount != 2 {
@@ -103,6 +106,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	var avmAggregate AvmAggregateCount
 	avmAggregate.Address = "ad1"
 	avmAggregate.AssetID = "as1"
+	avmAggregate.ChainID = "ch1"
 	avmAggregate.TransactionCount = 1
 	avmAggregate.TotalReceived = "1"
 	avmAggregate.TotalSent = "1"
@@ -122,6 +126,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	for _, aggregateCountMapValue := range avmAggregateCounts {
 		if aggregateCountMapValue.Address != "ad1" &&
 			aggregateCountMapValue.AssetID != "as1" &&
+			aggregateCountMapValue.ChainID != "ch1" &&
 			aggregateCountMapValue.TransactionCount != 1 &&
 			aggregateCountMapValue.TotalSent != "1" &&
 			aggregateCountMapValue.TotalReceived != "1" &&
@@ -149,6 +154,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 	for _, aggregateCountMapValue := range avmAggregateCounts {
 		if aggregateCountMapValue.Address != "ad1" &&
 			aggregateCountMapValue.AssetID != "as1" &&
+			aggregateCountMapValue.ChainID != "ch1" &&
 			aggregateCountMapValue.TransactionCount != 2 &&
 			aggregateCountMapValue.TotalSent != "2" &&
 			aggregateCountMapValue.TotalReceived != "2" &&

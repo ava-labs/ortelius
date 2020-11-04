@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/VictoriaMetrics/fastcache"
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 )
@@ -34,8 +33,7 @@ type Cache struct {
 
 func New(redisConn *redis.Client) *Cache {
 	c := cache.New(&cache.Options{
-		Redis:      redisConn,
-		LocalCache: fastcache.New(100 << 20), // 100 MB
+		Redis: redisConn,
 	})
 
 	return &Cache{cache: c, defaultTTL: DefaultTTL}

@@ -20,10 +20,6 @@ const defaultJSON = `{
     "kafka": {
       "brokers": []
     },
-    "filter": {
-      "min": 1073741824,
-      "max": 2147483648
-    },
     "producer": {
       "ipcRoot": "/tmp"
     },

@@ -38,8 +38,4 @@ const (
 	keysStreamConsumer          = "consumer"
 	keysStreamConsumerGroupName = "groupName"
 	keysStreamConsumerStartTime = "startTime"
-
-	keysStreamFilter    = "filter"
-	keysStreamFilterMin = "min"
-	keysStreamFilterMax = "max"
 )
