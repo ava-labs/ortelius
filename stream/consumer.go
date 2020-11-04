@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/segmentio/kafka-go"
 
@@ -17,7 +16,8 @@ import (
 )
 
 const (
-	consumerEventType = EventTypeDecisions
+	ConsumerEventTypeDefault = EventTypeDecisions
+	ConsumerMaxBytesDefault  = 10e8
 )
 
 var (
@@ -73,11 +73,11 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, consumerEventType),
+			Topic:       GetTopicName(conf.NetworkID, chainID, ConsumerEventTypeDefault),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
-			MaxBytes:    10e6,
+			MaxBytes:    ConsumerMaxBytesDefault,
 		})
 
 		// If the start time is set then seek to the correct offset
@@ -102,15 +102,15 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context, log logging.Logger) error {
+func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	msg, err := c.getNextMessage(ctx)
 	if err != nil {
-		log.Error("consumer.getNextMessage: %s", err.Error())
+		c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
 		return err
 	}
 
 	if err = c.consumer.Consume(ctx, msg); err != nil {
-		log.Error("consumer.Consume: %s", err.Error())
+		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
 		return err
 	}
 	return nil

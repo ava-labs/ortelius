@@ -258,7 +258,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		case *secp256k1fx.TransferOutput:
 			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 		default:
-			_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 		}
 		outputCount++
 	}
@@ -281,10 +281,10 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 				}
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
 				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
-					_ = ctx.Job().EventErr("add_to_amount", err)
+					return ctx.Job().EventErr("add_to_amount", err)
 				}
 			default:
-				_ = ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+				return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 			}
 
 			outputCount++
@@ -308,5 +308,5 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis))
 
-	return nil
+	return errs.Err
 }
