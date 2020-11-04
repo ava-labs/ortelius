@@ -31,14 +31,14 @@ type serviceConsumerFactory func(*services.Connections, uint32, string, string) 
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	chainID                     string
-	reader                      *kafka.Reader
-	consumer                    services.Consumer
-	conns                       *services.Connections
-	metricProcessedCountKey     string
-	metricProcessMillisCountKey string
-	metricSuccessCountKey       string
-	metricFailureCountKey       string
+	chainID                         string
+	reader                          *kafka.Reader
+	consumer                        services.Consumer
+	conns                           *services.Connections
+	metricProcessedCountKey         string
+	metricProcessMillisHistogramKey string
+	metricSuccessCountKey           string
+	metricFailureCountKey           string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -50,15 +50,15 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		c := &consumer{
-			chainID:                     chainID,
-			conns:                       conns,
-			metricProcessedCountKey:     fmt.Sprintf("records_processed_%s", chainID),
-			metricProcessMillisCountKey: fmt.Sprintf("records_process_millis_%s", chainID),
-			metricSuccessCountKey:       fmt.Sprintf("records_success_%s", chainID),
-			metricFailureCountKey:       fmt.Sprintf("records_failure_%s", chainID),
+			chainID:                         chainID,
+			conns:                           conns,
+			metricProcessedCountKey:         fmt.Sprintf("records_processed_%s", chainID),
+			metricProcessMillisHistogramKey: fmt.Sprintf("records_process_millis_%s", chainID),
+			metricSuccessCountKey:           fmt.Sprintf("records_success_%s", chainID),
+			metricFailureCountKey:           fmt.Sprintf("records_failure_%s", chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.CounterInit(c.metricProcessMillisCountKey, "records process millis")
+		metrics.Prometheus.HistogramInit(c.metricProcessMillisHistogramKey, "records process millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
@@ -127,7 +127,7 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 	metrics.Prometheus.CounterInc(c.metricProcessedCountKey)
 
 	timeNow := time.Now()
-	defer metrics.Prometheus.CounterAdd(c.metricProcessMillisCountKey, float64(time.Since(timeNow).Milliseconds()))
+	defer metrics.Prometheus.HistogramObserve(c.metricProcessMillisHistogramKey, float64(time.Since(timeNow).Milliseconds()))
 	if err = c.consumer.Consume(ctx, msg); err != nil {
 		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
 		return err

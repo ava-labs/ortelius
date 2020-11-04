@@ -46,12 +46,13 @@ var (
 )
 
 type ProducerTasker struct {
-	initlock              sync.RWMutex
-	connections           *services.Connections
-	plock                 sync.Mutex
-	timeStampProducer     func() time.Time
-	metricSuccessCountKey string
-	metricFailureCountKey string
+	initlock                        sync.RWMutex
+	connections                     *services.Connections
+	plock                           sync.Mutex
+	timeStampProducer               func() time.Time
+	metricSuccessCountKey           string
+	metricFailureCountKey           string
+	metricProcessMillisHistogramKey string
 }
 
 var producerTaskerInstance = ProducerTasker{
@@ -466,11 +467,13 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
-	t.metricSuccessCountKey = "records_success_task"
-	t.metricFailureCountKey = "records_failure_task"
+	t.metricSuccessCountKey = "records_success_indexer_task"
+	t.metricFailureCountKey = "records_failure_indexer_task"
+	t.metricProcessMillisHistogramKey = "records_process_millis_indexer_task"
 
 	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
+	metrics.Prometheus.HistogramInit(t.metricProcessMillisHistogramKey, "records process millis")
 
 	go initRefreshAggregatesTick(t)
 }
@@ -479,20 +482,21 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 	timer := time.NewTicker(aggregationTick)
 	defer timer.Stop()
 
+	performRefresh(t)
+	for range timer.C {
+		performRefresh(t)
+	}
+}
+
+func performRefresh(t *ProducerTasker) {
+	timeNow := time.Now()
+	defer metrics.Prometheus.HistogramObserve(t.metricProcessMillisHistogramKey, float64(time.Since(timeNow).Milliseconds()))
+
 	err := t.RefreshAggregates()
 	if err != nil {
 		metrics.Prometheus.CounterInc(t.metricFailureCountKey)
 		t.connections.Logger().Error("Refresh Aggregates %s", err)
 	} else {
 		metrics.Prometheus.CounterInc(t.metricSuccessCountKey)
-	}
-	for range timer.C {
-		err := t.RefreshAggregates()
-		if err != nil {
-			metrics.Prometheus.CounterInc(t.metricFailureCountKey)
-			t.connections.Logger().Error("Refresh Aggregates %s", err)
-		} else {
-			metrics.Prometheus.CounterInc(t.metricSuccessCountKey)
-		}
 	}
 }
