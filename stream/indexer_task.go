@@ -43,8 +43,6 @@ var (
 
 	// number of updaters
 	updatesCount = 4
-
-	IndexTaskerBufferBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
 )
 
 type ProducerTasker struct {
@@ -54,11 +52,11 @@ type ProducerTasker struct {
 	timeStampProducer func() time.Time
 
 	// metrics
-	metricSuccessCountKey           string
-	metricFailureCountKey           string
-	metricProcessMillisHistogramKey string
-	metricAssetAggregateCountKey    string
-	metricCountAggregateCountKey    string
+	metricSuccessCountKey        string
+	metricFailureCountKey        string
+	metricProcessMillisCountKey  string
+	metricAssetAggregateCountKey string
+	metricCountAggregateCountKey string
 }
 
 var producerTaskerInstance = ProducerTasker{
@@ -487,7 +485,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 func (t *ProducerTasker) Start() {
 	t.metricSuccessCountKey = "indexer_task_records_success"
 	t.metricFailureCountKey = "indexer_task_records_failure"
-	t.metricProcessMillisHistogramKey = "indexer_task_records_process_millis"
+	t.metricProcessMillisCountKey = "indexer_task_records_process_millis"
 	t.metricAssetAggregateCountKey = "index_task_records_asset_aggregate_count"
 	t.metricCountAggregateCountKey = "index_task_records_count_aggregate_count"
 
@@ -495,7 +493,7 @@ func (t *ProducerTasker) Start() {
 	metrics.Prometheus.CounterInit(t.metricCountAggregateCountKey, "records count aggregate count")
 	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
-	metrics.Prometheus.HistogramInit(t.metricProcessMillisHistogramKey, "records process millis", IndexTaskerBufferBuckets)
+	metrics.Prometheus.CounterInit(t.metricProcessMillisCountKey, "records processed millis")
 
 	go initRefreshAggregatesTick(t)
 }
@@ -512,7 +510,7 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 
 func performRefresh(t *ProducerTasker) {
 	collectors := metrics.NewCollectors(
-		metrics.NewHistogramCollect(t.metricProcessMillisHistogramKey),
+		metrics.NewCounterObserveMillisCollect(t.metricProcessMillisCountKey),
 		metrics.NewSuccessFailCounterInc(t.metricSuccessCountKey, t.metricFailureCountKey),
 	)
 	defer func() {
