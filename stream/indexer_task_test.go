@@ -79,16 +79,18 @@ func TestIntegration(t *testing.T) {
 	}
 
 	avmAggregateModels, _ := models.SelectAvmAssetAggregations(ctx, sess)
+	if len(avmAggregateModels) != 1 {
+		t.Errorf("aggregate map not created")
+	}
 
-	for _, aggregateMapValue := range avmAggregateModels {
-		if !aggregateMapValue.AggregateTS.Equal(aggregationTime.UTC()) &&
-			aggregateMapValue.AssetID != "testasset" &&
-			aggregateMapValue.ChainID != "cid1" &&
-			aggregateMapValue.TransactionVolume != "200" &&
-			aggregateMapValue.TransactionCount != 1 &&
-			aggregateMapValue.AssetCount != 2 {
-			t.Errorf("aggregate map invalid")
-		}
+	if !(avmAggregateModels[0].AggregateTS.Equal(aggregationTime.UTC()) &&
+		avmAggregateModels[0].AssetID == "testasset" &&
+		avmAggregateModels[0].ChainID == "cid" &&
+		avmAggregateModels[0].TransactionVolume == "200" &&
+		avmAggregateModels[0].TransactionCount == 1 &&
+		avmAggregateModels[0].AssetCount == 1 &&
+		avmAggregateModels[0].OutputCount == 2) {
+		t.Error("aggregate map invalid", avmAggregateModels[0])
 	}
 
 	avmAggregateCounts, _ := models.SelectAvmAssetAggregationCounts(ctx, sess)
@@ -96,17 +98,15 @@ func TestIntegration(t *testing.T) {
 		t.Errorf("aggregate map count not created")
 	}
 
-	for _, aggregateCountMapValue := range avmAggregateCounts {
-		if aggregateCountMapValue.Address != "id1" &&
-			aggregateCountMapValue.AssetID != "testasset" &&
-			aggregateCountMapValue.AssetID != "ch1" &&
-			aggregateCountMapValue.TransactionCount != 1 &&
-			aggregateCountMapValue.TotalSent != "0" &&
-			aggregateCountMapValue.TotalReceived != "100" &&
-			aggregateCountMapValue.Balance != "100" &&
-			aggregateCountMapValue.UtxoCount != 1 {
-			t.Errorf("aggregate map count invalid")
-		}
+	if !(avmAggregateCounts[0].Address == "addr1" &&
+		avmAggregateCounts[0].AssetID == "testasset" &&
+		avmAggregateCounts[0].ChainID == "cid" &&
+		avmAggregateCounts[0].TransactionCount == 1 &&
+		avmAggregateCounts[0].TotalReceived == "100" &&
+		avmAggregateCounts[0].TotalSent == "0" &&
+		avmAggregateCounts[0].Balance == "100" &&
+		avmAggregateCounts[0].UtxoCount == 1) {
+		t.Error("aggregate map count invalid", avmAggregateCounts[0])
 	}
 
 	aggregateTxFees, _ := models.SelectAggregateTxFee(ctx, sess)
