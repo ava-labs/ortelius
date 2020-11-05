@@ -178,7 +178,7 @@ func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
 	id := r.PathParams["id"]
 	p.PathParamID = id
 	c.WriteCacheable(w, api.Cacheable{
-		Key: c.cacheKeyForParams("get_address", p),
+		Key: c.cacheKeyForParams("get_asset", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.reader.GetAsset(ctx, p, id)
 		},
