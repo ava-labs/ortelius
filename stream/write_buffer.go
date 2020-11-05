@@ -21,8 +21,6 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 )
 
-var defaultBufferBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
-
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
@@ -33,10 +31,10 @@ type bufferedWriter struct {
 	log    logging.Logger
 
 	// metrics
-	metricSuccessCountKey           string
-	metricFailureCountKey           string
-	metricWriteCountKey             string
-	metricProcessMillisHistogramKey string
+	metricSuccessCountKey       string
+	metricFailureCountKey       string
+	metricWriteCountKey         string
+	metricProcessMillisCountKey string
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -52,19 +50,19 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer:                          make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
-		doneCh:                          make(chan struct{}),
-		log:                             log,
-		metricSuccessCountKey:           "kafka_write_records_success",
-		metricFailureCountKey:           "kafka_write_records_failure",
-		metricProcessMillisHistogramKey: "kafka_write_records_process_millis",
-		metricWriteCountKey:             "kafka_write_records_write",
+		buffer:                      make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		doneCh:                      make(chan struct{}),
+		log:                         log,
+		metricSuccessCountKey:       "kafka_write_records_success",
+		metricFailureCountKey:       "kafka_write_records_failure",
+		metricProcessMillisCountKey: "kafka_write_records_process_millis",
+		metricWriteCountKey:         "kafka_write_records_write",
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
-	metrics.Prometheus.HistogramInit(wb.metricProcessMillisHistogramKey, "records process millis", defaultBufferBuckets)
+	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
@@ -107,7 +105,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer cancelFn()
 
 		collectors := metrics.NewCollectors(
-			metrics.NewHistogramCollect(wb.metricProcessMillisHistogramKey),
+			metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
 			metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
 		)
 		defer func() {
