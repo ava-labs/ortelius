@@ -170,11 +170,17 @@ func (c *APIContext) ListAssets(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *APIContext) GetAsset(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListAssetsParams{}
+	if err := p.ForValues(r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
 	id := r.PathParams["id"]
+	p.PathParamID = id
 	c.WriteCacheable(w, api.Cacheable{
-		Key: c.cacheKeyForID("get_address", id),
+		Key: c.cacheKeyForParams("get_asset", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.reader.GetAsset(ctx, id)
+			return c.reader.GetAsset(ctx, p, id)
 		},
 	})
 }
