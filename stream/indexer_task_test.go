@@ -114,11 +114,9 @@ func TestIntegration(t *testing.T) {
 		t.Errorf("aggregate map count not created")
 	}
 
-	for _, aggregateTxFee := range aggregateTxFees {
-		if !aggregateTxFee.AggregateTS.Equal(aggregationTime.UTC()) &&
-			aggregateTxFee.TxFee != "1" {
-			t.Errorf("aggregate map count invalid")
-		}
+	if !(aggregateTxFees[0].AggregateTS.Equal(aggregationTime.UTC()) &&
+		aggregateTxFees[0].TxFee == "123") {
+		t.Error("aggregate map count invalid", aggregateTxFees[0])
 	}
 }
 
@@ -176,6 +174,7 @@ func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *test
 		Pair("chain_id", "cid").
 		Pair("type", "type").
 		Pair("created_at", pastime).
+		Pair("txfee", 123).
 		Exec()
 	if err != nil {
 		t.Error("insert avm_transactions", err)
