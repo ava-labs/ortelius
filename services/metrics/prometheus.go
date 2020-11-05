@@ -190,23 +190,23 @@ type counterObserveMillisCollect struct {
 }
 
 func NewCounterObserveMillisCollect(key string) Collector {
-	hc := counterObserveMillisCollect{
+	c := counterObserveMillisCollect{
 		collect: true,
 		timeNow: time.Now(),
 		key:     key,
 	}
-	return &hc
+	return &c
 }
 
-func (hc *counterObserveMillisCollect) Error() {
-	hc.collect = false
+func (c *counterObserveMillisCollect) Error() {
+	c.collect = false
 }
 
-func (hc *counterObserveMillisCollect) Collect() error {
-	if !hc.collect {
+func (c *counterObserveMillisCollect) Collect() error {
+	if !c.collect {
 		return nil
 	}
-	return Prometheus.CounterAdd(hc.key, float64(time.Since(hc.timeNow).Milliseconds()))
+	return Prometheus.CounterAdd(c.key, float64(time.Since(c.timeNow).Milliseconds()))
 }
 
 // a counter incrementer.  Increments by 1
