@@ -37,12 +37,15 @@ func (m *Metrics) Init() {
 
 func (m *Metrics) CounterInit(name string, help string) {
 	m.Init()
+	m.metricsLock.Lock()
+	defer m.metricsLock.Unlock()
+	if _, ok := m.counters[name]; ok {
+		return
+	}
 	counter := promauto.NewCounter(prometheus.CounterOpts{
 		Name: name,
 		Help: help,
 	})
-	m.metricsLock.Lock()
-	defer m.metricsLock.Unlock()
 	m.counters[name] = &counter
 }
 
@@ -68,13 +71,16 @@ func (m *Metrics) CounterAdd(name string, v float64) error {
 
 func (m *Metrics) HistogramInit(name string, help string, buckets []float64) {
 	m.Init()
+	m.metricsLock.Lock()
+	defer m.metricsLock.Unlock()
+	if _, ok := m.histograms[name]; ok {
+		return
+	}
 	histogram := promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    name,
 		Help:    help,
 		Buckets: buckets,
 	})
-	m.metricsLock.Lock()
-	defer m.metricsLock.Unlock()
 	m.histograms[name] = &histogram
 }
 
@@ -174,6 +180,33 @@ func (hc *histogramObserveMillis) Collect() error {
 		return nil
 	}
 	return Prometheus.HistogramObserve(hc.key, float64(time.Since(hc.timeNow).Milliseconds()))
+}
+
+// a counter incrementer.  Increments by delta time
+type counterObserveMillisCollect struct {
+	collect bool
+	timeNow time.Time
+	key     string
+}
+
+func NewCounterObserveMillisCollect(key string) Collector {
+	hc := counterObserveMillisCollect{
+		collect: true,
+		timeNow: time.Now(),
+		key:     key,
+	}
+	return &hc
+}
+
+func (hc *counterObserveMillisCollect) Error() {
+	hc.collect = false
+}
+
+func (hc *counterObserveMillisCollect) Collect() error {
+	if !hc.collect {
+		return nil
+	}
+	return Prometheus.CounterAdd(hc.key, float64(time.Since(hc.timeNow).Milliseconds()))
 }
 
 // a counter incrementer.  Increments by 1
