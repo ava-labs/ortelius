@@ -23,8 +23,6 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 )
 
-var ConsumerBuckets = []float64{0, 1, 100, 500, 1000, 2000, 5000}
-
 var (
 	consumerInitializeTimeout = 3 * time.Minute
 )
@@ -39,10 +37,10 @@ type consumer struct {
 	conns    *services.Connections
 
 	// metrics
-	metricProcessedCountKey         string
-	metricFailureCountKey           string
-	metricProcessMillisHistogramKey string
-	metricSuccessCountKey           string
+	metricProcessedCountKey       string
+	metricFailureCountKey         string
+	metricProcessMillisCounterKey string
+	metricSuccessCountKey         string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -54,15 +52,15 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		c := &consumer{
-			chainID:                         chainID,
-			conns:                           conns,
-			metricProcessedCountKey:         fmt.Sprintf("consume_records_processed_%s", chainID),
-			metricProcessMillisHistogramKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
-			metricSuccessCountKey:           fmt.Sprintf("consume_records_success_%s", chainID),
-			metricFailureCountKey:           fmt.Sprintf("consume_records_failure_%s", chainID),
+			chainID:                       chainID,
+			conns:                         conns,
+			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s", chainID),
+			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
+			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
+			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.HistogramInit(c.metricProcessMillisHistogramKey, "records process millis", ConsumerBuckets)
+		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
@@ -130,7 +128,7 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewHistogramCollect(c.metricProcessMillisHistogramKey),
+		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
