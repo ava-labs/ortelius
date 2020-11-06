@@ -7,19 +7,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"time"
+
 	"github.com/ava-labs/avalanchego/ids"
-	//"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
-	"math"
-	"math/big"
-	"time"
 )
 
 const (
 	MaxAggregateIntervalCount = 20000
+
+	MinSearchQueryLength = 1
 
 	RequestTimeout = 30 * time.Second
 )
@@ -27,6 +29,7 @@ const (
 var (
 	ErrAggregateIntervalCountTooLarge = errors.New("requesting too many intervals")
 	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
+	ErrSearchQueryTooShort            = errors.New("search query too short")
 
 	outputSelectColumns = []string{
 		"avm_outputs.id",
@@ -45,7 +48,6 @@ var (
 )
 
 type Reader struct {
-	//chainIDs []string
 	conns *services.Connections
 }
 
@@ -57,38 +59,36 @@ func NewReader(conns *services.Connections) *Reader {
 }
 
 func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	if len(p.Query) < params.MinSearchQueryLength {
-		return nil, params.ErrSearchQueryTooShort
+	p.ListParams.DisableCounting = true
+
+	if len(p.ListParams.Query) < MinSearchQueryLength {
+		return nil, ErrSearchQueryTooShort
 	}
 
 	// See if the query string is an id or shortID. If so we can search on them
 	// directly. Otherwise we treat the query as a normal query-string.
-	if shortID, err := params.AddressFromString(p.Query); err == nil {
+	if shortID, err := params.AddressFromString(p.ListParams.Query); err == nil {
 		return r.searchByShortID(ctx, shortID)
 	}
-	if id, err := ids.FromString(p.Query); err == nil {
+	if id, err := ids.FromString(p.ListParams.Query); err == nil {
 		return r.searchByID(ctx, id, avaxAssetID)
 	}
 
-	// copy the list params, and inject DisableCounting for subsequent List* calls.
-	cpListParams := p.ListParams
-	cpListParams.DisableCounting = true
-
-	// The query string was not an id/shortid so perform a regular search against
-	// all models
-	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: cpListParams, Query: p.Query}, avaxAssetID)
+	// The query string was not an id/shortid so perform an ID prefix search
+	// against transactions and addresses.
+	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: p.ListParams}, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}
-	if len(transactions.Transactions) >= p.Limit {
+	if len(transactions.Transactions) >= p.ListParams.Limit {
 		return collateSearchResults(nil, transactions)
 	}
 
-	addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: cpListParams, Query: p.Query})
+	addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
 	if err != nil {
 		return nil, err
 	}
-	if len(addresses.Addresses) >= p.Limit {
+	if len(addresses.Addresses) >= p.ListParams.Limit {
 		return collateSearchResults(addresses, transactions)
 	}
 
@@ -97,9 +97,9 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 
 func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
-	if params.StartTime.IsZero() {
+	if params.ListParams.StartTime.IsZero() {
 		var err error
-		params.StartTime, err = r.getFirstTransactionTime(ctx, params.ChainIDs)
+		params.ListParams.StartTime, err = r.getFirstTransactionTime(ctx, params.ChainIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +111,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	intervalSeconds := int64(params.IntervalSize.Seconds())
 	requestedIntervalCount := 0
 	if intervalSeconds != 0 {
-		requestedIntervalCount = int(math.Ceil(params.EndTime.Sub(params.StartTime).Seconds() / params.IntervalSize.Seconds()))
+		requestedIntervalCount = int(math.Ceil(params.ListParams.EndTime.Sub(params.ListParams.StartTime).Seconds() / params.IntervalSize.Seconds()))
 		if requestedIntervalCount > MaxAggregateIntervalCount {
 			return nil, ErrAggregateIntervalCountTooLarge
 		}
@@ -130,6 +130,8 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	switch params.Version {
 	// new requests v=1 use the avm_asset_aggregation tables
+	case 2:
+		fallthrough
 	case 1:
 		columns := []string{
 			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
@@ -142,15 +144,15 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		if requestedIntervalCount > 0 {
 			columns = append(columns, fmt.Sprintf(
 				"FLOOR((UNIX_TIMESTAMP(avm_asset_aggregation.aggregate_ts)-%d) / %d) AS idx",
-				params.StartTime.Unix(),
+				params.ListParams.StartTime.Unix(),
 				intervalSeconds))
 		}
 
 		builder = dbRunner.
 			Select(columns...).
 			From("avm_asset_aggregation").
-			Where("avm_asset_aggregation.aggregate_ts >= ?", params.StartTime).
-			Where("avm_asset_aggregation.aggregate_ts < ?", params.EndTime)
+			Where("avm_asset_aggregation.aggregate_ts >= ?", params.ListParams.StartTime).
+			Where("avm_asset_aggregation.aggregate_ts < ?", params.ListParams.EndTime)
 
 		if params.AssetID != nil {
 			builder.Where("avm_asset_aggregation.asset_id = ?", params.AssetID.String())
@@ -168,7 +170,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		if requestedIntervalCount > 0 {
 			columns = append(columns, fmt.Sprintf(
 				"FLOOR((UNIX_TIMESTAMP(avm_outputs.created_at)-%d) / %d) AS idx",
-				params.StartTime.Unix(),
+				params.ListParams.StartTime.Unix(),
 				intervalSeconds))
 		}
 
@@ -176,8 +178,8 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			Select(columns...).
 			From("avm_outputs").
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-			Where("avm_outputs.created_at >= ?", params.StartTime).
-			Where("avm_outputs.created_at < ?", params.EndTime)
+			Where("avm_outputs.created_at >= ?", params.ListParams.StartTime).
+			Where("avm_outputs.created_at < ?", params.ListParams.EndTime)
 
 		if params.AssetID != nil {
 			builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
@@ -202,16 +204,18 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		// This check should never fail if the SQL query is correct, but added for
 		// robustness to prevent panics if the invariant does not hold.
 		if len(intervals) > 0 {
-			intervals[0].StartTime = params.StartTime
-			intervals[0].EndTime = params.EndTime
-			return &models.AggregatesHistogram{Aggregates: intervals[0],
-					StartTime: params.StartTime,
-					EndTime:   params.EndTime},
-				nil
+			intervals[0].StartTime = params.ListParams.StartTime
+			intervals[0].EndTime = params.ListParams.EndTime
+			return &models.AggregatesHistogram{
+				Aggregates: intervals[0],
+				StartTime:  params.ListParams.StartTime,
+				EndTime:    params.ListParams.EndTime,
+			}, nil
 		}
-		return &models.AggregatesHistogram{StartTime: params.StartTime,
-				EndTime: params.EndTime},
-			nil
+		return &models.AggregatesHistogram{
+			StartTime: params.ListParams.StartTime,
+			EndTime:   params.ListParams.EndTime,
+		}, nil
 	}
 
 	// We need to return multiple intervals so build them now.
@@ -223,10 +227,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	var startTS int64
 	timesForInterval := func(intervalIdx int) (time.Time, time.Time) {
-		// An interval's start Time is its index Time the interval size, plus the
-		// starting Time. The end Time is (interval size - 1) seconds after the
-		// start Time.
-		startTS = params.StartTime.Unix() + (int64(intervalIdx) * intervalSeconds)
+		startTS = params.ListParams.StartTime.Unix() + (int64(intervalIdx) * intervalSeconds)
 		return time.Unix(startTS, 0).UTC(),
 			time.Unix(startTS+intervalSeconds-1, 0).UTC()
 	}
@@ -241,7 +242,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	// Collect the overall counts and pad the intervals to include empty intervals
 	// which are not returned by the db
-	aggs.Aggregates = models.Aggregates{StartTime: params.StartTime, EndTime: params.EndTime}
+	aggs.Aggregates = models.Aggregates{StartTime: params.ListParams.StartTime, EndTime: params.ListParams.EndTime}
 	var (
 		bigIntFromStringOK bool
 		totalVolume        = big.NewInt(0)
@@ -279,8 +280,8 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
 
-	aggs.StartTime = params.StartTime
-	aggs.EndTime = params.EndTime
+	aggs.StartTime = params.ListParams.StartTime
+	aggs.EndTime = params.ListParams.EndTime
 
 	return aggs, nil
 }
@@ -298,7 +299,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
-		if p.Query != "" {
+		if p.ListParams.Query != "" {
 			return
 		}
 		switch sort {
@@ -318,32 +319,33 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	var count uint64
-	if !p.DisableCounting {
-		count = uint64(p.Offset) + uint64(len(txs))
-		if len(txs) >= p.Limit {
+	var count *uint64
+	if !p.ListParams.DisableCounting {
+		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
+		if len(txs) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
 			selector := p.Apply(dbRunner.
 				Select("COUNT(avm_transactions.id)").
 				From("avm_transactions"))
-			err := selector.
-				LoadOneContext(ctx, &count)
-			if err != nil {
+
+			if err := selector.LoadOneContext(ctx, &count); err != nil {
 				return nil, err
 			}
 		}
 	}
 
 	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ID, p.DisableGenesis); err != nil {
+	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
 		return nil, err
 	}
 
-	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count},
-			Transactions: txs,
-			StartTime:    p.StartTime,
-			EndTime:      p.EndTime},
-		nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{
+		Count: count,
+	},
+		Transactions: txs,
+		StartTime:    p.ListParams.StartTime,
+		EndTime:      p.ListParams.EndTime,
+	}, nil
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
@@ -362,10 +364,10 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		return nil, err
 	}
 
-	var count uint64
-	if !p.DisableCounting {
-		count = uint64(p.Offset) + uint64(len(addresses))
-		if len(addresses) >= p.Limit {
+	var count *uint64
+	if !p.ListParams.DisableCounting {
+		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
+		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
 				Select("COUNT(DISTINCT(avm_output_addresses.address))").
@@ -435,10 +437,10 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 		output.Addresses = append(output.Addresses, address.Address)
 	}
 
-	var count uint64
-	if !p.DisableCounting {
-		count = uint64(p.Offset) + uint64(len(outputs))
-		if len(outputs) >= p.Limit {
+	var count *uint64
+	if !p.ListParams.DisableCounting {
+		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(outputs)))
+		if len(outputs) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
 			err = p.Apply(dbRunner.
 				Select("COUNT(avm_outputs.id)").
@@ -455,7 +457,9 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 }
 
 func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.Transaction, error) {
-	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ID: &id}, avaxAssetID)
+	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
+		ListParams: params.ListParams{ID: &id},
+	}, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +481,7 @@ func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.Addres
 }
 
 func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
-	outputList, err := r.ListOutputs(ctx, &params.ListOutputsParams{ID: &id})
+	outputList, err := r.ListOutputs(ctx, &params.ListOutputsParams{ListParams: params.ListParams{ID: &id}})
 	if err != nil {
 		return nil, err
 	}
@@ -702,23 +706,23 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		return nil, err
 	}
 
-	inputids := make([]models.StringID, 0, len(inputs))
+	inputIDs := make([]models.StringID, 0, len(inputs))
 	for _, input := range inputs {
-		inputids = append(inputids, input.ID)
+		inputIDs = append(inputIDs, input.ID)
 	}
 
 	// find any Ins without a matching Out and make mock out records for display..
 	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
 	// we're looking for any with my redeeming_transaction_id
 	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
-	// and not in the known inputids list.
+	// and not in the known inputIDs list.
 	var inputsRedeeming []*compositeRecord
 	q := selectOutputsRedeeming(dbRunner)
-	if len(inputids) != 0 {
+	if len(inputIDs) != 0 {
 		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
 			"and avm_outputs.id is null "+
 			"and avm_outputs_redeeming.id not in ?",
-			txIDs, inputids)
+			txIDs, inputIDs)
 	} else {
 		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
 			"and avm_outputs.id is null ",
@@ -736,9 +740,12 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	listParams := params.ListParams{DisableCounting: true}
-
-	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: listParams, ID: &id}, avaxAssetID); err != nil {
+	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
+		ListParams: params.ListParams{
+			DisableCounting: true,
+			ID:              &id,
+		},
+	}, avaxAssetID); err != nil {
 		return nil, err
 	} else if len(txs.Transactions) > 0 {
 		return collateSearchResults(nil, txs)
@@ -928,4 +935,8 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+func uint64Ptr(u64 uint64) *uint64 {
+	return &u64
 }

@@ -8,44 +8,42 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services/indexes/avax"
-	avmIndex "github.com/ava-labs/ortelius/services/indexes/avm"
-	"github.com/ava-labs/ortelius/services/indexes/params"
-	pvmIndex "github.com/ava-labs/ortelius/services/indexes/pvm"
 	"net/http"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/ortelius/services/cache"
+	"github.com/ava-labs/ortelius/services/indexes/avax"
+	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/gocraft/health"
 	"github.com/gocraft/web"
-
-	"github.com/ava-labs/ortelius/services/cache"
 )
 
-//const (
-//	AVMName     = "avm"
-//	XChainAlias = "x"
-//	PVMName     = "pvm"
-//	PChainAlias = "p"
-//)
-
 var (
-	// ErrCacheableFnFailed is returned when the execution of a CacheableFn fails
+	// ErrCacheableFnFailed is returned when the execution of a CacheableFn
+	// fails.
 	ErrCacheableFnFailed = errors.New("failed to load resource")
+
+	// errInternalServerError is returned when errors occur that are not due to
+	// a mistake from the caller.
+	errInternalServerError = errors.New("internal server error")
 )
 
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
-	ctx       context.Context
-	job       *health.Job
-	networkID uint32
-	err       error
-	cache     cacher
+	ctx context.Context
+	job *health.Job
+	err error
 
+	networkID   uint32
 	avaxAssetID ids.ID
-	avaxReader  *avax.Reader
-	avmReader   *avmIndex.Reader
-	pvmReader   *pvmIndex.Reader
+
+	cache      cacher
+	avaxReader *avax.Reader
+	avmReader  *avm.Reader
+	pvmReader  *pvm.Reader
 }
 
 // Ctx returns the context.Context for this request context
@@ -95,6 +93,24 @@ func (c *Context) WriteErr(w http.ResponseWriter, code int, err error) {
 	}
 
 	w.WriteHeader(code)
+	fmt.Fprint(w, string(errBytes))
+}
+
+// WriteErr writes an error response to the http response
+func (c *Context) Write500Err(w http.ResponseWriter, actualErr error) {
+	c.err = actualErr
+
+	errBytes, err := json.Marshal(&ErrorResponse{
+		Code:    500,
+		Message: errInternalServerError.Error(),
+	})
+
+	w.WriteHeader(500)
+
+	if err != nil {
+		c.job.EventErr("marshal_error", err)
+		return
+	}
 	fmt.Fprint(w, string(errBytes))
 }
 

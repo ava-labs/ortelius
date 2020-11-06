@@ -5,23 +5,22 @@ package api
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/vms/avm"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/indexes/avax"
-	avmIndex "github.com/ava-labs/ortelius/services/indexes/avm"
-	pvmIndex "github.com/ava-labs/ortelius/services/indexes/pvm"
-	"github.com/gocraft/web"
 	"net/http"
 	"time"
 
+	"github.com/ava-labs/avalanchego/genesis"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
+	avmVM "github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/avax"
+	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/indexes/pvm"
+	"github.com/gocraft/web"
 )
 
 var (
@@ -77,14 +76,13 @@ func (s *Server) Close() error {
 }
 
 func newRouter(conf cfg.Config) (*web.Router, error) {
-
 	// Pre-calculate IDs and index responses
 	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
 	if err != nil {
 		return nil, err
 	}
 
-	xChainGenesisTx, err := genesis.VMGenesis(conf.NetworkID, avm.ID)
+	xChainGenesisTx, err := genesis.VMGenesis(conf.NetworkID, avmVM.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +115,8 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 	}
 
 	avaxReader := avax.NewReader(connections)
-	avmReader := avmIndex.NewReader(connections)
-	pvmReader := pvmIndex.NewReader(connections)
+	avmReader := avm.NewReader(connections)
+	pvmReader := pvm.NewReader(connections)
 
 	// Build router
 	router := web.New(Context{}).
