@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/cobra"
 
@@ -81,6 +83,17 @@ func execute() error {
 
 				c.Services.Log = alog
 				*config = *c
+
+				if config.MetricsListenAddr != "" {
+					http.Handle("/metrics", promhttp.Handler())
+					go func() {
+						err = http.ListenAndServe(config.MetricsListenAddr, nil)
+						if err != nil {
+							log.Fatalln("Failed to start metrics listener", err.Error())
+						}
+					}()
+					alog.Info("Starting metrics handler on %s", config.MetricsListenAddr)
+				}
 			},
 		}
 	)

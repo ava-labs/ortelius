@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/metrics"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -48,6 +50,13 @@ type ProducerTasker struct {
 	connections       *services.Connections
 	plock             sync.Mutex
 	timeStampProducer func() time.Time
+
+	// metrics
+	metricSuccessCountKey        string
+	metricFailureCountKey        string
+	metricProcessMillisCountKey  string
+	metricAssetAggregateCountKey string
+	metricCountAggregateCountKey string
 }
 
 var producerTaskerInstance = ProducerTasker{
@@ -186,6 +195,11 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 			if err := t.replaceAvmAggregate(*update.avmAggregate); err != nil {
 				t.connections.Logger().Error("replace avm aggregate %s", err)
 				errs.SetValue(err)
+			} else {
+				err := metrics.Prometheus.CounterInc(t.metricAssetAggregateCountKey)
+				if err != nil {
+					t.connections.Logger().Error("prometheus.CounterInc: %s", err)
+				}
 			}
 		}
 
@@ -193,6 +207,11 @@ func (t *ProducerTasker) processAggregates(baseAggregateTS time.Time) (*avalanch
 			if err := t.replaceAvmAggregateCount(*update.avmAggregateCount); err != nil {
 				t.connections.Logger().Error("replace avm aggregate count %s", err)
 				errs.SetValue(err)
+			} else {
+				err := metrics.Prometheus.CounterInc(t.metricCountAggregateCountKey)
+				if err != nil {
+					t.connections.Logger().Error("prometheus.CounterInc: %s", err)
+				}
 			}
 		}
 	}
@@ -460,6 +479,18 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
+	t.metricSuccessCountKey = "indexer_task_records_success"
+	t.metricFailureCountKey = "indexer_task_records_failure"
+	t.metricProcessMillisCountKey = "indexer_task_records_process_millis"
+	t.metricAssetAggregateCountKey = "index_task_records_asset_aggregate_count"
+	t.metricCountAggregateCountKey = "index_task_records_count_aggregate_count"
+
+	metrics.Prometheus.CounterInit(t.metricAssetAggregateCountKey, "records asset aggregate count")
+	metrics.Prometheus.CounterInit(t.metricCountAggregateCountKey, "records count aggregate count")
+	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
+	metrics.Prometheus.CounterInit(t.metricProcessMillisCountKey, "records processed millis")
+
 	go initRefreshAggregatesTick(t)
 }
 
@@ -467,14 +498,27 @@ func initRefreshAggregatesTick(t *ProducerTasker) {
 	timer := time.NewTicker(aggregationTick)
 	defer timer.Stop()
 
+	performRefresh(t)
+	for range timer.C {
+		performRefresh(t)
+	}
+}
+
+func performRefresh(t *ProducerTasker) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(t.metricProcessMillisCountKey),
+		metrics.NewSuccessFailCounterInc(t.metricSuccessCountKey, t.metricFailureCountKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			t.connections.Logger().Error("collectors.Collect: %s", err)
+		}
+	}()
+
 	err := t.RefreshAggregates()
 	if err != nil {
-		t.connections.Logger().Error("Refresh Aggegates %s", err)
-	}
-	for range timer.C {
-		err := t.RefreshAggregates()
-		if err != nil {
-			t.connections.Logger().Error("Refresh Aggegates %s", err)
-		}
+		collectors.Error()
+		t.connections.Logger().Error("Refresh Aggregates %s", err)
 	}
 }

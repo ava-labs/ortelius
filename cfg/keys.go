@@ -17,6 +17,8 @@ const (
 	keysServicesAPI           = "api"
 	keysServicesAPIListenAddr = "listenAddr"
 
+	keysServicesMetricsListenAddr = "metricsListenAddr"
+
 	keysServicesDB       = "db"
 	keysServicesDBDriver = "driver"
 	keysServicesDBDSN    = "dsn"

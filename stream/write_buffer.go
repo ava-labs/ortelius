@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/metrics"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -27,6 +29,12 @@ type bufferedWriter struct {
 	buffer chan (*[]byte)
 	doneCh chan (struct{})
 	log    logging.Logger
+
+	// metrics
+	metricSuccessCountKey       string
+	metricFailureCountKey       string
+	metricWriteCountKey         string
+	metricProcessMillisCountKey string
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -42,10 +50,19 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer: make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
-		doneCh: make(chan struct{}),
-		log:    log,
+		buffer:                      make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		doneCh:                      make(chan struct{}),
+		log:                         log,
+		metricSuccessCountKey:       "kafka_write_records_success",
+		metricFailureCountKey:       "kafka_write_records_failure",
+		metricProcessMillisCountKey: "kafka_write_records_process_millis",
+		metricWriteCountKey:         "kafka_write_records_write",
 	}
+
+	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
+	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
+	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
@@ -87,7 +104,19 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
 		defer cancelFn()
 
+		collectors := metrics.NewCollectors(
+			metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
+			metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
+		)
+		defer func() {
+			err := collectors.Collect()
+			if err != nil {
+				wb.log.Error("collectors.Collect: %s", err)
+			}
+		}()
+
 		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
+			collectors.Error()
 			wb.log.Error("Error writing to kafka:", err)
 		}
 

@@ -5,10 +5,13 @@ package stream
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/avalanchego/ipcs/socket"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/metrics"
 )
 
 // producer reads from the socket and writes to the event stream
@@ -18,16 +21,30 @@ type Producer struct {
 	sock        *socket.Client
 	writeBuffer *bufferedWriter
 	log         logging.Logger
+
+	// metrics
+	metricProcessedCountKey string
+	metricWrittenCountKey   string
+	metricSuccessCountKey   string
+	metricFailureCountKey   string
 }
 
 // NewProducer creates a producer using the given config
 func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
 	p := &Producer{
-		chainID:     chainID,
-		eventType:   eventType,
-		writeBuffer: newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
-		log:         conf.Log,
+		chainID:                 chainID,
+		eventType:               eventType,
+		writeBuffer:             newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		log:                     conf.Log,
+		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s", eventType),
+		metricWrittenCountKey:   fmt.Sprintf("produce_records_written_%s", eventType),
+		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s", eventType),
+		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s", eventType),
 	}
+	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	metrics.Prometheus.CounterInit(p.metricWrittenCountKey, "records written")
+	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 
 	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
@@ -64,5 +81,24 @@ func (p *Producer) ProcessNextMessage(_ context.Context) error {
 
 	p.writeBuffer.Write(rawMsg)
 
+	err = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
+
 	return nil
+}
+
+func (p *Producer) Failure() {
+	err := metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
+}
+
+func (p *Producer) Success() {
+	err := metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
+	if err != nil {
+		p.log.Error("prometheus.CounterInc %s", err)
+	}
 }
