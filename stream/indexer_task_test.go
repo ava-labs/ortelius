@@ -37,13 +37,11 @@ func TestIntegration(t *testing.T) {
 	tasker := ProducerTasker{connections: co,
 		timeStampProducer: timeProducerFunc,
 	}
+	tasker.initMetrics()
 
 	ctx := context.Background()
-
 	sess, _ := co.DB().NewSession("producertask", 5*time.Second)
-
 	pastime := time.Now().Add(-5 * time.Hour).Round(1 * time.Minute).Add(1 * time.Second)
-
 	aggregationTime := pastime.Truncate(timestampRollup)
 
 	initData(ctx, sess, pastime, t)
