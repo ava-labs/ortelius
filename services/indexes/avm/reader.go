@@ -64,9 +64,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 
 	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil
 }
-func (r *Reader) GetAsset(ctx context.Context, idStrOrAlias string) (*models.Asset, error) {
-	p := &params.ListAssetsParams{}
-
+func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStrOrAlias string) (*models.Asset, error) {
 	id, err := ids.FromString(idStrOrAlias)
 	if err == nil {
 		p.ListParams.ID = &id

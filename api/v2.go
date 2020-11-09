@@ -228,11 +228,18 @@ func (c *V2Context) ListAssets(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListAssetsParams{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
 	id := r.PathParams["id"]
+	p.PathParamID = id
+
 	c.WriteCacheable(w, Cacheable{
-		Key: c.cacheKeyForID("get_address", id),
+		Key: c.cacheKeyForID("get_asset", id),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avmReader.GetAsset(ctx, id)
+			return c.avmReader.GetAsset(ctx, p, id)
 		},
 	})
 }
