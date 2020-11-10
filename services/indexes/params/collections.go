@@ -77,6 +77,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if err != nil {
 		return err
 	}
+	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
@@ -86,6 +87,7 @@ func (p *AggregateParams) ForValues(q url.Values) (err error) {
 	if p.EndTime.IsZero() {
 		p.EndTime = time.Now().UTC()
 	}
+	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
 
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
@@ -108,8 +110,8 @@ func (p *AggregateParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
-		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
+		CacheKey(KeyStartTime, p.StartTime.Unix()),
+		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 		CacheKey(KeyVersion, int64(p.Version)),
@@ -193,11 +195,13 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	if err != nil {
 		return err
 	}
+	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
 
 	p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
 		return err
 	}
+	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
 
 	p.DisableGenesis, err = GetQueryBool(q, KeyDisableGenesis, false)
 	if err != nil {
@@ -224,8 +228,8 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, RoundTime(p.StartTime, time.Hour).Unix()),
-		CacheKey(KeyEndTime, RoundTime(p.EndTime, time.Hour).Unix()),
+		CacheKey(KeyStartTime, p.StartTime.Unix()),
+		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 		CacheKey(KeyDisableGenesis, p.DisableGenesis),
 	)
