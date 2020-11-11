@@ -753,26 +753,20 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
-type compositeRecord2 struct {
-	RowType         int `json:"rowType"`
-	CompositeRecord compositeRecord
-}
-
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
-	var outputs2 []*compositeRecord2
+	var outputs []*compositeRecord
 
-	s1 := selectOutputs(1, dbRunner).
+	s1 := selectOutputs(dbRunner).
 		Where("avm_outputs.transaction_id IN ?", txIDs)
-	s2 := selectOutputs(2, dbRunner).
+	s2 := selectOutputs(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
-	s3 := selectOutputsRedeeming(3, dbRunner).
+	s3 := selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
 			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
 
 	su := dbr.Union(s1, s2, s3).As("union_q")
-	_, err := dbRunner.Select("union_q.row_type",
-		"union_q.id",
+	_, err := dbRunner.Select("union_q.id",
 		"union_q.transaction_id",
 		"union_q.output_index",
 		"union_q.asset_id",
@@ -788,33 +782,9 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.signature",
 		"union_q.public_key").
 		From(su).
-		LoadContext(ctx, &outputs2)
+		LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
-	}
-
-	outputs := make([]*compositeRecord, 0, len(outputs2))
-	inputsMap := make(map[models.StringID]*compositeRecord)
-	inputsMissingMap := make(map[models.StringID]*compositeRecord)
-
-	for _, out := range outputs2 {
-		switch out.RowType {
-		case 1:
-			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
-			outputs = append(outputs, &cr)
-		case 2:
-			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
-			outputs = append(outputs, &cr)
-			inputsMap[cr.Output.ID] = &cr
-		case 3:
-			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
-			inputsMissingMap[cr.Output.ID] = &cr
-		}
-	}
-	for key, cr := range inputsMissingMap {
-		if _, ok := inputsMap[key]; !ok {
-			outputs = append(outputs, cr)
-		}
 	}
 
 	return outputs, nil
@@ -1056,9 +1026,8 @@ func collateSearchResults(assetResults *models.AssetList, addressResults *models
 	return collatedResults, nil
 }
 
-func selectOutputs(rowType int, dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select(fmt.Sprintf("%d as row_type", rowType),
-		"avm_outputs.id",
+func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select("avm_outputs.id",
 		"avm_outputs.transaction_id",
 		"avm_outputs.output_index",
 		"avm_outputs.asset_id",
@@ -1081,9 +1050,8 @@ func selectOutputs(rowType int, dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 }
 
 // match selectOutputs but based from avm_outputs_redeeming
-func selectOutputsRedeeming(rowType int, dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select(fmt.Sprintf("%d as row_type", rowType),
-		"avm_outputs_redeeming.id",
+func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select("avm_outputs_redeeming.id",
 		"avm_outputs_redeeming.intx as transaction_id",
 		"avm_outputs_redeeming.output_index",
 		"avm_outputs_redeeming.asset_id",
