@@ -141,6 +141,7 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 
 	// Legacy routes.
 	AddV2Routes(router, "/x", legacyIndexResponse, &xChainID)
+	AddV2Routes(router, "/X", legacyIndexResponse, &xChainID)
 
 	return router, nil
 }
