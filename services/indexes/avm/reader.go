@@ -931,7 +931,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	mintOutputs = append(mintOutputs, models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint)
 	_, err := dbRunner.Select("avm_outputs.asset_id", "CASE WHEN count(avm_outputs.asset_id) > 0 THEN 1 ELSE 0 END AS variable_cap").
 		From("avm_outputs").
-		Where("avm_outputs.output_type IN ?", mintOutputs).
+		Where("avm_outputs.output_type IN ? and avm_outputs.asset_id in ?", mintOutputs, assetIDs).
 		GroupBy("avm_outputs.asset_id").
 		Having("count(avm_outputs.asset_id) > 0").
 		LoadContext(ctx, &rows)
