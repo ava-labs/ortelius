@@ -753,53 +753,70 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
+type compositeRecord2 struct {
+	RowType         int `json:"rowType"`
+	CompositeRecord compositeRecord
+}
+
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
-	var outputs []*compositeRecord
-	_, err := selectOutputs(dbRunner).
-		Where("avm_outputs.transaction_id IN ?", txIDs).
-		LoadContext(ctx, &outputs)
+	var outputs2 []*compositeRecord2
+
+	s1 := selectOutputs(1, dbRunner).
+		Where("avm_outputs.transaction_id IN ?", txIDs)
+	s2 := selectOutputs(2, dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
+
+	s3 := selectOutputsRedeeming(3, dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
+			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
+
+	su := dbr.Union(s1, s2, s3).As("union_q")
+	_, err := dbRunner.Select("union_q.row_type",
+		"union_q.id",
+		"union_q.transaction_id",
+		"union_q.output_index",
+		"union_q.asset_id",
+		"union_q.output_type",
+		"union_q.amount",
+		"union_q.locktime",
+		"union_q.threshold",
+		"union_q.created_at",
+		"union_q.redeeming_transaction_id",
+		"union_q.group_id",
+		"union_q.output_id",
+		"union_q.address",
+		"union_q.signature",
+		"union_q.public_key").
+		From(su).
+		LoadContext(ctx, &outputs2)
 	if err != nil {
 		return nil, err
 	}
 
-	var inputs []*compositeRecord
-	_, err = selectOutputs(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-		LoadContext(ctx, &inputs)
-	if err != nil {
-		return nil, err
+	outputs := make([]*compositeRecord, 0, len(outputs2))
+	inputsMap := make(map[models.StringID]*compositeRecord)
+	inputsMissingMap := make(map[models.StringID]*compositeRecord)
+
+	for _, out := range outputs2 {
+		switch out.RowType {
+		case 1:
+			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
+			outputs = append(outputs, &cr)
+		case 2:
+			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
+			outputs = append(outputs, &cr)
+			inputsMap[cr.Output.ID] = &cr
+		case 3:
+			cr := compositeRecord{Output: out.CompositeRecord.Output, OutputAddress: out.CompositeRecord.OutputAddress}
+			inputsMissingMap[cr.Output.ID] = &cr
+		}
+	}
+	for key, cr := range inputsMissingMap {
+		if _, ok := inputsMap[key]; !ok {
+			outputs = append(outputs, cr)
+		}
 	}
 
-	inputids := make([]models.StringID, 0, len(inputs))
-	for _, input := range inputs {
-		inputids = append(inputids, input.ID)
-	}
-
-	// find any Ins without a matching Out and make mock out records for display..
-	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
-	// we're looking for any with my redeeming_transaction_id
-	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
-	// and not in the known inputids list.
-	var inputsRedeeming []*compositeRecord
-	q := selectOutputsRedeeming(dbRunner)
-	if len(inputids) != 0 {
-		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
-			"and avm_outputs.id is null "+
-			"and avm_outputs_redeeming.id not in ?",
-			txIDs, inputids)
-	} else {
-		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
-			"and avm_outputs.id is null ",
-			txIDs)
-	}
-	_, err = q.
-		LoadContext(ctx, &inputsRedeeming)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs = append(outputs, inputs...)
-	outputs = append(outputs, inputsRedeeming...)
 	return outputs, nil
 }
 
@@ -1039,8 +1056,9 @@ func collateSearchResults(assetResults *models.AssetList, addressResults *models
 	return collatedResults, nil
 }
 
-func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs.id",
+func selectOutputs(rowType int, dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select(fmt.Sprintf("%d as row_type", rowType),
+		"avm_outputs.id",
 		"avm_outputs.transaction_id",
 		"avm_outputs.output_index",
 		"avm_outputs.asset_id",
@@ -1063,25 +1081,23 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 }
 
 // match selectOutputs but based from avm_outputs_redeeming
-func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs_redeeming.id",
+func selectOutputsRedeeming(rowType int, dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
+	return dbRunner.Select(fmt.Sprintf("%d as row_type", rowType),
+		"avm_outputs_redeeming.id",
 		"avm_outputs_redeeming.intx as transaction_id",
 		"avm_outputs_redeeming.output_index",
 		"avm_outputs_redeeming.asset_id",
-		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
+		"0 as output_type",
 		"avm_outputs_redeeming.amount",
-		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
-		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
+		"0 as locktime",
+		"0 as threshold",
 		"avm_outputs_redeeming.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
-		"case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id",
-		"case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id",
-		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
-		"avm_output_addresses.redeeming_signature AS signature",
-		"addresses.public_key AS public_key",
+		"0 as group_id",
+		"'' AS output_id",
+		"'' AS address",
+		"null AS signature",
+		"null AS public_key",
 	).
-		From("avm_outputs_redeeming").
-		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
-		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+		From("avm_outputs_redeeming")
 }
