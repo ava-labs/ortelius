@@ -33,7 +33,7 @@ func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *id
 		// Handle legacy v1 logic
 		Middleware(func(c *V2Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 			c.version = 2
-			if c.chainID != nil {
+			if chainID != nil {
 				c.chainID = chainID
 				c.version = 1
 			}
