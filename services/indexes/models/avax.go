@@ -80,6 +80,8 @@ type Asset struct {
 
 	Denomination uint8 `json:"denomination"`
 	VariableCap  uint8 `json:"variableCap"`
+
+	Aggregates map[string]*Aggregates `json:"aggregates"`
 }
 
 type AssetInfo struct {

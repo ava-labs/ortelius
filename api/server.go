@@ -45,7 +45,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
+			WriteTimeout: RequestTimeout,
 			IdleTimeout:  15 * time.Second,
 			Handler:      router,
 		},

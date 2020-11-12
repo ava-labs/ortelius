@@ -13,21 +13,22 @@ import (
 )
 
 const (
-	KeyID             = "id"
-	KeyChainID        = "chainID"
-	KeyAddress        = "address"
-	KeyAssetID        = "assetID"
-	KeySearchQuery    = "query"
-	KeySortBy         = "sort"
-	KeyLimit          = "limit"
-	KeyOffset         = "offset"
-	KeySpent          = "spent"
-	KeyStartTime      = "startTime"
-	KeyEndTime        = "endTime"
-	KeyIntervalSize   = "intervalSize"
-	KeyDisableCount   = "disableCount"
-	KeyDisableGenesis = "disableGenesis"
-	KeyVersion        = "version"
+	KeyID              = "id"
+	KeyChainID         = "chainID"
+	KeyAddress         = "address"
+	KeyAssetID         = "assetID"
+	KeySearchQuery     = "query"
+	KeySortBy          = "sort"
+	KeyLimit           = "limit"
+	KeyOffset          = "offset"
+	KeySpent           = "spent"
+	KeyStartTime       = "startTime"
+	KeyEndTime         = "endTime"
+	KeyIntervalSize    = "intervalSize"
+	KeyDisableCount    = "disableCount"
+	KeyDisableGenesis  = "disableGenesis"
+	KeyVersion         = "version"
+	KeyEnableAggregate = "enableAggregate"
 
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
@@ -57,6 +58,8 @@ var (
 
 	// Ensure params types satisfy the interface
 	_ Param = &ListParams{}
+
+	TransactionRoundDuration = time.Second
 )
 
 type Param interface {
@@ -66,12 +69,6 @@ type Param interface {
 
 func CacheKey(name string, val interface{}) string {
 	return fmt.Sprintf("%s=%v", name, val)
-}
-
-func RoundTime(t time.Time, precision time.Duration) time.Time {
-	ts := t.Unix()
-	ts -= (ts % int64(precision.Seconds()))
-	return time.Unix(ts, 0)
 }
 
 //

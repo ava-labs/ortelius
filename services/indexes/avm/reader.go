@@ -216,9 +216,14 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		if len(intervals) > 0 {
 			intervals[0].StartTime = params.StartTime
 			intervals[0].EndTime = params.EndTime
-			return &models.AggregatesHistogram{Aggregates: intervals[0]}, nil
+			return &models.AggregatesHistogram{Aggregates: intervals[0],
+					StartTime: params.StartTime,
+					EndTime:   params.EndTime},
+				nil
 		}
-		return &models.AggregatesHistogram{}, nil
+		return &models.AggregatesHistogram{StartTime: params.StartTime,
+				EndTime: params.EndTime},
+			nil
 	}
 
 	// We need to return multiple intervals so build them now.
@@ -286,6 +291,9 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	// Add any missing trailing intervals
 	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
 
+	aggs.StartTime = params.StartTime
+	aggs.EndTime = params.EndTime
+
 	return aggs, nil
 }
 
@@ -343,7 +351,11 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count}, Transactions: txs}, nil
+	return &models.TransactionList{ListMetadata: models.ListMetadata{Count: count},
+			Transactions: txs,
+			StartTime:    p.StartTime,
+			EndTime:      p.EndTime},
+		nil
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
@@ -377,7 +389,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets); err != nil {
+	if err = r.dressAssets(ctx, dbRunner, assets, p.EnableAggregate); err != nil {
 		return nil, err
 	}
 
@@ -541,17 +553,15 @@ func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.
 	return nil, nil
 }
 
-func (r *Reader) GetAsset(ctx context.Context, idStrOrAlias string) (*models.Asset, error) {
-	params := &params.ListAssetsParams{}
-
+func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStrOrAlias string) (*models.Asset, error) {
 	id, err := ids.FromString(idStrOrAlias)
 	if err == nil {
-		params.ID = &id
+		p.ID = &id
 	} else {
-		params.Alias = idStrOrAlias
+		p.Alias = idStrOrAlias
 	}
 
-	assetList, err := r.ListAssets(ctx, params)
+	assetList, err := r.ListAssets(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -867,15 +877,49 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset) error {
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, aggregate bool) error {
 	if len(assets) == 0 {
 		return nil
 	}
+
+	tnow := time.Now().UTC()
+	tnow = tnow.Truncate(1 * time.Minute)
 
 	// Create a list of ids for querying, and a map for accumulating results later
 	assetIDs := make([]models.StringID, len(assets))
 	for i, asset := range assets {
 		assetIDs[i] = asset.ID
+
+		if !aggregate {
+			continue
+		}
+
+		id, err := ids.FromString(string(asset.ID))
+		if err != nil {
+			r.conns.Logger().Warn("asset to id convert failed %s", err)
+			continue
+		}
+
+		asset.Aggregates = make(map[string]*models.Aggregates)
+
+		for intervalName := range params.IntervalNames {
+			if intervalName == "all" {
+				continue
+			}
+			aparams := params.AggregateParams{
+				AssetID:      &id,
+				IntervalSize: params.IntervalNames[intervalName],
+				StartTime:    tnow.Add(-1 * params.IntervalNames[intervalName]),
+				EndTime:      tnow,
+				Version:      1,
+			}
+			hm, err := r.Aggregate(ctx, &aparams)
+			if err != nil {
+				r.conns.Logger().Warn("aggregate query failed %s", err)
+				continue
+			}
+			asset.Aggregates[intervalName] = &hm.Aggregates
+		}
 	}
 
 	rows := []*struct {

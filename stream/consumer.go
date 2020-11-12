@@ -5,7 +5,10 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -32,6 +35,12 @@ type consumer struct {
 	reader   *kafka.Reader
 	consumer services.Consumer
 	conns    *services.Connections
+
+	// metrics
+	metricProcessedCountKey       string
+	metricFailureCountKey         string
+	metricProcessMillisCounterKey string
+	metricSuccessCountKey         string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -43,9 +52,17 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		c := &consumer{
-			chainID: chainID,
-			conns:   conns,
+			chainID:                       chainID,
+			conns:                         conns,
+			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s", chainID),
+			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
+			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
+			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
 		}
+		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
+		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
+		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
+		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
 		initializeConsumerTasker(conns)
 
@@ -109,11 +126,37 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 		return err
 	}
 
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			c.conns.Logger().Error("collectors.Collect: %s", err)
+		}
+	}()
+
 	if err = c.consumer.Consume(ctx, msg); err != nil {
-		c.conns.Logger().Error("consumer.Consume: %s", err.Error())
+		collectors.Error()
+		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
+}
+
+func (c *consumer) Failure() {
+	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	if err != nil {
+		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+	}
+}
+
+func (c *consumer) Success() {
+	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	if err != nil {
+		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+	}
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

@@ -33,6 +33,8 @@ type ProcessorFactory func(cfg.Config, string, string) (Processor, error)
 type Processor interface {
 	ProcessNextMessage(context.Context) error
 	Close() error
+	Failure()
+	Success()
 }
 
 // ProcessorManager supervises the Processor lifecycle; it will use the given
@@ -148,6 +150,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			err = backend.ProcessNextMessage(ctx)
 			if err == nil {
 				successes++
+				backend.Success()
 				return nil
 			}
 
@@ -165,6 +168,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 				c.log.Error("EOF")
 				return io.EOF
 			default:
+				backend.Failure()
 				c.log.Error("Unknown error: %s", err.Error())
 			}
 
