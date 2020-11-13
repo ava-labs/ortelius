@@ -446,60 +446,6 @@ func (p *ListBlocksParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return p.ListParams.Apply("pvm_blocks", b)
 }
 
-type ListValidatorsParams struct {
-	ListParams   ListParams
-	Subnets      []ids.ID
-	Destinations []ids.ShortID
-	StartTime    time.Time
-	EndTime      time.Time
-}
-
-func (p *ListValidatorsParams) ForValues(v uint8, q url.Values) error {
-	return p.ListParams.ForValues(v, q)
-}
-
-func (p *ListValidatorsParams) CacheKey() []string {
-	return p.ListParams.CacheKey()
-}
-
-func (p *ListValidatorsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("pvm_validators", b)
-}
-
-type ListChainsParams struct {
-	ListParams ListParams
-	Subnets    []ids.ID
-	VMID       *ids.ID
-}
-
-func (p *ListChainsParams) ForValues(v uint8, q url.Values) error {
-	return p.ListParams.ForValues(v, q)
-}
-
-func (p *ListChainsParams) CacheKey() []string {
-	return p.ListParams.CacheKey()
-}
-
-func (p *ListChainsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("pvm_chains", b)
-}
-
-type ListSubnetsParams struct {
-	ListParams ListParams
-}
-
-func (p *ListSubnetsParams) ForValues(v uint8, q url.Values) error {
-	return p.ListParams.ForValues(v, q)
-}
-
-func (p *ListSubnetsParams) CacheKey() []string {
-	return p.ListParams.CacheKey()
-}
-
-func (p *ListSubnetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("pvm_subnets", b)
-}
-
 //
 // Sorting
 //
