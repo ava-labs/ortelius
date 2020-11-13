@@ -33,7 +33,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		return nil, err
 	}
 
-	var assets []*models.Asset
+	assets := make([]*models.Asset, 0, 1)
 	_, err = p.Apply(dbRunner.
 		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
 		From("avm_assets")).

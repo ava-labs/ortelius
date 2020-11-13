@@ -64,7 +64,7 @@ func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
 		return err
 	}
 
-	p.Version, err = GetQueryInt(q, KeyVersion, int(version))
+	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
 	if err != nil {
 		return err
 	}

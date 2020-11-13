@@ -130,15 +130,13 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	switch params.Version {
 	// new requests v=1 use the avm_asset_aggregation tables
-	case 2:
-		fallthrough
 	case 1:
 		columns := []string{
 			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
-			"SUM(avm_asset_aggregation.transaction_count) AS transaction_count",
-			"SUM(avm_asset_aggregation.address_count) AS address_count",
-			"SUM(avm_asset_aggregation.asset_count) AS asset_count",
-			"SUM(avm_asset_aggregation.output_count) AS output_count",
+			"COALESCE(SUM(avm_asset_aggregation.transaction_count),0) AS transaction_count",
+			"COALESCE(SUM(avm_asset_aggregation.address_count),0) AS address_count",
+			"COALESCE(SUM(avm_asset_aggregation.asset_count),0) AS asset_count",
+			"COALESCE(SUM(avm_asset_aggregation.output_count),0) AS output_count",
 		}
 
 		if requestedIntervalCount > 0 {
@@ -788,8 +786,6 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	}
 
 	switch version {
-	case 2:
-		fallthrough
 	case 1:
 		_, err := dbRunner.
 			Select(
