@@ -33,7 +33,10 @@ const (
 	PaginationMaxLimit      = 500
 	PaginationDefaultLimit  = 500
 	PaginationDefaultOffset = 0
-	VersionDefault          = 0
+
+	MinSearchQueryLength = 1
+
+	VersionDefault = 0
 )
 
 var (
@@ -54,7 +57,8 @@ var (
 		"all":    IntervalAll,
 	}
 
-	ErrUndefinedSort = errors.New("undefined sort")
+	ErrUndefinedSort       = errors.New("undefined sort")
+	ErrSearchQueryTooShort = errors.New("search query too short")
 
 	// Ensure params types satisfy the interface
 	_ Param = &ListParams{}
