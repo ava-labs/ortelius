@@ -52,6 +52,11 @@ type AggregateParams struct {
 }
 
 func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
+	err = p.ListParams.ForValues(version, q)
+	if err != nil {
+		return err
+	}
+
 	p.ChainIDs = q[KeyChainID]
 
 	p.AssetID, err = GetQueryID(q, KeyAssetID)
