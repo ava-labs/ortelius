@@ -7,10 +7,9 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
@@ -29,12 +28,12 @@ func TestBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count != 7 {
+	if txList == nil || *txList.Count != 7 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avm.Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -69,9 +68,9 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avm
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := avm.NewReader(conns, ChainID.String())
+	reader := avax.NewReader(conns)
 	return writer, reader, func() {
 		s.Close()
-		conns.Close()
+		_ = conns.Close()
 	}
 }

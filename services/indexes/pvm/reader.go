@@ -108,7 +108,7 @@ func (r *Reader) ListChains(ctx context.Context, params *params.ListChainsParams
 }
 
 func (r *Reader) GetBlock(ctx context.Context, id ids.ID) (*models.Block, error) {
-	list, err := r.ListBlocks(ctx, &params.ListBlocksParams{ID: &id})
+	list, err := r.ListBlocks(ctx, &params.ListBlocksParams{ListParams: params.ListParams{ID: &id}})
 	if err != nil || len(list.Blocks) == 0 {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (r *Reader) GetBlock(ctx context.Context, id ids.ID) (*models.Block, error)
 }
 
 func (r *Reader) GetSubnet(ctx context.Context, id ids.ID) (*models.Subnet, error) {
-	list, err := r.ListSubnets(ctx, &params.ListSubnetsParams{ID: &id})
+	list, err := r.ListSubnets(ctx, &params.ListSubnetsParams{ListParams: params.ListParams{ID: &id}})
 	if err != nil || len(list.Subnets) == 0 {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (r *Reader) GetSubnet(ctx context.Context, id ids.ID) (*models.Subnet, erro
 }
 
 func (r *Reader) GetChain(ctx context.Context, id ids.ID) (*models.Chain, error) {
-	list, err := r.ListChains(ctx, &params.ListChainsParams{ID: &id})
+	list, err := r.ListChains(ctx, &params.ListChainsParams{ListParams: params.ListParams{ID: &id}})
 	if err != nil || len(list.Chains) == 0 {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (r *Reader) GetChain(ctx context.Context, id ids.ID) (*models.Chain, error)
 }
 
 func (r *Reader) GetValidator(ctx context.Context, id ids.ID) (*models.Validator, error) {
-	list, err := r.ListValidators(ctx, &params.ListValidatorsParams{ID: &id})
+	list, err := r.ListValidators(ctx, &params.ListValidatorsParams{ListParams: params.ListParams{ID: &id}})
 	if err != nil || len(list.Validators) == 0 {
 		return nil, err
 	}

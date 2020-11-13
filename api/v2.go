@@ -5,17 +5,23 @@ package api
 
 import (
 	"context"
+	"time"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/web"
-	"time"
 )
 
 type V2Context struct {
 	*Context
+	version uint8
 	chainID *ids.ID
 }
 
+// AddV2Routes mounts a V2 API router at the given path, displaying the given
+// indexBytes at the root. If chainID is not nil the handlers run in v1
+// compatible mode where the `version` param is set to "1" and requests to
+// default to filtering by the given chainID.
 func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *ids.ID) {
 	router.Subrouter(V2Context{}, path).
 		Get("/", func(c *V2Context, resp web.ResponseWriter, _ *web.Request) {
@@ -52,7 +58,7 @@ func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *id
 
 func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 	p := &params.SearchParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -67,7 +73,7 @@ func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 	p := &params.AggregateParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -86,7 +92,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListTransactionsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -122,7 +128,7 @@ func (c *V2Context) GetTransaction(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListAddressesParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -138,7 +144,7 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -170,7 +176,7 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListOutputsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -209,7 +215,7 @@ func (c *V2Context) GetOutput(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListAssets(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListAssetsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -236,7 +242,7 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 //
 func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListBlocksParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -267,7 +273,7 @@ func (c *V2Context) GetBlock(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListSubnets(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListSubnetsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -298,7 +304,7 @@ func (c *V2Context) GetSubnet(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListValidators(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListValidatorsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
@@ -329,7 +335,7 @@ func (c *V2Context) GetValidators(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListChainsParams{}
-	if err := p.ForValues(r.URL.Query()); err != nil {
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}

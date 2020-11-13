@@ -5,8 +5,16 @@ package api
 
 import (
 	"encoding/json"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+)
+
+const (
+	AVMName     = "avm"
+	XChainAlias = "x"
+	PVMName     = "pvm"
+	PChainAlias = "p"
 )
 
 func newIndexResponse(networkID uint32, xChainID ids.ID) ([]byte, error) {
@@ -17,14 +25,14 @@ func newIndexResponse(networkID uint32, xChainID ids.ID) ([]byte, error) {
 		NetworkID: networkID,
 		Chains: map[string]models.ChainInfo{
 			xChainID.String(): {
-				VM:        "avm",
-				Alias:     "x",
+				VM:        AVMName,
+				Alias:     XChainAlias,
 				NetworkID: networkID,
 				ID:        models.StringID(xChainID.String()),
 			},
 			ids.Empty.String(): {
-				VM:        "pvm",
-				Alias:     "p",
+				VM:        PVMName,
+				Alias:     PChainAlias,
 				NetworkID: networkID,
 				ID:        models.StringID(ids.Empty.String()),
 			},
@@ -34,9 +42,9 @@ func newIndexResponse(networkID uint32, xChainID ids.ID) ([]byte, error) {
 
 func newLegacyIndexResponse(networkID uint32, xChainID ids.ID, avaxAssetID ids.ID) ([]byte, error) {
 	return json.Marshal(&models.ChainInfo{
-		VM:          "avm",
-		Alias:       "x",
+		VM:          AVMName,
 		NetworkID:   networkID,
+		Alias:       XChainAlias,
 		AVAXAssetID: models.StringID(avaxAssetID.String()),
 		ID:          models.StringID(xChainID.String()),
 	})
