@@ -1,6 +1,6 @@
 language: go
 sudo: false
-go: 1.14
+go: 1.15.5
 services:
   - docker
 cache:
