@@ -239,7 +239,7 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 	p.PathParamID = id
 
 	c.WriteCacheable(w, Cacheable{
-		Key: c.cacheKeyForID("get_asset", id),
+		Key: c.cacheKeyForParams("get_asset", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avmReader.GetAsset(ctx, p, id)
 		},
