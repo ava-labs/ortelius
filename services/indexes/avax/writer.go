@@ -108,8 +108,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			// needs to support StakeableLockOut Locktime...
-			// xOut.Locktime = transferOutput.Locktime
 
 			if out.AssetID().Equals(w.avaxAssetID) {
 				totalout, err = math.Add64(totalout, xOut.Amt)
