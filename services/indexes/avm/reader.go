@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
-	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -22,13 +21,11 @@ import (
 
 const (
 	MaxAggregateIntervalCount = 20000
-	MinSearchQueryLength      = 1
 )
 
 var (
 	ErrAggregateIntervalCountTooLarge = errors.New("requesting too many intervals")
 	ErrFailedToParseStringAsBigInt    = errors.New("failed to parse string to big.Int")
-	ErrSearchQueryTooShort            = errors.New("search query too short")
 )
 
 var (
@@ -49,20 +46,18 @@ var (
 )
 
 type Reader struct {
-	chainID string
-	conns   *services.Connections
+	conns *services.Connections
 }
 
-func NewReader(conns *services.Connections, chainID string) *Reader {
+func NewReader(conns *services.Connections) *Reader {
 	return &Reader{
-		conns:   conns,
-		chainID: chainID,
+		conns: conns,
 	}
 }
 
 func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	if len(p.Query) < MinSearchQueryLength {
-		return nil, ErrSearchQueryTooShort
+	if len(p.Query) < params.MinSearchQueryLength {
+		return nil, params.ErrSearchQueryTooShort
 	}
 
 	// See if the query string is an id or shortID. If so we can search on them
@@ -133,7 +128,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +293,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_transactions", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transactions", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +354,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_assets", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_assets", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +392,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_addresses", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_addresses", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +423,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAddresses(ctx, dbRunner, addresses, p.Version); err != nil {
+	if err = r.dressAddresses(ctx, dbRunner, addresses, p.ChainIDs, p.Version); err != nil {
 		return nil, err
 	}
 
@@ -436,7 +431,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewSession("addressChains", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("addressChains", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +469,7 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", services.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +589,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string) (time.Time, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", services.RequestTimeout)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -803,7 +798,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	return outputs, nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int) error {
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, chainIDs []string, version int) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -837,7 +832,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 				"avm_asset_address_counts.utxo_count",
 			).
 			From("avm_asset_address_counts").
-			Where("avm_asset_address_counts.address IN ? and avm_asset_address_counts.chain_id = ?", addrIDs, r.chainID).
+			Where("avm_asset_address_counts.address IN ? and avm_asset_address_counts.chain_id IN ?", addrIDs, chainIDs).
 			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -857,7 +852,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			From("avm_outputs").
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id = ?", addrIDs, r.chainID).
+			Where("avm_output_addresses.address IN ? and avm_outputs.chain_id IN ?", addrIDs, chainIDs).
 			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &rows)
 		if err != nil {

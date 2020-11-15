@@ -479,6 +479,12 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
+	t.initMetrics()
+
+	go initRefreshAggregatesTick(t)
+}
+
+func (t *ProducerTasker) initMetrics() {
 	t.metricSuccessCountKey = "indexer_task_records_success"
 	t.metricFailureCountKey = "indexer_task_records_failure"
 	t.metricProcessMillisCountKey = "indexer_task_records_process_millis"
@@ -490,8 +496,6 @@ func (t *ProducerTasker) Start() {
 	metrics.Prometheus.CounterInit(t.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(t.metricFailureCountKey, "records failed")
 	metrics.Prometheus.CounterInit(t.metricProcessMillisCountKey, "records processed millis")
-
-	go initRefreshAggregatesTick(t)
 }
 
 func initRefreshAggregatesTick(t *ProducerTasker) {
