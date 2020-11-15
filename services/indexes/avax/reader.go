@@ -689,51 +689,37 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
 	var outputs []*compositeRecord
-	_, err := selectOutputs(dbRunner).
-		Where("avm_outputs.transaction_id IN ?", txIDs).
+	s1 := selectOutputs(dbRunner).
+		Where("avm_outputs.transaction_id IN ?", txIDs)
+	s2 := selectOutputs(dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
+
+	s3 := selectOutputsRedeeming(dbRunner).
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
+			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
+
+	su := dbr.Union(s1, s2, s3).As("union_q")
+	_, err := dbRunner.Select("union_q.id",
+		"union_q.transaction_id",
+		"union_q.output_index",
+		"union_q.asset_id",
+		"union_q.output_type",
+		"union_q.amount",
+		"union_q.locktime",
+		"union_q.threshold",
+		"union_q.created_at",
+		"union_q.redeeming_transaction_id",
+		"union_q.group_id",
+		"union_q.output_id",
+		"union_q.address",
+		"union_q.signature",
+		"union_q.public_key").
+		From(su).
 		LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
 	}
 
-	var inputs []*compositeRecord
-	_, err = selectOutputs(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs).
-		LoadContext(ctx, &inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	inputIDs := make([]models.StringID, 0, len(inputs))
-	for _, input := range inputs {
-		inputIDs = append(inputIDs, input.ID)
-	}
-
-	// find any Ins without a matching Out and make mock out records for display..
-	// when the avm_outputs.id is null we don't have a matching out. b/c of avm_outputs_redeeming left join avm_outputs in selectOutputsRedeeming
-	// we're looking for any with my redeeming_transaction_id
-	// and the avm_outputs.id is null meaning no matching out (because of the left join in selectOutputsRedeeming)
-	// and not in the known inputIDs list.
-	var inputsRedeeming []*compositeRecord
-	q := selectOutputsRedeeming(dbRunner)
-	if len(inputIDs) != 0 {
-		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
-			"and avm_outputs.id is null "+
-			"and avm_outputs_redeeming.id not in ?",
-			txIDs, inputIDs)
-	} else {
-		q = q.Where("avm_outputs_redeeming.redeeming_transaction_id IN ? "+
-			"and avm_outputs.id is null ",
-			txIDs)
-	}
-	_, err = q.
-		LoadContext(ctx, &inputsRedeeming)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs = append(outputs, inputs...)
-	outputs = append(outputs, inputsRedeeming...)
 	return outputs, nil
 }
 
