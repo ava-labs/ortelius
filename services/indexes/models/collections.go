@@ -8,11 +8,12 @@ import (
 )
 
 type ListMetadata struct {
-	Count uint64 `json:"count"`
+	Count *uint64 `json:"count,omitempty"`
 }
 
 type TransactionList struct {
 	ListMetadata
+
 	Transactions []*Transaction `json:"transactions"`
 
 	// StartTime is the calculated start time rounded to the nearest
