@@ -456,7 +456,7 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 
 func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.Transaction, error) {
 	txList, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
-		ListParams: params.ListParams{ID: &id},
+		ListParams: params.ListParams{ID: &id, DisableCounting: true},
 	}, avaxAssetID)
 	if err != nil {
 		return nil, err
@@ -468,7 +468,11 @@ func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.
 }
 
 func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.AddressInfo, error) {
-	addressList, err := r.ListAddresses(ctx, &params.ListAddressesParams{Address: &id})
+	addressList, err := r.ListAddresses(ctx,
+		&params.ListAddressesParams{
+			Address:    &id,
+			ListParams: params.ListParams{DisableCounting: true},
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +483,10 @@ func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.Addres
 }
 
 func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
-	outputList, err := r.ListOutputs(ctx, &params.ListOutputsParams{ListParams: params.ListParams{ID: &id}})
+	outputList, err := r.ListOutputs(ctx,
+		&params.ListOutputsParams{
+			ListParams: params.ListParams{ID: &id, DisableCounting: true},
+		})
 	if err != nil {
 		return nil, err
 	}
