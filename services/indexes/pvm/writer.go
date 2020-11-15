@@ -119,11 +119,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			// needs to support StakeableLockOut Locktime...
-			// xOut.Locktime = transferOutput.Locktime
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime))
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0))
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
