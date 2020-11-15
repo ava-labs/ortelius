@@ -117,7 +117,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 					errs.Add(err)
 				}
 			}
-			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime))
 		case *secp256k1fx.TransferOutput:
 			if out.AssetID().Equals(w.avaxAssetID) {
 				totalout, err = math.Add64(totalout, transferOutput.Amt)
@@ -125,7 +125,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 					errs.Add(err)
 				}
 			}
-			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0))
 		default:
 			errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 		}
@@ -157,7 +157,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	return errs.Err
 }
 
-func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte) error {
+func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64) error {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -175,10 +175,30 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("threshold", out.Threshold).
 		Pair("group_id", groupID).
 		Pair("payload", payload).
+		Pair("stake_locktime", stakeLocktime).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		errs.Add(w.stream.EventErr("insert_output.insert", err))
+	} else {
+		// excluding created_at
+		_, err = ctx.DB().Update("avm_outputs").
+			Set("chain_id", w.chainID).
+			Set("transaction_id", txID.String()).
+			Set("output_index", idx).
+			Set("asset_id", assetID.String()).
+			Set("output_type", outputType).
+			Set("amount", out.Amount()).
+			Set("locktime", out.Locktime).
+			Set("threshold", out.Threshold).
+			Set("group_id", groupID).
+			Set("payload", payload).
+			Set("stake_locktime", stakeLocktime).
+			Where("id = ?", outputID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			errs.Add(w.stream.EventErr("insert_output.update", err))
+		}
 	}
 
 	// Ingest each Output Address
