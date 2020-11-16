@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -153,7 +155,7 @@ func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) fun
 		c.job.KeyValue("url", r.RequestURI)
 
 		ctx := context.Background()
-		ctx, cancelFn := context.WithTimeout(ctx, RequestTimeout)
+		ctx, cancelFn := context.WithTimeout(ctx, cfg.RequestTimeout)
 		c.ctx = ctx
 
 		// Execute handler
