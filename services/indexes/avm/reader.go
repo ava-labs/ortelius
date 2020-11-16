@@ -5,8 +5,9 @@ package avm
 
 import (
 	"context"
-	"github.com/ava-labs/ortelius/api"
 	"time"
+
+	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services"
@@ -29,7 +30,7 @@ func NewReader(conns *services.Connections) *Reader {
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_assets", api.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_assets", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
