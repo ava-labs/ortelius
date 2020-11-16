@@ -262,6 +262,16 @@ type ListAddressesParams struct {
 	Version    int
 }
 
+func (p *ListAddressesParams) ForValueChainID(chainID *ids.ID) {
+	if chainID == nil {
+		return
+	}
+	if p.ChainIDs == nil {
+		p.ChainIDs = make([]string, 0, 1)
+	}
+	p.ChainIDs = append(p.ChainIDs, (*chainID).String())
+}
+
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
 	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
