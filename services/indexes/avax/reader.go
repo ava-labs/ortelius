@@ -713,6 +713,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.output_type",
 		"union_q.amount",
 		"union_q.locktime",
+		"union_q.stake_locktime",
 		"union_q.threshold",
 		"union_q.created_at",
 		"union_q.redeeming_transaction_id",
