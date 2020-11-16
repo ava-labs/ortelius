@@ -4,7 +4,6 @@
 package params
 
 import (
-	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -32,62 +31,38 @@ var (
 )
 
 type SearchParams struct {
-	ListParams
-	Query string
+	ListParams ListParams
 }
 
-func (p *SearchParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
-	if err != nil {
-		return err
-	}
-
-	queryStrs, ok := q[KeySearchQuery]
-	if ok || len(queryStrs) >= 1 {
-		p.Query = queryStrs[0]
-	} else {
-		return errors.New("query required")
-	}
-
-	return nil
+func (p *SearchParams) ForValues(v uint8, q url.Values) error {
+	return p.ListParams.ForValues(v, q)
 }
 
 func (p *SearchParams) CacheKey() []string {
-	return append(p.ListParams.CacheKey(), CacheKey(KeySearchQuery, p.Query))
+	return p.ListParams.CacheKey()
 }
 
 type AggregateParams struct {
+	ListParams ListParams
+
 	ChainIDs     []string
 	AssetID      *ids.ID
-	StartTime    time.Time
-	EndTime      time.Time
 	IntervalSize time.Duration
 	Version      int
 }
 
-func (p *AggregateParams) ForValues(q url.Values) (err error) {
+func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
+	err = p.ListParams.ForValues(version, q)
+	if err != nil {
+		return err
+	}
+
 	p.ChainIDs = q[KeyChainID]
 
 	p.AssetID, err = GetQueryID(q, KeyAssetID)
 	if err != nil {
 		return err
 	}
-
-	p.StartTime, err = GetQueryTime(q, KeyStartTime)
-	if err != nil {
-		return err
-	}
-	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
-
-	p.EndTime, err = GetQueryTime(q, KeyEndTime)
-	if err != nil {
-		return err
-	}
-
-	if p.EndTime.IsZero() {
-		p.EndTime = time.Now().UTC()
-	}
-	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
 
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
@@ -110,19 +85,17 @@ func (p *AggregateParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, p.StartTime.Unix()),
-		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 		CacheKey(KeyVersion, int64(p.Version)),
 	)
 
-	return k
+	return append(p.ListParams.CacheKey(), k...)
 }
 
 func (p *AggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	b.Where("avm_outputs.created_at >= ?", p.StartTime)
-	b.Where("avm_outputs.created_at < ?", p.EndTime)
+	b.Where("avm_outputs.created_at >= ?", p.ListParams.StartTime)
+	b.Where("avm_outputs.created_at < ?", p.ListParams.EndTime)
 
 	if p.AssetID != nil {
 		b.Where("avm_outputs.asset_id = ?", p.AssetID.String())
@@ -135,31 +108,17 @@ func (p *AggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return b
 }
 
-//
-// List route params
-//
-
 type ListTransactionsParams struct {
-	ListParams
-
-	ID       *ids.ID
-	ChainIDs []string
-
-	Query string
-
-	Addresses []ids.ShortID
-	AssetID   *ids.ID
-
-	StartTime time.Time
-	EndTime   time.Time
-
+	ListParams     ListParams
+	ChainIDs       []string
+	Addresses      []ids.ShortID
+	AssetID        *ids.ID
 	DisableGenesis bool
-
-	Sort TransactionSort
+	Sort           TransactionSort
 }
 
-func (p *ListTransactionsParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
+func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
+	err := p.ListParams.ForValues(v, q)
 	if err != nil {
 		return err
 	}
@@ -168,11 +127,6 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
 		p.Sort, _ = toTransactionSort(sortBys[0])
-	}
-
-	p.ID, err = GetQueryID(q, KeyID)
-	if err != nil {
-		return err
 	}
 
 	p.ChainIDs = q[KeyChainID]
@@ -191,18 +145,6 @@ func (p *ListTransactionsParams) ForValues(q url.Values) error {
 		p.Addresses = append(p.Addresses, addr)
 	}
 
-	p.StartTime, err = GetQueryTime(q, KeyStartTime)
-	if err != nil {
-		return err
-	}
-	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
-
-	p.EndTime, err = GetQueryTime(q, KeyEndTime)
-	if err != nil {
-		return err
-	}
-	p.EndTime = p.EndTime.Round(TransactionRoundDuration)
-
 	p.DisableGenesis, err = GetQueryBool(q, KeyDisableGenesis, false)
 	if err != nil {
 		return err
@@ -215,10 +157,6 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	k := p.ListParams.CacheKey()
 	k = append(k, CacheKey(KeySortBy, p.Sort))
 
-	if p.ID != nil {
-		k = append(k, CacheKey(KeyID, p.ID.String()))
-	}
-
 	if p.AssetID != nil {
 		k = append(k, CacheKey(KeyAssetID, p.AssetID.String()))
 	}
@@ -228,8 +166,6 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	}
 
 	k = append(k,
-		CacheKey(KeyStartTime, p.StartTime.Unix()),
-		CacheKey(KeyEndTime, p.EndTime.Unix()),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 		CacheKey(KeyDisableGenesis, p.DisableGenesis),
 	)
@@ -238,12 +174,10 @@ func (p *ListTransactionsParams) CacheKey() []string {
 }
 
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(b)
+	p.ListParams.Apply("avm_transactions", b)
 
-	if p.ID != nil {
-		b = b.
-			Where("avm_transactions.id = ?", p.ID.String()).
-			Limit(1)
+	if len(p.ChainIDs) > 0 {
+		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
 	}
 
 	var dosq bool
@@ -273,49 +207,29 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	}
 
 	if dosq && dosqRedeem {
-		b = b.Where("avm_transactions.id in ? or avm_transactions.id in ?", subquery, subqueryRedeem)
+		b.Where("avm_transactions.id in ? or avm_transactions.id in ?", subquery, subqueryRedeem)
 	} else if dosq {
-		b = b.Where("avm_transactions.id in ?", subquery)
-	}
-
-	if !p.StartTime.IsZero() {
-		b = b.Where("avm_transactions.created_at >= ?", p.StartTime)
-	}
-	if !p.EndTime.IsZero() {
-		b = b.Where("avm_transactions.created_at <= ?", p.EndTime)
-	}
-
-	if p.Query != "" {
-		b.Where(dbr.Like("avm_transactions.id", p.Query+"%"))
-	}
-
-	if len(p.ChainIDs) > 0 {
-		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
+		b.Where("avm_transactions.id in ?", subquery)
 	}
 
 	return b
 }
 
 type ListAssetsParams struct {
-	ListParams
-	ID              *ids.ID
-	Query           string
+	ListParams      ListParams
 	Alias           string
 	EnableAggregate bool
 	PathParamID     string
 }
 
-func (p *ListAssetsParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
-	if err != nil {
+func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
+	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
 	}
 
-	p.ID, err = GetQueryID(q, KeyID)
-	if err != nil {
-		return err
-	}
+	p.Alias = GetQueryString(q, KeyAlias, "")
 
+	var err error
 	p.EnableAggregate, err = GetQueryBool(q, KeyEnableAggregate, false)
 	if err != nil {
 		return err
@@ -325,73 +239,50 @@ func (p *ListAssetsParams) ForValues(q url.Values) error {
 }
 
 func (p *ListAssetsParams) CacheKey() []string {
-	k := p.ListParams.CacheKey()
-
-	k = append(k,
+	return append(p.ListParams.CacheKey(),
 		CacheKey(KeyEnableAggregate, p.EnableAggregate),
-		CacheKey("PathParamID", p.PathParamID),
-	)
-
-	if p.ID != nil {
-		k = append(k, CacheKey(KeyID, p.ID.String()))
-	}
-
-	return k
+		CacheKey(KeyAlias, p.Alias),
+		CacheKey("PathParamID", p.PathParamID))
 }
 
 func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(b)
-
-	if p.ID != nil {
-		b = b.
-			Where("avm_assets.id = ?", p.ID.String()).
-			Limit(1)
-	}
+	p.ListParams.Apply("avm_assets", b)
 
 	if p.Alias != "" {
-		b = b.
-			Where("avm_assets.alias = ?", p.Alias)
-	}
-
-	if p.Query != "" {
-		b.Where(dbr.Or(
-			dbr.Like("avm_assets.id", p.Query+"%"),
-			dbr.Like("avm_assets.name", p.Query+"%"),
-			dbr.Like("avm_assets.symbol", p.Query+"%"),
-		))
+		b.Where("avm_assets.alias = ?", p.Alias)
 	}
 
 	return b
 }
 
 type ListAddressesParams struct {
-	ListParams
-	Address *ids.ShortID
-	Query   string
-	Version int
+	ListParams ListParams
+	ChainIDs   []string
+	Address    *ids.ShortID
+	Version    int
 }
 
-func (p *ListAddressesParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
-	if err != nil {
+func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
+	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
 	}
 
-	p.Address, err = GetQueryAddress(q, KeyAddress)
-	if err != nil {
+	p.ChainIDs = q[KeyChainID]
+
+	var err error
+	if p.Address, err = GetQueryAddress(q, KeyAddress); err != nil {
 		return err
 	}
 
-	if p.Address == nil && p.Query != "" {
-		addr, err := AddressFromString(p.Query)
+	if p.Address == nil && p.ListParams.Query != "" {
+		addr, err := AddressFromString(p.ListParams.Query)
 		if err != nil {
 			return err
 		}
 		p.Address = &addr
 	}
 
-	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
-	if err != nil {
+	if p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault); err != nil {
 		return err
 	}
 
@@ -411,25 +302,16 @@ func (p *ListAddressesParams) CacheKey() []string {
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(b)
-
-	if p.Address != nil {
-		b = b.
-			Where("avm_output_addresses.address = ?", p.Address.String()).
-			Limit(1)
-	}
-
-	return b
+	return p.ListParams.Apply("avm_output_addresses", b)
 }
 
 type AddressChainsParams struct {
-	ListParams
-	Addresses []ids.ShortID
+	ListParams ListParams
+	Addresses  []ids.ShortID
 }
 
-func (p *AddressChainsParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
-	if err != nil {
+func (p *AddressChainsParams) ForValues(v uint8, q url.Values) error {
+	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
 	}
 
@@ -456,36 +338,28 @@ func (p *AddressChainsParams) CacheKey() []string {
 }
 
 func (p *AddressChainsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(b)
+	p.ListParams.Apply("address_chain", b)
 
-	if len(p.Addresses) > 0 {
-		addrs := make([]string, len(p.Addresses))
-		for i, id := range p.Addresses {
-			addrs[i] = id.String()
-		}
-		b = b.Where("address_chain.address IN ?", addrs)
+	if len(p.Addresses) == 0 {
+		return b
 	}
 
-	return b
+	addrs := make([]string, len(p.Addresses))
+	for i, id := range p.Addresses {
+		addrs[i] = id.String()
+	}
+	return b.Where("address_chain.address IN ?", addrs)
 }
 
 type ListOutputsParams struct {
-	ListParams
-	ID        *ids.ID
-	ChainIDs  []string
-	Addresses []ids.ShortID
-	Spent     *bool
-	Query     string
+	ListParams ListParams
+	ChainIDs   []string
+	Addresses  []ids.ShortID
+	Spent      *bool
 }
 
-func (p *ListOutputsParams) ForValues(q url.Values) error {
-	err := p.ListParams.ForValues(q)
-	if err != nil {
-		return err
-	}
-
-	p.ID, err = GetQueryID(q, KeyID)
-	if err != nil {
+func (p *ListOutputsParams) ForValues(v uint8, q url.Values) error {
+	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
 	}
 
@@ -513,13 +387,8 @@ func (p *ListOutputsParams) ForValues(q url.Values) error {
 }
 
 func (p *ListOutputsParams) CacheKey() []string {
-	k := p.ListParams.CacheKey()
-
-	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
-
-	if p.ID != nil {
-		k = append(k, CacheKey(KeyID, p.ID.String()))
-	}
+	k := append(p.ListParams.CacheKey(),
+		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
 
 	for _, address := range p.Addresses {
 		k = append(k, CacheKey(KeyAddress, address.String()))
@@ -529,21 +398,17 @@ func (p *ListOutputsParams) CacheKey() []string {
 		k = append(k, CacheKey(KeySpent, *p.Spent))
 	}
 
-	if p.Query != "" {
-		k = append(k, CacheKey(KeySearchQuery, p.Query))
-	}
-
 	return k
 }
 
 func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(b)
+	p.ListParams.Apply("avm_outputs", b)
 
 	if p.Spent != nil {
 		if *p.Spent {
-			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL")
+			b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL")
 		} else {
-			b = b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NULL")
+			b.Where("avm_outputs_redeeming.redeeming_transaction_id IS NULL")
 		}
 	}
 
@@ -552,18 +417,8 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		for i, addr := range p.Addresses {
 			addrStrs[i] = addr.String()
 		}
-		b = b.LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		b.LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 			Where("avm_output_addresses.address IN ?", addrStrs)
-	}
-
-	if p.ID != nil {
-		b = b.
-			Where("avm_outputs.id = ?", p.ID.String()).
-			Limit(1)
-	}
-
-	if p.Query != "" {
-		b.Where(dbr.Like("avm_outputs.id", p.Query+"%"))
 	}
 
 	if len(p.ChainIDs) > 0 {
@@ -574,37 +429,21 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 }
 
 type ListBlocksParams struct {
-	ListParams
-
-	ID        *ids.ID
-	Types     []models.BlockType
-	StartTime time.Time
-	EndTime   time.Time
-	Sort      BlockSort
+	ListParams ListParams
+	Types      []models.BlockType
+	Sort       BlockSort
 }
 
-type ListValidatorsParams struct {
-	ListParams
-
-	ID           *ids.ID
-	Subnets      []ids.ID
-	Destinations []ids.ShortID
-	StartTime    time.Time
-	EndTime      time.Time
+func (p *ListBlocksParams) ForValues(v uint8, q url.Values) error {
+	return p.ListParams.ForValues(v, q)
 }
 
-type ListChainsParams struct {
-	ListParams
-
-	ID      *ids.ID
-	Subnets []ids.ID
-	VMID    *ids.ID
+func (p *ListBlocksParams) CacheKey() []string {
+	return p.ListParams.CacheKey()
 }
 
-type ListSubnetsParams struct {
-	ListParams
-
-	ID *ids.ID
+func (p *ListBlocksParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	return p.ListParams.Apply("pvm_blocks", b)
 }
 
 //

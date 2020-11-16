@@ -24,7 +24,7 @@ const (
 )
 
 var (
-	consumerInitializeTimeout = 3 * time.Minute
+	consumerInitializeTimeout = 5 * time.Minute
 )
 
 type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)

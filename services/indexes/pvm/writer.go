@@ -8,8 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -118,11 +119,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			// needs to support StakeableLockOut Locktime...
-			// xOut.Locktime = transferOutput.Locktime
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime))
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0))
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
@@ -212,7 +211,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	}
 	_, err := blockInsert.
 		ExecContext(ctx.Ctx())
-	if err != nil && !errIsDuplicateEntryError(err) {
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("index_common_block.upsert_block", err)
 	}
 	return nil
@@ -260,126 +259,4 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	}
 
 	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, genesis)
-}
-
-// func (w *Writer) indexCreateChainTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateChainTx) error {
-// 	txBytes, err := w.codec.Marshal(tx)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
-//
-// 	err = w.indexTransactionOld(ctx, blockID, models.TransactionTypeCreateChain, txID)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	// Add chain
-// 	_, err = ctx.DB().
-// 		InsertInto("pvm_chains").
-// 		Pair("id", txID.String()).
-// 		Pair("network_id", tx.NetworkID).
-// 		Pair("subnet_id", tx.SubnetID.String()).
-// 		Pair("name", tx.ChainName).
-// 		Pair("vm_id", tx.VMID.String()).
-// 		Pair("genesis_data", tx.GenesisData).
-// 		ExecContext(ctx.Ctx())
-// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain", err)
-// 	}
-//
-// 	// Add FX IDs
-// 	// if len(tx.ControlSigs) > 0 {
-// 	// 	builder := ctx.DB().
-// 	// 		InsertInto("pvm_chains_fx_ids").
-// 	// 		Columns("chain_id", "fx_id")
-// 	// 	for _, fxID := range tx.FxIDs {
-// 	// 		builder.Values(w.chainID, fxID.String())
-// 	// 	}
-// 	// 	_, err = builder.ExecContext(ctx.Ctx())
-// 	// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 	// 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_fx_ids", err)
-// 	// 	}
-// 	// }
-// 	//
-// 	// // Add Control Sigs
-// 	// if len(tx.ControlSigs) > 0 {
-// 	// 	builder := ctx.DB().
-// 	// 		InsertInto("pvm_chains_control_signatures").
-// 	// 		Columns("chain_id", "signature")
-// 	// 	for _, sig := range tx.ControlSigs {
-// 	// 		builder.Values(w.chainID, sig[:])
-// 	// 	}
-// 	// 	_, err = builder.ExecContext(ctx.Ctx())
-// 	// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 	// 		return ctx.Job().EventErr("index_create_chain_tx.upsert_chain_control_sigs", err)
-// 	// 	}
-// 	// }
-// 	return nil
-// }
-//
-// func (w *Writer) indexCreateSubnetTx(ctx services.ConsumerCtx, blockID ids.ID, tx *platformvm.UnsignedCreateSubnetTx) error {
-// 	txBytes, err := w.codec.Marshal(tx)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	txID := ids.NewID(hashing.ComputeHash256Array(txBytes))
-//
-// 	err = w.indexTransactionOld(ctx, blockID, models.TransactionTypeCreateSubnet, txID)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	// Add subnet
-// 	_, err = ctx.DB().
-// 		InsertInto("pvm_subnets").
-// 		Pair("id", txID.String()).
-// 		Pair("network_id", tx.NetworkID).
-// 		Pair("chain_id", w.chainID).
-// 		// Pair("threshold", tx.Threshold).
-// 		Pair("created_at", ctx.Time()).
-// 		ExecContext(ctx.Ctx())
-// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 		return ctx.Job().EventErr("index_create_subnet_tx.upsert_subnet", err)
-// 	}
-//
-// 	// Add control keys
-// 	// if len(tx.ControlKeys) > 0 {
-// 	// 	builder := ctx.DB().
-// 	// 		InsertInto("pvm_subnet_control_keys").
-// 	// 		Columns("subnet_id", "address")
-// 	// 	for _, address := range tx.ControlKeys {
-// 	// 		builder.Values(txID.String(), address.String())
-// 	// 	}
-// 	// 	_, err = builder.ExecContext(ctx.Ctx())
-// 	// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 	// 		return ctx.Job().EventErr("index_create_subnet_tx.upsert_control_keys", err)
-// 	// 	}
-// 	// }
-//
-// 	return nil
-// }
-
-// func (db *DB) indexValidator(ctx services.ConsumerCtx, txID ids.ID, dv platformvm.DurationValidator, destination ids.ShortID, shares uint32, subnetID ids.ID) error {
-// 	_, err := ctx.DB().
-// 		InsertInto("pvm_validators").
-// 		Pair("transaction_id", txID.String()).
-// 		Pair("node_id", dv.NodeID.String()).
-// 		Pair("weight", dv.Weight()).
-// 		Pair("start_time", dv.StartTime()).
-// 		Pair("end_time", dv.EndTime()).
-// 		Pair("destination", destination.String()).
-// 		Pair("shares", shares).
-// 		Pair("subnet_id", subnetID.String()).
-// 		ExecContext(ctx.Ctx())
-// 	if err != nil && !errIsDuplicateEntryError(err) {
-// 		return ctx.Job().EventErr("index_validator.upsert_validator", err)
-// 	}
-// 	return nil
-// }
-
-func errIsDuplicateEntryError(err error) bool {
-	return err != nil && strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")
 }

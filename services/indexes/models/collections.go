@@ -8,17 +8,20 @@ import (
 )
 
 type ListMetadata struct {
-	Count uint64 `json:"count"`
+	Count *uint64 `json:"count,omitempty"`
 }
 
 type TransactionList struct {
 	ListMetadata
+
 	Transactions []*Transaction `json:"transactions"`
 
-	// the calculated start time rounded to the nearest TransactionRoundDuration.
+	// StartTime is the calculated start time rounded to the nearest
+	// TransactionRoundDuration.
 	StartTime time.Time `json:"startTime"`
 
-	// the calculated end time rounded to the nearest TransactionRoundDuration.
+	// EndTime is the calculated end time rounded to the nearest
+	// TransactionRoundDuration.
 	EndTime time.Time `json:"endTime"`
 }
 
@@ -64,10 +67,12 @@ type AggregatesHistogram struct {
 	IntervalSize time.Duration `json:"intervalSize,omitempty"`
 	Intervals    []Aggregates  `json:"intervals,omitempty"`
 
-	// the calculated start time rounded to the nearest TransactionRoundDuration.
+	// StartTime is the calculated start time rounded to the nearest
+	// TransactionRoundDuration.
 	StartTime time.Time `json:"startTime"`
 
-	// the calculated end time rounded to the nearest TransactionRoundDuration.
+	// EndTime is the calculated end time rounded to the nearest
+	// TransactionRoundDuration.
 	EndTime time.Time `json:"endTime"`
 }
 
@@ -76,15 +81,19 @@ type Aggregates struct {
 	// It is exported only so it can be written to by dbr.
 	Idx int `json:"-"`
 
+	// StartTime is the calculated start time rounded to the nearest
+	// TransactionRoundDuration.
 	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
+
+	// EndTime is the calculated end time rounded to the nearest
+	// TransactionRoundDuration.
+	EndTime time.Time `json:"endTime"`
 
 	TransactionVolume TokenAmount `json:"transactionVolume"`
-
-	TransactionCount uint64 `json:"transactionCount"`
-	AddressCount     uint64 `json:"addressCount"`
-	OutputCount      uint64 `json:"outputCount"`
-	AssetCount       uint64 `json:"assetCount"`
+	TransactionCount  uint64      `json:"transactionCount"`
+	AddressCount      uint64      `json:"addressCount"`
+	OutputCount       uint64      `json:"outputCount"`
+	AssetCount        uint64      `json:"assetCount"`
 }
 
 type AddressChains struct {

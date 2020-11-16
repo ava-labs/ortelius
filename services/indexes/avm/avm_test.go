@@ -11,11 +11,9 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
-	"github.com/ava-labs/ortelius/services"
-
-	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
@@ -40,7 +38,7 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count != 1 {
+	if txList.Count == nil || *txList.Count != 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 
@@ -52,7 +50,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	// inject a txfee for testing
-	session, _ := writer.conns.DB().NewSession("test_tx", api.RequestTimeout)
+	session, _ := writer.conns.DB().NewSession("test_tx", services.RequestTimeout)
 	_, _ = session.Update("avm_transactions").
 		Set("txfee", 101).
 		Where("id = ?", txList.Transactions[0].ID).
@@ -68,7 +66,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	addr, _ := ids.ToShortID([]byte("addr"))
 
-	sess, _ := writer.conns.DB().NewSession("address_chain", api.RequestTimeout)
+	sess, _ := writer.conns.DB().NewSession("address_chain", services.RequestTimeout)
 	_, _ = sess.InsertInto("address_chain").
 		Pair("address", addr.String()).
 		Pair("chain_id", "ch1").
@@ -89,7 +87,7 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Incorrect chain id")
 	}
 
-	// invoke the addrss and asset logic to test the db.
+	// invoke the address and asset logic to test the db.
 	txList, err = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs:  []string{testXChainID.String()},
 		Addresses: []ids.ShortID{ids.ShortEmpty},
@@ -99,12 +97,12 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count != 0 {
+	if txList.Count == nil || *txList.Count != 0 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -140,10 +138,10 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *Rea
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := NewReader(conns, chainID.String())
+	reader := avax.NewReader(conns)
 	return writer, reader, func() {
 		s.Close()
-		conns.Close()
+		_ = conns.Close()
 	}
 }
 
