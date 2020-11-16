@@ -42,7 +42,6 @@ func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *id
 		Get("/search", (*V2Context).Search).
 		Get("/aggregates", (*V2Context).Aggregate).
 		Get("/transactions/aggregates", (*V2Context).Aggregate).
-		Get("/assets", (*V2Context).ListAssets).
 		Get("/addressChains", (*V2Context).AddressChains).
 
 		// List and Get routes
@@ -51,7 +50,9 @@ func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *id
 		Get("/addresses", (*V2Context).ListAddresses).
 		Get("/addresses/:id", (*V2Context).GetAddress).
 		Get("/outputs", (*V2Context).ListOutputs).
-		Get("/outputs/:id", (*V2Context).GetOutput)
+		Get("/outputs/:id", (*V2Context).GetOutput).
+		Get("/assets", (*V2Context).ListAssets).
+		Get("/assets/:id", (*V2Context).GetAsset)
 }
 
 //
