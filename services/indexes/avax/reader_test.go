@@ -2,7 +2,6 @@ package avax
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -43,7 +42,6 @@ func TestCollectInsAndOuts(t *testing.T) {
 	time := time.Now().Truncate(1 * time.Hour)
 
 	inputIDUnmatched := "inu"
-	txIDUnmatched := txID
 
 	_, _ = session.InsertInto("avm_outputs").
 		Pair("id", outputID).
@@ -81,7 +79,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	_, _ = session.InsertInto("avm_outputs_redeeming").
 		Pair("id", inputIDUnmatched).
 		Pair("redeemed_at", time).
-		Pair("redeeming_transaction_id", txIDUnmatched).
+		Pair("redeeming_transaction_id", txID).
 		Pair("amount", amount).
 		Pair("output_index", idx).
 		Pair("intx", intxID).
@@ -89,11 +87,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 		Pair("created_at", time).
 		ExecContext(ctx)
 
-	records, err := reader.collectInsAndOuts(ctx, session, []models.StringID{models.StringID(txID)})
-
-	for _, r := range records {
-		t.Log(fmt.Sprintf("ins/outs %v %v", r, err))
-	}
+	records, _ := reader.collectInsAndOuts(ctx, session, []models.StringID{models.StringID(txID)})
 
 	if len(records) != 3 {
 		t.Error("invalid input/outputs")
