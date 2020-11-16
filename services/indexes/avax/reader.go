@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/cfg"
 	"math"
 	"math/big"
 	"time"
+
+	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services"
