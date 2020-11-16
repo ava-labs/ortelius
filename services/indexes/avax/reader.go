@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/ortelius/api"
 	"math"
 	"math/big"
 	"time"
@@ -22,8 +23,6 @@ const (
 	MaxAggregateIntervalCount = 20000
 
 	MinSearchQueryLength = 1
-
-	RequestTimeout = 30 * time.Second
 )
 
 var (
@@ -121,7 +120,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +284,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_transactions", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transactions", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +346,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_addresses", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_addresses", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +385,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +496,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewSession("addressChains", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("addressChains", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +534,7 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 }
 
 func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string) (time.Time, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", api.RequestTimeout)
 	if err != nil {
 		return time.Time{}, err
 	}

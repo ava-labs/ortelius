@@ -5,6 +5,7 @@ package avm
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/api"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	// inject a txfee for testing
-	session, _ := writer.conns.DB().NewSession("test_tx", services.RequestTimeout)
+	session, _ := writer.conns.DB().NewSession("test_tx", api.RequestTimeout)
 	_, _ = session.Update("avm_transactions").
 		Set("txfee", 101).
 		Where("id = ?", txList.Transactions[0].ID).
@@ -66,7 +67,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	addr, _ := ids.ToShortID([]byte("addr"))
 
-	sess, _ := writer.conns.DB().NewSession("address_chain", services.RequestTimeout)
+	sess, _ := writer.conns.DB().NewSession("address_chain", api.RequestTimeout)
 	_, _ = sess.InsertInto("address_chain").
 		Pair("address", addr.String()).
 		Pair("chain_id", "ch1").

@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/api"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -22,7 +23,7 @@ func NewReader(conns *services.Connections) *Reader {
 }
 
 func (r *Reader) ListBlocks(ctx context.Context, params *params.ListBlocksParams) (*models.BlockList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_blocks", services.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_blocks", api.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
