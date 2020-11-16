@@ -182,7 +182,7 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 		TTL: 1 * time.Second,
 		Key: c.cacheKeyForParams("get_address", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.GetAddress(ctx, id)
+			return c.avaxReader.GetAddress(ctx, p)
 		},
 	})
 }

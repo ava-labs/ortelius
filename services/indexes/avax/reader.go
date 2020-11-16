@@ -467,12 +467,8 @@ func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.
 	return nil, nil
 }
 
-func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.AddressInfo, error) {
-	addressList, err := r.ListAddresses(ctx,
-		&params.ListAddressesParams{
-			Address:    &id,
-			ListParams: params.ListParams{DisableCounting: true},
-		})
+func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) (*models.AddressInfo, error) {
+	addressList, err := r.ListAddresses(ctx, p)
 	if err != nil {
 		return nil, err
 	}
