@@ -72,6 +72,7 @@ func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStr
 	} else {
 		p.Alias = idStrOrAlias
 	}
+	p.ListParams.DisableCounting = true
 
 	assetList, err := r.ListAssets(ctx, p)
 	if err != nil {
