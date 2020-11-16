@@ -780,7 +780,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	switch version {
 	case 1:
-		_, err := dbRunner.
+		builder := dbRunner.
 			Select(
 				"avm_asset_address_counts.address",
 				"avm_asset_address_counts.asset_id",
@@ -792,9 +792,13 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			).
 			From("avm_asset_address_counts").
 			Where("avm_asset_address_counts.address IN ?", addrIDs).
-			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
-			LoadContext(ctx, &rows)
-		if err != nil {
+			GroupBy("avm_asset_address_counts.address", "avm_asset_address_counts.asset_id")
+
+		if len(chainIDs) > 0 {
+			builder.Where("avm_asset_address_counts.chain_id IN ?", chainIDs)
+		}
+
+		if _, err := builder.LoadContext(ctx, &rows); err != nil {
 			return err
 		}
 	default:
