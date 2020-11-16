@@ -93,7 +93,7 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 	}
 	xChainID := ids.NewID(hashing.ComputeHash256Array(xChainGenesisBytes))
 
-	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID)
+	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}
