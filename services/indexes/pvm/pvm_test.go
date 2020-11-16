@@ -57,7 +57,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 		},
 	}
 
-	conns, err := services.NewConnectionsFromConfig(conf)
+	conns, err := services.NewConnectionsFromConfig(conf, false)
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}

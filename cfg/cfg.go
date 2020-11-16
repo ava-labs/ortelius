@@ -53,6 +53,7 @@ type API struct {
 
 type DB struct {
 	DSN    string `json:"dsn"`
+	RODSN  string `json:"rodsn"`
 	Driver string `json:"driver"`
 	TXDB   bool   `json:"txDB"`
 }
@@ -119,6 +120,12 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 	loggingConf.Directory = v.GetString(keysLogDirectory)
 
+	dbdsn := servicesDBViper.GetString(keysServicesDBDSN)
+	dbrodsn := dbdsn
+	if servicesDBViper.Get(keysServicesDBRODSN) != nil {
+		dbrodsn = servicesDBViper.GetString(keysServicesDBRODSN)
+	}
+
 	// Put it all together
 	return &Config{
 		NetworkID:         v.GetUint32(keysNetworkID),
@@ -131,7 +138,8 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 			DB: &DB{
 				Driver: servicesDBViper.GetString(keysServicesDBDriver),
-				DSN:    servicesDBViper.GetString(keysServicesDBDSN),
+				DSN:    dbdsn,
+				RODSN:  dbrodsn,
 				TXDB:   servicesDBViper.GetBool(keysServicesDBTXDB),
 			},
 			Redis: &Redis{
