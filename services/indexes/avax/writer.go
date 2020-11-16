@@ -178,25 +178,6 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		errs.Add(w.stream.EventErr("insert_output.insert", err))
-	} else {
-		// excluding created_at
-		_, err = ctx.DB().Update("avm_outputs").
-			Set("chain_id", w.chainID).
-			Set("transaction_id", txID.String()).
-			Set("output_index", idx).
-			Set("asset_id", assetID.String()).
-			Set("output_type", outputType).
-			Set("amount", out.Amount()).
-			Set("locktime", out.Locktime).
-			Set("threshold", out.Threshold).
-			Set("group_id", groupID).
-			Set("payload", payload).
-			Set("stake_locktime", stakeLocktime).
-			Where("id = ?", outputID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			errs.Add(w.stream.EventErr("insert_output.update", err))
-		}
 	}
 
 	// Ingest each Output Address
