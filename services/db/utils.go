@@ -25,6 +25,7 @@ func SanitizedDSN(cfg *cfg.DB) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	rodsn.Passwd = "[removed]"
 	return dsn.FormatDSN(), rodsn.FormatDSN(), nil
 }
 
