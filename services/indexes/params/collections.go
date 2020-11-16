@@ -269,7 +269,20 @@ func (p *ListAddressesParams) ForValueChainID(chainID *ids.ID) {
 	if p.ChainIDs == nil {
 		p.ChainIDs = make([]string, 0, 1)
 	}
-	p.ChainIDs = append(p.ChainIDs, (*chainID).String())
+
+	cnew := chainID.String()
+
+	var found bool
+	for _, cval := range p.ChainIDs {
+		if cval == cnew {
+			found = true
+			break
+		}
+	}
+	if found {
+		return
+	}
+	p.ChainIDs = append(p.ChainIDs, cnew)
 }
 
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
