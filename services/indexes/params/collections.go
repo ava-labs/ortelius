@@ -302,7 +302,15 @@ func (p *ListAddressesParams) CacheKey() []string {
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("avm_output_addresses", b)
+	b = p.ListParams.Apply("avm_output_addresses", b)
+
+	if p.Address != nil {
+		b = b.
+			Where("avm_output_addresses.address = ?", p.Address.String()).
+			Limit(1)
+	}
+
+	return b
 }
 
 type AddressChainsParams struct {
