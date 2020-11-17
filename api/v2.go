@@ -81,9 +81,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
@@ -100,9 +98,7 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
@@ -135,7 +131,8 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
-	p.ForValueChainID(c.chainID)
+
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
@@ -176,7 +173,7 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 	}
 	p.Address = &id
 	p.ListParams.DisableCounting = true
-	p.ForValueChainID(c.chainID)
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 1 * time.Second,
@@ -194,9 +191,7 @@ func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
