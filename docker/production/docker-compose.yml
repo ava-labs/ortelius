@@ -106,7 +106,7 @@ services:
       - producer
     restart: always
   producer: &ortelius-app
-    image: "avaplatform/ortelius:516bb13"
+    image: "avaplatform/ortelius:8f524cb"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - zookeeper
