@@ -250,7 +250,7 @@ func (t *ProducerTasker) cleanupState(backupAggregateState models.AvmAssetAggreg
 	ctx, cancel := context.WithTimeout(context.Background(), stateContextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_cleanstate", stateContextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_cleanstate", stateContextDuration)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (t *ProducerTasker) fetchState() (models.AvmAssetAggregateState, models.Avm
 	ctx, cancel := context.WithTimeout(context.Background(), stateContextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_fetchstate", stateContextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_fetchstate", stateContextDuration)
 	if err != nil {
 		return liveAggregationState, backupAggregateState, err
 	}
@@ -320,7 +320,7 @@ func (t *ProducerTasker) processAvmOutputs(aggregateTS time.Time, updateChannel 
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_outputs", queryContextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_outputs", queryContextDuration)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -382,7 +382,7 @@ func (t *ProducerTasker) processAvmOutputAddressesCounts(aggregateTS time.Time, 
 	ctx, cancel := context.WithTimeout(context.Background(), queryContextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_addresscounts", queryContextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_addresscounts", queryContextDuration)
 	if err != nil {
 		return err
 	}
@@ -448,7 +448,7 @@ func (t *ProducerTasker) replaceAvmAggregate(avmAggregates models.AvmAggregate) 
 	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_aggregate", contextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_aggregate", contextDuration)
 	if err != nil {
 		return err
 	}
@@ -465,7 +465,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 	ctx, cancel := context.WithTimeout(context.Background(), contextDuration)
 	defer cancel()
 
-	sess, err := t.connections.DB().NewSession("producertasker_aggregate_count", contextDuration)
+	sess, err := t.connections.DB().NewSession("indexertask_aggregate_count", contextDuration)
 	if err != nil {
 		return err
 	}
