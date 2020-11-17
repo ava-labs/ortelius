@@ -135,6 +135,7 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
+	p.ForValueChainID(c.chainID)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
@@ -162,17 +163,26 @@ func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListAddressesParams{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
 	id, err := params.AddressFromString(r.PathParams["id"])
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
+	p.Address = &id
+	p.ListParams.DisableCounting = true
+	p.ForValueChainID(c.chainID)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 1 * time.Second,
-		Key: c.cacheKeyForID("get_address", r.PathParams["id"]),
+		Key: c.cacheKeyForParams("get_address", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.GetAddress(ctx, id)
+			return c.avaxReader.GetAddress(ctx, p)
 		},
 	})
 }

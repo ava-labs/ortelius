@@ -262,6 +262,29 @@ type ListAddressesParams struct {
 	Version    int
 }
 
+func (p *ListAddressesParams) ForValueChainID(chainID *ids.ID) {
+	if chainID == nil {
+		return
+	}
+	if p.ChainIDs == nil {
+		p.ChainIDs = make([]string, 0, 1)
+	}
+
+	cnew := chainID.String()
+
+	var found bool
+	for _, cval := range p.ChainIDs {
+		if cval == cnew {
+			found = true
+			break
+		}
+	}
+	if found {
+		return
+	}
+	p.ChainIDs = append(p.ChainIDs, cnew)
+}
+
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
 	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
@@ -302,7 +325,15 @@ func (p *ListAddressesParams) CacheKey() []string {
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("avm_output_addresses", b)
+	b = p.ListParams.Apply("avm_output_addresses", b)
+
+	if p.Address != nil {
+		b = b.
+			Where("avm_output_addresses.address = ?", p.Address.String()).
+			Limit(1)
+	}
+
+	return b
 }
 
 type AddressChainsParams struct {
