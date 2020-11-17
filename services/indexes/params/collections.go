@@ -42,12 +42,19 @@ func (p *SearchParams) CacheKey() []string {
 	return p.ListParams.CacheKey()
 }
 
-type TxfeeParams struct {
+type TxfeeAggregateParams struct {
 	ListParams ListParams
+
+	IntervalSize time.Duration
 }
 
-func (p *TxfeeParams) ForValues(version uint8, q url.Values) (err error) {
+func (p *TxfeeAggregateParams) ForValues(version uint8, q url.Values) (err error) {
 	err = p.ListParams.ForValues(version, q)
+	if err != nil {
+		return err
+	}
+
+	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
 		return err
 	}
@@ -55,11 +62,17 @@ func (p *TxfeeParams) ForValues(version uint8, q url.Values) (err error) {
 	return nil
 }
 
-func (p *TxfeeParams) CacheKey() []string {
-	return p.ListParams.CacheKey()
+func (p *TxfeeAggregateParams) CacheKey() []string {
+	k := make([]string, 0, 4)
+
+	k = append(k,
+		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+	)
+
+	return append(p.ListParams.CacheKey(), k...)
 }
 
-func (p *TxfeeParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+func (p *TxfeeAggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return b
 }
 

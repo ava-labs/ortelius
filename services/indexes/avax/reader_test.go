@@ -5,6 +5,7 @@ package avax
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,36 +40,23 @@ func TestAggregateTxfee(t *testing.T) {
 
 	starttime := tnow.Add(-2 * time.Hour)
 	endtime := tnow.Add(1 * time.Second)
-	p := params.TxfeeParams{ListParams: params.ListParams{StartTime: starttime, EndTime: endtime}}
-	agg, _ := reader.Txfee(ctx, &p)
-
-	if agg.Txfee != models.TokenAmount("25") {
+	p := params.TxfeeAggregateParams{ListParams: params.ListParams{StartTime: starttime, EndTime: endtime}}
+	agg, err := reader.TxfeeAggregate(ctx, &p)
+	if err != nil {
+		t.Error("error", err)
+	}
+	t.Error(fmt.Sprintf("%v", agg))
+	if agg.TxfeeAggregates.Txfee != models.TokenAmount("25") {
 		t.Error("aggregate tx invalid")
 	}
 	if agg.StartTime != starttime || agg.EndTime != endtime {
 		t.Error("aggregate tx invalid")
 	}
 
-	p = params.TxfeeParams{ListParams: params.ListParams{StartTime: tnow.Add(-50 * time.Minute), EndTime: tnow.Add(1 * time.Second)}}
-	agg, _ = reader.Txfee(ctx, &p)
+	p = params.TxfeeAggregateParams{ListParams: params.ListParams{StartTime: tnow.Add(-50 * time.Minute), EndTime: tnow.Add(1 * time.Second)}}
+	agg, _ = reader.TxfeeAggregate(ctx, &p)
 
-	if agg.Txfee != models.TokenAmount("10") {
-		t.Error("aggregate tx invalid")
-	}
-
-	// start time > end time txfee = "0"
-	p = params.TxfeeParams{ListParams: params.ListParams{StartTime: tnow.Add(2 * time.Second), EndTime: tnow.Add(1 * time.Second)}}
-	agg, _ = reader.Txfee(ctx, &p)
-
-	if agg.Txfee != models.TokenAmount("0") {
-		t.Error("aggregate tx invalid")
-	}
-
-	// start time = end time txfee = "0"
-	p = params.TxfeeParams{ListParams: params.ListParams{StartTime: tnow.Add(1 * time.Second), EndTime: tnow.Add(1 * time.Second)}}
-	agg, _ = reader.Txfee(ctx, &p)
-
-	if agg.Txfee != models.TokenAmount("0") {
+	if agg.TxfeeAggregates.Txfee != models.TokenAmount("10") {
 		t.Error("aggregate tx invalid")
 	}
 }

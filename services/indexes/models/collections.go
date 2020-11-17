@@ -62,8 +62,10 @@ type SearchResult struct {
 	Score uint64 `json:"score"`
 }
 
-type Txfee struct {
-	Txfee TokenAmount `json:"txfee"`
+type TxfeeAggregatesHistogram struct {
+	TxfeeAggregates TxfeeAggregates   `json:"aggregates"`
+	IntervalSize    time.Duration     `json:"intervalSize,omitempty"`
+	Intervals       []TxfeeAggregates `json:"intervals,omitempty"`
 
 	// StartTime is the calculated start time rounded to the nearest
 	// TransactionRoundDuration.
@@ -72,6 +74,23 @@ type Txfee struct {
 	// EndTime is the calculated end time rounded to the nearest
 	// TransactionRoundDuration.
 	EndTime time.Time `json:"endTime"`
+}
+
+
+type TxfeeAggregates struct {
+	// Idx is used internally when creating a histogram of Aggregates.
+	// It is exported only so it can be written to by dbr.
+	Idx int `json:"-"`
+
+	// StartTime is the calculated start time rounded to the nearest
+	// TransactionRoundDuration.
+	StartTime time.Time `json:"startTime"`
+
+	// EndTime is the calculated end time rounded to the nearest
+	// TransactionRoundDuration.
+	EndTime time.Time `json:"endTime"`
+
+	Txfee TokenAmount `json:"txfee"`
 }
 
 type AggregatesHistogram struct {
