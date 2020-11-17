@@ -121,7 +121,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	}
 
 	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_txfee_aggregates_histogram", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
