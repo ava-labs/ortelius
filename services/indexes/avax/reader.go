@@ -95,6 +95,32 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	return collateSearchResults(addresses, transactions)
 }
 
+func (r *Reader) AggregateTxfee(ctx context.Context, params *params.AggregateTxfeeParams) (*models.AggregateTxfee, error) {
+	if !params.ListParams.StartTime.Before(params.ListParams.EndTime) {
+		return &models.AggregateTxfee{StartTime: params.ListParams.StartTime, EndTime: params.ListParams.EndTime}, nil
+	}
+
+	// Build the query and load the base data
+	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_txfee", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &models.AggregateTxfee{}
+	_, err = dbRunner.Select("cast(sum(tx_fee) as char)").
+		From("aggregate_txfee").
+		Where("aggregate_ts >= ? and aggregate_ts < ?", params.ListParams.StartTime, params.ListParams.EndTime).
+		LoadContext(ctx, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	res.StartTime = params.ListParams.StartTime
+	res.EndTime = params.ListParams.EndTime
+
+	return res, nil
+}
+
 func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
