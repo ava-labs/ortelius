@@ -37,10 +37,15 @@ func TestAggregateTxfee(t *testing.T) {
 		Pair("tx_fee", 15).
 		ExecContext(ctx)
 
-	p := params.TxfeeParams{ListParams: params.ListParams{StartTime: tnow.Add(-2 * time.Hour), EndTime: tnow.Add(1 * time.Second)}}
+	starttime := tnow.Add(-2 * time.Hour)
+	endtime := tnow.Add(1 * time.Second)
+	p := params.TxfeeParams{ListParams: params.ListParams{StartTime: starttime, EndTime: endtime}}
 	agg, _ := reader.Txfee(ctx, &p)
 
 	if agg.Txfee != models.TokenAmount("25") {
+		t.Error("aggregate tx invalid")
+	}
+	if agg.StartTime != starttime || agg.EndTime != endtime {
 		t.Error("aggregate tx invalid")
 	}
 
