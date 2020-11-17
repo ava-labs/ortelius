@@ -41,7 +41,7 @@ func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *id
 		}).
 		Get("/search", (*V2Context).Search).
 		Get("/aggregates", (*V2Context).Aggregate).
-		Get("/aggregatesTxfee", (*V2Context).AggregateTxfee).
+		Get("/txfee", (*V2Context).Txfee).
 		Get("/transactions/aggregates", (*V2Context).Aggregate).
 		Get("/addressChains", (*V2Context).AddressChains).
 
@@ -75,8 +75,8 @@ func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 	})
 }
 
-func (c *V2Context) AggregateTxfee(w web.ResponseWriter, r *web.Request) {
-	p := &params.AggregateTxfeeParams{}
+func (c *V2Context) Txfee(w web.ResponseWriter, r *web.Request) {
+	p := &params.TxfeeParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -85,7 +85,7 @@ func (c *V2Context) AggregateTxfee(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate_txfee", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.AggregateTxfee(ctx, p)
+			return c.avaxReader.Txfee(ctx, p)
 		},
 	})
 }

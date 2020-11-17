@@ -95,19 +95,19 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	return collateSearchResults(addresses, transactions)
 }
 
-func (r *Reader) AggregateTxfee(ctx context.Context, params *params.AggregateTxfeeParams) (*models.AggregateTxfee, error) {
+func (r *Reader) Txfee(ctx context.Context, params *params.TxfeeParams) (*models.Txfee, error) {
 	if !params.ListParams.StartTime.Before(params.ListParams.EndTime) {
-		return &models.AggregateTxfee{StartTime: params.ListParams.StartTime, EndTime: params.ListParams.EndTime}, nil
+		return &models.Txfee{Txfee: "0", StartTime: params.ListParams.StartTime, EndTime: params.ListParams.EndTime}, nil
 	}
 
 	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_txfee", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_txfee", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	res := &models.AggregateTxfee{}
-	_, err = dbRunner.Select("cast(sum(tx_fee) as char)").
+	res := &models.Txfee{}
+	_, err = dbRunner.Select("cast(sum(tx_fee) as char) as txfee").
 		From("aggregate_txfee").
 		Where("aggregate_ts >= ? and aggregate_ts < ?", params.ListParams.StartTime, params.ListParams.EndTime).
 		LoadContext(ctx, &res)

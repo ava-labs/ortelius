@@ -62,7 +62,9 @@ type SearchResult struct {
 	Score uint64 `json:"score"`
 }
 
-type AggregateTxfee struct {
+type Txfee struct {
+	Txfee TokenAmount `json:"txfee"`
+
 	// StartTime is the calculated start time rounded to the nearest
 	// TransactionRoundDuration.
 	StartTime time.Time `json:"startTime"`
@@ -70,8 +72,6 @@ type AggregateTxfee struct {
 	// EndTime is the calculated end time rounded to the nearest
 	// TransactionRoundDuration.
 	EndTime time.Time `json:"endTime"`
-
-	Txfee TokenAmount `json:"txfee"`
 }
 
 type AggregatesHistogram struct {

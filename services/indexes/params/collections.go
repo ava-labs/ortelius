@@ -42,11 +42,11 @@ func (p *SearchParams) CacheKey() []string {
 	return p.ListParams.CacheKey()
 }
 
-type AggregateTxfeeParams struct {
+type TxfeeParams struct {
 	ListParams ListParams
 }
 
-func (p *AggregateTxfeeParams) ForValues(version uint8, q url.Values) (err error) {
+func (p *TxfeeParams) ForValues(version uint8, q url.Values) (err error) {
 	err = p.ListParams.ForValues(version, q)
 	if err != nil {
 		return err
@@ -55,13 +55,13 @@ func (p *AggregateTxfeeParams) ForValues(version uint8, q url.Values) (err error
 	return nil
 }
 
-func (p *AggregateTxfeeParams) CacheKey() []string {
+func (p *TxfeeParams) CacheKey() []string {
 	k := make([]string, 0, 4)
 
 	return append(p.ListParams.CacheKey(), k...)
 }
 
-func (p *AggregateTxfeeParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+func (p *TxfeeParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	// b.Where("avm_outputs.created_at >= ?", p.ListParams.StartTime)
 	// b.Where("avm_outputs.created_at < ?", p.ListParams.EndTime)
 
