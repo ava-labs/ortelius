@@ -542,7 +542,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 		From("avm_transactions")
 
 	if len(chainIDs) > 0 {
-		builder.Where("avm_transactions.chain_id = ?", chainIDs)
+		builder.Where("avm_transactions.chain_id IN ?", chainIDs)
 	}
 
 	err = builder.LoadOneContext(ctx, &ts)
