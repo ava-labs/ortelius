@@ -477,7 +477,7 @@ func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
 	if found {
 		return chainIDs
 	}
-	chainIDs = append(chainIDs, cnew)
+	chainIDs = append([]string{cnew}, chainIDs...)
 	return chainIDs
 }
 

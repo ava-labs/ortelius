@@ -27,8 +27,11 @@ func TestForValueChainID(t *testing.T) {
 		t.Error("ForValueChainID failed")
 	}
 	tempChain2, _ := ids.ToID(hashing.ComputeHash256([]byte("tid2")))
+	if tempChain.String() == tempChain2.String() {
+		t.Error("toId failed")
+	}
 	res = ForValueChainID(&tempChain, []string{tempChain2.String()})
-	if len(res) != 2 || res[0] != tempChain2.String() || res[1] != tempChain.String() {
+	if len(res) != 2 || res[0] != tempChain.String() || res[1] != tempChain2.String() {
 		t.Error("ForValueChainID failed")
 	}
 }
