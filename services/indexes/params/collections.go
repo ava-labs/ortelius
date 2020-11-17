@@ -56,15 +56,10 @@ func (p *TxfeeParams) ForValues(version uint8, q url.Values) (err error) {
 }
 
 func (p *TxfeeParams) CacheKey() []string {
-	k := make([]string, 0, 4)
-
-	return append(p.ListParams.CacheKey(), k...)
+	return p.ListParams.CacheKey()
 }
 
 func (p *TxfeeParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	// b.Where("avm_outputs.created_at >= ?", p.ListParams.StartTime)
-	// b.Where("avm_outputs.created_at < ?", p.ListParams.EndTime)
-
 	return b
 }
 
