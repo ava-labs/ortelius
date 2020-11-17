@@ -32,4 +32,3 @@ func TestForValueChainID(t *testing.T) {
 		t.Error("ForValueChainID failed")
 	}
 }
-
