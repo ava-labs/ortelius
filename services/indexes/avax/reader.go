@@ -717,7 +717,9 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.output_id",
 		"union_q.address",
 		"union_q.signature",
-		"union_q.public_key").
+		"union_q.public_key",
+		"union_q.chain_id",
+	).
 		From(su).
 		LoadContext(ctx, &outputs)
 	if err != nil {
@@ -897,6 +899,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_output_addresses.address AS address",
 		"avm_output_addresses.redeeming_signature AS signature",
 		"addresses.public_key AS public_key",
+		"avm_outputs.chain_id",
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
@@ -922,6 +925,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
 		"avm_output_addresses.redeeming_signature AS signature",
 		"addresses.public_key AS public_key",
+		"case when avm_outputs.chain_id is null then '' else avm_outputs.chain_id end as chain_id",
 	).
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
