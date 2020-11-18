@@ -5,7 +5,6 @@ package avax
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -144,7 +143,6 @@ func TestAggregateTxfee(t *testing.T) {
 	if err != nil {
 		t.Error("error", err)
 	}
-	t.Error(fmt.Sprintf("%v", agg))
 	if agg.TxfeeAggregates.Txfee != models.TokenAmount("25") {
 		t.Error("aggregate tx invalid")
 	}
