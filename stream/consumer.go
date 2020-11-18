@@ -102,7 +102,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {
-			ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(kafkaReadTimeout))
+			ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
 			defer cancelFn()
 
 			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
