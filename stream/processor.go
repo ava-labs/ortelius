@@ -17,8 +17,6 @@ import (
 )
 
 var (
-	readTimeout = 10 * time.Second
-
 	processorFailureRetryInterval = 200 * time.Millisecond
 
 	// ErrUnknownProcessorType is returned when encountering a client type with no
@@ -31,7 +29,7 @@ type ProcessorFactory func(cfg.Config, string, string) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
-	ProcessNextMessage(context.Context) error
+	ProcessNextMessage() error
 	Close() error
 	Failure()
 	Success()
@@ -138,16 +136,11 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 	// Create a closure that processes the next message from the backend
 	var (
-		ctx                context.Context
-		cancelFn           context.CancelFunc
 		successes          int
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			ctx, cancelFn = context.WithTimeout(context.Background(), readTimeout)
-			defer cancelFn()
-
-			err = backend.ProcessNextMessage(ctx)
+			err = backend.ProcessNextMessage()
 			if err == nil {
 				successes++
 				backend.Success()

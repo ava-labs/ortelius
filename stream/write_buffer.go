@@ -101,7 +101,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
-		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
+		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
 		defer cancelFn()
 
 		collectors := metrics.NewCollectors(
