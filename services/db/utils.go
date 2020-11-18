@@ -11,17 +11,26 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 )
 
-func SanitizedDSN(cfg *cfg.DB) (string, error) {
+const (
+	RemovedPassword = "[removed]"
+)
+
+func SanitizedDSN(cfg *cfg.DB) (string, string, error) {
 	if cfg == nil || cfg.Driver != DriverMysql {
-		return "", nil
+		return "", "", nil
 	}
 
 	dsn, err := mysql.ParseDSN(cfg.DSN)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	dsn.Passwd = "[removed]"
-	return dsn.FormatDSN(), nil
+	dsn.Passwd = RemovedPassword
+	rodsn, err := mysql.ParseDSN(cfg.RODSN)
+	if err != nil {
+		return "", "", err
+	}
+	rodsn.Passwd = RemovedPassword
+	return dsn.FormatDSN(), rodsn.FormatDSN(), nil
 }
 
 func ErrIsDuplicateEntryError(err error) bool {

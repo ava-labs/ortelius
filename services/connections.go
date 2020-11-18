@@ -28,7 +28,7 @@ type Connections struct {
 	cache *cache.Cache
 }
 
-func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
+func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
 
@@ -57,14 +57,15 @@ func NewConnectionsFromConfig(conf cfg.Services) (*Connections, error) {
 	if conf.DB != nil || conf.DB.Driver == db.DriverNone {
 		// Setup logging kvs
 		kvs := health.Kvs{"driver": conf.DB.Driver}
-		loggableDSN, err := db.SanitizedDSN(conf.DB)
+		loggableDSN, loggableRODSN, err := db.SanitizedDSN(conf.DB)
 		if err != nil {
 			return nil, stream.EventErrKv("connect.db.sanitize_dsn", err, kvs)
 		}
 		kvs["dsn"] = loggableDSN
+		kvs["rodsn"] = loggableRODSN
 
 		// Create connection
-		dbConn, err = db.New(stream, *conf.DB)
+		dbConn, err = db.New(stream, *conf.DB, ro)
 		if err != nil {
 			return nil, stream.EventErrKv("connect.db", err, kvs)
 		}

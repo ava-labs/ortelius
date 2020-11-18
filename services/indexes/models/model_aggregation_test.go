@@ -23,7 +23,7 @@ func TestInsertUpdateAvmAssetAggregation(t *testing.T) {
 	var err error
 	h := health.NewStream()
 
-	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"}, false)
 	conf, _ := logging.DefaultConfig()
 	log, _ := logging.New(conf)
 
@@ -96,7 +96,7 @@ func TestInsertUpdateAvmAssetCount(t *testing.T) {
 
 	h := health.NewStream()
 
-	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"})
+	c, _ := db.New(h, cfg.DB{Driver: "mysql", DSN: "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true"}, false)
 	conf, _ := logging.DefaultConfig()
 	log, _ := logging.New(conf)
 
