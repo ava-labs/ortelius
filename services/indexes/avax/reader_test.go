@@ -137,7 +137,7 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 	}
 
 	conf.Log = logging.NoLog{}
-	conns, err := services.NewConnectionsFromConfig(conf)
+	conns, err := services.NewConnectionsFromConfig(conf, false)
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
