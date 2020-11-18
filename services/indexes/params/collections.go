@@ -296,13 +296,23 @@ func (p *ListAddressesParams) CacheKey() []string {
 		k = append(k, CacheKey(KeyAddress, p.Address.String()))
 	}
 
+	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
+
 	k = append(k, CacheKey(KeyVersion, int64(p.Version)))
 
 	return k
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ListParams.Apply("avm_output_addresses", b)
+	b = p.ListParams.Apply("avm_output_addresses", b)
+
+	if p.Address != nil {
+		b = b.
+			Where("avm_output_addresses.address = ?", p.Address.String()).
+			Limit(1)
+	}
+
+	return b
 }
 
 type AddressChainsParams struct {
@@ -444,6 +454,31 @@ func (p *ListBlocksParams) CacheKey() []string {
 
 func (p *ListBlocksParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return p.ListParams.Apply("pvm_blocks", b)
+}
+
+func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
+	if chainID == nil {
+		return chainIDs
+	}
+
+	if chainIDs == nil {
+		chainIDs = make([]string, 0, 1)
+	}
+
+	cnew := chainID.String()
+
+	var found bool
+	for _, cval := range chainIDs {
+		if cval == cnew {
+			found = true
+			break
+		}
+	}
+	if found {
+		return chainIDs
+	}
+	chainIDs = append([]string{cnew}, chainIDs...)
+	return chainIDs
 }
 
 //

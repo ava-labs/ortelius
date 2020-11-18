@@ -23,11 +23,6 @@ import (
 	"github.com/gocraft/web"
 )
 
-var (
-	// RequestTimeout is the maximum duration to allow an API request to execute
-	RequestTimeout = 2 * time.Minute
-)
-
 // Server is an HTTP server configured with various ortelius APIs
 type Server struct {
 	log    logging.Logger
@@ -54,7 +49,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: RequestTimeout,
+			WriteTimeout: cfg.RequestTimeout,
 			IdleTimeout:  15 * time.Second,
 			Handler:      router,
 		},
@@ -93,7 +88,7 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 	}
 	xChainID := ids.NewID(hashing.ComputeHash256Array(xChainGenesisBytes))
 
-	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID)
+	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
 	if err != nil {
 		return nil, err
 	}

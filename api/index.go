@@ -17,7 +17,7 @@ const (
 	PChainAlias = "p"
 )
 
-func newIndexResponse(networkID uint32, xChainID ids.ID) ([]byte, error) {
+func newIndexResponse(networkID uint32, xChainID ids.ID, avaxAssetID ids.ID) ([]byte, error) {
 	return json.Marshal(&struct {
 		NetworkID uint32                      `json:"network_id"`
 		Chains    map[string]models.ChainInfo `json:"chains"`
@@ -25,16 +25,18 @@ func newIndexResponse(networkID uint32, xChainID ids.ID) ([]byte, error) {
 		NetworkID: networkID,
 		Chains: map[string]models.ChainInfo{
 			xChainID.String(): {
-				VM:        AVMName,
-				Alias:     XChainAlias,
-				NetworkID: networkID,
-				ID:        models.StringID(xChainID.String()),
+				VM:          AVMName,
+				Alias:       XChainAlias,
+				NetworkID:   networkID,
+				AVAXAssetID: models.StringID(avaxAssetID.String()),
+				ID:          models.StringID(xChainID.String()),
 			},
 			ids.Empty.String(): {
-				VM:        PVMName,
-				Alias:     PChainAlias,
-				NetworkID: networkID,
-				ID:        models.StringID(ids.Empty.String()),
+				VM:          PVMName,
+				Alias:       PChainAlias,
+				NetworkID:   networkID,
+				AVAXAssetID: models.StringID(avaxAssetID.String()),
+				ID:          models.StringID(ids.Empty.String()),
 			},
 		},
 	})
