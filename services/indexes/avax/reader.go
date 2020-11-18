@@ -687,7 +687,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 		From("avm_transactions")
 
 	if len(chainIDs) > 0 {
-		builder.Where("avm_transactions.chain_id = ?", chainIDs)
+		builder.Where("avm_transactions.chain_id IN ?", chainIDs)
 	}
 
 	err = builder.LoadOneContext(ctx, &ts)
@@ -854,6 +854,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.output_type",
 		"union_q.amount",
 		"union_q.locktime",
+		"union_q.stake_locktime",
 		"union_q.threshold",
 		"union_q.created_at",
 		"union_q.redeeming_transaction_id",
@@ -921,7 +922,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	switch version {
 	case 1:
-		_, err := dbRunner.
+		builder := dbRunner.
 			Select(
 				"avm_asset_address_counts.address",
 				"avm_asset_address_counts.asset_id",
@@ -933,9 +934,13 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			).
 			From("avm_asset_address_counts").
 			Where("avm_asset_address_counts.address IN ?", addrIDs).
-			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
-			LoadContext(ctx, &rows)
-		if err != nil {
+			GroupBy("avm_asset_address_counts.address", "avm_asset_address_counts.asset_id")
+
+		if len(chainIDs) > 0 {
+			builder.Where("avm_asset_address_counts.chain_id IN ?", chainIDs)
+		}
+
+		if _, err := builder.LoadContext(ctx, &rows); err != nil {
 			return err
 		}
 	default:
@@ -1028,6 +1033,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.output_type",
 		"avm_outputs.amount",
 		"avm_outputs.locktime",
+		"avm_outputs.stake_locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
@@ -1052,6 +1058,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
 		"avm_outputs_redeeming.amount",
 		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
+		"case when avm_outputs.stake_locktime is null then 0 else avm_outputs.stake_locktime end as stake_locktime",
 		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
 		"avm_outputs_redeeming.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
