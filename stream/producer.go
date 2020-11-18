@@ -4,7 +4,6 @@
 package stream
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -69,7 +68,7 @@ func (p *Producer) Close() error {
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *Producer) ProcessNextMessage(_ context.Context) error {
+func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
 		p.log.Error("sock.Recv: %s", err.Error())

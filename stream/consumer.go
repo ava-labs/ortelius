@@ -19,6 +19,9 @@ import (
 )
 
 const (
+	kafkaReadTimeout    = 10 * time.Second
+	processWriteTimeout = 10 * time.Second
+
 	ConsumerEventTypeDefault = EventTypeDecisions
 	ConsumerMaxBytesDefault  = 10e8
 )
@@ -99,7 +102,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {
-			ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(readTimeout))
+			ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(kafkaReadTimeout))
 			defer cancelFn()
 
 			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
@@ -119,8 +122,8 @@ func (c *consumer) Close() error {
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage(ctx context.Context) error {
-	msg, err := c.getNextMessage(ctx)
+func (c *consumer) ProcessNextMessage() error {
+	msg, err := c.nextMessage()
 	if err != nil {
 		c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
 		return err
@@ -137,12 +140,22 @@ func (c *consumer) ProcessNextMessage(ctx context.Context) error {
 		}
 	}()
 
+	ctx, cancelFn := context.WithTimeout(context.Background(), processWriteTimeout)
+	defer cancelFn()
+
 	if err = c.consumer.Consume(ctx, msg); err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
+}
+
+func (c *consumer) nextMessage() (*Message, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+
+	return c.getNextMessage(ctx)
 }
 
 func (c *consumer) Failure() {
