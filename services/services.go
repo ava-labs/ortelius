@@ -8,8 +8,6 @@ import (
 	"github.com/gocraft/health"
 )
 
-var RequestTimeout = 30 * time.Second
-
 type Consumable interface {
 	ID() string
 	ChainID() string

@@ -11,6 +11,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -22,8 +24,6 @@ const (
 	MaxAggregateIntervalCount = 20000
 
 	MinSearchQueryLength = 1
-
-	RequestTimeout = 30 * time.Second
 )
 
 var (
@@ -121,7 +121,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 	}
 
 	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_transactions", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_transactions", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +347,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_addresses", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_addresses", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +386,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 }
 
 func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (*models.OutputList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("list_transaction_outputs", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -467,12 +467,8 @@ func (r *Reader) GetTransaction(ctx context.Context, id ids.ID, avaxAssetID ids.
 	return nil, nil
 }
 
-func (r *Reader) GetAddress(ctx context.Context, id ids.ShortID) (*models.AddressInfo, error) {
-	addressList, err := r.ListAddresses(ctx,
-		&params.ListAddressesParams{
-			Address:    &id,
-			ListParams: params.ListParams{DisableCounting: true},
-		})
+func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) (*models.AddressInfo, error) {
+	addressList, err := r.ListAddresses(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +493,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewSession("addressChains", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("addressChains", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +531,7 @@ func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParam
 }
 
 func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string) (time.Time, error) {
-	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("get_first_transaction_time", cfg.RequestTimeout)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -546,7 +542,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 		From("avm_transactions")
 
 	if len(chainIDs) > 0 {
-		builder.Where("avm_transactions.chain_id = ?", chainIDs)
+		builder.Where("avm_transactions.chain_id IN ?", chainIDs)
 	}
 
 	err = builder.LoadOneContext(ctx, &ts)
@@ -713,6 +709,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.output_type",
 		"union_q.amount",
 		"union_q.locktime",
+		"union_q.stake_locktime",
 		"union_q.threshold",
 		"union_q.created_at",
 		"union_q.redeeming_transaction_id",
@@ -780,7 +777,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	switch version {
 	case 1:
-		_, err := dbRunner.
+		builder := dbRunner.
 			Select(
 				"avm_asset_address_counts.address",
 				"avm_asset_address_counts.asset_id",
@@ -792,9 +789,13 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 			).
 			From("avm_asset_address_counts").
 			Where("avm_asset_address_counts.address IN ?", addrIDs).
-			GroupBy("avm_output_addresses.address", "avm_outputs.asset_id").
-			LoadContext(ctx, &rows)
-		if err != nil {
+			GroupBy("avm_asset_address_counts.address", "avm_asset_address_counts.asset_id")
+
+		if len(chainIDs) > 0 {
+			builder.Where("avm_asset_address_counts.chain_id IN ?", chainIDs)
+		}
+
+		if _, err := builder.LoadContext(ctx, &rows); err != nil {
 			return err
 		}
 	default:
@@ -887,6 +888,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.output_type",
 		"avm_outputs.amount",
 		"avm_outputs.locktime",
+		"avm_outputs.stake_locktime",
 		"avm_outputs.threshold",
 		"avm_outputs.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
@@ -911,6 +913,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
 		"avm_outputs_redeeming.amount",
 		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
+		"case when avm_outputs.stake_locktime is null then 0 else avm_outputs.stake_locktime end as stake_locktime",
 		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
 		"avm_outputs_redeeming.created_at",
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
