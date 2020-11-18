@@ -81,9 +81,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
@@ -100,9 +98,7 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
@@ -135,13 +131,39 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
-	p.ForValueChainID(c.chainID)
+
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.ListAddresses(ctx, p)
+		},
+	})
+}
+
+func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListAddressesParams{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	id, err := params.AddressFromString(r.PathParams["id"])
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	p.Address = &id
+	p.ListParams.DisableCounting = true
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 1 * time.Second,
+		Key: c.cacheKeyForParams("get_address", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.GetAddress(ctx, p)
 		},
 	})
 }
@@ -162,31 +184,6 @@ func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	})
 }
 
-func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
-	p := &params.ListAddressesParams{}
-	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
-		c.WriteErr(w, 400, err)
-		return
-	}
-
-	id, err := params.AddressFromString(r.PathParams["id"])
-	if err != nil {
-		c.WriteErr(w, 400, err)
-		return
-	}
-	p.Address = &id
-	p.ListParams.DisableCounting = true
-	p.ForValueChainID(c.chainID)
-
-	c.WriteCacheable(w, Cacheable{
-		TTL: 1 * time.Second,
-		Key: c.cacheKeyForParams("get_address", p),
-		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.GetAddress(ctx, p)
-		},
-	})
-}
-
 func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListOutputsParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
@@ -194,9 +191,7 @@ func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	if c.chainID != nil {
-		p.ChainIDs = []string{c.chainID.String()}
-	}
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,

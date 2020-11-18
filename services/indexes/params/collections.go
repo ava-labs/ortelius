@@ -262,29 +262,6 @@ type ListAddressesParams struct {
 	Version    int
 }
 
-func (p *ListAddressesParams) ForValueChainID(chainID *ids.ID) {
-	if chainID == nil {
-		return
-	}
-	if p.ChainIDs == nil {
-		p.ChainIDs = make([]string, 0, 1)
-	}
-
-	cnew := chainID.String()
-
-	var found bool
-	for _, cval := range p.ChainIDs {
-		if cval == cnew {
-			found = true
-			break
-		}
-	}
-	if found {
-		return
-	}
-	p.ChainIDs = append(p.ChainIDs, cnew)
-}
-
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
 	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
@@ -318,6 +295,8 @@ func (p *ListAddressesParams) CacheKey() []string {
 	if p.Address != nil {
 		k = append(k, CacheKey(KeyAddress, p.Address.String()))
 	}
+
+	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
 
 	k = append(k, CacheKey(KeyVersion, int64(p.Version)))
 
@@ -475,6 +454,31 @@ func (p *ListBlocksParams) CacheKey() []string {
 
 func (p *ListBlocksParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	return p.ListParams.Apply("pvm_blocks", b)
+}
+
+func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
+	if chainID == nil {
+		return chainIDs
+	}
+
+	if chainIDs == nil {
+		chainIDs = make([]string, 0, 1)
+	}
+
+	cnew := chainID.String()
+
+	var found bool
+	for _, cval := range chainIDs {
+		if cval == cnew {
+			found = true
+			break
+		}
+	}
+	if found {
+		return chainIDs
+	}
+	chainIDs = append([]string{cnew}, chainIDs...)
+	return chainIDs
 }
 
 //
