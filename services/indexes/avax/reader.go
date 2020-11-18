@@ -925,7 +925,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
 		"avm_output_addresses.redeeming_signature AS signature",
 		"addresses.public_key AS public_key",
-		"case when avm_outputs.chain_id is null then '' else avm_outputs.chain_id end as chain_id",
+		"avm_outputs_redeeming.chain_id",
 	).
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
