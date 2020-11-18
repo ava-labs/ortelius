@@ -44,6 +44,7 @@ type Output struct {
 	OutputType    OutputType  `json:"outputType"`
 	Amount        TokenAmount `json:"amount"`
 	Locktime      uint64      `json:"locktime"`
+	StakeLocktime uint64      `json:"stakeLocktime"`
 	Threshold     uint64      `json:"threshold"`
 	Addresses     []Address   `json:"addresses"`
 	CreatedAt     time.Time   `json:"timestamp"`
