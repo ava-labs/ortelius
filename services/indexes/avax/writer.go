@@ -43,7 +43,7 @@ func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Write
 	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, addOuts []*avax.TransferableOutput, outChainID string, addlOutTxfee uint64, genesis bool) error {
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, inChainID string, addOuts []*avax.TransferableOutput, outChainID string, addlOutTxfee uint64, genesis bool) error {
 	var (
 		err      error
 		totalin  uint64 = 0
@@ -51,44 +51,20 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		errs            = wrappers.Errs{}
 	)
 
-	for i, in := range append(baseTx.Ins, addIns...) {
-		if in.AssetID().Equals(w.avaxAssetID) {
-			totalin, err = math.Add64(totalin, in.Input().Amount())
-			if err != nil {
-				errs.Add(err)
-			}
+	inidx := 0
+	for _, in := range baseTx.Ins {
+		totalin, err = w.insertTransactionIns(ctx, in, totalin, errs, baseTx, creds, inidx, unsignedBytes, w.chainID)
+		if err != nil {
+			return err
 		}
-
-		inputID := in.TxID.Prefix(uint64(in.OutputIndex))
-
-		_, err = ctx.DB().
-			InsertInto("avm_outputs_redeeming").
-			Pair("id", inputID.String()).
-			Pair("redeemed_at", dbr.Now).
-			Pair("redeeming_transaction_id", baseTx.ID().String()).
-			Pair("amount", in.Input().Amount()).
-			Pair("output_index", in.OutputIndex).
-			Pair("intx", in.TxID.String()).
-			Pair("asset_id", in.AssetID().String()).
-			Pair("created_at", ctx.Time()).
-			ExecContext(ctx.Ctx())
-		if err != nil && !db.ErrIsDuplicateEntryError(err) {
-			errs.Add(err)
+		inidx++
+	}
+	for _, in := range addIns {
+		totalin, err = w.insertTransactionIns(ctx, in, totalin, errs, baseTx, creds, inidx, unsignedBytes, inChainID)
+		if err != nil {
+			return err
 		}
-
-		// For each signature we recover the public key and the data to the db
-		cred, _ := creds[i].(*secp256k1fx.Credential)
-		for _, sig := range cred.Sigs {
-			publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
-			if err != nil {
-				return err
-			}
-
-			errs.Add(
-				w.InsertAddressFromPublicKey(ctx, publicKey),
-				w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
-			)
-		}
+		inidx++
 	}
 
 	// If the tx or memo is too big we can't store it in the db
@@ -140,6 +116,49 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	return errs.Err
+}
+
+func (w *Writer) insertTransactionIns(ctx services.ConsumerCtx, in *avax.TransferableInput, totalin uint64, errs wrappers.Errs, baseTx *avax.BaseTx, creds []verify.Verifiable, i int, unsignedBytes []byte, chainID string) (uint64, error) {
+	var err error
+	if in.AssetID().Equals(w.avaxAssetID) {
+		totalin, err = math.Add64(totalin, in.Input().Amount())
+		if err != nil {
+			errs.Add(err)
+		}
+	}
+
+	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
+
+	_, err = ctx.DB().
+		InsertInto("avm_outputs_redeeming").
+		Pair("id", inputID.String()).
+		Pair("redeemed_at", dbr.Now).
+		Pair("redeeming_transaction_id", baseTx.ID().String()).
+		Pair("amount", in.Input().Amount()).
+		Pair("output_index", in.OutputIndex).
+		Pair("intx", in.TxID.String()).
+		Pair("asset_id", in.AssetID().String()).
+		Pair("created_at", ctx.Time()).
+		Pair("chain_id", chainID).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		errs.Add(err)
+	}
+
+	// For each signature we recover the public key and the data to the db
+	cred, _ := creds[i].(*secp256k1fx.Credential)
+	for _, sig := range cred.Sigs {
+		publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
+		if err != nil {
+			return 0, err
+		}
+
+		errs.Add(
+			w.InsertAddressFromPublicKey(ctx, publicKey),
+			w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
+		)
+	}
+	return totalin, err
 }
 
 func (w *Writer) insertTransactionOuts(ctx services.ConsumerCtx, out *avax.TransferableOutput, errs wrappers.Errs, baseTx *avax.BaseTx, idx int, totalout uint64, chainID string) (uint64, error) {

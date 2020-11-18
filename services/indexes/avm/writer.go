@@ -228,13 +228,13 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 				addlOuts = append(addlOuts, &transferableOutput)
 			}
 		}
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, addlOuts, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
 	default:
 		return errors.New("unknown tx type")
 	}
@@ -306,7 +306,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		return err
 	}
 
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, w.chainID, totalout, genesis))
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis))
 
 	return errs.Err
 }

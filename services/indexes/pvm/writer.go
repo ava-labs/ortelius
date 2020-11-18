@@ -227,6 +227,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	var outs []*avax.TransferableOutput
 
 	outChain := w.chainID
+	inChain := w.chainID
 
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
@@ -249,6 +250,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		ins = castTx.ImportedInputs
+		inChain = castTx.SourceChain.String()
 		typ = models.TransactionTypePVMImport
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -261,5 +263,5 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, outChain, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, outs, outChain, 0, genesis)
 }
