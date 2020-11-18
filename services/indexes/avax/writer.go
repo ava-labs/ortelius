@@ -53,14 +53,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	inidx := 0
 	for _, in := range baseTx.Ins {
-		totalin, err = w.insertTransactionIns(ctx, in, totalin, errs, baseTx, creds, inidx, unsignedBytes, w.chainID)
+		totalin, err = w.insertTransactionIns(inidx, ctx, errs, totalin, in, baseTx, creds, unsignedBytes, w.chainID)
 		if err != nil {
 			return err
 		}
 		inidx++
 	}
 	for _, in := range addIns {
-		totalin, err = w.insertTransactionIns(ctx, in, totalin, errs, baseTx, creds, inidx, unsignedBytes, inChainID)
+		totalin, err = w.insertTransactionIns(inidx, ctx, errs, totalin, in, baseTx, creds, unsignedBytes, inChainID)
 		if err != nil {
 			return err
 		}
@@ -78,14 +78,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	idx := 0
 	for _, out := range baseTx.Outs {
-		totalout, err = w.insertTransactionOuts(ctx, out, errs, baseTx, idx, totalout, w.chainID)
+		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, w.chainID)
 		if err != nil {
 			return err
 		}
 		idx++
 	}
 	for _, out := range addOuts {
-		totalout, err = w.insertTransactionOuts(ctx, out, errs, baseTx, idx, totalout, outChainID)
+		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, outChainID)
 		if err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	return errs.Err
 }
 
-func (w *Writer) insertTransactionIns(ctx services.ConsumerCtx, in *avax.TransferableInput, totalin uint64, errs wrappers.Errs, baseTx *avax.BaseTx, creds []verify.Verifiable, i int, unsignedBytes []byte, chainID string) (uint64, error) {
+func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalin uint64, in *avax.TransferableInput, baseTx *avax.BaseTx, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
 	var err error
 	if in.AssetID().Equals(w.avaxAssetID) {
 		totalin, err = math.Add64(totalin, in.Input().Amount())
@@ -146,7 +146,7 @@ func (w *Writer) insertTransactionIns(ctx services.ConsumerCtx, in *avax.Transfe
 	}
 
 	// For each signature we recover the public key and the data to the db
-	cred, _ := creds[i].(*secp256k1fx.Credential)
+	cred, _ := creds[idx].(*secp256k1fx.Credential)
 	for _, sig := range cred.Sigs {
 		publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
 		if err != nil {
@@ -161,7 +161,7 @@ func (w *Writer) insertTransactionIns(ctx services.ConsumerCtx, in *avax.Transfe
 	return totalin, err
 }
 
-func (w *Writer) insertTransactionOuts(ctx services.ConsumerCtx, out *avax.TransferableOutput, errs wrappers.Errs, baseTx *avax.BaseTx, idx int, totalout uint64, chainID string) (uint64, error) {
+func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalout uint64, out *avax.TransferableOutput, baseTx *avax.BaseTx, chainID string) (uint64, error) {
 	var err error
 	switch transferOutput := out.Out.(type) {
 	case *platformvm.StakeableLockOut:
