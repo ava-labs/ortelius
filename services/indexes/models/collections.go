@@ -76,7 +76,6 @@ type TxfeeAggregatesHistogram struct {
 	EndTime time.Time `json:"endTime"`
 }
 
-
 type TxfeeAggregates struct {
 	// Idx is used internally when creating a histogram of Aggregates.
 	// It is exported only so it can be written to by dbr.
