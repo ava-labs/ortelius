@@ -125,7 +125,9 @@ func (c *consumer) Close() error {
 func (c *consumer) ProcessNextMessage() error {
 	msg, err := c.nextMessage()
 	if err != nil {
-		c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
+		if err != context.DeadlineExceeded {
+			c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
+		}
 		return err
 	}
 
