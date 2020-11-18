@@ -28,7 +28,7 @@ func TestNewErrors(t *testing.T) {
 	conn, err := New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "---",
-	})
+	}, false)
 
 	if conn != nil {
 		t.Fatal("Expected conn to be nil")
@@ -40,7 +40,7 @@ func TestNewErrors(t *testing.T) {
 	conn, err = New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "::a.a.a.a.a.a.a.a::",
-	})
+	}, false)
 
 	if conn != nil {
 		t.Fatal("Expected conn to be nil")
@@ -52,7 +52,7 @@ func TestNewErrors(t *testing.T) {
 	conn, err = New(nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "a:b@tcp(1.2.3.4)/foo",
-	})
+	}, false)
 	if conn != nil {
 		t.Fatal("Expected conn to be nil")
 	}

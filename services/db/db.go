@@ -29,8 +29,8 @@ type Conn struct {
 }
 
 // New creates a new DB for the given config
-func New(stream *health.Stream, conf cfg.DB) (*Conn, error) {
-	conn, err := newDBRConnection(stream, conf)
+func New(stream *health.Stream, conf cfg.DB, ro bool) (*Conn, error) {
+	conn, err := newDBRConnection(stream, conf, ro)
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +57,18 @@ func (c *Conn) NewSessionForEventReceiver(er health.EventReceiver) *dbr.Session 
 	return c.conn.NewSession(er)
 }
 
-func newDBRConnection(stream *health.Stream, conf cfg.DB) (*dbr.Connection, error) {
+func newDBRConnection(stream *health.Stream, conf cfg.DB, ro bool) (*dbr.Connection, error) {
 	var (
 		err error
 
-		dsn                    = conf.DSN
 		driver                 = conf.Driver
 		dbrDialect dbr.Dialect = dialect.PostgreSQL
 	)
+
+	dsn := conf.DSN
+	if ro {
+		dsn = conf.RODSN
+	}
 
 	// If we want a transactional db then register that driver instead
 	if conf.TXDB {

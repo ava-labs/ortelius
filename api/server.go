@@ -36,7 +36,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 		return nil, err
 	}
 
-	router, err := newRouter(conf)
+	router, err := newRouter(conf, true)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(conf cfg.Config) (*web.Router, error) {
+func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	// Pre-calculate IDs and index responses
 	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
 	if err != nil {
@@ -99,7 +99,7 @@ func newRouter(conf cfg.Config) (*web.Router, error) {
 	}
 
 	// Create connections and readers
-	connections, err := services.NewConnectionsFromConfig(conf.Services)
+	connections, err := services.NewConnectionsFromConfig(conf.Services, ro)
 	if err != nil {
 		return nil, err
 	}
