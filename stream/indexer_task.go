@@ -557,8 +557,8 @@ func (t *ProducerTasker) initMetrics() {
 	t.metricSuccessCountKey = "indexer_task_records_success"
 	t.metricFailureCountKey = "indexer_task_records_failure"
 	t.metricProcessMillisCountKey = "indexer_task_records_process_millis"
-	t.metricAssetAggregateCountKey = "index_task_records_asset_aggregate_count"
-	t.metricCountAggregateCountKey = "index_task_records_count_aggregate_count"
+	t.metricAssetAggregateCountKey = "indexer_task_records_asset_aggregate_count"
+	t.metricCountAggregateCountKey = "indexer_task_records_count_aggregate_count"
 
 	metrics.Prometheus.CounterInit(t.metricAssetAggregateCountKey, "records asset aggregate count")
 	metrics.Prometheus.CounterInit(t.metricCountAggregateCountKey, "records count aggregate count")

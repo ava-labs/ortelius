@@ -24,7 +24,6 @@ type Producer struct {
 
 	// metrics
 	metricProcessedCountKey string
-	metricWrittenCountKey   string
 	metricSuccessCountKey   string
 	metricFailureCountKey   string
 }
@@ -37,12 +36,10 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		writeBuffer:             newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		log:                     conf.Log,
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s", eventType),
-		metricWrittenCountKey:   fmt.Sprintf("produce_records_written_%s", eventType),
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s", eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s", eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
-	metrics.Prometheus.CounterInit(p.metricWrittenCountKey, "records written")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 
