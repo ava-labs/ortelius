@@ -18,7 +18,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	defer closeFn()
 
 	ctx := newTestContext()
-	session, _ := reader.conns.DB().NewSession("test_tx", services.RequestTimeout)
+	session, _ := reader.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 
 	_, _ = session.DeleteFrom("avm_outputs").ExecContext(ctx)
 	_, _ = session.DeleteFrom("avm_output_addresses").ExecContext(ctx)
