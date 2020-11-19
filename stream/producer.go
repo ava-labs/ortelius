@@ -4,7 +4,6 @@
 package stream
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -35,9 +34,9 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		eventType:               eventType,
 		writeBuffer:             newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		log:                     conf.Log,
-		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s", eventType),
-		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s", eventType),
-		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s", eventType),
+		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
+		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
+		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
@@ -69,7 +68,7 @@ func (p *Producer) Close() error {
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
 // Kafka
-func (p *Producer) ProcessNextMessage(_ context.Context) error {
+func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
 		p.log.Error("sock.Recv: %s", err.Error())

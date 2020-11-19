@@ -33,7 +33,6 @@ type bufferedWriter struct {
 	// metrics
 	metricSuccessCountKey       string
 	metricFailureCountKey       string
-	metricWriteCountKey         string
 	metricProcessMillisCountKey string
 }
 
@@ -56,12 +55,10 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 		metricSuccessCountKey:       "kafka_write_records_success",
 		metricFailureCountKey:       "kafka_write_records_failure",
 		metricProcessMillisCountKey: "kafka_write_records_process_millis",
-		metricWriteCountKey:         "kafka_write_records_write",
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
-	metrics.Prometheus.CounterInit(wb.metricWriteCountKey, "records written")
 	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
@@ -101,7 +98,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
-		ctx, cancelFn := context.WithDeadline(context.Background(), time.Now().Add(defaultWriteTimeout))
+		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
 		defer cancelFn()
 
 		collectors := metrics.NewCollectors(
