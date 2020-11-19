@@ -28,7 +28,8 @@ type Transaction struct {
 
 	Genesis bool `json:"genesis"`
 
-	Rewarded bool `json:"rewarded"`
+	Rewarded     bool       `json:"rewarded"`
+	RewardedTime *time.Time `json:"rewardedTime"`
 
 	Score uint64 `json:"-"`
 }

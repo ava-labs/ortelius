@@ -560,6 +560,12 @@ type compositeRecord struct {
 	models.OutputAddress
 }
 
+type rewardsTypeModel struct {
+	TxID      models.StringID
+	Type      models.BlockType
+	CreatedAt time.Time
+}
+
 func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
 	if len(txs) == 0 {
 		return nil
@@ -669,7 +675,7 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
-func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]models.BlockType) {
+func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -698,21 +704,18 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 		}
 
 		if rewardsType, ok := rewardsTypesMap[tx.ID]; ok {
-			tx.Rewarded = rewardsType == models.BlockTypeCommit
+			tx.Rewarded = rewardsType.Type == models.BlockTypeCommit
+			tx.RewardedTime = &rewardsType.CreatedAt
 		}
 	}
 }
 
-func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]models.BlockType, error) {
-	type rewardsTypeModel struct {
-		TxID models.StringID
-		Type models.BlockType
-	}
-
+func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {
 	rewardsTypes := []rewardsTypeModel{}
 	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
 	_, err := dbRunner.Select("rewards.txid",
 		"pvm_blocks.type",
+		"pvm_blocks.created_at",
 	).
 		From("rewards").
 		LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
@@ -722,9 +725,9 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 		return nil, err
 	}
 
-	rewardsTypesMap := make(map[models.StringID]models.BlockType)
+	rewardsTypesMap := make(map[models.StringID]rewardsTypeModel)
 	for _, rewardsType := range rewardsTypes {
-		rewardsTypesMap[rewardsType.TxID] = rewardsType.Type
+		rewardsTypesMap[rewardsType.TxID] = rewardsType
 	}
 	return rewardsTypesMap, nil
 }
