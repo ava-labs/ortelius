@@ -158,7 +158,7 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 			w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
 		)
 	}
-	return totalin, err
+	return totalin, nil
 }
 
 func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalout uint64, out *avax.TransferableOutput, baseTx *avax.BaseTx, chainID string) (uint64, error) {
@@ -188,7 +188,7 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 	default:
 		errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 	}
-	return totalout, err
+	return totalout, nil
 }
 
 func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string) error {
