@@ -95,6 +95,154 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	return collateSearchResults(addresses, transactions)
 }
 
+func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggregateParams) (*models.TxfeeAggregatesHistogram, error) {
+	// Validate params and set defaults if necessary
+	if params.ListParams.StartTime.IsZero() {
+		var err error
+		params.ListParams.StartTime, err = r.getFirstTransactionTime(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var intervals []models.TxfeeAggregates
+
+	// Ensure the interval count requested isn't too large
+	intervalSeconds := int64(params.IntervalSize.Seconds())
+	requestedIntervalCount := 0
+	if intervalSeconds != 0 {
+		requestedIntervalCount = int(math.Ceil(params.ListParams.EndTime.Sub(params.ListParams.StartTime).Seconds() / params.IntervalSize.Seconds()))
+		if requestedIntervalCount > MaxAggregateIntervalCount {
+			return nil, ErrAggregateIntervalCountTooLarge
+		}
+		if requestedIntervalCount < 1 {
+			requestedIntervalCount = 1
+		}
+	}
+
+	// Build the query and load the base data
+	dbRunner, err := r.conns.DB().NewSession("get_txfee_aggregates_histogram", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	var builder *dbr.SelectStmt
+
+	{
+		columns := []string{
+			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
+		}
+
+		if requestedIntervalCount > 0 {
+			columns = append(columns, fmt.Sprintf(
+				"FLOOR((UNIX_TIMESTAMP(avm_transactions.created_at)-%d) / %d) AS idx",
+				params.ListParams.StartTime.Unix(),
+				intervalSeconds))
+		}
+
+		builder = dbRunner.
+			Select(columns...).
+			From("avm_transactions").
+			Where("avm_transactions.created_at >= ?", params.ListParams.StartTime).
+			Where("avm_transactions.created_at < ?", params.ListParams.EndTime)
+
+		if requestedIntervalCount > 0 {
+			builder.
+				GroupBy("idx").
+				OrderAsc("idx").
+				Limit(uint64(requestedIntervalCount))
+		}
+
+		_, err = builder.LoadContext(ctx, &intervals)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// If no intervals were requested then the total aggregate is equal to the
+	// first (and only) interval, and we're done
+	if requestedIntervalCount == 0 {
+		// This check should never fail if the SQL query is correct, but added for
+		// robustness to prevent panics if the invariant does not hold.
+		if len(intervals) > 0 {
+			intervals[0].StartTime = params.ListParams.StartTime
+			intervals[0].EndTime = params.ListParams.EndTime
+			return &models.TxfeeAggregatesHistogram{
+				TxfeeAggregates: intervals[0],
+				StartTime:       params.ListParams.StartTime,
+				EndTime:         params.ListParams.EndTime,
+			}, nil
+		}
+		return &models.TxfeeAggregatesHistogram{
+			StartTime: params.ListParams.StartTime,
+			EndTime:   params.ListParams.EndTime,
+		}, nil
+	}
+
+	// We need to return multiple intervals so build them now.
+	// Intervals without any data will not return anything so we pad our results
+	// with empty aggregates.
+	//
+	// We also add the start and end times of each interval to that interval
+	aggs := &models.TxfeeAggregatesHistogram{IntervalSize: params.IntervalSize}
+
+	var startTS int64
+	timesForInterval := func(intervalIdx int) (time.Time, time.Time) {
+		startTS = params.ListParams.StartTime.Unix() + (int64(intervalIdx) * intervalSeconds)
+		return time.Unix(startTS, 0).UTC(),
+			time.Unix(startTS+intervalSeconds-1, 0).UTC()
+	}
+
+	padTo := func(slice []models.TxfeeAggregates, to int) []models.TxfeeAggregates {
+		for i := len(slice); i < to; i = len(slice) {
+			slice = append(slice, models.TxfeeAggregates{Idx: i})
+			slice[i].StartTime, slice[i].EndTime = timesForInterval(i)
+		}
+		return slice
+	}
+
+	// Collect the overall counts and pad the intervals to include empty intervals
+	// which are not returned by the db
+	aggs.TxfeeAggregates = models.TxfeeAggregates{StartTime: params.ListParams.StartTime, EndTime: params.ListParams.EndTime}
+	var (
+		bigIntFromStringOK bool
+		totalVolume        = big.NewInt(0)
+		intervalVolume     = big.NewInt(0)
+	)
+
+	// Add each interval, but first pad up to that interval's index
+	aggs.Intervals = make([]models.TxfeeAggregates, 0, requestedIntervalCount)
+	for _, interval := range intervals {
+		// Pad up to this interval's position
+		aggs.Intervals = padTo(aggs.Intervals, interval.Idx)
+
+		// Format this interval
+		interval.StartTime, interval.EndTime = timesForInterval(interval.Idx)
+
+		// Parse volume into a big.Int
+		_, bigIntFromStringOK = intervalVolume.SetString(string(interval.Txfee), 10)
+		if !bigIntFromStringOK {
+			return nil, ErrFailedToParseStringAsBigInt
+		}
+
+		// Add to the overall aggregates counts
+		totalVolume.Add(totalVolume, intervalVolume)
+
+		// Add to the list of intervals
+		aggs.Intervals = append(aggs.Intervals, interval)
+	}
+	// Add total aggregated token amounts
+	aggs.TxfeeAggregates.Txfee = models.TokenAmount(totalVolume.String())
+
+	// Add any missing trailing intervals
+	aggs.Intervals = padTo(aggs.Intervals, requestedIntervalCount)
+
+	aggs.StartTime = params.ListParams.StartTime
+	aggs.EndTime = params.ListParams.EndTime
+
+	return aggs, nil
+}
+
 func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
