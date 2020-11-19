@@ -64,10 +64,12 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
-	// fire and forget..
-	// update the created_at on the state table if we have an earlier date in ctx.Time().
-	// which means we need to re-run aggregation calculations from this earlier date.
-	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
+	if false {
+		// fire and forget..
+		// update the created_at on the state table if we have an earlier date in ctx.Time().
+		// which means we need to re-run aggregation calculations from this earlier date.
+		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
+	}
 
 	// Create w tx
 	dbTx, err := sess.Begin()

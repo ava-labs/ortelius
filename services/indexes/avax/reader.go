@@ -128,8 +128,9 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	var builder *dbr.SelectStmt
 
+	params.Version = 0
+
 	switch params.Version {
-	// new requests v=1 use the avm_asset_aggregation tables
 	case 1:
 		columns := []string{
 			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
@@ -782,6 +783,8 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		Address models.Address `json:"address"`
 		models.AssetInfo
 	}
+
+	version = 0
 
 	switch version {
 	case 1:
