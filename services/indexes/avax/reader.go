@@ -763,7 +763,7 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 	return &models.SearchResults{}, nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int, chainIDs []string) error {
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, _ int, chainIDs []string) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -784,7 +784,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		models.AssetInfo
 	}
 
-	version = 0
+	version := 0
 
 	switch version {
 	case 1:
