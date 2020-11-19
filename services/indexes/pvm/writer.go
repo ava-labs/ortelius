@@ -255,6 +255,16 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
+		_, err := ctx.DB().
+			InsertInto("rewards").
+			Pair("id", castTx.ID().String()).
+			Pair("txid", castTx.TxID.String()).
+			Pair("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
+			Pair("created_at", ctx.Time()).
+			ExecContext(ctx.Ctx())
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
+			return err
+		}
 		return nil
 	}
 
