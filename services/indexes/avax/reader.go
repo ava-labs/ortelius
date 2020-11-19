@@ -574,27 +574,9 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		txIDs[i] = tx.ID
 	}
 
-	type rewardsTypeModel struct {
-		TxID models.StringID
-		Type models.BlockType
-	}
-
-	rewardsTypes := []rewardsTypeModel{}
-	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
-	_, err := dbRunner.Select("rewards.txid",
-		"pvm_blocks.type",
-	).
-		From("rewards").
-		LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
-		Where("rewards.txid IN ? and pvm_blocks.type IN ?", txIDs, blocktypes).
-		LoadContext(ctx, &rewardsTypes)
+	rewardsTypesMap, err := r.resovleRewarded(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
-	}
-
-	rewardsTypesMap := make(map[models.StringID]models.BlockType)
-	for _, rewardsType := range rewardsTypes {
-		rewardsTypesMap[rewardsType.TxID] = rewardsType.Type
 	}
 
 	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
@@ -683,6 +665,11 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 
+	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap)
+	return nil
+}
+
+func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]models.BlockType) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -714,7 +701,32 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 			tx.Rewarded = rewardsType == models.BlockTypeCommit
 		}
 	}
-	return nil
+}
+
+func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]models.BlockType, error) {
+	type rewardsTypeModel struct {
+		TxID models.StringID
+		Type models.BlockType
+	}
+
+	rewardsTypes := []rewardsTypeModel{}
+	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
+	_, err := dbRunner.Select("rewards.txid",
+		"pvm_blocks.type",
+	).
+		From("rewards").
+		LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
+		Where("rewards.txid IN ? and pvm_blocks.type IN ?", txIDs, blocktypes).
+		LoadContext(ctx, &rewardsTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	rewardsTypesMap := make(map[models.StringID]models.BlockType)
+	for _, rewardsType := range rewardsTypes {
+		rewardsTypesMap[rewardsType.TxID] = rewardsType.Type
+	}
+	return rewardsTypesMap, nil
 }
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
