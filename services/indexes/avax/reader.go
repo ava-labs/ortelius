@@ -574,6 +574,28 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		txIDs[i] = tx.ID
 	}
 
+	type rewardsTypeModel struct {
+		TxID models.StringID
+		Type models.BlockType
+	}
+
+	rewardsTypes := []rewardsTypeModel{}
+	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
+	_, err := dbRunner.Select("rewards.txid",
+		"case when pvm_blocks.type is not null then pvm_blocks.type else 0 end pvm_blocks_type",
+	).
+		From("rewards").
+		Where("rewards.txid IN ? and pvm_blocks.type IN ?", txIDs, blocktypes).
+		LoadContext(ctx, &rewardsTypes)
+	if err != nil {
+		return err
+	}
+
+	rewardsTypesMap := make(map[models.StringID]models.BlockType)
+	for _, rewardsType := range rewardsTypes {
+		rewardsTypesMap[rewardsType.TxID] = rewardsType.Type
+	}
+
 	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
@@ -685,6 +707,10 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		tx.OutputTotals = make(models.AssetTokenCounts, len(outputTotalsMap[tx.ID]))
 		for k, v := range outputTotalsMap[tx.ID] {
 			tx.OutputTotals[k] = models.TokenAmount(v.String())
+		}
+
+		if rewardsType, ok := rewardsTypesMap[tx.ID]; ok {
+			tx.Rewarded = rewardsType == models.BlockTypeCommit
 		}
 	}
 	return nil
