@@ -46,6 +46,8 @@ type TxfeeAggregateParams struct {
 	ListParams ListParams
 
 	IntervalSize time.Duration
+
+	ChainIDs []string
 }
 
 func (p *TxfeeAggregateParams) ForValues(version uint8, q url.Values) (err error) {
@@ -53,6 +55,8 @@ func (p *TxfeeAggregateParams) ForValues(version uint8, q url.Values) (err error
 	if err != nil {
 		return err
 	}
+
+	p.ChainIDs = q[KeyChainID]
 
 	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
 	if err != nil {
@@ -67,6 +71,7 @@ func (p *TxfeeAggregateParams) CacheKey() []string {
 
 	k = append(k,
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
 	)
 
 	return append(p.ListParams.CacheKey(), k...)

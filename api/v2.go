@@ -82,6 +82,8 @@ func (c *V2Context) TxfeeAggregate(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate_txfee", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {

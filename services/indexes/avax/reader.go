@@ -153,6 +153,10 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 				Limit(uint64(requestedIntervalCount))
 		}
 
+		if len(params.ChainIDs) != 0 {
+			builder.Where("avm_transactions.chain_id IN ?", params.ChainIDs)
+		}
+
 		_, err = builder.LoadContext(ctx, &intervals)
 		if err != nil {
 			return nil, err
