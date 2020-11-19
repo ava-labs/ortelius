@@ -582,9 +582,10 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	rewardsTypes := []rewardsTypeModel{}
 	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
 	_, err := dbRunner.Select("rewards.txid",
-		"case when pvm_blocks.type is not null then pvm_blocks.type else 0 end pvm_blocks_type",
+		"pvm_blocks.type",
 	).
 		From("rewards").
+		LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
 		Where("rewards.txid IN ? and pvm_blocks.type IN ?", txIDs, blocktypes).
 		LoadContext(ctx, &rewardsTypes)
 	if err != nil {
