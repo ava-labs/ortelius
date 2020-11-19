@@ -34,9 +34,9 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		eventType:               eventType,
 		writeBuffer:             newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		log:                     conf.Log,
-		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s", eventType),
-		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s", eventType),
-		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s", eventType),
+		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
+		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
+		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
