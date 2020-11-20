@@ -3,7 +3,7 @@ volumes:
   mysql-data:
 services:
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0.22
     volumes:
       - mysql-data:/var/lib/mysql
     restart: always
@@ -13,7 +13,7 @@ services:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ortelius_test
   migrate:
-    image: migrate/migrate:v4.11.0
+    image: migrate/migrate:v4.13.0
     volumes:
       - ../../services/db/migrations:/migrations
       - ./migrate.sh:/migrate.sh
