@@ -91,14 +91,13 @@ services:
     env_file:
       - production.env
     image: "avaplatform/avalanchego:v1.0.5"
-    command: [
-      "./build/avalanchego",
-      "--network-id=$${NETWORKID}",
-      "--db-dir=/var/lib/avalanche",
-      "--log-level=info",
-      "--http-host=0.0.0.0",
-      "--ipcs-chain-ids=$${C-CHAINID},$${X-CHAINID}",
-    ]
+    command: bash -cx "env && ./build/avalanchego
+      --network-id=$${NETWORKID}
+      --db-dir=/var/lib/avalanche
+      --log-level=info
+      --http-host=0.0.0.0
+      --ipcs-chain-ids=$${C_CHAINID},$${X_CHAINID}
+      "
     ports:
       - "9650:9650"
     volumes:
@@ -113,10 +112,11 @@ services:
     depends_on:
       - kafka
     image: confluentinc/cp-kafka:5.4.3
-    command: bash -cx "kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-consensus &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-decisions &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-consensus &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-decisions"
+    command: bash -cx "env && kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-consensus &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-decisions &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
+      "
   producer: &ortelius-app
     image: "avaplatform/ortelius:98a665b"
     command: ["stream", "producer", "-c", "/opt/config.json"]
