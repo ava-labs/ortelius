@@ -99,7 +99,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
-		params.ListParams.StartTime, err = r.getFirstTransactionTime(ctx, nil)
+		params.ListParams.StartTime, err = r.getFirstTransactionTime(ctx, params.ChainIDs)
 		if err != nil {
 			return nil, err
 		}
