@@ -107,7 +107,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			return stacktrace.Propagate(ErrIncorrectGenesisChainTxType, "Platform genesis contains invalid Chains")
 		}
 
-		if !createChainTx.VMID.Equals(avm.ID) {
+		if createChainTx.VMID != avm.ID {
 			continue
 		}
 
@@ -273,7 +273,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 			case *secp256k1fx.MintOutput:
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0))
 			case *secp256k1fx.TransferOutput:
-				if tx.ID().Equals(w.avaxAssetID) {
+				if tx.ID() == w.avaxAssetID {
 					totalout, err = avalancheMath.Add64(totalout, typedOut.Amt)
 					if err != nil {
 						errs.Add(err)

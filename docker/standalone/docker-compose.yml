@@ -8,14 +8,14 @@ networks:
       name: ortelius_services
 services:
   avalanche:
-    image: "avaplatform/avalanchego:v1.0.3"
+    image: "avaplatform/avalanchego:v1.0.5"
     command: [
       "./build/avalanchego",
-      "-network-id=5",
-      "-db-dir=/var/lib/avalanche",
-      "-log-level=info",
-      "-http-host=0.0.0.0",
-      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2vrXWHgGxh5n3YsLHMV16YVVJTpT4z45Fmb4y3bL6si8kLCyg9",
+      "--network-id=5",
+      "--db-dir=/var/lib/avalanche",
+      "--log-level=info",
+      "--http-host=0.0.0.0",
+      "--ipcs-chain-ids=11111111111111111111111111111111LpoYY,2vrXWHgGxh5n3YsLHMV16YVVJTpT4z45Fmb4y3bL6si8kLCyg9",
     ]
     ports:
       - "9650:9650"

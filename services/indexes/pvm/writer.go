@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	ChainID = ids.NewID([32]byte{})
+	ChainID = ids.ID{}
 
 	ErrUnknownBlockType = errors.New("unknown block type")
 )
@@ -196,7 +196,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 }
 
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
-	blkID := ids.NewID(hashing.ComputeHash256Array(blockBytes))
+	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
 
 	blockInsert := ctx.DB().
 		InsertInto("pvm_blocks").

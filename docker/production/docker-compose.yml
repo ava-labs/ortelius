@@ -88,14 +88,14 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
-    image: "avaplatform/avalanchego:v1.0.3"
+    image: "avaplatform/avalanchego:v1.0.5"
     command: [
       "./build/avalanchego",
-      "-network-id=1",
-      "-db-dir=/var/lib/avalanche",
-      "-log-level=info",
-      "-http-host=0.0.0.0",
-      "-ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
+      "--network-id=1",
+      "--db-dir=/var/lib/avalanche",
+      "--log-level=info",
+      "--http-host=0.0.0.0",
+      "--ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
     ]
     ports:
       - "9650:9650"
