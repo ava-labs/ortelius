@@ -136,10 +136,12 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		job.Complete(health.Success)
 	}()
 
-	// fire and forget..
-	// update the created_at on the state table if we have an earlier date in ctx.Time().
-	// which means we need to re-run aggregation calculations from this earlier date.
-	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(i.Timestamp(), 0))
+	if false {
+		// fire and forget..
+		// update the created_at on the state table if we have an earlier date in ctx.Time().
+		// which means we need to re-run aggregation calculations from this earlier date.
+		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(i.Timestamp(), 0))
+	}
 
 	// Create db tx
 	var dbTx *dbr.Tx
