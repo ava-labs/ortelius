@@ -33,10 +33,10 @@ services:
     networks:
       - services
     image: confluentinc/cp-kafka:5.4.3
-    command: bash -cx "kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPERHOST} --replication-factor $${KAFKAREPLICATIONFACTOR} --partitions $${KAFKANUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-consensus &&
-                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPERHOST} --replication-factor $${KAFKAREPLICATIONFACTOR} --partitions $${KAFKANUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-decisions &&
-                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPERHOST} --replication-factor $${KAFKAREPLICATIONFACTOR} --partitions $${KAFKANUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-consensus &&
-                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPERHOST} --replication-factor $${KAFKAREPLICATIONFACTOR} --partitions $${KAFKANUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-decisions"
+    command: bash -cx "kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-consensus &&
+                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${C-CHAINID}-decisions &&
+                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-consensus &&
+                       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER-HOST} --replication-factor $${KAFKA-REPLICATIONFACTOR} --partitions $${KAFKA-NUMPARTITIONS} --topic $${NETWORKID}-$${X-CHAINID}-decisions"
   producer: &ortelius-app
     env_file:
       - standalone.env
