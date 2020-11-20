@@ -128,8 +128,9 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 
 	var builder *dbr.SelectStmt
 
+	params.Version = 0
+
 	switch params.Version {
-	// new requests v=1 use the avm_asset_aggregation tables
 	case 1:
 		columns := []string{
 			"CAST(COALESCE(SUM(avm_asset_aggregation.transaction_volume),0) AS CHAR) as transaction_volume",
@@ -151,6 +152,10 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			From("avm_asset_aggregation").
 			Where("avm_asset_aggregation.aggregate_ts >= ?", params.ListParams.StartTime).
 			Where("avm_asset_aggregation.aggregate_ts < ?", params.ListParams.EndTime)
+
+		if len(params.ChainIDs) != 0 {
+			builder.Where("avm_asset_aggregation.chain_id IN ?", params.ChainIDs)
+		}
 
 		if params.AssetID != nil {
 			builder.Where("avm_asset_aggregation.asset_id = ?", params.AssetID.String())
@@ -178,6 +183,10 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 			Where("avm_outputs.created_at >= ?", params.ListParams.StartTime).
 			Where("avm_outputs.created_at < ?", params.ListParams.EndTime)
+
+		if len(params.ChainIDs) != 0 {
+			builder.Where("avm_outputs.chain_id IN ?", params.ChainIDs)
+		}
 
 		if params.AssetID != nil {
 			builder.Where("avm_outputs.asset_id = ?", params.AssetID.String())
@@ -754,7 +763,7 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 	return &models.SearchResults{}, nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, version int, chainIDs []string) error {
+func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, _ int, chainIDs []string) error {
 	if len(addrs) == 0 {
 		return nil
 	}
@@ -774,6 +783,8 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		Address models.Address `json:"address"`
 		models.AssetInfo
 	}
+
+	version := 0
 
 	switch version {
 	case 1:
