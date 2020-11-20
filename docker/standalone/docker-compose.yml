@@ -33,7 +33,7 @@ services:
       kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-consensus
       && kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-decisions
       && kafka-topics --create --if-not-exists--zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${X-CHAIN-ID}-consensus
-      && afka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${X-CHAIN-ID}-decisions
+      && kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${X-CHAIN-ID}-decisions
   producer: &ortelius-app
     image: "avaplatform/ortelius:98a665b"
     command: ["stream", "producer", "-c", "/opt/config.json"]
