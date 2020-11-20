@@ -51,6 +51,7 @@ services:
       - redis
     volumes:
       - avalanche-ipcs:/tmp
+      - config.standalone.json:/opt/config.json
     depends_on:
       - kafkatopics
     restart: on-failure
