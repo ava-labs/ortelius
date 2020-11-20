@@ -479,7 +479,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
-	if false {
+	if true {
 		return
 	}
 	t.initMetrics()
