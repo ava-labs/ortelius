@@ -8,14 +8,16 @@ networks:
       name: ortelius_services
 services:
   avalanche:
+    env_file:
+      - standalone.env
     image: "avaplatform/avalanchego:v1.0.5"
     command: [
       "./build/avalanchego",
-      "--network-id=5",
+      "--network-id=${NETWORK-ID}",
       "--db-dir=/var/lib/avalanche",
       "--log-level=info",
       "--http-host=0.0.0.0",
-      "--ipcs-chain-ids=11111111111111111111111111111111LpoYY,2vrXWHgGxh5n3YsLHMV16YVVJTpT4z45Fmb4y3bL6si8kLCyg9",
+      "--ipcs-chain-ids=${C-CHAIN-ID},${X-CHAIN-ID}",
     ]
     ports:
       - "9650:9650"
@@ -25,6 +27,13 @@ services:
     depends_on:
       - producer
     restart: always
+  kafkatopics:
+    image: "kafka-cli:latest"
+    command: >
+      kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-consensus
+      && kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-decisions
+      && kafka-topics --create --if-not-exists--zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${X-CHAIN-ID}-consensus
+      && afka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${X-CHAIN-ID}-decisions
   producer: &ortelius-app
     image: "avaplatform/ortelius:98a665b"
     command: ["stream", "producer", "-c", "/opt/config.json"]
@@ -37,6 +46,8 @@ services:
       - redis
     volumes:
       - avalanche-ipcs:/tmp
+    depends_on:
+      - kafkatopics
     restart: on-failure
   indexer:
     <<: *ortelius-app
