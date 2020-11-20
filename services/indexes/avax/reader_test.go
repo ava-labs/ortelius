@@ -1,3 +1,6 @@
+// (c) 2020, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package avax
 
 import (
@@ -11,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 func TestCollectInsAndOuts(t *testing.T) {
@@ -109,6 +113,55 @@ func TestCollectInsAndOuts(t *testing.T) {
 		records[1].Output.StakeLocktime != 0 &&
 		records[2].Output.StakeLocktime != 0 {
 		t.Error("invalid stake locktime")
+	}
+}
+
+func TestAggregateTxfee(t *testing.T) {
+	reader, closeFn := newTestIndex(t)
+	defer closeFn()
+
+	ctx := newTestContext()
+
+	sess, _ := reader.conns.DB().NewSession("test_aggregate_tx_fee", cfg.RequestTimeout)
+	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
+
+	tnow := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
+
+	_, _ = sess.InsertInto("avm_transactions").
+		Pair("id", "id1").
+		Pair("chain_id", "cid").
+		Pair("type", "type").
+		Pair("created_at", tnow).
+		Pair("txfee", 10).
+		ExecContext(ctx)
+
+	_, _ = sess.InsertInto("avm_transactions").
+		Pair("id", "id2").
+		Pair("chain_id", "cid").
+		Pair("type", "type").
+		Pair("created_at", tnow.Add(-1*time.Hour)).
+		Pair("txfee", 15).
+		ExecContext(ctx)
+
+	starttime := tnow.Add(-2 * time.Hour)
+	endtime := tnow.Add(1 * time.Second)
+	p := params.TxfeeAggregateParams{ListParams: params.ListParams{StartTime: starttime, EndTime: endtime}}
+	agg, err := reader.TxfeeAggregate(ctx, &p)
+	if err != nil {
+		t.Error("error", err)
+	}
+	if agg.TxfeeAggregates.Txfee != models.TokenAmount("25") {
+		t.Error("aggregate tx invalid expected ", agg.TxfeeAggregates.Txfee)
+	}
+	if agg.StartTime != starttime || agg.EndTime != endtime {
+		t.Error("aggregate tx invalid")
+	}
+
+	p = params.TxfeeAggregateParams{ListParams: params.ListParams{StartTime: tnow.Add(-50 * time.Minute), EndTime: tnow.Add(1 * time.Second)}}
+	agg, _ = reader.TxfeeAggregate(ctx, &p)
+
+	if agg.TxfeeAggregates.Txfee != models.TokenAmount("10") {
+		t.Error("aggregate tx invalid expected ", agg.TxfeeAggregates.Txfee)
 	}
 }
 

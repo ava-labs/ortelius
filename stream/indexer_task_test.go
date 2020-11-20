@@ -114,7 +114,6 @@ func initData(ctx context.Context, sess *dbr.Session, pastime time.Time, t *test
 	_, _ = models.DeleteAvmAssetAggregationState(ctx, sess, models.StateLiveID)
 	_, _ = sess.DeleteFrom("avm_asset_aggregation").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_asset_address_counts").ExecContext(ctx)
-	_, _ = sess.DeleteFrom("aggregate_txfee").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_outputs").ExecContext(ctx)
 	_, _ = sess.DeleteFrom("avm_output_addresses").ExecContext(ctx)
 
