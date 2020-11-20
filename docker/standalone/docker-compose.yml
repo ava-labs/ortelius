@@ -28,7 +28,7 @@ services:
       - producer
     restart: always
   kafkatopics:
-    image: "kafka-cli:latest"
+    image: "confluentinc/cp-kafka:5.4.3"
     command: >
       kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-consensus
       && kafka-topics --create --if-not-exists --zookeeper ${KAFKA-HOST} --replication-factor ${KAFKA-REPLICATION-FACTOR} --partitions ${KAFKA-NUM-PARTITIONS} --topic ${NETWORK-ID}-${C-CHAIN-ID}-decisions
