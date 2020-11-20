@@ -6,5 +6,5 @@ import "time"
 const (
 	RequestTimeout = 2 * time.Minute
 
-	IndexerEnabled = false
+	IndexerTaskEnabled = false
 )

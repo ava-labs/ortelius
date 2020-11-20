@@ -138,7 +138,7 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		job.Complete(health.Success)
 	}()
 
-	if cfg.IndexerEnabled {
+	if cfg.IndexerTaskEnabled {
 		// fire and forget..
 		// update the created_at on the state table if we have an earlier date in ctx.Time().
 		// which means we need to re-run aggregation calculations from this earlier date.

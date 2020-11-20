@@ -481,7 +481,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
-	if !cfg.IndexerEnabled {
+	if !cfg.IndexerTaskEnabled {
 		return
 	}
 	t.initMetrics()
