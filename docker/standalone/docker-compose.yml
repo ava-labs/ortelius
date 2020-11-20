@@ -12,12 +12,12 @@ services:
       - standalone.env
     image: "avaplatform/avalanchego:v1.0.5"
     command: bash -cx "env && ./build/avalanchego
-                       --network-id=$${NETWORKID}
-                       --db-dir=/var/lib/avalanche
-                       --log-level=info
-                       --http-host=0.0.0.0
-                       --ipcs-chain-ids=$${C_CHAINID},$${X_CHAINID}
-                      "
+      --network-id=$${NETWORKID}
+      --db-dir=/var/lib/avalanche
+      --log-level=info
+      --http-host=0.0.0.0
+      --ipcs-chain-ids=$${C_CHAINID},$${X_CHAINID}
+      "
     ports:
       - "9650:9650"
     volumes:
