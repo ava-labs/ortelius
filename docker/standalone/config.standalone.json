@@ -2,7 +2,6 @@
   "networkID": 5,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
-  "metricsListenAddr": "",
   "listenAddr": "localhost:8080",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
@@ -30,7 +29,6 @@
     },
     "db": {
       "dsn": "root:password@tcp(mysql:3306)/ortelius",
-      "ro_dsn": "root:password@tcp(mysql:3306)/ortelius",
       "driver": "mysql"
     }
   }
