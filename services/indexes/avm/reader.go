@@ -60,7 +60,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets, p.EnableAggregate); err != nil {
+	if err = r.dressAssets(ctx, dbRunner, assets, p); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +86,7 @@ func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStr
 	return nil, err
 }
 
-func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, aggregate bool) error {
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, p *params.ListAssetsParams) error {
 	if len(assets) == 0 {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	for i, asset := range assets {
 		assetIDs[i] = asset.ID
 
-		if !aggregate {
+		if len(p.EnableAggregate) == 0 {
 			continue
 		}
 
@@ -111,17 +111,11 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 
 		asset.Aggregates = make(map[string]*models.Aggregates)
 
-		for intervalName := range params.IntervalNames {
-			if intervalName == "all" {
-				continue
-			}
+		for _, aggDuration := range p.EnableAggregate {
 			aparams := params.AggregateParams{
-				ListParams: params.ListParams{
-					StartTime: tnow.Add(-1 * params.IntervalNames[intervalName]),
-					EndTime:   tnow,
-				},
+				ListParams:   p.ListParams,
 				AssetID:      &id,
-				IntervalSize: params.IntervalNames[intervalName],
+				IntervalSize: params.IntervalNames[aggDuration],
 				Version:      1,
 			}
 			hm, err := r.avaxReader.Aggregate(ctx, &aparams)
@@ -129,7 +123,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				r.conns.Logger().Warn("aggregate query failed %s", err)
 				continue
 			}
-			asset.Aggregates[intervalName] = &hm.Aggregates
+			asset.Aggregates[aggDuration] = &hm.Aggregates
 		}
 	}
 
