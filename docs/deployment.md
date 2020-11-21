@@ -17,7 +17,7 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--ipcs-chain-ids` flag, example:
 
-`./build/avalanche --ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
+`./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
 
 ### Kafka
 

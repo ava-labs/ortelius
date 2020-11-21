@@ -26,7 +26,7 @@ make dev_env_start
 make standalone_run
 ```
 
-The [API](https://docs.avax.network/build/tools/ortelius) available at `http://localhost:8080` which can be verified with with cURL:
+The [API](https://docs.avax.network/build/tools/ortelius).
 
 On the first run it will take a few minutes for Gecko to connect to sync to the network and ingest all the historical data.
 
