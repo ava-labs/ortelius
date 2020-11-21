@@ -39,6 +39,9 @@ services:
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
       "
+    external_links:
+      - zookeeper
+      - kafka
   producer: &ortelius-app
     env_file:
       - standalone.env
