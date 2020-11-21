@@ -7,14 +7,19 @@ Configuration is done using a JSON file that can be used for each of the Orteliu
 This configuration is the one used by the standalone Docker Compose setup and illustrates the various available settings. `kafka`, `mysql`, and `redis` are DNS names that resolve to relevant service.
 ```json
 {
-  "networkID": 4,
+  "networkID": 5,
   "logDirectory": "/var/log/ortelius",
   "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
-    "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC": {
-      "id": "jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC",
-      "alias": "X",
+    "11111111111111111111111111111111LpoYY": {
+      "id": "11111111111111111111111111111111LpoYY",
+      "alias": "p",
+      "vmType": "pvm"
+    },
+    "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm": {
+      "id": "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm",
+      "alias": "x",
       "vmType": "avm"
     }
   },
