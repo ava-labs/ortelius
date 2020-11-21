@@ -6,7 +6,7 @@ This page details the various services and components that make up the Ortelius 
 
 The full Ortelius pipeline requires the following services. This guide will not cover their installation but will discuss key configuration settings.
 
-- **[Avalanche.go](https://github.com/ava-labs/gecko)** is the gateway to the Avalanche network
+- **[Avalanche.go](https://github.com/ava-labs/avalanchego)** is the gateway to the Avalanche network
 - **[Apache Kafka](https://kafka.apache.org/)** stores the persistent log of events
 - **[MySQL](https://www.mysql.com/)** or **[PostgreSQL](https://www.postgresql.org/)** powers the index
 - **[Redis](https://redis.io/)** caches index queries for the API so responses can be as fast as possible
@@ -15,9 +15,9 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 ### Avalanche.go
 
-The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `-ipcs-chain-ids` flag, example:
+The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--ipcs-chain-ids` flag, example:
 
-`./build/avalanche -ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
+`./build/avalanche --ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
 
 ### Kafka
 
@@ -56,4 +56,4 @@ ortelius stream api -c path/to/config.json
 
 These processes are separated so they can scale independently as needed. They can start on a single machine or small cluster and be scaled out as the system grows.
 
-As Avalanche.go bootstraps the Producer will send all events to Kafka, the indexer will write them to the RDMS database, and the API will made them available. You can test your setup using cURL, `curl http://ortelius-api-host:8080/X/transactions`. 
+As Avalanche.go bootstraps the Producer will send all events to Kafka, the indexer will write them to the RDMS database, and the API will made them available.  You can test your setup [API](https://docs.avax.network/build/tools/ortelius). 
