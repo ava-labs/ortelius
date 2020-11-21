@@ -26,9 +26,9 @@ make dev_env_start
 make standalone_run
 ```
 
-The [API](https://docs.avax.network/build/tools/ortelius).
+[API](https://docs.avax.network/build/tools/ortelius)
 
-On the first run it will take a few minutes for Gecko to connect to sync to the network and ingest all the historical data.
+On the first run it will time for avalanchego to bootstrap and ingest the historical data.
 
 ## Production Deployment
 
