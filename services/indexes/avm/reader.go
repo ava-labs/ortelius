@@ -111,11 +111,11 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 
 		asset.Aggregates = make(map[string]*models.Aggregates)
 
-		for _, aggDuration := range p.EnableAggregate {
+		for _, intervalName := range p.EnableAggregate {
 			aparams := params.AggregateParams{
 				ListParams:   p.ListParams,
 				AssetID:      &id,
-				IntervalSize: params.IntervalNames[aggDuration],
+				IntervalSize: params.IntervalNames[intervalName],
 				Version:      1,
 			}
 			hm, err := r.avaxReader.Aggregate(ctx, &aparams)
@@ -123,7 +123,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				r.conns.Logger().Warn("aggregate query failed %s", err)
 				continue
 			}
-			asset.Aggregates[aggDuration] = &hm.Aggregates
+			asset.Aggregates[intervalName] = &hm.Aggregates
 		}
 	}
 
