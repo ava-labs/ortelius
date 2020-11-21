@@ -26,9 +26,9 @@ make dev_env_start
 make standalone_run
 ```
 
-[API](https://docs.avax.network/build/tools/ortelius)
+View the [API](https://docs.avax.network/build/tools/ortelius) for usage.
 
-On the first run it will time for avalanchego to bootstrap and ingest the historical data.
+On the first run it will take time for avalanchego to bootstrap and ingest the historical data.
 
 ## Production Deployment
 
