@@ -33,6 +33,7 @@ type Processor interface {
 	Close() error
 	Failure()
 	Success()
+	ID() string
 }
 
 // ProcessorManager supervises the Processor lifecycle; it will use the given
@@ -170,12 +171,14 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		}
 	)
 
+	id := backend.ID()
+
 	// Log run statistics periodically until asked to stop
 	go func() {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
-			c.log.Info("IProcessor successes=%d failures=%d nomsg=%d", successes, failures, nomsg)
+			c.log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
 			if c.isStopping() {
 				return
 			}
