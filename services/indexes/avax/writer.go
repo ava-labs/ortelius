@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -112,7 +114,23 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		Pair("genesis", genesis).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(err)
+		errs.Add(w.stream.EventErr("avm_transactions.insert", err))
+	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("avm_transactions").
+			Set("chain_id", w.chainID).
+			Set("type", txType.String()).
+			Set("memo", baseTx.Memo).
+			Set("created_at", ctx.Time()).
+			Set("canonical_serialization", txBytes).
+			Set("txfee", txfee).
+			Set("genesis", genesis).
+			Where("id = ?", baseTx.ID().String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			errs.Add(w.stream.EventErr("avm_transactions.update", err))
+		}
 	}
 
 	return errs.Err
@@ -142,7 +160,24 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 		Pair("chain_id", chainID).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(err)
+		errs.Add(w.stream.EventErr("avm_outputs_redeeming.insert", err))
+	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("avm_outputs_redeeming").
+			Set("redeemed_at", dbr.Now).
+			Set("redeeming_transaction_id", baseTx.ID().String()).
+			Set("amount", in.Input().Amount()).
+			Set("output_index", in.OutputIndex).
+			Set("intx", in.TxID.String()).
+			Set("asset_id", in.AssetID().String()).
+			Set("created_at", ctx.Time()).
+			Set("chain_id", chainID).
+			Where("id = ?", inputID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			errs.Add(w.stream.EventErr("avm_outputs_redeeming.update", err))
+		}
 	}
 
 	// For each signature we recover the public key and the data to the db
@@ -213,7 +248,28 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("insert_output.insert", err))
+		errs.Add(w.stream.EventErr("avm_outputs.insert", err))
+	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("avm_outputs").
+			Set("chain_id", chainID).
+			Set("transaction_id", txID.String()).
+			Set("output_index", idx).
+			Set("asset_id", assetID.String()).
+			Set("output_type", outputType).
+			Set("amount", out.Amount()).
+			Set("locktime", out.Locktime).
+			Set("threshold", out.Threshold).
+			Set("group_id", groupID).
+			Set("payload", payload).
+			Set("stake_locktime", stakeLocktime).
+			Set("created_at", ctx.Time()).
+			Where("id = ?", outputID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			errs.Add(w.stream.EventErr("avm_outputs.update", err))
+		}
 	}
 
 	// Ingest each Output Address

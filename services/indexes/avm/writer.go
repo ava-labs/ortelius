@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -307,7 +309,23 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return ctx.Job().EventErr("avm_assets.insert", err)
+	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("avm_assets").
+			Set("chain_Id", w.chainID).
+			Set("name", tx.Name).
+			Set("symbol", tx.Symbol).
+			Set("denomination", tx.Denomination).
+			Set("alias", alias).
+			Set("current_supply", amount).
+			Set("created_at", ctx.Time()).
+			Where("id = ?", tx.ID().String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			return ctx.Job().EventErr("avm_assets.update", err)
+		}
 	}
 
 	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis))

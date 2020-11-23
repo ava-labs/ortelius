@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -200,24 +202,36 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
 	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
 
-	blockInsert := ctx.DB().
+	if len(blockBytes) > 32000 {
+		blockBytes = []byte("")
+	}
+	_, err := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
 		Pair("chain_id", w.chainID).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
-		Pair("created_at", ctx.Time())
-
-	if len(blockBytes) <= 32000 {
-		blockInsert = blockInsert.Pair("serialization", blockBytes)
-	} else {
-		blockInsert = blockInsert.Pair("serialization", []byte(""))
-	}
-	_, err := blockInsert.
+		Pair("created_at", ctx.Time()).
+		Pair("serialization", blockBytes).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("index_common_block.upsert_block", err)
+		return ctx.Job().EventErr("pvm_blocks.insert", err)
 	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("pvm_blocks").
+			Set("chain_id", w.chainID).
+			Set("type", blkType).
+			Set("parent_id", blk.ParentID().String()).
+			Set("created_at", ctx.Time()).
+			Set("serialization", blockBytes).
+			Where("id = ?", blkID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			return ctx.Job().EventErr("pvm_blocks.update", err)
+		}
+	}
+
 	return nil
 }
 
