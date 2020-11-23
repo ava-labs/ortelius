@@ -121,9 +121,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, ChainID.String()))
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, ChainID.String()))
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
@@ -228,6 +228,9 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	var ins []*avax.TransferableInput
 	var outs []*avax.TransferableOutput
 
+	outChain := w.chainID
+	inChain := w.chainID
+
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -249,10 +252,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		ins = castTx.ImportedInputs
+		inChain = castTx.SourceChain.String()
 		typ = models.TransactionTypePVMImport
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs = castTx.ExportedOutputs
+		outChain = castTx.DestinationChain.String()
 		typ = models.TransactionTypePVMExport
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
@@ -260,5 +265,5 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, outs, outChain, 0, genesis)
 }
