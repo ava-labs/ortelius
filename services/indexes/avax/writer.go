@@ -171,7 +171,6 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 			Set("output_index", in.OutputIndex).
 			Set("intx", in.TxID.String()).
 			Set("asset_id", in.AssetID().String()).
-			Set("created_at", ctx.Time()).
 			Set("chain_id", chainID).
 			Where("id = ?", inputID.String()).
 			ExecContext(ctx.Ctx())
@@ -264,7 +263,6 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 			Set("group_id", groupID).
 			Set("payload", payload).
 			Set("stake_locktime", stakeLocktime).
-			Set("created_at", ctx.Time()).
 			Where("id = ?", outputID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {

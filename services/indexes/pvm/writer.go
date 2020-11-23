@@ -223,7 +223,6 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 			Set("chain_id", w.chainID).
 			Set("type", blkType).
 			Set("parent_id", blk.ParentID().String()).
-			Set("created_at", ctx.Time()).
 			Set("serialization", blockBytes).
 			Where("id = ?", blkID.String()).
 			ExecContext(ctx.Ctx())

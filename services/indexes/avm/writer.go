@@ -320,7 +320,6 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 			Set("denomination", tx.Denomination).
 			Set("alias", alias).
 			Set("current_supply", amount).
-			Set("created_at", ctx.Time()).
 			Where("id = ?", tx.ID().String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
