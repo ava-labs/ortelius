@@ -42,6 +42,45 @@ func (p *SearchParams) CacheKey() []string {
 	return p.ListParams.CacheKey()
 }
 
+type TxfeeAggregateParams struct {
+	ListParams ListParams
+
+	IntervalSize time.Duration
+
+	ChainIDs []string
+}
+
+func (p *TxfeeAggregateParams) ForValues(version uint8, q url.Values) (err error) {
+	err = p.ListParams.ForValues(version, q)
+	if err != nil {
+		return err
+	}
+
+	p.ChainIDs = q[KeyChainID]
+
+	p.IntervalSize, err = GetQueryInterval(q, KeyIntervalSize)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *TxfeeAggregateParams) CacheKey() []string {
+	k := make([]string, 0, 4)
+
+	k = append(k,
+		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
+		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
+	)
+
+	return append(p.ListParams.CacheKey(), k...)
+}
+
+func (p *TxfeeAggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	return b
+}
+
 type AggregateParams struct {
 	ListParams ListParams
 
@@ -218,7 +257,7 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 type ListAssetsParams struct {
 	ListParams      ListParams
 	Alias           string
-	EnableAggregate bool
+	EnableAggregate []string
 	PathParamID     string
 }
 
@@ -229,10 +268,17 @@ func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
 
 	p.Alias = GetQueryString(q, KeyAlias, "")
 
-	var err error
-	p.EnableAggregate, err = GetQueryBool(q, KeyEnableAggregate, false)
-	if err != nil {
-		return err
+	for _, enableAgg := range q[KeyEnableAggregate] {
+		qq := make(url.Values)
+		qq[KeyIntervalSize] = []string{enableAgg}
+		_, err := GetQueryInterval(qq, KeyIntervalSize)
+		if err != nil {
+			return err
+		}
+		if p.EnableAggregate == nil {
+			p.EnableAggregate = make([]string, 0, 1)
+		}
+		p.EnableAggregate = append(p.EnableAggregate, enableAgg)
 	}
 
 	return nil

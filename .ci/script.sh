@@ -13,7 +13,7 @@ docker run --rm -v $(pwd):/app -w /app golangci/golangci-lint:v1.32.2 golangci-l
 echo "Waiting for DB to be ready"
 for i in `seq 1 60`;
 do
-  docker run --rm --network ortelius_services --entrypoint=mysql mysql:8.0 -uroot -ppassword -h mysql -e 'SELECT version FROM schema_migrations;' ortelius_test > /dev/null 2>&1 && break
+  docker run --rm --network ortelius_services --entrypoint=mysql mysql:8.0.22 -uroot -ppassword -h mysql -e 'SELECT version FROM schema_migrations;' ortelius_test > /dev/null 2>&1 && break
   echo -n . && sleep 1
 done
 

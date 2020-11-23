@@ -34,6 +34,7 @@ type serviceConsumerFactory func(*services.Connections, uint32, string, string) 
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
+	id       string
 	chainID  string
 	reader   *kafka.Reader
 	consumer services.Consumer
@@ -61,6 +62,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
 			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
 			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
+			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
@@ -112,6 +114,10 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		return c, nil
 	}
+}
+
+func (c *consumer) ID() string {
+	return c.id
 }
 
 // Close closes the consumer

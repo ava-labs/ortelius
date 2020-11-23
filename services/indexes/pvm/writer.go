@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	ChainID = ids.NewID([32]byte{})
+	ChainID = ids.ID{}
 
 	ErrUnknownBlockType = errors.New("unknown block type")
 )
@@ -64,10 +64,12 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
-	// fire and forget..
-	// update the created_at on the state table if we have an earlier date in ctx.Time().
-	// which means we need to re-run aggregation calculations from this earlier date.
-	_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
+	if false {
+		// fire and forget..
+		// update the created_at on the state table if we have an earlier date in ctx.Time().
+		// which means we need to re-run aggregation calculations from this earlier date.
+		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
+	}
 
 	// Create w tx
 	dbTx, err := sess.Begin()
@@ -119,9 +121,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, ChainID.String()))
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, ChainID.String()))
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}
@@ -158,7 +160,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	if err := w.codec.Unmarshal(blockBytes, &block); err != nil {
 		return ctx.Job().EventErr("index_block.unmarshal_block", err)
 	}
-	blkID := ids.NewID(hashing.ComputeHash256Array(blockBytes))
+	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
 
 	errs := wrappers.Errs{}
 
@@ -225,6 +227,9 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	var ins []*avax.TransferableInput
 	var outs []*avax.TransferableOutput
 
+	outChain := w.chainID
+	inChain := w.chainID
+
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -246,10 +251,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		ins = castTx.ImportedInputs
+		inChain = castTx.SourceChain.String()
 		typ = models.TransactionTypePVMImport
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs = castTx.ExportedOutputs
+		outChain = castTx.DestinationChain.String()
 		typ = models.TransactionTypePVMExport
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
@@ -268,5 +275,5 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, outs, outChain, 0, genesis)
 }
