@@ -233,7 +233,7 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 		ExecContext(ctx.Ctx())
 
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("insert_address_from_public_key", err)
+		return ctx.Job().EventErr("addresses.insert", err)
 	}
 	return nil
 }
@@ -266,7 +266,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 	case err == nil:
 		return nil
 	case !db.ErrIsDuplicateEntryError(err):
-		errs.Add(ctx.Job().EventErr("insert_output_address", err))
+		errs.Add(ctx.Job().EventErr("avm_output_addresses.insert", err))
 	case sig == nil:
 		return nil
 	}
@@ -277,7 +277,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 		Where("output_id = ? and address = ?", outputID.String(), address.String()).
 		ExecContext(ctx.Ctx())
 	if err != nil {
-		errs.Add(ctx.Job().EventErr("insert_output_address", err))
+		errs.Add(ctx.Job().EventErr("avm_output_addresses.update", err))
 	}
 
 	return errs.Err
