@@ -10,7 +10,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/stream"
+
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/genesis"
@@ -65,7 +66,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
-	if cfg.IndexerTaskEnabled {
+	if stream.IndexerTaskEnabled {
 		// fire and forget..
 		// update the created_at on the state table if we have an earlier date in ctx.Time().
 		// which means we need to re-run aggregation calculations from this earlier date.

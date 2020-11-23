@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -45,6 +43,8 @@ var (
 
 	// number of updaters
 	updatesCount = 4
+
+	IndexerTaskEnabled = false
 )
 
 type ProducerTasker struct {
@@ -481,7 +481,7 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
-	if !cfg.IndexerTaskEnabled {
+	if !IndexerTaskEnabled {
 		return
 	}
 	t.initMetrics()
