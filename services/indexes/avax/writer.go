@@ -120,7 +120,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalin uint64, in *avax.TransferableInput, baseTx *avax.BaseTx, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
 	var err error
-	if in.AssetID().Equals(w.avaxAssetID) {
+	if in.AssetID() == w.avaxAssetID {
 		totalin, err = math.Add64(totalin, in.Input().Amount())
 		if err != nil {
 			errs.Add(err)
@@ -170,7 +170,7 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 			return 0, fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 		}
 
-		if out.AssetID().Equals(w.avaxAssetID) {
+		if out.AssetID() == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, xOut.Amt)
 			if err != nil {
 				errs.Add(err)
@@ -178,7 +178,7 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 		}
 		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID))
 	case *secp256k1fx.TransferOutput:
-		if out.AssetID().Equals(w.avaxAssetID) {
+		if out.AssetID() == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, transferOutput.Amt)
 			if err != nil {
 				errs.Add(err)

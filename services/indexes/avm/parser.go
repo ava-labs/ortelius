@@ -71,12 +71,12 @@ func newAVMCodec(networkID uint32, chainID string) (codec.Codec, error) {
 	)
 	for _, fxID := range fxIDs {
 		switch {
-		case fxID.Equals(secp256k1fx.ID):
+		case fxID == secp256k1fx.ID:
 			fxs = append(fxs, &common.Fx{
 				Fx: &secp256k1fx.Fx{},
 				ID: fxID,
 			})
-		case fxID.Equals(nftfx.ID):
+		case fxID == nftfx.ID:
 			fxs = append(fxs, &common.Fx{
 				Fx: &nftfx.Fx{},
 				ID: fxID,
