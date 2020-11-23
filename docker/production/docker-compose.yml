@@ -88,10 +88,8 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
-    env_file:
-      - production.env
     image: "avaplatform/avalanchego:v1.0.5"
-    command: bash -cx "env && ./build/avalanchego
+    command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
       --log-level=info
@@ -107,13 +105,10 @@ services:
       - producer
     restart: always
   kafkatopics:
-    env_file:
-      - production.env
     depends_on:
       - kafka
     image: confluentinc/cp-kafka:5.4.3
-    command: bash -cx "env &&
-      kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
+    command: bash -cx "kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-consensus &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-decisions &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&

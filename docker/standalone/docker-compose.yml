@@ -8,10 +8,8 @@ networks:
       name: ortelius_services
 services:
   avalanche:
-    env_file:
-      - standalone.env
     image: "avaplatform/avalanchego:v1.0.5"
-    command: bash -cx "env && ./build/avalanchego
+    command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
       --log-level=info
@@ -27,13 +25,10 @@ services:
       - producer
     restart: always
   kafkatopics:
-    env_file:
-      - standalone.env
     networks:
       - services
     image: confluentinc/cp-kafka:5.4.3
-    command: bash -cx "env &&
-      kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
+    command: bash -cx "kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-consensus &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-decisions &&
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&
@@ -43,8 +38,6 @@ services:
       - zookeeper
       - kafka
   producer: &ortelius-app
-    env_file:
-      - standalone.env
     image: "avaplatform/ortelius:98a665b"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:

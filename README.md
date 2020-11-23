@@ -26,11 +26,9 @@ make dev_env_start
 make standalone_run
 ```
 
-The API should now be available at `http://localhost:8080` which can be verified with with cURL:
+View the [API](https://docs.avax.network/build/tools/ortelius) for usage.
 
-`curl http://localhost:8080/X/transactions`
-
-On the first run it will take a few minutes for Gecko to connect to sync to the network and ingest all the historical data.
+On the first run it will take time for avalanchego to bootstrap and ingest the historical data.
 
 ## Production Deployment
 

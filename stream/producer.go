@@ -15,6 +15,7 @@ import (
 
 // producer reads from the socket and writes to the event stream
 type Producer struct {
+	id          string
 	chainID     string
 	eventType   EventType
 	sock        *socket.Client
@@ -37,6 +38,7 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
+		id:                      fmt.Sprintf("producer %d %s %s", conf.NetworkID, chainID, eventType),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
@@ -64,6 +66,10 @@ func NewDecisionsProducerProcessor(conf cfg.Config, chainVM string, chainID stri
 // Close shuts down the producer
 func (p *Producer) Close() error {
 	return p.writeBuffer.close()
+}
+
+func (p *Producer) ID() string {
+	return p.id
 }
 
 // ProcessNextMessage takes in a Message from the IPC socket and writes it to
