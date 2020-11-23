@@ -122,7 +122,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			Set("chain_id", w.chainID).
 			Set("type", txType.String()).
 			Set("memo", baseTx.Memo).
-			Set("created_at", ctx.Time()).
 			Set("canonical_serialization", txBytes).
 			Set("txfee", txfee).
 			Set("genesis", genesis).
