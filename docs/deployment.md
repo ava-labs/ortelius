@@ -42,7 +42,7 @@ Example: `docker run --rm avaplatform/ortelius --help`
 
 ## Configuring Ortelius
 
-Configuration for Ortelius itself is described in [configuration.md](configuration.md).
+Configuration for Ortelius itself described [here](https://docs.avax.network/build/tools/ortelius#ortelius-configuration).
 
 ## Running Ortelius
 
