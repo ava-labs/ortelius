@@ -112,7 +112,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		Pair("genesis", genesis).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(err)
+		errs.Add(w.stream.EventErr("avm_transactions.insert", err))
 	}
 
 	return errs.Err
@@ -142,7 +142,7 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 		Pair("chain_id", chainID).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(err)
+		errs.Add(w.stream.EventErr("avm_outputs_redeeming.insert", err))
 	}
 
 	// For each signature we recover the public key and the data to the db
@@ -213,7 +213,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("insert_output.insert", err))
+		errs.Add(w.stream.EventErr("avm_outputs.insert", err))
 	}
 
 	// Ingest each Output Address
