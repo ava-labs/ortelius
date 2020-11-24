@@ -43,6 +43,8 @@ var (
 
 	// number of updaters
 	updatesCount = 4
+
+	IndexerTaskEnabled = false
 )
 
 type ProducerTasker struct {
@@ -479,11 +481,12 @@ func (t *ProducerTasker) replaceAvmAggregateCount(avmAggregatesCount models.AvmA
 }
 
 func (t *ProducerTasker) Start() {
+	if !IndexerTaskEnabled {
+		return
+	}
 	t.initMetrics()
 
-	if false {
-		go initRefreshAggregatesTick(t)
-	}
+	go initRefreshAggregatesTick(t)
 }
 
 func (t *ProducerTasker) initMetrics() {

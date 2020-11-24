@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/ortelius/stream"
+
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/genesis"
@@ -64,7 +66,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
-	if false {
+	if stream.IndexerTaskEnabled {
 		// fire and forget..
 		// update the created_at on the state table if we have an earlier date in ctx.Time().
 		// which means we need to re-run aggregation calculations from this earlier date.
@@ -197,24 +199,23 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 }
 
 func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
-	blockInsert := ctx.DB().
+	if len(blockBytes) > 32000 {
+		blockBytes = []byte("")
+	}
+
+	_, err := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
 		Pair("chain_id", w.chainID).
 		Pair("type", blkType).
 		Pair("parent_id", blk.ParentID().String()).
-		Pair("created_at", ctx.Time())
-
-	if len(blockBytes) <= 32000 {
-		blockInsert = blockInsert.Pair("serialization", blockBytes)
-	} else {
-		blockInsert = blockInsert.Pair("serialization", []byte(""))
-	}
-	_, err := blockInsert.
+		Pair("created_at", ctx.Time()).
+		Pair("serialization", blockBytes).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("index_common_block.upsert_block", err)
+		return ctx.Job().EventErr("pvm_blocks.insert", err)
 	}
+
 	return nil
 }
 
