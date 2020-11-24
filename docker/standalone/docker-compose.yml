@@ -8,6 +8,8 @@ networks:
       name: ortelius_services
 services:
   avalanche:
+    env_file:
+      - standalone.env
     image: "avaplatform/avalanchego:v1.0.5"
     command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
@@ -25,6 +27,8 @@ services:
       - producer
     restart: always
   kafkatopics:
+    env_file:
+      - standalone.env
     networks:
       - services
     image: confluentinc/cp-kafka:5.4.3

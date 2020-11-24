@@ -88,6 +88,8 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1048576
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
+    env_file:
+      - production.env
     image: "avaplatform/avalanchego:v1.0.5"
     command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
@@ -105,6 +107,8 @@ services:
       - producer
     restart: always
   kafkatopics:
+    env_file:
+      - production.env
     depends_on:
       - kafka
     image: confluentinc/cp-kafka:5.4.3
