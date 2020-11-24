@@ -270,7 +270,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			Pair("created_at", ctx.Time()).
 			ExecContext(ctx.Ctx())
 		if err != nil && !db.ErrIsDuplicateEntryError(err) {
-			return err
+			return ctx.Job().EventErr("rewards.insert", err)
 		}
 		return nil
 	}
