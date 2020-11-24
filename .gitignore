@@ -24,6 +24,5 @@
 ortelius
 orteliusd
 main
-config*.json
 configs
 vendor

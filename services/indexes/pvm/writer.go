@@ -164,6 +164,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	if err := w.codec.Unmarshal(blockBytes, &block); err != nil {
 		return ctx.Job().EventErr("index_block.unmarshal_block", err)
 	}
+	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
 
 	errs := wrappers.Errs{}
 
@@ -171,27 +172,27 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	case *platformvm.ProposalBlock:
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
-			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
+			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
+			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
 	case *platformvm.StandardBlock:
-		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
 			errs.Add(
 				initializeTx(w.codec, *tx),
-				w.indexTransaction(ctx, blk.ID(), *tx, false),
+				w.indexTransaction(ctx, blkID, *tx, false),
 			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
 			initializeTx(w.codec, blk.Tx),
-			w.indexCommonBlock(ctx, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
-			w.indexTransaction(ctx, blk.ID(), blk.Tx, false),
+			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
+			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
 	case *platformvm.Abort:
-		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
 	case *platformvm.Commit:
-		errs.Add(w.indexCommonBlock(ctx, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
 		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
 	}
@@ -199,12 +200,11 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	return errs.Err
 }
 
-func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
-	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
-
+func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
 	if len(blockBytes) > 32000 {
 		blockBytes = []byte("")
 	}
+
 	_, err := ctx.DB().
 		InsertInto("pvm_blocks").
 		Pair("id", blkID.String()).
@@ -234,7 +234,7 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkType models.Block
 	return nil
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platformvm.Tx, genesis bool) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx platformvm.Tx, genesis bool) error {
 	var (
 		baseTx avax.BaseTx
 		typ    models.TransactionType
@@ -277,6 +277,29 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, _ ids.ID, tx platfor
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
+		_, err := ctx.DB().
+			InsertInto("rewards").
+			Pair("id", castTx.ID().String()).
+			Pair("block_id", blkID.String()).
+			Pair("txid", castTx.TxID.String()).
+			Pair("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
+			Pair("created_at", ctx.Time()).
+			ExecContext(ctx.Ctx())
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
+			return ctx.Job().EventErr("rewards.insert", err)
+		}
+		if cfg.PerformUpdates {
+			_, err := ctx.DB().
+				Update("rewards").
+				Set("block_id", blkID.String()).
+				Set("txid", castTx.TxID.String()).
+				Set("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
+				Where("id = ?", castTx.ID().String()).
+				ExecContext(ctx.Ctx())
+			if err != nil {
+				return ctx.Job().EventErr("rewards.update", err)
+			}
+		}
 		return nil
 	}
 
