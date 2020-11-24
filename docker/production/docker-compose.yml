@@ -89,14 +89,13 @@ services:
       KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000
   avalanche:
     image: "avaplatform/avalanchego:v1.0.5"
-    command: [
-      "./build/avalanchego",
-      "--network-id=1",
-      "--db-dir=/var/lib/avalanche",
-      "--log-level=info",
-      "--http-host=0.0.0.0",
-      "--ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
-    ]
+    command: bash -cx "./build/avalanchego
+      --network-id=$${NETWORKID}
+      --db-dir=/var/lib/avalanche
+      --log-level=info
+      --http-host=0.0.0.0
+      --ipcs-chain-ids=$${C_CHAINID},$${X_CHAINID}
+      "
     ports:
       - "9650:9650"
     volumes:
@@ -105,6 +104,16 @@ services:
     depends_on:
       - producer
     restart: always
+  kafkatopics:
+    depends_on:
+      - kafka
+    image: confluentinc/cp-kafka:5.4.3
+    command: bash -cx "kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-consensus &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-decisions &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&
+      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
+      "
   producer: &ortelius-app
     image: "avaplatform/ortelius:85538e9"
     command: ["stream", "producer", "-c", "/opt/config.json"]
@@ -113,6 +122,8 @@ services:
       - kafka
       - mysql
       - redis
+    depends_on:
+      - kafkatopics
     volumes:
       - avalanche-ipcs:/tmp
     restart: on-failure
