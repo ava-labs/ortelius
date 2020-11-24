@@ -164,7 +164,6 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 	if cfg.PerformUpdates {
 		_, err = ctx.DB().
 			Update("avm_outputs_redeeming").
-			Set("redeemed_at", dbr.Now).
 			Set("redeeming_transaction_id", baseTx.ID().String()).
 			Set("amount", in.Input().Amount()).
 			Set("output_index", in.OutputIndex).
