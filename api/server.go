@@ -80,6 +80,7 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	}
 
 	xChainID := xChainGenesisTx.ID()
+	conf.Log.Info("Router chainID %s", xChainID.String())
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
 	if err != nil {
