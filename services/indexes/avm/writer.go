@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/state"
@@ -54,10 +56,11 @@ type Writer struct {
 	conns *services.Connections
 	vm    *avm.VM
 	ctx   *snow.Context
+	db    database.Database
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
-	vm, ctx, avmCodec, err := newAVMCodec(networkID, chainID)
+	vm, ctx, avmCodec, db, err := newAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +73,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	return &Writer{
 		conns:       conns,
 		chainID:     chainID,
+		db:          db,
 		vm:          vm,
 		ctx:         ctx,
 		codec:       avmCodec,

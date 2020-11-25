@@ -5,7 +5,6 @@ package avm
 
 import (
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/nodb"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -16,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -37,25 +37,25 @@ func parseTx(c codec.Codec, bytes []byte) (*avm.Tx, error) {
 }
 
 // newAVMCodec creates codec that can parse avm objects
-func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, codec.Codec, error) {
+func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, codec.Codec, database.Database, error) {
 	g, err := genesis.VMGenesis(networkID, avm.ID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
 	if !ok {
-		return nil, nil, nil, ErrIncorrectGenesisChainTxType
+		return nil, nil, nil, nil, ErrIncorrectGenesisChainTxType
 	}
 
 	bcLookup := &ids.Aliaser{}
 	bcLookup.Initialize()
 	id, err := ids.FromString(chainID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if err = bcLookup.Alias(id, "X"); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	var (
@@ -86,17 +86,19 @@ func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 		}
 	}
 
+	db := &utils.NoopDatabase{}
+
 	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because
 	// we're not using a real DB here.
 	vm := &avm.VM{}
-	err = vm.Initialize(ctx, &nodb.Database{}, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
+	err = vm.Initialize(ctx, db, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
 	if err != nil && err != database.ErrClosed {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	vm.Codec().SetMaxSize(MaxCodecSize)
 	vm.Codec().SetMaxSliceLen(MaxCodecSize)
 
-	return vm, ctx, vm.Codec(), nil
+	return vm, ctx, vm.Codec(), db, nil
 }
