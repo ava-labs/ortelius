@@ -9,11 +9,8 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	avmVM "github.com/ava-labs/avalanchego/vms/avm"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -31,11 +28,6 @@ type Server struct {
 
 // NewServer creates a new *Server based on the given config
 func NewServer(conf cfg.Config) (*Server, error) {
-	log, err := logging.New(conf.Logging)
-	if err != nil {
-		return nil, err
-	}
-
 	router, err := newRouter(conf, true)
 	if err != nil {
 		return nil, err
@@ -45,7 +37,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 	models.SetBech32HRP(conf.NetworkID)
 
 	return &Server{
-		log: log,
+		log: conf.Services.Log,
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
 			ReadTimeout:  5 * time.Second,
@@ -82,11 +74,8 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 		return nil, err
 	}
 
-	xChainGenesisBytes, err := platformvm.GenesisCodec.Marshal(xChainGenesisTx)
-	if err != nil {
-		return nil, err
-	}
-	xChainID := ids.ID(hashing.ComputeHash256Array(xChainGenesisBytes))
+	xChainID := xChainGenesisTx.ID()
+	conf.Log.Info("Router chainID %s", xChainID.String())
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
 	if err != nil {
