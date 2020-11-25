@@ -172,7 +172,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("unable to determin vertex transaction %s", reflect.TypeOf(txt))
+			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
 		}
 	}
 
