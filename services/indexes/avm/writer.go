@@ -135,7 +135,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) error {
+func (w *Writer) ConsumeConsensus( c services.Consumable) error {
 	db := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -166,7 +166,8 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 				w.chainID,
 				body,
 				c.Timestamp())
-			err = w.Consume(ctx, m)
+
+			err = w.Consume( m)
 			if err != nil {
 				return err
 			}
@@ -178,7 +179,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
+func (w *Writer) Consume( i services.Consumable) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
@@ -194,6 +195,9 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		}
 		job.Complete(health.Success)
 	}()
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
 
 	if stream.IndexerTaskEnabled {
 		// fire and forget..
