@@ -135,7 +135,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus( c services.Consumable) error {
+func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 	db := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -155,7 +155,7 @@ func (w *Writer) ConsumeConsensus( c services.Consumable) error {
 		switch txt := vtx.(type) {
 		case *avm.UniqueTx:
 
-			// TODO add epoch...
+			// need to add epoch...
 
 			body, err := w.codec.Marshal(txt.Tx)
 			if err != nil {
@@ -167,7 +167,7 @@ func (w *Writer) ConsumeConsensus( c services.Consumable) error {
 				body,
 				c.Timestamp())
 
-			err = w.Consume( m)
+			err = w.Consume(m)
 			if err != nil {
 				return err
 			}
@@ -179,7 +179,7 @@ func (w *Writer) ConsumeConsensus( c services.Consumable) error {
 	return nil
 }
 
-func (w *Writer) Consume( i services.Consumable) error {
+func (w *Writer) Consume(i services.Consumable) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
