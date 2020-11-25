@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -20,77 +19,36 @@ import (
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
 	"github.com/segmentio/kafka-go"
-
-	// sqlite
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type DBHolder struct {
-	DB   *sql.DB
+	m    map[string]int
 	Lock sync.Mutex
 }
 
 func (replay *DBHolder) init() error {
 	replay.Lock.Lock()
 	defer replay.Lock.Unlock()
-
-	statement, err := replay.DB.Prepare("CREATE TABLE IF NOT EXISTS " +
-		"dedup( " +
-		"id VARCHAR NOT NULL, " +
-		"primary key (id) " +
-		")")
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec()
-	return err
+	return nil
 }
 
+//nolint:unparam
 func (replay *DBHolder) get(id string) (bool, error) {
 	replay.Lock.Lock()
 	defer replay.Lock.Unlock()
 
-	statement, err := replay.DB.Prepare("select id from dedup where id=?")
-	if err != nil {
-		return false, err
+	if res, ok := replay.m[id]; ok {
+		return res != 0, nil
 	}
-
-	var rows *sql.Rows
-	rows, err = statement.Query(id)
-	if err != nil {
-		return false, err
-	}
-	if rows.Err() != nil {
-		return false, err
-	}
-	found := false
-	for ok := rows.Next(); ok; ok = rows.Next() {
-		var data string
-		err := rows.Scan(
-			&data,
-		)
-		if err != nil {
-			return false, err
-		}
-		found = true
-	}
-	return found, nil
+	return false, nil
 }
 
+//nolint:unparam
 func (replay *DBHolder) put(id string) error {
 	replay.Lock.Lock()
 	defer replay.Lock.Unlock()
 
-	statement, err := replay.DB.Prepare("insert into dedup (id) values (?)")
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(id)
-	if err != nil {
-		return err
-	}
+	replay.m[id] = 1
 	return nil
 }
 
@@ -185,13 +143,7 @@ func (replay *Replay) Start() {
 		return
 	}
 
-	db, err := sql.Open("sqlite3", *replay.DedupDB)
-	if err != nil {
-		log.Fatalln("config file not found", replay.ConfigFile, ":", err.Error())
-		return
-	}
-
-	replay.DBInst = &DBHolder{DB: db}
+	replay.DBInst = &DBHolder{}
 
 	err = replay.DBInst.init()
 	if err != nil {

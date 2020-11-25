@@ -15,7 +15,6 @@ require (
 	github.com/gocraft/health v0.0.0-20170925182251-8675af27fef0
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gomodule/redigo v1.8.2 // indirect
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/prometheus/client_golang v1.7.1
 	github.com/segmentio/kafka-go v0.4.8
