@@ -10,6 +10,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/snow/engine/avalanche/state"
+
+	"github.com/ava-labs/avalanchego/snow"
+
 	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -46,10 +51,12 @@ type Writer struct {
 	codec codec.Codec
 	avax  *avax.Writer
 	conns *services.Connections
+	vm    *avm.VM
+	ctx   *snow.Context
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := newAVMCodec(networkID, chainID)
+	vm, ctx, avmCodec, err := newAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +69,8 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	return &Writer{
 		conns:       conns,
 		chainID:     chainID,
+		vm:          vm,
+		ctx:         ctx,
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
@@ -116,6 +125,49 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
+	}
+
+	return nil
+}
+
+func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) error {
+	db := &memdb.Database{}
+
+	serializer := &state.Serializer{}
+	serializer.Initialize(w.ctx, w.vm, db)
+
+	vertex, err := serializer.ParseVertex(c.Body())
+	if err != nil {
+		return err
+	}
+
+	vertexTxs, err := vertex.Txs()
+	if err != nil {
+		return err
+	}
+
+	for _, vtx := range vertexTxs {
+		switch txt := vtx.(type) {
+		case *avm.UniqueTx:
+
+			// TODO add epoch...
+
+			body, err := w.codec.Marshal(txt.Tx)
+			if err != nil {
+				return err
+			}
+			m := stream.NewMessage(
+				txt.Tx.ID().String(),
+				w.chainID,
+				body,
+				c.Timestamp())
+			err = w.Consume(ctx, m)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unable to determin vertex transaction %s", reflect.TypeOf(txt))
+		}
 	}
 
 	return nil

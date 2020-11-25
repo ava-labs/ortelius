@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ava-labs/ortelius/services/metrics"
 
@@ -18,22 +17,8 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
-const (
-	kafkaReadTimeout    = 10 * time.Second
-	processWriteTimeout = 10 * time.Second
-
-	ConsumerEventTypeDefault = EventTypeDecisions
-	ConsumerMaxBytesDefault  = 10e8
-)
-
-var (
-	consumerInitializeTimeout = 5 * time.Minute
-)
-
-type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)
-
 // consumer takes events from Kafka and sends them to a service consumer
-type consumer struct {
+type consumerconsensus struct {
 	id       string
 	chainID  string
 	reader   *kafka.Reader
@@ -47,22 +32,22 @@ type consumer struct {
 	metricSuccessCountKey         string
 }
 
-// NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
+// NewConsumerConsensusFactory returns a processorFactory for the given service consumer
+func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactory {
 	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 		conns, err := services.NewConnectionsFromConfig(conf.Services, false)
 		if err != nil {
 			return nil, err
 		}
 
-		c := &consumer{
+		c := &consumerconsensus{
 			chainID:                       chainID,
 			conns:                         conns,
-			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s", chainID),
-			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
-			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
-			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
-			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
+			metricProcessedCountKey:       fmt.Sprintf("consume_consensus_records_processed_%s", chainID),
+			metricProcessMillisCounterKey: fmt.Sprintf("consume_consensus_records_process_millis_%s", chainID),
+			metricSuccessCountKey:         fmt.Sprintf("consume_consensus_records_success_%s", chainID),
+			metricFailureCountKey:         fmt.Sprintf("consume_consensus_records_failure_%s", chainID),
+			id:                            fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
@@ -95,7 +80,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeDecisions),
+			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeConsensus),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
@@ -116,19 +101,19 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 	}
 }
 
-func (c *consumer) ID() string {
+func (c *consumerconsensus) ID() string {
 	return c.id
 }
 
 // Close closes the consumer
-func (c *consumer) Close() error {
+func (c *consumerconsensus) Close() error {
 	errs := wrappers.Errs{}
 	errs.Add(c.conns.Close(), c.reader.Close())
 	return errs.Err
 }
 
 // ProcessNextMessage waits for a new Message and adds it to the services
-func (c *consumer) ProcessNextMessage() error {
+func (c *consumerconsensus) ProcessNextMessage() error {
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
@@ -151,7 +136,7 @@ func (c *consumer) ProcessNextMessage() error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), processWriteTimeout)
 	defer cancelFn()
 
-	if err = c.consumer.Consume(ctx, msg); err != nil {
+	if err = c.consumer.ConsumeConsensus(ctx, msg); err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
@@ -159,21 +144,21 @@ func (c *consumer) ProcessNextMessage() error {
 	return nil
 }
 
-func (c *consumer) nextMessage() (*Message, error) {
+func (c *consumerconsensus) nextMessage() (*Message, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
 	defer cancelFn()
 
 	return c.getNextMessage(ctx)
 }
 
-func (c *consumer) Failure() {
+func (c *consumerconsensus) Failure() {
 	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	if err != nil {
 		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
 	}
 }
 
-func (c *consumer) Success() {
+func (c *consumerconsensus) Success() {
 	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	if err != nil {
 		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
@@ -181,7 +166,7 @@ func (c *consumer) Success() {
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer
-func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
+func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
 	msg, err := c.reader.ReadMessage(ctx)
 	if err != nil {

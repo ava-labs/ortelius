@@ -37,6 +37,13 @@ func (m *Message) ChainID() string  { return m.chainID }
 func (m *Message) Body() []byte     { return m.body }
 func (m *Message) Timestamp() int64 { return m.timestamp }
 
+func NewMessage(id string,
+	chainID string,
+	body []byte,
+	timestamp int64) *Message {
+	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp}
+}
+
 func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
 	return path.Join(root, fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType))
 }
