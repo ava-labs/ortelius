@@ -31,11 +31,6 @@ type Server struct {
 
 // NewServer creates a new *Server based on the given config
 func NewServer(conf cfg.Config) (*Server, error) {
-	log, err := logging.New(conf.Logging)
-	if err != nil {
-		return nil, err
-	}
-
 	router, err := newRouter(conf, true)
 	if err != nil {
 		return nil, err
@@ -45,7 +40,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 	models.SetBech32HRP(conf.NetworkID)
 
 	return &Server{
-		log: log,
+		log: conf.Services.Log,
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
 			ReadTimeout:  5 * time.Second,
