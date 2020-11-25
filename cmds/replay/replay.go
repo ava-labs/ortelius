@@ -29,6 +29,7 @@ type DBHolder struct {
 func (replay *DBHolder) init() error {
 	replay.Lock.Lock()
 	defer replay.Lock.Unlock()
+	replay.m = make(map[string]int)
 	return nil
 }
 
