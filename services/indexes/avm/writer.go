@@ -10,7 +10,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/state"
 
 	"github.com/ava-labs/avalanchego/snow"
@@ -131,7 +132,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 }
 
 func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) error {
-	db := &memdb.Database{}
+	db := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
 	serializer.Initialize(w.ctx, w.vm, db)
