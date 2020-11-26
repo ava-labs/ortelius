@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils"
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
@@ -19,120 +19,37 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type DBHolder struct {
-	m    map[string]int
-	Lock sync.Mutex
-}
-
-func (replay *DBHolder) init() error {
-	replay.Lock.Lock()
-	defer replay.Lock.Unlock()
-	replay.m = make(map[string]int)
-	return nil
-}
-
-//nolint:unparam
-func (replay *DBHolder) get(id string) (bool, error) {
-	replay.Lock.Lock()
-	defer replay.Lock.Unlock()
-
-	if res, ok := replay.m[id]; ok {
-		return res != 0, nil
-	}
-	return false, nil
-}
-
-//nolint:unparam
-func (replay *DBHolder) put(id string) error {
-	replay.Lock.Lock()
-	defer replay.Lock.Unlock()
-
-	replay.m[id] = 1
-	return nil
-}
-
-type Counter struct {
-	countersLock sync.RWMutex
-	counters     map[string]*uint64
-}
-
-func NewCounter() *Counter {
-	return &Counter{counters: make(map[string]*uint64)}
-}
-
-func (c *Counter) Inc(v string) {
-	found := false
-	c.countersLock.RLock()
-	if counter, ok := c.counters[v]; ok {
-		atomic.AddUint64(counter, 1)
-		found = true
-	}
-	c.countersLock.RUnlock()
-
-	if found {
-		return
-	}
-
-	c.countersLock.Lock()
-	if _, ok := c.counters[v]; !ok {
-		c.counters[v] = new(uint64)
-	}
-	atomic.AddUint64(c.counters[v], 1)
-	c.countersLock.Unlock()
-}
-
-func (c *Counter) Clone() map[string]uint64 {
-	countersValues := make(map[string]uint64)
-	c.countersLock.RLock()
-	for cnter := range c.counters {
-		cv := atomic.LoadUint64(c.counters[cnter])
-		if cv != 0 {
-			countersValues[cnter] = cv
-		}
-	}
-	c.countersLock.RUnlock()
-	return countersValues
-}
-
 type Replay interface {
 	Start() error
 }
 
 func New(config *cfg.Config) Replay {
-	return &replay{Config: config,
-		CounterRead:  NewCounter(),
-		CounterAdded: NewCounter()}
+	return &replay{config: config,
+		counterRead:  utils.NewCounterId(),
+		counterAdded: utils.NewCounterId(),
+		uniqueID:     utils.NewMemoryUniqueID(),
+	}
 }
 
 type replay struct {
-	GroupName string
-	DBInst    *DBHolder
-	errs      *utils.AtomicInterface
-	running   *utils.AtomicBool
-	Config    *cfg.Config
+	uniqueID utils.UniqueID
+	errs     *avlancheGoUtils.AtomicInterface
+	running  *avlancheGoUtils.AtomicBool
+	config   *cfg.Config
 
-	CounterRead  *Counter
-	CounterAdded *Counter
+	counterRead  *utils.CounterID
+	counterAdded *utils.CounterID
 }
 
 func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
 
-	replay.GroupName = replay.Config.Consumer.GroupName
-	replay.DBInst = &DBHolder{}
-
-	err := replay.DBInst.init()
-	if err != nil {
-		log.Fatalln("create dedup table failed", ":", err.Error())
-		return err
-	}
-
-	replay.errs = &utils.AtomicInterface{}
-	replay.running = &utils.AtomicBool{}
+	replay.errs = &avlancheGoUtils.AtomicInterface{}
+	replay.running = &avlancheGoUtils.AtomicBool{}
 	replay.running.SetValue(true)
 
-	for _, chainID := range replay.Config.Chains {
-		err = replay.handleReader(chainID)
+	for _, chainID := range replay.config.Chains {
+		err := replay.handleReader(chainID)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
@@ -146,14 +63,14 @@ func (replay *replay) Start() error {
 		}
 
 		ctot := make(map[string]*CounterValues)
-		countersValues := replay.CounterRead.Clone()
+		countersValues := replay.counterRead.Clone()
 		for cnter := range countersValues {
 			if _, ok := ctot[cnter]; !ok {
 				ctot[cnter] = &CounterValues{}
 			}
 			ctot[cnter].Read = countersValues[cnter]
 		}
-		countersValues = replay.CounterAdded.Clone()
+		countersValues = replay.counterAdded.Clone()
 		for cnter := range countersValues {
 			if _, ok := ctot[cnter]; !ok {
 				ctot[cnter] = &CounterValues{}
@@ -162,14 +79,14 @@ func (replay *replay) Start() error {
 		}
 
 		for cnter := range ctot {
-			replay.Config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
 	if replay.errs.GetValue() != nil {
-		replay.Config.Services.Log.Info("replay failed %w", replay.errs.GetValue().(error))
+		replay.config.Services.Log.Info("replay failed %w", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
@@ -177,7 +94,7 @@ func (replay *replay) Start() error {
 }
 
 func (replay *replay) handleReader(chain cfg.Chain) error {
-	conns, err := services.NewConnectionsFromConfig(replay.Config.Services, false)
+	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
 	if err != nil {
 		return err
 	}
@@ -185,12 +102,12 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 	var writer services.Consumer
 	switch chain.VMType {
 	case consumers.IndexerAVMName:
-		writer, err = avm.NewWriter(conns, replay.Config.NetworkID, chain.ID)
+		writer, err = avm.NewWriter(conns, replay.config.NetworkID, chain.ID)
 		if err != nil {
 			return err
 		}
 	case consumers.IndexerPVMName:
-		writer, err = pvm.NewWriter(conns, replay.Config.NetworkID, chain.ID)
+		writer, err = pvm.NewWriter(conns, replay.config.NetworkID, chain.ID)
 		if err != nil {
 			return err
 		}
@@ -198,15 +115,15 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 		return fmt.Errorf("unknown vmtype")
 	}
 
-	tn := stream.GetTopicName(replay.Config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 	go func() {
 		defer replay.running.SetValue(false)
 
 		reader := kafka.NewReader(kafka.ReaderConfig{
 			Topic:       tn,
-			Brokers:     replay.Config.Kafka.Brokers,
-			GroupID:     replay.GroupName,
+			Brokers:     replay.config.Kafka.Brokers,
+			GroupID:     replay.config.Consumer.GroupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    stream.ConsumerMaxBytesDefault,
 		})
@@ -220,7 +137,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
-			replay.CounterRead.Inc(tn)
+			replay.counterRead.Inc(tn)
 
 			id, err := ids.ToID(msg.Key)
 			if err != nil {
@@ -228,7 +145,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
-			present, err := replay.DBInst.get(id.String())
+			present, err := replay.uniqueID.Get(id.String())
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -237,7 +154,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				continue
 			}
 
-			replay.CounterAdded.Inc(tn)
+			replay.counterAdded.Inc(tn)
 
 			msgc := stream.NewMessage(
 				id.String(),
@@ -252,7 +169,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
-			err = replay.DBInst.put(id.String())
+			err = replay.uniqueID.Put(id.String())
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
