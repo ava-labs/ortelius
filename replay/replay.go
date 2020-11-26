@@ -198,7 +198,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 		return fmt.Errorf("unknown vmtype")
 	}
 
-	tn := stream.GetTopicName(replay.Config.NetworkID, chain.ID, stream.ConsumerEventTypeDefault)
+	tn := stream.GetTopicName(replay.Config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 	go func() {
 		defer replay.running.SetValue(false)
