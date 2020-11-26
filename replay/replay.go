@@ -1,8 +1,7 @@
-package main
+package replay
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"sync"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
@@ -97,56 +95,23 @@ func (c *Counter) Clone() map[string]uint64 {
 }
 
 type Replay struct {
-	ConfigFile *string
-	GroupName  *string
-	DedupDB    *string
-	DBInst     *DBHolder
-	errs       *utils.AtomicInterface
-	running    *utils.AtomicBool
-	Config     *cfg.Config
+	GroupName string
+	DBInst    *DBHolder
+	errs      *utils.AtomicInterface
+	running   *utils.AtomicBool
+	Config    *cfg.Config
 
 	CounterRead  *Counter
 	CounterAdded *Counter
 }
 
-func main() {
+func (replay *Replay) Start() {
 	cfg.PerformUpdates = true
 
-	config := flag.String("config", "", "config file")
-	groupName := flag.String("groupName", "", "group name")
-	dedupDB := flag.String("dedupDb", "dedupDb.db", "dedupDb")
-
-	flag.Parse()
-
-	replay := &Replay{
-		ConfigFile:   config,
-		GroupName:    groupName,
-		DedupDB:      dedupDB,
-		CounterRead:  NewCounter(),
-		CounterAdded: NewCounter(),
-	}
-	replay.Start()
-}
-
-func (replay *Replay) Start() {
-	config, err := cfg.NewFromFile(*replay.ConfigFile)
-	if err != nil {
-		log.Fatalln("config file not found", replay.ConfigFile, ":", err.Error())
-		return
-	}
-
-	replay.Config = config
-
-	var alog *logging.Log
-	alog, err = logging.New(config.Logging)
-	if err != nil {
-		log.Fatalln("Failed to create log", config.Logging.Directory, ":", err.Error())
-		return
-	}
-
+	replay.GroupName = replay.Config.Consumer.GroupName
 	replay.DBInst = &DBHolder{}
 
-	err = replay.DBInst.init()
+	err := replay.DBInst.init()
 	if err != nil {
 		log.Fatalln("create dedup table failed", ":", err.Error())
 		return
@@ -156,7 +121,7 @@ func (replay *Replay) Start() {
 	replay.running = &utils.AtomicBool{}
 	replay.running.SetValue(true)
 
-	for _, chainID := range config.Chains {
+	for _, chainID := range replay.Config.Chains {
 		err = replay.handleReader(chainID)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
@@ -187,28 +152,16 @@ func (replay *Replay) Start() {
 		}
 
 		for cnter := range ctot {
-			alog.Info("%s %d %d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			replay.Config.Services.Log.Info("%s %d %d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
 	if replay.errs.GetValue() != nil {
-		alog.Info("err %v", replay.errs.GetValue())
+		replay.Config.Services.Log.Info("err %v", replay.errs.GetValue())
 	}
 }
-
-type MessageR struct {
-	id        string
-	chainID   string
-	body      []byte
-	timestamp int64
-}
-
-func (m *MessageR) ID() string       { return m.id }
-func (m *MessageR) ChainID() string  { return m.chainID }
-func (m *MessageR) Body() []byte     { return m.body }
-func (m *MessageR) Timestamp() int64 { return m.timestamp }
 
 func (replay *Replay) handleReader(chain cfg.Chain) error {
 	conns, err := services.NewConnectionsFromConfig(replay.Config.Services, false)
@@ -240,7 +193,7 @@ func (replay *Replay) handleReader(chain cfg.Chain) error {
 		reader := kafka.NewReader(kafka.ReaderConfig{
 			Topic:       tn,
 			Brokers:     replay.Config.Kafka.Brokers,
-			GroupID:     *replay.GroupName,
+			GroupID:     replay.GroupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    stream.ConsumerMaxBytesDefault,
 		})
@@ -273,12 +226,12 @@ func (replay *Replay) handleReader(chain cfg.Chain) error {
 
 			replay.CounterAdded.Inc(tn)
 
-			msgc := &MessageR{
-				chainID:   chain.ID,
-				body:      msg.Value,
-				id:        id.String(),
-				timestamp: msg.Time.UTC().Unix(),
-			}
+			msgc := stream.NewMessage(
+				id.String(),
+				chain.ID,
+				msg.Value,
+				msg.Time.UTC().Unix(),
+			)
 
 			err = writer.Consume(ctx, msgc)
 			if err != nil {
