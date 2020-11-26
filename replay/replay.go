@@ -162,14 +162,14 @@ func (replay *replay) Start() error {
 		}
 
 		for cnter := range ctot {
-			replay.Config.Services.Log.Info("%s %d %d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			replay.Config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
 	if replay.errs.GetValue() != nil {
-		replay.Config.Services.Log.Info("err %v", replay.errs.GetValue())
+		replay.Config.Services.Log.Info("replay failed %w", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
