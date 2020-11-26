@@ -7,5 +7,5 @@ const (
 	RequestTimeout = 2 * time.Minute
 )
 
-// Control for performing sql update operations.  Disabled by normal operation.
+// PerformUpdates controls for performing sql update operations.  Disabled by normal operation.
 var PerformUpdates = false
