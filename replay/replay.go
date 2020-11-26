@@ -94,7 +94,17 @@ func (c *Counter) Clone() map[string]uint64 {
 	return countersValues
 }
 
-type Replay struct {
+type Replay interface {
+	Start() error
+}
+
+func New(config *cfg.Config) Replay {
+	return &replay{Config: config,
+		CounterRead:  NewCounter(),
+		CounterAdded: NewCounter()}
+}
+
+type replay struct {
 	GroupName string
 	DBInst    *DBHolder
 	errs      *utils.AtomicInterface
@@ -105,7 +115,7 @@ type Replay struct {
 	CounterAdded *Counter
 }
 
-func (replay *Replay) Start() {
+func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
 
 	replay.GroupName = replay.Config.Consumer.GroupName
@@ -114,7 +124,7 @@ func (replay *Replay) Start() {
 	err := replay.DBInst.init()
 	if err != nil {
 		log.Fatalln("create dedup table failed", ":", err.Error())
-		return
+		return err
 	}
 
 	replay.errs = &utils.AtomicInterface{}
@@ -125,7 +135,7 @@ func (replay *Replay) Start() {
 		err = replay.handleReader(chainID)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
-			return
+			return err
 		}
 	}
 
@@ -160,10 +170,13 @@ func (replay *Replay) Start() {
 
 	if replay.errs.GetValue() != nil {
 		replay.Config.Services.Log.Info("err %v", replay.errs.GetValue())
+		return replay.errs.GetValue().(error)
 	}
+
+	return nil
 }
 
-func (replay *Replay) handleReader(chain cfg.Chain) error {
+func (replay *replay) handleReader(chain cfg.Chain) error {
 	conns, err := services.NewConnectionsFromConfig(replay.Config.Services, false)
 	if err != nil {
 		return err

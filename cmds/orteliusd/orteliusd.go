@@ -6,13 +6,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/ortelius/replay"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/ava-labs/ortelius/replay"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -140,12 +141,11 @@ func createReplayCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			replay := &replay.Replay{
-				Config:   config,
-				CounterRead:  replay.NewCounter(),
-				CounterAdded: replay.NewCounter(),
+			replay := replay.New(config)
+			err := replay.Start()
+			if err != nil {
+				*runErr = err
 			}
-			replay.Start()
 			os.Exit(0)
 		},
 	}
