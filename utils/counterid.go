@@ -10,7 +10,7 @@ type CounterID struct {
 	counters map[string]*uint64
 }
 
-func NewCounterId() *CounterID {
+func NewCounterID() *CounterID {
 	return &CounterID{counters: make(map[string]*uint64)}
 }
 

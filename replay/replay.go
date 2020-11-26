@@ -25,8 +25,8 @@ type Replay interface {
 
 func New(config *cfg.Config) Replay {
 	return &replay{config: config,
-		counterRead:  utils.NewCounterId(),
-		counterAdded: utils.NewCounterId(),
+		counterRead:  utils.NewCounterID(),
+		counterAdded: utils.NewCounterID(),
 		uniqueID:     utils.NewMemoryUniqueID(),
 	}
 }
