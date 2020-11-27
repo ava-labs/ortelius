@@ -36,7 +36,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 
 	assets := make([]*models.Asset, 0, 1)
 	_, err = p.Apply(dbRunner.
-		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at",
+		Select("avm_assets.id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at",
 			"case when assets_variablecap.id is null then 0 else 1 end as variablecap").
 		From("avm_assets")).
 		LeftJoin("assets_variablecap", "avm_assets.id = assets_variablecap").
