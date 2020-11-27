@@ -231,6 +231,30 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkTyp
 		}
 	}
 
+	if blkType == models.BlockTypeAbort || blkType == models.BlockTypeCommit {
+		var txid string
+		var rowcnt int
+		rowcnt, err = ctx.DB().Select("txid").
+			From("rewards").
+			LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
+			Where("block_id = ?", blkID.String()).
+			LoadContext(ctx.Ctx(), &txid)
+		if err != nil {
+			return ctx.Job().EventErr("rewards.txid.select", err)
+		}
+		if rowcnt != 0 && txid != "" {
+			_, err := ctx.DB().
+				InsertInto("transaction_rewards").
+				Pair("id", txid).
+				Pair("type", blkType).
+				Pair("created_at", ctx.Time()).
+				ExecContext(ctx.Ctx())
+			if err != nil && !db.ErrIsDuplicateEntryError(err) {
+				return ctx.Job().EventErr("transaction_rewards.insert", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -300,6 +324,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 				return ctx.Job().EventErr("rewards.update", err)
 			}
 		}
+
 		return nil
 	}
 
