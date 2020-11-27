@@ -122,7 +122,7 @@ func (r *Reader) dressAssets(ctx context.Context, assets []*models.Asset, p *par
 			hm, err := r.avaxReader.Aggregate(ctx, &aparams)
 			if err != nil {
 				r.conns.Logger().Warn("aggregate query failed %s", err)
-				continue
+				return err
 			}
 			asset.Aggregates[intervalName] = &hm.Aggregates
 		}
