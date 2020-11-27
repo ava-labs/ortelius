@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -222,6 +224,19 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkTyp
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("pvm_blocks.insert", err)
 	}
+	if cfg.PerformUpdates {
+		_, err = ctx.DB().
+			Update("pvm_blocks").
+			Set("chain_id", w.chainID).
+			Set("type", blkType).
+			Set("parent_id", blk.ParentID().String()).
+			Set("serialization", blockBytes).
+			Where("id = ?", blkID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			return ctx.Job().EventErr("pvm_blocks.update", err)
+		}
+	}
 
 	return nil
 }
@@ -279,6 +294,18 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			ExecContext(ctx.Ctx())
 		if err != nil && !db.ErrIsDuplicateEntryError(err) {
 			return ctx.Job().EventErr("rewards.insert", err)
+		}
+		if cfg.PerformUpdates {
+			_, err := ctx.DB().
+				Update("rewards").
+				Set("block_id", blkID.String()).
+				Set("txid", castTx.TxID.String()).
+				Set("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
+				Where("id = ?", castTx.ID().String()).
+				ExecContext(ctx.Ctx())
+			if err != nil {
+				return ctx.Job().EventErr("rewards.update", err)
+			}
 		}
 		return nil
 	}

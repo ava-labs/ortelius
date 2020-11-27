@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"path"
+
+	"github.com/ava-labs/ortelius/services"
 )
 
 var (
@@ -40,7 +42,7 @@ func (m *Message) Timestamp() int64 { return m.timestamp }
 func NewMessage(id string,
 	chainID string,
 	body []byte,
-	timestamp int64) *Message {
+	timestamp int64) services.Consumable {
 	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp}
 }
 

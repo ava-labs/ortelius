@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/ortelius/replay"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -38,6 +40,9 @@ const (
 
 	streamCmdUse  = "stream"
 	streamCmdDesc = "Runs stream commands"
+
+	streamReplayCmdUse  = "replay"
+	streamReplayCmdDesc = "Runs the replay"
 
 	streamProducerCmdUse  = "producer"
 	streamProducerCmdDesc = "Runs the stream producer daemon"
@@ -101,6 +106,7 @@ func execute() error {
 	// Add flags and commands
 	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "")
 	cmd.AddCommand(
+		createReplayCmds(config, &runErr),
 		createStreamCmds(config, &runErr),
 		createAPICmds(config, &runErr),
 		createEnvCmds(config, &runErr))
@@ -127,6 +133,24 @@ func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
 			runListenCloser(lc)
 		},
 	}
+}
+
+func createReplayCmds(config *cfg.Config, runErr *error) *cobra.Command {
+	replayCmd := &cobra.Command{
+		Use:   streamReplayCmdUse,
+		Short: streamReplayCmdDesc,
+		Long:  streamReplayCmdDesc,
+		Run: func(cmd *cobra.Command, args []string) {
+			replay := replay.New(config)
+			err := replay.Start()
+			if err != nil {
+				*runErr = err
+			}
+			os.Exit(0)
+		},
+	}
+
+	return replayCmd
 }
 
 func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
