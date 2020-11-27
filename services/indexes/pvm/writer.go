@@ -233,16 +233,14 @@ func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkTyp
 
 	if blkType == models.BlockTypeAbort || blkType == models.BlockTypeCommit {
 		var txid string
-		var rowcnt int
-		rowcnt, err = ctx.DB().Select("txid").
+		_, err = ctx.DB().Select("txid").
 			From("rewards").
-			LeftJoin("pvm_blocks", "rewards.block_id = pvm_blocks.parent_id").
-			Where("block_id = ?", blkID.String()).
+			Where("block_id = ?", blk.ParentID().String()).
 			LoadContext(ctx.Ctx(), &txid)
 		if err != nil {
 			return ctx.Job().EventErr("rewards.txid.select", err)
 		}
-		if rowcnt != 0 && txid != "" {
+		if txid != "" {
 			_, err := ctx.DB().
 				InsertInto("transaction_rewards").
 				Pair("id", txid).
