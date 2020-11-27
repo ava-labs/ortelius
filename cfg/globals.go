@@ -6,3 +6,6 @@ import "time"
 const (
 	RequestTimeout = 2 * time.Minute
 )
+
+// PerformUpdates controls for performing sql update operations.  Disabled by normal operation.
+var PerformUpdates = false
