@@ -263,7 +263,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 			Set("stake_locktime", stakeLocktime).
 			Where("id = ?", outputID.String()).
 			ExecContext(ctx.Ctx())
-		if err != nil {
+		if err != nil && !db.ErrIsDuplicateEntryError(err) {
 			errs.Add(w.stream.EventErr("avm_outputs.update", err))
 		}
 	}
