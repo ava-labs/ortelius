@@ -460,8 +460,8 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"avm_transactions.created_at",
 			"avm_transactions.txfee",
 			"avm_transactions.genesis",
-			"case when transaction_rewards.type == null then 0 else 1 end as rewarded",
-			"transaction_rewards.created_at as RewardedTime",
+			"case when transaction_rewards.type is null then 0 else 1 end as rewarded",
+			"transaction_rewards.created_at as rewardedtime",
 		).
 		From("avm_transactions"),
 	).
