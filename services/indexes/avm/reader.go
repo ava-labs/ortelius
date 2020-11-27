@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/gocraft/dbr/v2"
 )
 
 type Reader struct {
@@ -37,8 +36,10 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 
 	assets := make([]*models.Asset, 0, 1)
 	_, err = p.Apply(dbRunner.
-		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at").
+		Select("id", "chain_id", "name", "symbol", "alias", "denomination", "current_supply", "created_at",
+			"case when assets_variablecap.id is null then 0 else 1 end as variablecap").
 		From("avm_assets")).
+		LeftJoin("assets_variablecap", "avm_assets.id = assets_variablecap").
 		LoadContext(ctx, &assets)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets, p); err != nil {
+	if err = r.dressAssets(ctx, assets, p); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +87,7 @@ func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStr
 	return nil, err
 }
 
-func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, p *params.ListAssetsParams) error {
+func (r *Reader) dressAssets(ctx context.Context, assets []*models.Asset, p *params.ListAssetsParams) error {
 	if len(assets) == 0 {
 		return nil
 	}
@@ -124,33 +125,6 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				continue
 			}
 			asset.Aggregates[intervalName] = &hm.Aggregates
-		}
-	}
-
-	var rows []*struct {
-		AssetID     models.StringID `json:"assetID"`
-		VariableCap uint8           `json:"variableCap"`
-	}
-
-	mintOutputs := [2]models.OutputType{models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint}
-	_, err := dbRunner.Select("avm_outputs.asset_id", "CASE WHEN count(avm_outputs.asset_id) > 0 THEN 1 ELSE 0 END AS variable_cap").
-		From("avm_outputs").
-		Where("avm_outputs.output_type IN ? and avm_outputs.asset_id in ?", mintOutputs[:], assetIDs).
-		GroupBy("avm_outputs.asset_id").
-		Having("count(avm_outputs.asset_id) > 0").
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return err
-	}
-
-	assetMap := make(map[models.StringID]uint8)
-	for pos, row := range rows {
-		assetMap[row.AssetID] = rows[pos].VariableCap
-	}
-
-	for _, asset := range assets {
-		if variableCap, ok := assetMap[asset.ID]; ok {
-			asset.VariableCap = variableCap
 		}
 	}
 

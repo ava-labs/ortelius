@@ -268,6 +268,16 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		}
 	}
 
+	if outputType == models.OutputTypesSECP2556K1Mint || outputType == models.OutputTypesNFTMint {
+		_, err = ctx.DB().
+			InsertInto("assets_variablecap").
+			Pair("id", assetID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			errs.Add(w.stream.EventErr("assets_variablecap.insert", err))
+		}
+	}
+
 	// Ingest each Output Address
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
