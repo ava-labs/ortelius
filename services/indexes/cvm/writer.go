@@ -105,12 +105,11 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID, chainID ids.ID) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID) error {
 	_, err := ctx.DB().
 		InsertInto("cvm_transactions").
 		Pair("id", id.String()).
 		Pair("blockchain_id", blockChainID.String()).
-		Pair("chain_id", chainID.String()).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -120,7 +119,6 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChai
 		_, err := ctx.DB().
 			Update("cvm_transactions").
 			Set("blockchain_id", blockChainID.String()).
-			Set("chain_id", chainID.String()).
 			Where("id = ?", ctx.Time()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
@@ -165,13 +163,13 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 	return nil
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, blk *evm.UnsignedExportTx, _ []byte) error {
-	err := w.indexTransaction(ctx, txID, blk.BlockchainID, blk.DestinationChain)
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte) error {
+	err := w.indexTransaction(ctx, txID, tx.BlockchainID)
 	if err != nil {
 		return err
 	}
 
-	for icnt, in := range blk.Ins {
+	for icnt, in := range tx.Ins {
 		icntval := uint64(icnt)
 		err = w.insertAddress(In, ctx, icntval, txID, in.Address, in.AssetID, in.Amount, in.Nonce)
 		if err != nil {
@@ -179,9 +177,9 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, blk *evm.U
 		}
 	}
 
-	for idx, out := range blk.ExportedOutputs {
+	for idx, out := range tx.ExportedOutputs {
 		var totalout uint64
-		_, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, blk.DestinationChain.String())
+		_, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String())
 		if err != nil {
 			return err
 		}
@@ -190,13 +188,13 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, blk *evm.U
 	return nil
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, blk *evm.UnsignedImportTx, unsignedBytes []byte) error {
-	err := w.indexTransaction(ctx, txID, blk.BlockchainID, blk.SourceChain)
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte) error {
+	err := w.indexTransaction(ctx, txID, tx.BlockchainID)
 	if err != nil {
 		return err
 	}
 
-	for icnt, out := range blk.Outs {
+	for icnt, out := range tx.Outs {
 		icntval := uint64(icnt)
 		err = w.insertAddress(Out, ctx, icntval, txID, out.Address, out.AssetID, out.Amount, 0)
 		if err != nil {
@@ -204,9 +202,9 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, blk *evm.U
 		}
 	}
 
-	for inidx, in := range blk.ImportedInputs {
+	for inidx, in := range tx.ImportedInputs {
 		var totalin uint64
-		_, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, []verify.Verifiable{in.In}, unsignedBytes, blk.SourceChain.String())
+		_, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, []verify.Verifiable{in.In}, unsignedBytes, tx.SourceChain.String())
 		if err != nil {
 			return err
 		}
