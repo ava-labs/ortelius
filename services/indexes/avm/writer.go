@@ -159,12 +159,11 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 	}
 
 	var (
-		// err  error
 		job  = w.conns.Stream().NewJob("index")
 		sess = w.conns.DB().NewSessionForEventReceiver(job)
 	)
-	// job.KeyValue("id", i.ID())
-	// job.KeyValue("chain_id", i.ChainID())
+	job.KeyValue("id", c.ID())
+	job.KeyValue("chain_id", c.ChainID())
 
 	defer func() {
 		if err != nil {
@@ -210,20 +209,23 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 				}
 			}
 
-			// body, err := w.codec.Marshal(0, txt.Tx)
-			// if err != nil {
-			// 	return err
-			// }
-			// m := stream.NewMessage(
-			// 	txt.Tx.ID().String(),
-			// 	w.chainID,
-			// 	body,
-			// 	c.Timestamp())
-			//
-			// err = w.Consume(m)
-			// if err != nil {
-			// 	return err
-			// }
+			if false {
+				// we don't know the version..
+				body, err := w.codec.Marshal(0, txt.Tx)
+				if err != nil {
+					return err
+				}
+				m := stream.NewMessage(
+					txt.Tx.ID().String(),
+					w.chainID,
+					body,
+					c.Timestamp())
+
+				err = w.Consume(m)
+				if err != nil {
+					return err
+				}
+			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
 		}
