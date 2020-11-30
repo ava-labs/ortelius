@@ -14,8 +14,8 @@ create table `cvm_address`
     transaction_id varchar(50)     not null,
     address        varchar(50)     not null,
     asset_id       varchar(50)     not null,
-    amount         bigint unsigned default 0,
-    nonce          bigint unsigned default 0,
+    amount         bigint unsigned not null default 0,
+    nonce          bigint unsigned not null default 0,
     created_at     timestamp       not null default current_timestamp,
     primary key (type, id)
 );
