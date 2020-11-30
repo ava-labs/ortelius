@@ -52,7 +52,7 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Codec
+	codec codec.Manager
 	avax  *avax.Writer
 	conns *services.Connections
 	vm    *avm.VM
@@ -109,7 +109,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+	_, err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse platform genesis bytes")
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -137,12 +138,17 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 }
 
 func (w *Writer) ConsumeConsensus(c services.Consumable) error {
-	db := &utils.NoopDatabase{}
+	noopdb := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
-	serializer.Initialize(w.ctx, w.vm, db)
+	serializer.Initialize(w.ctx, w.vm, noopdb)
 
 	vertex, err := serializer.ParseVertex(c.Body())
+	if err != nil {
+		return err
+	}
+
+	epoch, err := vertex.Epoch()
 	if err != nil {
 		return err
 	}
@@ -152,29 +158,79 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 		return err
 	}
 
+	var (
+		// err  error
+		job  = w.conns.Stream().NewJob("index")
+		sess = w.conns.DB().NewSessionForEventReceiver(job)
+	)
+	// job.KeyValue("id", i.ID())
+	// job.KeyValue("chain_id", i.ChainID())
+
+	defer func() {
+		if err != nil {
+			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			return
+		}
+		job.Complete(health.Success)
+	}()
+
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
+	if err != nil {
+		return err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
+
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp())
+
 	for _, vtx := range vertexTxs {
 		switch txt := vtx.(type) {
 		case *avm.UniqueTx:
 
-			// need to add epoch...
-
-			body, err := w.codec.Marshal(txt.Tx)
-			if err != nil {
-				return err
+			txID := txt.Tx.ID()
+			_, err = cCtx.DB().
+				InsertInto("transaction_epoch").
+				Pair("id", txID.String()).
+				Pair("epoch", epoch).
+				ExecContext(cCtx.Ctx())
+			if err != nil && !db.ErrIsDuplicateEntryError(err) {
+				return cCtx.Job().EventErr("avm_assets.insert", err)
 			}
-			m := stream.NewMessage(
-				txt.Tx.ID().String(),
-				w.chainID,
-				body,
-				c.Timestamp())
-
-			err = w.Consume(m)
-			if err != nil {
-				return err
+			if cfg.PerformUpdates {
+				_, err = cCtx.DB().
+					Update("transaction_epoch").
+					Set("epoch", epoch).
+					Where("id = ?", txID.String()).
+					ExecContext(cCtx.Ctx())
+				if err != nil {
+					return cCtx.Job().EventErr("avm_assets.update", err)
+				}
 			}
+
+			// body, err := w.codec.Marshal(0, txt.Tx)
+			// if err != nil {
+			// 	return err
+			// }
+			// m := stream.NewMessage(
+			// 	txt.Tx.ID().String(),
+			// 	w.chainID,
+			// 	body,
+			// 	c.Timestamp())
+			//
+			// err = w.Consume(m)
+			// if err != nil {
+			// 	return err
+			// }
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
 		}
+	}
+
+	if err = dbTx.Commit(); err != nil {
+		return stacktrace.Propagate(err, "Failed to commit database tx")
 	}
 
 	return nil
@@ -230,16 +286,17 @@ func (w *Writer) Consume(i services.Consumable) error {
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
 	avmGenesis := &avm.Genesis{}
-	if err := w.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	ver, err := w.codec.Unmarshal(genesisBytes, avmGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
 	for i, tx := range avmGenesis.Txs {
-		txBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: &tx.CreateAssetTx})
+		txBytes, err := w.codec.Marshal(ver, &avm.Tx{UnsignedTx: &tx.CreateAssetTx})
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
 		}
-		unsignedBytes, err := w.codec.Marshal(&tx.CreateAssetTx)
+		unsignedBytes, err := w.codec.Marshal(ver, &tx.CreateAssetTx)
 		if err != nil {
 			return err
 		}
@@ -254,13 +311,13 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(w.codec, txBytes)
+	ver, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}
 
 	// Finish processing with a type-specific ingestion routine
-	unsignedBytes, err := w.codec.Marshal(&tx.UnsignedTx)
+	unsignedBytes, err := w.codec.Marshal(ver, &tx.UnsignedTx)
 	if err != nil {
 		return err
 	}
