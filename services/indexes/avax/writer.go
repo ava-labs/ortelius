@@ -55,14 +55,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	inidx := 0
 	for _, in := range baseTx.Ins {
-		totalin, err = w.insertTransactionIns(inidx, ctx, errs, totalin, in, baseTx, creds, unsignedBytes, w.chainID)
+		totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, w.chainID)
 		if err != nil {
 			return err
 		}
 		inidx++
 	}
 	for _, in := range addIns {
-		totalin, err = w.insertTransactionIns(inidx, ctx, errs, totalin, in, baseTx, creds, unsignedBytes, inChainID)
+		totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, inChainID)
 		if err != nil {
 			return err
 		}
@@ -80,14 +80,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	idx := 0
 	for _, out := range baseTx.Outs {
-		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, w.chainID)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), w.chainID)
 		if err != nil {
 			return err
 		}
 		idx++
 	}
 	for _, out := range addOuts {
-		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, outChainID)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID)
 		if err != nil {
 			return err
 		}
@@ -135,12 +135,12 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	return errs.Err
 }
 
-func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalin uint64, in *avax.TransferableInput, baseTx *avax.BaseTx, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
+func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin uint64, in *avax.TransferableInput, txID ids.ID, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
 	var err error
 	if in.AssetID() == w.avaxAssetID {
 		totalin, err = math.Add64(totalin, in.Input().Amount())
 		if err != nil {
-			errs.Add(err)
+			return 0, err
 		}
 	}
 
@@ -150,7 +150,7 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 		InsertInto("avm_outputs_redeeming").
 		Pair("id", inputID.String()).
 		Pair("redeemed_at", dbr.Now).
-		Pair("redeeming_transaction_id", baseTx.ID().String()).
+		Pair("redeeming_transaction_id", txID.String()).
 		Pair("amount", in.Input().Amount()).
 		Pair("output_index", in.OutputIndex).
 		Pair("intx", in.TxID.String()).
@@ -159,12 +159,12 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 		Pair("chain_id", chainID).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("avm_outputs_redeeming.insert", err))
+		return 0, w.stream.EventErr("avm_outputs_redeeming.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err = ctx.DB().
 			Update("avm_outputs_redeeming").
-			Set("redeeming_transaction_id", baseTx.ID().String()).
+			Set("redeeming_transaction_id", txID.String()).
 			Set("amount", in.Input().Amount()).
 			Set("output_index", in.OutputIndex).
 			Set("intx", in.TxID.String()).
@@ -173,27 +173,35 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 			Where("id = ?", inputID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			errs.Add(w.stream.EventErr("avm_outputs_redeeming.update", err))
+			return 0, w.stream.EventErr("avm_outputs_redeeming.update", err)
 		}
 	}
 
-	// For each signature we recover the public key and the data to the db
-	cred, _ := creds[idx].(*secp256k1fx.Credential)
-	for _, sig := range cred.Sigs {
-		publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
-		if err != nil {
-			return 0, err
-		}
+	if idx < len(creds) {
+		// For each signature we recover the public key and the data to the db
+		cred, ok := creds[idx].(*secp256k1fx.Credential)
+		if ok {
+			for _, sig := range cred.Sigs {
+				publicKey, err := ecdsaRecoveryFactory.RecoverPublicKey(unsignedBytes, sig[:])
+				if err != nil {
+					return 0, err
+				}
 
-		errs.Add(
-			w.InsertAddressFromPublicKey(ctx, publicKey),
-			w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:]),
-		)
+				err = w.InsertAddressFromPublicKey(ctx, publicKey)
+				if err != nil {
+					return 0, err
+				}
+				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+				if err != nil {
+					return 0, err
+				}
+			}
+		}
 	}
 	return totalin, nil
 }
 
-func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalout uint64, out *avax.TransferableOutput, baseTx *avax.BaseTx, chainID string) (uint64, error) {
+func (w *Writer) InsertTransactionOuts(idx int, ctx services.ConsumerCtx, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string) (uint64, error) {
 	var err error
 	switch transferOutput := out.Out.(type) {
 	case *platformvm.StakeableLockOut:
@@ -205,20 +213,26 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 		if out.AssetID() == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, xOut.Amt)
 			if err != nil {
-				errs.Add(err)
+				return 0, err
 			}
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID))
+		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID)
+		if err != nil {
+			return 0, err
+		}
 	case *secp256k1fx.TransferOutput:
 		if out.AssetID() == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, transferOutput.Amt)
 			if err != nil {
-				errs.Add(err)
+				return 0, err
 			}
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID))
+		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID)
+		if err != nil {
+			return 0, err
+		}
 	default:
-		errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
+		return 0, fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput))
 	}
 	return totalout, nil
 }

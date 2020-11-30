@@ -75,7 +75,6 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
 	}
 
-	// Create w tx
 	dbTx, err := sess.Begin()
 	if err != nil {
 		return err
