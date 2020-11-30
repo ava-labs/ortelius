@@ -6,7 +6,8 @@ require (
 	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/ava-labs/avalanchego v1.0.5
+	github.com/ava-labs/avalanchego v1.0.6-0.20201125194706-c1b6b0c05d4a
+	github.com/ava-labs/coreth v0.3.15-rc.2.0.20201129202359-415b1eb564ef
 	github.com/ethereum/go-ethereum v1.9.23
 	github.com/go-redis/cache/v8 v8.2.1
 	github.com/go-redis/redis/v8 v8.3.2

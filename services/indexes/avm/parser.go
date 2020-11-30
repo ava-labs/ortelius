@@ -21,23 +21,23 @@ import (
 
 const MaxCodecSize = 100_000_000
 
-func parseTx(c codec.Codec, bytes []byte) (*avm.Tx, error) {
+func parseTx(c codec.Manager, bytes []byte) (uint16, *avm.Tx, error) {
 	tx := &avm.Tx{}
-	err := c.Unmarshal(bytes, tx)
+	ver, err := c.Unmarshal(bytes, tx)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
-	unsignedBytes, err := c.Marshal(&tx.UnsignedTx)
+	unsignedBytes, err := c.Marshal(ver, &tx.UnsignedTx)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	tx.Initialize(unsignedBytes, bytes)
-	return tx, nil
+	return ver, tx, nil
 }
 
 // newAVMCodec creates codec that can parse avm objects
-func newAVMCodec(networkID uint32, chainID string) (codec.Codec, error) {
+func newAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 	g, err := genesis.VMGenesis(networkID, avm.ID)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,6 @@ func newAVMCodec(networkID uint32, chainID string) (codec.Codec, error) {
 	}
 
 	vm.Codec().SetMaxSize(MaxCodecSize)
-	vm.Codec().SetMaxSliceLen(MaxCodecSize)
 
 	return vm.Codec(), nil
 }

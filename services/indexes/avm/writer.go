@@ -45,7 +45,7 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Codec
+	codec codec.Manager
 	avax  *avax.Writer
 	conns *services.Connections
 }
@@ -96,7 +96,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+	_, err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse platform genesis bytes")
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -170,16 +171,17 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
 	avmGenesis := &avm.Genesis{}
-	if err := w.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	ver, err := w.codec.Unmarshal(genesisBytes, avmGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
 	for i, tx := range avmGenesis.Txs {
-		txBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: &tx.CreateAssetTx})
+		txBytes, err := w.codec.Marshal(ver, &avm.Tx{UnsignedTx: &tx.CreateAssetTx})
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
 		}
-		unsignedBytes, err := w.codec.Marshal(&tx.CreateAssetTx)
+		unsignedBytes, err := w.codec.Marshal(ver, &tx.CreateAssetTx)
 		if err != nil {
 			return err
 		}
@@ -194,13 +196,13 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(w.codec, txBytes)
+	ver, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}
 
 	// Finish processing with a type-specific ingestion routine
-	unsignedBytes, err := w.codec.Marshal(&tx.UnsignedTx)
+	unsignedBytes, err := w.codec.Marshal(ver, &tx.UnsignedTx)
 	if err != nil {
 		return err
 	}
