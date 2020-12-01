@@ -234,7 +234,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.BaseTx:
 		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
 	default:
-		return errors.New(fmt.Sprintf("unknown tx type %s", reflect.TypeOf(castTx)))
+		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
 }
 
