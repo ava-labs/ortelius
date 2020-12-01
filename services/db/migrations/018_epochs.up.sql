@@ -1,4 +1,4 @@
-create table `transactions_epoch`
+create table `transactions_epochs`
 (
     id         varchar(50)     not null primary key,
     epoch      bigint unsigned not null default 0,

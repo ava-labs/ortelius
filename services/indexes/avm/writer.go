@@ -191,7 +191,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 
 			txID := txt.Tx.ID()
 			_, err = cCtx.DB().
-				InsertInto("transaction_epoch").
+				InsertInto("transactions_epochs").
 				Pair("id", txID.String()).
 				Pair("epoch", epoch).
 				ExecContext(cCtx.Ctx())
@@ -200,7 +200,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 			}
 			if cfg.PerformUpdates {
 				_, err = cCtx.DB().
-					Update("transaction_epoch").
+					Update("transactions_epochs").
 					Set("epoch", epoch).
 					Where("id = ?", txID.String()).
 					ExecContext(cCtx.Ctx())
