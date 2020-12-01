@@ -34,7 +34,6 @@ var (
 )
 
 type Writer struct {
-	chainID     string
 	networkID   uint32
 	avaxAssetID ids.ID
 
@@ -51,7 +50,6 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 	return &Writer{
 		conns:       conns,
-		chainID:     chainID,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		codec:       evm.Codec,

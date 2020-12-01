@@ -80,7 +80,9 @@ type Filter struct {
 }
 
 type Producer struct {
-	IPCRoot string `json:"ipcRoot"`
+	IPCRoot   string `json:"ipcRoot"`
+	CChainRPC string `json:"cChainRpc"`
+	CChainID  string `json:"cChainId"`
 }
 
 type Consumer struct {
@@ -153,7 +155,9 @@ func NewFromFile(filePath string) (*Config, error) {
 				Brokers: streamKafkaViper.GetStringSlice(keysStreamKafkaBrokers),
 			},
 			Producer: Producer{
-				IPCRoot: streamProducerViper.GetString(keysStreamProducerIPCRoot),
+				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
+				CChainRPC: streamConsumerViper.GetString(keysStreamProducerCChainRPC),
+				CChainID:  streamConsumerViper.GetString(keysStreamProducerCChainID),
 			},
 			Consumer: Consumer{
 				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),

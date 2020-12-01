@@ -6,7 +6,6 @@ package consumers
 import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
-	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/ava-labs/ortelius/stream"
 )
@@ -14,7 +13,6 @@ import (
 const (
 	IndexerAVMName = "avm"
 	IndexerPVMName = "pvm"
-	IndexerCVMName = "cvm"
 )
 
 var Indexer = stream.NewConsumerFactory(func(conns *services.Connections, networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
@@ -23,8 +21,6 @@ var Indexer = stream.NewConsumerFactory(func(conns *services.Connections, networ
 		indexer, err = avm.NewWriter(conns, networkID, chainID)
 	case IndexerPVMName:
 		indexer, err = pvm.NewWriter(conns, networkID, chainID)
-	case IndexerCVMName:
-		indexer, err = cvm.NewWriter(conns, networkID, chainID)
 	default:
 		return nil, stream.ErrUnknownVM
 	}
