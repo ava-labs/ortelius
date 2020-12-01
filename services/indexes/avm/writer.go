@@ -210,17 +210,14 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 			}
 
 			if false {
-				// we don't know the version..
-				body, err := w.codec.Marshal(0, txt.Tx)
-				if err != nil {
-					return err
-				}
+				// Disabled to avoid conflicts with timestamps.
+				// if a consensus is processed before a decision, the timestamp of the TX could/would change to the consensus time.
+				body := txt.Bytes()
 				m := stream.NewMessage(
 					txt.Tx.ID().String(),
 					w.chainID,
 					body,
 					c.Timestamp())
-
 				err = w.Consume(m)
 				if err != nil {
 					return err
