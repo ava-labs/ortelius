@@ -1,1 +1,1 @@
-drop table `transactions_epochs`;
+drop table `transactions_epoch`;
