@@ -159,7 +159,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 	}
 
 	var (
-		job  = w.conns.Stream().NewJob("index")
+		job  = w.conns.Stream().NewJob("index-consensus")
 		sess = w.conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", c.ID())
