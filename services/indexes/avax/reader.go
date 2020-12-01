@@ -463,10 +463,14 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 		switch sort {
 		case params.TransactionSortTimestampAsc:
-			builder.OrderAsc("avm_transactions.chain_id")
+			if len(p.ChainIDs) > 0 {
+				builder.OrderAsc("avm_transactions.chain_id")
+			}
 			builder.OrderAsc("avm_transactions.created_at")
 		case params.TransactionSortTimestampDesc:
-			builder.OrderAsc("avm_transactions.chain_id")
+			if len(p.ChainIDs) > 0 {
+				builder.OrderAsc("avm_transactions.chain_id")
+			}
 			builder.OrderDesc("avm_transactions.created_at")
 		default:
 			applySort(params.TransactionSortDefault)
