@@ -453,8 +453,18 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	var txs []*models.Transaction
 	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at", "avm_transactions.txfee", "avm_transactions.genesis").
-		From("avm_transactions"))
+		Select(
+			"avm_transactions.id",
+			"avm_transactions.chain_id",
+			"avm_transactions.type",
+			"avm_transactions.memo",
+			"avm_transactions.created_at",
+			"avm_transactions.txfee",
+			"avm_transactions.genesis",
+			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
+		).
+		From("avm_transactions").
+		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id"))
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
