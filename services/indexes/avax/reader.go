@@ -722,9 +722,9 @@ type compositeRecord struct {
 }
 
 type rewardsTypeModel struct {
-	TxID      models.StringID
-	Type      models.BlockType
-	CreatedAt time.Time
+	Txid      models.StringID  `json:"txid"`
+	Type      models.BlockType `json:"type"`
+	CreatedAt time.Time        `json:"created_at"`
 }
 
 func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
@@ -888,7 +888,7 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 
 	rewardsTypesMap := make(map[models.StringID]rewardsTypeModel)
 	for _, rewardsType := range rewardsTypes {
-		rewardsTypesMap[rewardsType.TxID] = rewardsType
+		rewardsTypesMap[rewardsType.Txid] = rewardsType
 	}
 	return rewardsTypesMap, nil
 }
