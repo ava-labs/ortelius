@@ -451,10 +451,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	subquery := p.ApplySub(dbRunner.Select("id").From("avm_transactions"))
+	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
 
 	var txs []*models.Transaction
-	builder := p.Apply(dbRunner.
+	builder := dbRunner.
 		Select(
 			"avm_transactions.id",
 			"avm_transactions.chain_id",
@@ -465,8 +465,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"avm_transactions.genesis",
 		).
 		From("avm_transactions").
-		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
-	)
+		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -495,11 +494,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
 		if len(txs) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			selector := p.Apply(dbRunner.
+			selector := dbRunner.
 				Select("COUNT(avm_transactions.id)").
 				From("avm_transactions").
-				Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
-			)
+				Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
 
 			if err := selector.LoadOneContext(ctx, &count); err != nil {
 				return nil, err
