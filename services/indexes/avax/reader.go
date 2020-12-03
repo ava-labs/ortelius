@@ -520,10 +520,9 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
 		if len(txs) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			selector := dbRunner.
+			selector := p.Apply(dbRunner.
 				Select("COUNT(avm_transactions.id)").
-				From("avm_transactions").
-				Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
+				From("avm_transactions"))
 
 			if err := selector.LoadOneContext(ctx, &count); err != nil {
 				return nil, err
