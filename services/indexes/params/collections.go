@@ -212,8 +212,17 @@ func (p *ListTransactionsParams) CacheKey() []string {
 	return k
 }
 
-func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+func (p *ListTransactionsParams) ApplySub(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.Apply("avm_transactions", b)
+
+	if len(p.ChainIDs) > 0 {
+		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
+	}
+	return b
+}
+
+func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	// p.ListParams.Apply("avm_transactions", b)
 
 	if len(p.ChainIDs) > 0 {
 		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
