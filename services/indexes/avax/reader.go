@@ -460,10 +460,14 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 		switch sort {
 		case params.TransactionSortTimestampAsc:
-			subquery.OrderAsc("avm_transactions.chain_id")
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
 			subquery.OrderAsc("avm_transactions.created_at")
 		case params.TransactionSortTimestampDesc:
-			subquery.OrderAsc("avm_transactions.chain_id")
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
 			subquery.OrderDesc("avm_transactions.created_at")
 		default:
 			applySort2(params.TransactionSortDefault)
