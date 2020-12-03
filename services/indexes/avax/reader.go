@@ -453,6 +453,24 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 
 	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
 
+	var applySort2 func(sort params.TransactionSort)
+	applySort2 = func(sort params.TransactionSort) {
+		if p.ListParams.Query != "" {
+			return
+		}
+		switch sort {
+		case params.TransactionSortTimestampAsc:
+			subquery.OrderAsc("avm_transactions.chain_id")
+			subquery.OrderAsc("avm_transactions.created_at")
+		case params.TransactionSortTimestampDesc:
+			subquery.OrderAsc("avm_transactions.chain_id")
+			subquery.OrderDesc("avm_transactions.created_at")
+		default:
+			applySort2(params.TransactionSortDefault)
+		}
+	}
+	applySort2(p.Sort)
+
 	var txs []*models.Transaction
 	builder := dbRunner.
 		Select(
