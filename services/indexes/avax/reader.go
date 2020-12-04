@@ -451,10 +451,43 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
+	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
+
+	var applySort2 func(sort params.TransactionSort)
+	applySort2 = func(sort params.TransactionSort) {
+		if p.ListParams.Query != "" {
+			return
+		}
+		switch sort {
+		case params.TransactionSortTimestampAsc:
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
+			subquery.OrderAsc("avm_transactions.created_at")
+		case params.TransactionSortTimestampDesc:
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
+			subquery.OrderDesc("avm_transactions.created_at")
+		default:
+			applySort2(params.TransactionSortDefault)
+		}
+	}
+	applySort2(p.Sort)
+
 	var txs []*models.Transaction
-	builder := p.Apply(dbRunner.
-		Select("avm_transactions.id", "avm_transactions.chain_id", "avm_transactions.type", "avm_transactions.memo", "avm_transactions.created_at", "avm_transactions.txfee", "avm_transactions.genesis").
-		From("avm_transactions"))
+	builder := dbRunner.
+		Select(
+			"avm_transactions.id",
+			"avm_transactions.chain_id",
+			"avm_transactions.type",
+			"avm_transactions.memo",
+			"avm_transactions.created_at",
+			"avm_transactions.txfee",
+			"avm_transactions.genesis",
+		).
+		From("avm_transactions").
+		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
