@@ -310,20 +310,12 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	ver, tx, err := parseTx(w.codec, txBytes)
+	_, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}
 
 	// Finish processing with a type-specific ingestion routine
-	unsignedBytes, err := w.codec.Marshal(ver, &tx.UnsignedTx)
-	if err != nil {
-		return err
-	}
-
-	tx.Initialize(unsignedBytes, txBytes)
-
-	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:
 		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "", false)
@@ -350,15 +342,15 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 				addlOuts = append(addlOuts, &transferableOutput)
 			}
 		}
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
 	default:
-		return errors.New("unknown tx type")
+		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
 }
 
