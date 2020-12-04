@@ -20,7 +20,7 @@ import (
 
 const (
 	kafkaReadTimeout    = 10 * time.Second
-	processWriteTimeout = 10 * time.Second
+	ProcessWriteTimeout = 10 * time.Second
 
 	ConsumerEventTypeDefault = EventTypeDecisions
 	ConsumerMaxBytesDefault  = 10e8
@@ -95,7 +95,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, ConsumerEventTypeDefault),
+			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeDecisions),
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
@@ -148,10 +148,7 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), processWriteTimeout)
-	defer cancelFn()
-
-	if err = c.consumer.Consume(ctx, msg); err != nil {
+	if err = c.consumer.Consume(msg); err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err

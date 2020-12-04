@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/ortelius/stream"
@@ -45,13 +48,16 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Codec
+	codec codec.Manager
 	avax  *avax.Writer
 	conns *services.Connections
+	vm    *avm.VM
+	ctx   *snow.Context
+	db    database.Database
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := newAVMCodec(networkID, chainID)
+	vm, ctx, avmCodec, db, err := newAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +70,9 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	return &Writer{
 		conns:       conns,
 		chainID:     chainID,
+		db:          db,
+		vm:          vm,
+		ctx:         ctx,
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
@@ -96,7 +105,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis); err != nil {
+	_, err = platformvm.GenesisCodec.Unmarshal(platformGenesisBytes, platformGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse platform genesis bytes")
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -123,7 +133,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
+func (w *Writer) Consume(i services.Consumable) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
@@ -139,6 +149,9 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		}
 		job.Complete(health.Success)
 	}()
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
 
 	if stream.IndexerTaskEnabled {
 		// fire and forget..
@@ -170,16 +183,17 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
 	avmGenesis := &avm.Genesis{}
-	if err := w.codec.Unmarshal(genesisBytes, avmGenesis); err != nil {
+	ver, err := w.codec.Unmarshal(genesisBytes, avmGenesis)
+	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
 	for i, tx := range avmGenesis.Txs {
-		txBytes, err := w.codec.Marshal(&avm.Tx{UnsignedTx: &tx.CreateAssetTx})
+		txBytes, err := w.codec.Marshal(ver, &avm.Tx{UnsignedTx: &tx.CreateAssetTx})
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
 		}
-		unsignedBytes, err := w.codec.Marshal(&tx.CreateAssetTx)
+		unsignedBytes, err := w.codec.Marshal(ver, &tx.CreateAssetTx)
 		if err != nil {
 			return err
 		}
@@ -194,7 +208,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(w.codec, txBytes)
+	_, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}

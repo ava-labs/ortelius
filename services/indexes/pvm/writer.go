@@ -41,7 +41,7 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Codec
+	codec codec.Manager
 	conns *services.Connections
 	avax  *avaxIndexer.Writer
 }
@@ -64,9 +64,12 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
+func (w *Writer) Consume(c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
 
 	if stream.IndexerTaskEnabled {
 		// fire and forget..
@@ -99,7 +102,8 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	}
 
 	platformGenesis := &platformvm.Genesis{}
-	if err := platformvm.GenesisCodec.Unmarshal(genesisBytes, platformGenesis); err != nil {
+	_, err = platformvm.GenesisCodec.Unmarshal(genesisBytes, platformGenesis)
+	if err != nil {
 		return err
 	}
 	if err = platformGenesis.Initialize(); err != nil {
@@ -146,12 +150,12 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return errs.Err
 }
 
-func initializeTx(c codec.Codec, tx platformvm.Tx) error {
-	unsignedBytes, err := c.Marshal(&tx.UnsignedTx)
+func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
+	unsignedBytes, err := c.Marshal(version, &tx.UnsignedTx)
 	if err != nil {
 		return err
 	}
-	signedBytes, err := c.Marshal(&tx)
+	signedBytes, err := c.Marshal(version, &tx)
 	if err != nil {
 		return err
 	}
@@ -161,7 +165,8 @@ func initializeTx(c codec.Codec, tx platformvm.Tx) error {
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	var block platformvm.Block
-	if err := w.codec.Unmarshal(blockBytes, &block); err != nil {
+	ver, err := w.codec.Unmarshal(blockBytes, &block)
+	if err != nil {
 		return ctx.Job().EventErr("index_block.unmarshal_block", err)
 	}
 	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
@@ -171,7 +176,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	switch blk := block.(type) {
 	case *platformvm.ProposalBlock:
 		errs.Add(
-			initializeTx(w.codec, blk.Tx),
+			initializeTx(ver, w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
@@ -179,13 +184,13 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
 			errs.Add(
-				initializeTx(w.codec, *tx),
+				initializeTx(ver, w.codec, *tx),
 				w.indexTransaction(ctx, blkID, *tx, false),
 			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
-			initializeTx(w.codec, blk.Tx),
+			initializeTx(ver, w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
