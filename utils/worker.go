@@ -9,6 +9,8 @@ import (
 type Worker interface {
 	Enque(job interface{})
 	Finish(sleepTime time.Duration)
+	JobCnt() int64
+	IsFinished() bool
 }
 
 type worker struct {
@@ -67,4 +69,12 @@ func (w *worker) Finish(sleepTime time.Duration) {
 	close(w.doneCh)
 
 	w.wgWorker.Wait()
+}
+
+func (w *worker) IsFinished() bool {
+	return w.JobCnt() == 0
+}
+
+func (w *worker) JobCnt() int64 {
+	return atomic.LoadInt64(w.jobCnt)
 }
