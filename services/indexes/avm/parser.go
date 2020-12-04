@@ -37,25 +37,25 @@ func parseTx(c codec.Manager, bytes []byte) (uint16, *avm.Tx, error) {
 }
 
 // newAVMCodec creates codec that can parse avm objects
-func newAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
+func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, codec.Manager, database.Database, error) {
 	g, err := genesis.VMGenesis(networkID, avm.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
 	if !ok {
-		return nil, ErrIncorrectGenesisChainTxType
+		return nil, nil, nil, nil, ErrIncorrectGenesisChainTxType
 	}
 
 	bcLookup := &ids.Aliaser{}
 	bcLookup.Initialize()
 	id, err := ids.FromString(chainID)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 	if err = bcLookup.Alias(id, "X"); err != nil {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	var (
@@ -86,16 +86,18 @@ func newAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 		}
 	}
 
+	db := &nodb.Database{}
+
 	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because
 	// we're not using a real DB here.
 	vm := &avm.VM{}
-	err = vm.Initialize(ctx, &nodb.Database{}, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
+	err = vm.Initialize(ctx, db, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
 	if err != nil && err != database.ErrClosed {
-		return nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	vm.Codec().SetMaxSize(MaxCodecSize)
 
-	return vm.Codec(), nil
+	return vm, ctx, vm.Codec(), db, nil
 }

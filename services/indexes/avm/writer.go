@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/ortelius/stream"
@@ -48,10 +51,13 @@ type Writer struct {
 	codec codec.Manager
 	avax  *avax.Writer
 	conns *services.Connections
+	vm    *avm.VM
+	ctx   *snow.Context
+	db    database.Database
 }
 
 func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := newAVMCodec(networkID, chainID)
+	vm, ctx, avmCodec, db, err := newAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +70,9 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	return &Writer{
 		conns:       conns,
 		chainID:     chainID,
+		db:          db,
+		vm:          vm,
+		ctx:         ctx,
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
@@ -124,7 +133,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
+func (w *Writer) Consume(i services.Consumable) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
@@ -140,6 +149,9 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		}
 		job.Complete(health.Success)
 	}()
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
 
 	if stream.IndexerTaskEnabled {
 		// fire and forget..
@@ -196,20 +208,12 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	ver, tx, err := parseTx(w.codec, txBytes)
+	_, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}
 
 	// Finish processing with a type-specific ingestion routine
-	unsignedBytes, err := w.codec.Marshal(ver, &tx.UnsignedTx)
-	if err != nil {
-		return err
-	}
-
-	tx.Initialize(unsignedBytes, txBytes)
-
-	// Finish processing with a type-specific insertions routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:
 		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "", false)
@@ -236,15 +240,15 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 				addlOuts = append(addlOuts, &transferableOutput)
 			}
 		}
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, castTx.ExportedOuts, castTx.DestinationChain.String(), 0, false)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, unsignedBytes, &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
 	default:
-		return errors.New("unknown tx type")
+		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
 }
 

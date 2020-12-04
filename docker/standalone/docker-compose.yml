@@ -10,7 +10,7 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.0.5"
+    image: "avaplatform/avalanchego:v1.0.6"
     command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
@@ -43,7 +43,7 @@ services:
       - zookeeper
       - kafka
   producer: &ortelius-app
-    image: "avaplatform/ortelius:d45fe72"
+    image: "avaplatform/ortelius:ed27c49"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services

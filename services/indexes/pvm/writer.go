@@ -64,9 +64,12 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
+func (w *Writer) Consume(c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
 
 	if stream.IndexerTaskEnabled {
 		// fire and forget..
@@ -146,12 +149,12 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return errs.Err
 }
 
-func initializeTx(c codec.Manager, tx platformvm.Tx, ver uint16) error {
-	unsignedBytes, err := c.Marshal(ver, &tx.UnsignedTx)
+func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
+	unsignedBytes, err := c.Marshal(version, &tx.UnsignedTx)
 	if err != nil {
 		return err
 	}
-	signedBytes, err := c.Marshal(ver, &tx)
+	signedBytes, err := c.Marshal(version, &tx)
 	if err != nil {
 		return err
 	}
@@ -172,7 +175,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	switch blk := block.(type) {
 	case *platformvm.ProposalBlock:
 		errs.Add(
-			initializeTx(w.codec, blk.Tx, ver),
+			initializeTx(ver, w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
@@ -180,13 +183,13 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
 		for _, tx := range blk.Txs {
 			errs.Add(
-				initializeTx(w.codec, *tx, ver),
+				initializeTx(ver, w.codec, *tx),
 				w.indexTransaction(ctx, blkID, *tx, false),
 			)
 		}
 	case *platformvm.AtomicBlock:
 		errs.Add(
-			initializeTx(w.codec, blk.Tx, ver),
+			initializeTx(ver, w.codec, blk.Tx),
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)

@@ -112,7 +112,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		}
 	}()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), processWriteTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
 	defer cancelFn()
 
 	if err = c.consumer.Consume(ctx, msg); err != nil {
