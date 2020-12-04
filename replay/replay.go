@@ -130,6 +130,12 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 
 		ctx := context.Background()
 
+		err := writer.Bootstrap(ctx)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return
+		}
+
 		for replay.running.GetValue() {
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
