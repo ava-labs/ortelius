@@ -169,7 +169,7 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				msg.Time.UTC().Unix(),
 			)
 
-			err = writer.Consume(ctx, msgc)
+			err = writer.Consume(msgc)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
