@@ -31,6 +31,8 @@ type Transaction struct {
 	Rewarded     bool       `json:"rewarded"`
 	RewardedTime *time.Time `json:"rewardedTime"`
 
+	Epoch uint64 `json:"epoch"`
+
 	Score uint64 `json:"-"`
 }
 
