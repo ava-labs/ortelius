@@ -5,7 +5,6 @@ package avm
 
 import (
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/nodb"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -16,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -86,7 +86,7 @@ func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 		}
 	}
 
-	db := &nodb.Database{}
+	db := &utils.NoopDatabase{}
 
 	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because

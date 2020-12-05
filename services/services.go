@@ -20,6 +20,7 @@ type Consumer interface {
 	Name() string
 	Bootstrap(context.Context) error
 	Consume(Consumable) error
+	ConsumeConsensus(Consumable) error
 }
 
 // ConsumerCtx

@@ -12,6 +12,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 
+	"github.com/ava-labs/ortelius/utils"
+
+	"github.com/ava-labs/avalanchego/snow/engine/avalanche/state"
+
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -128,6 +132,104 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
+	}
+
+	return nil
+}
+
+func (w *Writer) ConsumeConsensus(c services.Consumable) error {
+	noopdb := &utils.NoopDatabase{}
+
+	serializer := &state.Serializer{}
+	serializer.Initialize(w.ctx, w.vm, noopdb)
+
+	vertex, err := serializer.ParseVertex(c.Body())
+	if err != nil {
+		return err
+	}
+
+	epoch, err := vertex.Epoch()
+	if err != nil {
+		return err
+	}
+
+	vertexTxs, err := vertex.Txs()
+	if err != nil {
+		return err
+	}
+
+	var (
+		job  = w.conns.Stream().NewJob("index-consensus")
+		sess = w.conns.DB().NewSessionForEventReceiver(job)
+	)
+	job.KeyValue("id", c.ID())
+	job.KeyValue("chain_id", c.ChainID())
+
+	defer func() {
+		if err != nil {
+			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			return
+		}
+		job.Complete(health.Success)
+	}()
+
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
+	if err != nil {
+		return err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), stream.ProcessWriteTimeout)
+	defer cancelFn()
+
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp())
+
+	for _, vtx := range vertexTxs {
+		switch txt := vtx.(type) {
+		case *avm.UniqueTx:
+
+			txID := txt.Tx.ID()
+			_, err = cCtx.DB().
+				InsertInto("transactions_epoch").
+				Pair("id", txID.String()).
+				Pair("epoch", epoch).
+				ExecContext(cCtx.Ctx())
+			if err != nil && !db.ErrIsDuplicateEntryError(err) {
+				return cCtx.Job().EventErr("avm_assets.insert", err)
+			}
+			if cfg.PerformUpdates {
+				_, err = cCtx.DB().
+					Update("transactions_epoch").
+					Set("epoch", epoch).
+					Where("id = ?", txID.String()).
+					ExecContext(cCtx.Ctx())
+				if err != nil {
+					return cCtx.Job().EventErr("avm_assets.update", err)
+				}
+			}
+
+			if false {
+				// Disabled to avoid conflicts with timestamps.
+				// if a consensus is processed before a decision, the timestamp of the TX could/would change to the consensus time.
+				body := txt.Bytes()
+				m := stream.NewMessage(
+					txt.Tx.ID().String(),
+					w.chainID,
+					body,
+					c.Timestamp())
+				err = w.Consume(m)
+				if err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
+		}
+	}
+
+	if err = dbTx.Commit(); err != nil {
+		return stacktrace.Propagate(err, "Failed to commit database tx")
 	}
 
 	return nil
