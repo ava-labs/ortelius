@@ -213,12 +213,13 @@ func (p *ProducerCChain) getBlock() error {
 	defer cancelCtx()
 
 	var block string
-	_, err = dbRunner.Select("cast(max(block) as char) as block").
+	_, err = dbRunner.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
 		From("cvm_block").
 		LoadContext(ctx, &block)
 	if err != nil {
 		return err
 	}
+
 	n := new(big.Int)
 	n, ok := n.SetString(block, 10)
 	if !ok {
