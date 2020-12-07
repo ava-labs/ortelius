@@ -90,7 +90,7 @@ services:
   avalanche:
     env_file:
       - production.env
-    image: "avaplatform/avalanchego:v1.0.6"
+    image: "avaplatform/avalanchego:v1.1.0"
     command: bash -cx "./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
@@ -119,7 +119,7 @@ services:
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
       "
   producer: &ortelius-app
-    image: "avaplatform/ortelius:ed27c49"
+    image: "avaplatform/ortelius:5347b0e"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - zookeeper
