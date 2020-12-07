@@ -145,7 +145,7 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	}
 
 	return &Message{
-		chainID:   c.conf.Producer.CChainID,
+		chainID:   c.conf.CChainID,
 		body:      msg.Value,
 		id:        id.String(),
 		timestamp: msg.Time.UTC().Unix(),
@@ -219,7 +219,7 @@ func (c *ConsumerCChain) init() error {
 	}
 	c.conns = conns
 
-	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.Producer.CChainID)
+	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.CChainID)
 	if err != nil {
 		return err
 	}

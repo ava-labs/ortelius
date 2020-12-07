@@ -21,7 +21,14 @@
     "kafka": {
       "brokers": [
         "kafka:9092"
-      ],
+      ]
+    },
+    "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
+    "producer": {
+      "ipcRoot": "/tmp",
+      "cchainRpc": "http://localhost:9650/ext/bc/evm/rpc"
+    },
+    "consumer": {
       "groupName": "indexer"
     }
   },
