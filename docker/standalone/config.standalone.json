@@ -1,9 +1,6 @@
 {
   "networkID": 5,
   "logDirectory": "/var/log/ortelius",
-  "ipcRoot": "ipc:///tmp",
-  "cchainRpc": "http://localhost:9650/ext/bc/evm/rpc",
-  "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
   "listenAddr": "localhost:8080",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
