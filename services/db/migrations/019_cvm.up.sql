@@ -2,7 +2,8 @@ create table `cvm_block`
 (
     block decimal(65) not null primary key,
     canonical_serialization varbinary(64000) not null,
-    created_at              timestamp        not null default current_timestamp
+    created_at              timestamp        not null default current_timestamp,
+    received_at             timestamp
 );
 
 create table `cvm_transactions`

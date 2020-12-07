@@ -142,7 +142,7 @@ func (p *ProducerCChain) writeBlockToKafka(block []byte) error {
 	return nil
 }
 
-func (p *ProducerCChain) updateBlock(block []byte) error {
+func (p *ProducerCChain) updateBlock(block []byte, receivedAt time.Time) error {
 	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
 	if err != nil {
 		return err
@@ -152,11 +152,21 @@ func (p *ProducerCChain) updateBlock(block []byte) error {
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,canonical_serialization,created_at) values ("+p.block.String()+",?,?)",
+		"insert into cvm_block (block,canonical_serialization,created_at,received_at) values ("+p.block.String()+",?,?,?)",
 		block,
-		time.Now())
+		time.Now(),
+		receivedAt)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
+	}
+	if cfg.PerformUpdates {
+		_, err = dbRunner.ExecContext(ctx,
+			"update cvm_block set canonical_serialization=?,received_at=? where block="+p.block.String(),
+			block,
+			receivedAt)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -179,7 +189,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		block = []byte("")
 	}
 
-	err = p.updateBlock(block)
+	err = p.updateBlock(block, bl.ReceivedAt)
 	if err != nil {
 		return err
 	}
