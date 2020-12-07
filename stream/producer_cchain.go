@@ -175,7 +175,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 	}
 
-	if len(block) > 64000 {
+	if block == nil || len(block) > 64000 {
 		block = []byte("")
 	}
 
