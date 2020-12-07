@@ -215,6 +215,13 @@ func (p *ListTransactionsParams) CacheKey() []string {
 func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.Apply("avm_transactions", b)
 
+	if !p.ListParams.StartTime.IsZero() {
+		b.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
+	}
+	if !p.ListParams.EndTime.IsZero() {
+		b.Where("avm_transactions.created_at < ?", p.ListParams.EndTime)
+	}
+
 	if len(p.ChainIDs) > 0 {
 		b.Where("avm_transactions.chain_id = ?", p.ChainIDs)
 	}
