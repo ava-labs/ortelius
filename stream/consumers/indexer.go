@@ -38,3 +38,5 @@ var IndexerConsensus = stream.NewConsumerConsensusFactory(func(conns *services.C
 	}
 	return indexer, err
 })
+
+var IndexerCChain = stream.NewConsumerCChain
