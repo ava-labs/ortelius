@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -27,15 +28,17 @@ func New(config *cfg.Config) Replay {
 	return &replay{config: config,
 		counterRead:  utils.NewCounterID(),
 		counterAdded: utils.NewCounterID(),
-		uniqueID:     utils.NewMemoryUniqueID(),
+		uniqueID:     make(map[string]utils.UniqueID),
 	}
 }
 
 type replay struct {
-	uniqueID utils.UniqueID
-	errs     *avlancheGoUtils.AtomicInterface
-	running  *avlancheGoUtils.AtomicBool
-	config   *cfg.Config
+	uniqueIDLock sync.RWMutex
+	uniqueID     map[string]utils.UniqueID
+
+	errs    *avlancheGoUtils.AtomicInterface
+	running *avlancheGoUtils.AtomicBool
+	config  *cfg.Config
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
@@ -115,10 +118,17 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 		return fmt.Errorf("unknown vmtype")
 	}
 
-	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	uidkeyconsensus := fmt.Sprintf("%s:%s", stream.EventTypeConsensus, chain.ID)
+	uidkeydecision := fmt.Sprintf("%s:%s", stream.EventTypeDecisions, chain.ID)
+
+	replay.uniqueIDLock.Lock()
+	replay.uniqueID[uidkeyconsensus] = utils.NewMemoryUniqueID()
+	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
+	replay.uniqueIDLock.Unlock()
 
 	go func() {
 		defer replay.running.SetValue(false)
+		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 		reader := kafka.NewReader(kafka.ReaderConfig{
 			Topic:       tn,
@@ -151,7 +161,9 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
-			present, err := replay.uniqueID.Get(id.String())
+			replay.uniqueIDLock.RLock()
+			present, err := replay.uniqueID[uidkeydecision].Get(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -175,7 +187,74 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
-			err = replay.uniqueID.Put(id.String())
+			replay.uniqueIDLock.RLock()
+			err = replay.uniqueID[uidkeydecision].Put(id.String())
+			replay.uniqueIDLock.RUnlock()
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer replay.running.SetValue(false)
+		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
+
+		reader := kafka.NewReader(kafka.ReaderConfig{
+			Topic:       tn,
+			Brokers:     replay.config.Kafka.Brokers,
+			GroupID:     replay.config.Consumer.GroupName,
+			StartOffset: kafka.FirstOffset,
+			MaxBytes:    stream.ConsumerMaxBytesDefault,
+		})
+
+		ctx := context.Background()
+
+		for replay.running.GetValue() {
+			msg, err := reader.ReadMessage(ctx)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			replay.counterRead.Inc(tn)
+
+			id, err := ids.ToID(msg.Key)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			replay.uniqueIDLock.RLock()
+			present, err := replay.uniqueID[uidkeyconsensus].Get(id.String())
+			replay.uniqueIDLock.RUnlock()
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+			if present {
+				continue
+			}
+
+			replay.counterAdded.Inc(tn)
+
+			msgc := stream.NewMessage(
+				id.String(),
+				chain.ID,
+				msg.Value,
+				msg.Time.UTC().Unix(),
+			)
+
+			err = writer.ConsumeConsensus(msgc)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			replay.uniqueIDLock.RLock()
+			err = replay.uniqueID[uidkeyconsensus].Put(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
