@@ -1,7 +1,6 @@
 {
   "networkID": 5,
   "logDirectory": "/var/log/ortelius",
-  "ipcRoot": "ipc:///tmp",
   "listenAddr": "localhost:8080",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
@@ -19,7 +18,12 @@
     "kafka": {
       "brokers": [
         "kafka:9092"
-      ],
+      ]
+    },
+    "producer": {
+      "ipcRoot": "/tmp"
+    },
+    "consumer": {
       "groupName": "indexer"
     }
   },
