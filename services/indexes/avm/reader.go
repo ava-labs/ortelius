@@ -44,6 +44,11 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 		return nil, err
 	}
 
+	// Add all the addition information we might want
+	if err = r.dressAssets(ctx, dbRunner, assets, p); err != nil {
+		return nil, err
+	}
+
 	var count *uint64
 	if !p.ListParams.DisableCounting {
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(assets)))
@@ -57,11 +62,6 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 				return nil, err
 			}
 		}
-	}
-
-	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets, p); err != nil {
-		return nil, err
 	}
 
 	return &models.AssetList{ListMetadata: models.ListMetadata{Count: count}, Assets: assets}, nil

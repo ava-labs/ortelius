@@ -65,7 +65,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 func (*Writer) Name() string { return "pvm-index" }
 
 func (w *Writer) ConsumeConsensus(c services.Consumable) error {
-	return fmt.Errorf("pvm consensus")
+	return nil
 }
 
 func (w *Writer) Consume(c services.Consumable) error {
