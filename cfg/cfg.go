@@ -157,7 +157,7 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 			Producer: Producer{
 				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
-				CChainRPC: streamConsumerViper.GetString(keysStreamProducerCChainRPC),
+				CChainRPC: streamProducerViper.GetString(keysStreamProducerCChainRPC),
 			},
 			Consumer: Consumer{
 				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),
