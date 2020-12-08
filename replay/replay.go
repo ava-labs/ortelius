@@ -44,8 +44,6 @@ type replay struct {
 func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
 
-	// utils.NewMemoryUniqueID()
-
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 	replay.running = &avlancheGoUtils.AtomicBool{}
 	replay.running.SetValue(true)
