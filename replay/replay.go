@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -32,10 +33,12 @@ func New(config *cfg.Config) Replay {
 }
 
 type replay struct {
-	uniqueID map[string]utils.UniqueID
-	errs     *avlancheGoUtils.AtomicInterface
-	running  *avlancheGoUtils.AtomicBool
-	config   *cfg.Config
+	uniqueIDLock sync.RWMutex
+	uniqueID     map[string]utils.UniqueID
+
+	errs    *avlancheGoUtils.AtomicInterface
+	running *avlancheGoUtils.AtomicBool
+	config  *cfg.Config
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
@@ -47,13 +50,6 @@ func (replay *replay) Start() error {
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 	replay.running = &avlancheGoUtils.AtomicBool{}
 	replay.running.SetValue(true)
-
-	for _, chainID := range replay.config.Chains {
-		uidkey := fmt.Sprintf("%s:%s", stream.EventTypeConsensus, chainID)
-		replay.uniqueID[uidkey] = utils.NewMemoryUniqueID()
-		uidkey = fmt.Sprintf("%s:%s", stream.EventTypeDecisions, chainID)
-		replay.uniqueID[uidkey] = utils.NewMemoryUniqueID()
-	}
 
 	for _, chainID := range replay.config.Chains {
 		err := replay.handleReader(chainID)
@@ -125,6 +121,11 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 	uidkeyconsensus := fmt.Sprintf("%s:%s", stream.EventTypeConsensus, chain.ID)
 	uidkeydecision := fmt.Sprintf("%s:%s", stream.EventTypeDecisions, chain.ID)
 
+	replay.uniqueIDLock.Lock()
+	replay.uniqueID[uidkeyconsensus] = utils.NewMemoryUniqueID()
+	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
+	replay.uniqueIDLock.Unlock()
+
 	go func() {
 		defer replay.running.SetValue(false)
 		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
@@ -160,7 +161,9 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
+			replay.uniqueIDLock.RLock()
 			present, err := replay.uniqueID[uidkeydecision].Get(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -184,7 +187,9 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
+			replay.uniqueIDLock.RLock()
 			err = replay.uniqueID[uidkeydecision].Put(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -221,7 +226,9 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
+			replay.uniqueIDLock.RLock()
 			present, err := replay.uniqueID[uidkeyconsensus].Get(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -245,7 +252,9 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				return
 			}
 
+			replay.uniqueIDLock.RLock()
 			err = replay.uniqueID[uidkeyconsensus].Put(id.String())
+			replay.uniqueIDLock.RUnlock()
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
