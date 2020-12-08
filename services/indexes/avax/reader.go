@@ -517,6 +517,13 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
+	// Add all the addition information we might want
+	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
+		return nil, err
+	}
+
+	listParamsOriginal := p.ListParams
+
 	var count *uint64
 	if !p.ListParams.DisableCounting {
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
@@ -532,17 +539,12 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 	}
 
-	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
-		return nil, err
-	}
-
 	return &models.TransactionList{ListMetadata: models.ListMetadata{
 		Count: count,
 	},
 		Transactions: txs,
-		StartTime:    p.ListParams.StartTime,
-		EndTime:      p.ListParams.EndTime,
+		StartTime:    listParamsOriginal.StartTime,
+		EndTime:      listParamsOriginal.EndTime,
 	}, nil
 }
 
