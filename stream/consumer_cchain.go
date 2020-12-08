@@ -66,7 +66,7 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
-		topicName := fmt.Sprintf("%d-cchain", conf.NetworkID)
+		topicName := fmt.Sprintf("%d-%s", conf.NetworkID, conf.CChainID)
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
