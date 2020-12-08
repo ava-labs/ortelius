@@ -67,7 +67,7 @@ type ProducerCChain struct {
 
 func NewProducerCChain() utils.ListenCloserFactory {
 	return func(conf cfg.Config) utils.ListenCloser {
-		topicName := fmt.Sprintf("%d-%s", conf.NetworkID, conf.CChainID)
+		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CChainID)
 
 		writer := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:      conf.Brokers,
