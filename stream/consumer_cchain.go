@@ -52,11 +52,11 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		c := &ConsumerCChain{
 			conf:                          conf,
 			log:                           conf.Log,
-			metricProcessedCountKey:       "consume_records_processed_cchain",
-			metricProcessMillisCounterKey: "consume_records_process_millis_cchain",
-			metricSuccessCountKey:         "consume_records_success_cchain",
-			metricFailureCountKey:         "consume_records_failure_cchain",
-			id:                            fmt.Sprintf("consumer %d cchain", conf.NetworkID),
+			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CChainID),
+			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s_cchain", conf.CChainID),
+			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s_cchain", conf.CChainID),
+			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s_cchain", conf.CChainID),
+			id:                            fmt.Sprintf("consumer %d %s cchain", conf.NetworkID, conf.CChainID),
 
 			quitCh: make(chan struct{}),
 			doneCh: make(chan struct{}),

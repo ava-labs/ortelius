@@ -82,10 +82,10 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		p := &ProducerCChain{
 			conf:                    conf,
 			log:                     conf.Log,
-			metricProcessedCountKey: "produce_records_processed_cchain",
-			metricSuccessCountKey:   "produce_records_success_cchain",
-			metricFailureCountKey:   "produce_records_failure_cchain",
-			id:                      fmt.Sprintf("producer %d cchain", conf.NetworkID),
+			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CChainID),
+			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CChainID),
+			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CChainID),
+			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CChainID),
 			writer:                  writer,
 
 			quitCh: make(chan struct{}),
