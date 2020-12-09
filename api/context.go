@@ -52,13 +52,11 @@ type cacheUpdate struct {
 
 func (cacheUpdate *cacheUpdate) Processor(_ int, job interface{}) {
 	if j, ok := job.(*CacheJob); ok {
-		if j.body != nil {
-			ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-			defer cancelFnSet()
+		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+		defer cancelFnSet()
 
-			// if cache did not set, we can just ignore.
-			_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
-		}
+		// if cache did not set, we can just ignore.
+		_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
 	}
 }
 
