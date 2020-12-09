@@ -57,14 +57,14 @@ func (c *Context) NetworkID() uint32 {
 func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-	defer cancelFn()
+	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+	defer cancelFnGet()
 
 	var err error
 	var resp []byte
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err = c.cache.Get(ctx, key)
+	resp, err = c.cache.Get(ctxget, key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
 
@@ -77,8 +77,11 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
+				ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+				defer cancelFnSet()
+
 				// if cache did not set, we can just ignore.
-				_ = c.cache.Set(ctx, key, resp, cacheable.TTL)
+				_ = c.cache.Set(ctxset, key, resp, cacheable.TTL)
 			}
 		}
 	} else if err == nil {
