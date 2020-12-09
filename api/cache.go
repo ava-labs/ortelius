@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"time"
 
@@ -31,24 +30,6 @@ func cacheKey(networkID uint32, parts ...string) string {
 	k := make([]string, 1, len(parts)+1)
 	k[0] = strconv.Itoa(int(networkID))
 	return cache.KeyFromParts(append(k, parts...)...)
-}
-
-func updateCacheable(ctx context.Context, cache cacher, key string, cacheableFn CacheableFn, ttl time.Duration) ([]byte, error) {
-	obj, err := cacheableFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	objBytes, err := json.Marshal(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = cache.Set(ctx, key, objBytes, ttl); err != nil {
-		return nil, err
-	}
-
-	return objBytes, nil
 }
 
 type nullCache struct{}
