@@ -35,7 +35,6 @@ var (
 
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
-	ctx context.Context
 	job *health.Job
 	err error
 
@@ -48,11 +47,6 @@ type Context struct {
 	pvmReader  *pvm.Reader
 }
 
-// Ctx returns the context.Context for this request context
-func (c *Context) Ctx() context.Context {
-	return c.ctx
-}
-
 // NetworkID returns the networkID this request is for
 func (c *Context) NetworkID() uint32 {
 	return c.networkID
@@ -63,11 +57,33 @@ func (c *Context) NetworkID() uint32 {
 func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
+	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+	defer cancelFnGet()
+
+	var err error
+	var resp []byte
+
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err := c.cache.Get(c.Ctx(), key)
+	resp, err = c.cache.Get(ctxget, key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
-		resp, err = updateCacheable(c.ctx, c.cache, key, cacheable.CacheableFn, cacheable.TTL)
+
+		ctxreq, cancelFnReq := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+		defer cancelFnReq()
+
+		var obj interface{}
+		obj, err = cacheable.CacheableFn(ctxreq)
+
+		if err == nil {
+			resp, err = json.Marshal(obj)
+			if err == nil {
+				ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+				defer cancelFnSet()
+
+				// if cache did not set, we can just ignore.
+				_ = c.cache.Set(ctxset, key, resp, cacheable.TTL)
+			}
+		}
 	} else if err == nil {
 		c.job.KeyValue("cache", "hit")
 	}
@@ -154,15 +170,8 @@ func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) fun
 		c.job.KeyValue("remote_addrs", remoteAddr)
 		c.job.KeyValue("url", r.RequestURI)
 
-		ctx := context.Background()
-		ctx, cancelFn := context.WithTimeout(ctx, cfg.RequestTimeout)
-		c.ctx = ctx
-
 		// Execute handler
 		next(w, r)
-
-		// Stop context
-		cancelFn()
 
 		// Complete job
 		if c.err == nil {
