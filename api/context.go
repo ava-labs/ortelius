@@ -90,7 +90,6 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
-
 	WriteJSON(w, resp)
 }
 
