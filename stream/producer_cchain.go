@@ -46,7 +46,7 @@ const (
 	notFoundSleep  = 1 * time.Second
 	readRPCTimeout = 500 * time.Millisecond
 
-	blocksToQueue = 10
+	blocksToQueue = 25
 )
 
 type ProducerCChain struct {
@@ -199,7 +199,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 			p.block.Set(blockNumber)
 		}
-		p.block.Add(p.block, big.NewInt(1))
+		p.block = p.block.Add(p.block, big.NewInt(1))
 
 		return nil
 	}
