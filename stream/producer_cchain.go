@@ -154,7 +154,7 @@ func (p *ProducerCChain) updateBlock() error {
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,canonical_serialization,created_at) values ("+p.block.String()+",?)",
+		"insert into cvm_block (block,created_at) values ("+p.block.String()+",?)",
 		time.Now())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
