@@ -134,7 +134,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
 	defer cancelFn()
 
-	if err = c.consumer.Consume(ctx, nmsg); err != nil {
+	if err = c.consumer.Consume(ctx, nmsg, &block.Header); err != nil {
 		collectors.Error()
 		c.log.Error("consumer.Consume: %s", err)
 		return err

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/coreth/core/types"
+
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -59,7 +61,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "cvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
+func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader *types.Header) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
@@ -70,7 +72,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp()), c.Body())
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp()), c.Body(), blockHeader)
 	if err != nil {
 		return err
 	}
@@ -81,7 +83,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
+func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHeader *types.Header) error {
 	atomicTX := new(evm.UnsignedAtomicTx)
 	_, err := w.codec.Unmarshal(blockBytes, atomicTX)
 	if err != nil {
@@ -95,29 +97,25 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 
 	switch atx := (*atomicTX).(type) {
 	case *evm.UnsignedExportTx:
-		return w.indexExportTx(ctx, txID, atx, blockBytes)
+		return w.indexExportTx(ctx, txID, atx, blockBytes, blockHeader)
 	case *evm.UnsignedImportTx:
-		return w.indexImportTx(ctx, txID, atx, blockBytes)
+		return w.indexImportTx(ctx, txID, atx, blockBytes, blockHeader)
 	default:
 		return ctx.Job().EventErr(fmt.Sprintf("unknown atomic tx %s", reflect.TypeOf(atx)), ErrUnknownBlockType)
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID, blockHeader *types.Header) error {
 	_, err := ctx.DB().
-		InsertInto("cvm_transactions").
-		Pair("id", id.String()).
-		Pair("blockchain_id", blockChainID.String()).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
+		InsertBySql("insert into cvm_transactions (id,blockchain_id,created_at,blockNumber) values(?,?,?,"+blockHeader.Number.String()+")",
+			id.String(), blockChainID.String(), ctx.Time()).ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("cvm_transaction.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
-			Update("cvm_transactions").
-			Set("blockchain_id", blockChainID.String()).
-			Where("id = ?", ctx.Time()).
+			UpdateBySql("update cvm_transactions set blockchain_id=?, blockNumber="+blockHeader.Number.String()+" where id=?",
+				blockChainID.String(), ctx.Time()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return ctx.Job().EventErr("cvm_transaction.update", err)
@@ -161,8 +159,8 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 	return nil
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte) error {
-	err := w.indexTransaction(ctx, txID, tx.BlockchainID)
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte, blockHeader *types.Header) error {
+	err := w.indexTransaction(ctx, txID, tx.BlockchainID, blockHeader)
 	if err != nil {
 		return err
 	}
@@ -186,8 +184,8 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	return nil
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte) error {
-	err := w.indexTransaction(ctx, txID, tx.BlockchainID)
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
+	err := w.indexTransaction(ctx, txID, tx.BlockchainID, blockHeader)
 	if err != nil {
 		return err
 	}

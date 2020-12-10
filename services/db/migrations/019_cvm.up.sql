@@ -8,7 +8,8 @@ create table `cvm_transactions`
 (
     id             varchar(50)     not null primary key,
     blockchain_id  varchar(50)     not null,
-    created_at     timestamp       not null default current_timestamp
+    block          decimal(65)     not null,
+    created_at                     timestamp       not null default current_timestamp
 );
 
 create table `cvm_address`
