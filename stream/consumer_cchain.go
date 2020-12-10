@@ -104,6 +104,10 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		return err
 	}
 
+	return c.Consume(msg)
+}
+
+func (c *ConsumerCChain) Consume(msg *Message) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -135,6 +139,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		c.log.Error("consumer.Consume: %s", err)
 		return err
 	}
+
 	return nil
 }
 
