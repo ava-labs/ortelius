@@ -33,7 +33,7 @@ type Transaction struct {
 
 	Epoch uint64 `json:"epoch"`
 
-	VertexID *StringID `json:"vertexId"`
+	VertexID StringID `json:"vertexId"`
 
 	Score uint64 `json:"-"`
 }
