@@ -29,8 +29,10 @@ import (
 type CChainType uint16
 
 var (
-	In  CChainType = 1
-	Out CChainType = 2
+	In     CChainType = 1
+	Out    CChainType = 2
+	Import CChainType = 1
+	Export CChainType = 2
 
 	ErrUnknownBlockType = errors.New("unknown block type")
 )
@@ -105,18 +107,18 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID, blockHeader *types.Header) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header) error {
 	_, err := ctx.DB().
-		InsertBySql("insert into cvm_transactions (id,blockchain_id,created_at,block) values(?,?,?,"+blockHeader.Number.String()+")",
-			id.String(), blockChainID.String(), ctx.Time()).
+		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,"+blockHeader.Number.String()+")",
+			id.String(), typ, blockChainID.String(), ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("cvm_transaction.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
-			UpdateBySql("update cvm_transactions set blockchain_id=?,block="+blockHeader.Number.String()+" where id=?",
-				blockChainID.String(), id.String()).
+			UpdateBySql("update cvm_transactions set type=?,blockchain_id=?,block="+blockHeader.Number.String()+" where id=?",
+				typ, blockChainID.String(), id.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return ctx.Job().EventErr("cvm_transaction.update", err)
@@ -145,13 +147,14 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
 			Update("cvm_addresses").
+			Set("type", typ).
 			Set("idx", idx).
 			Set("transaction_id", id.String()).
 			Set("address", address.String()).
 			Set("asset_id", assetID.String()).
 			Set("amount", amount).
 			Set("nonce", nonce).
-			Where("id = ? and type = ?", idprefix.String(), typ).
+			Where("id = ?", idprefix.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return ctx.Job().EventErr("cvm_addresses.update", err)
@@ -161,7 +164,7 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 }
 
 func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte, blockHeader *types.Header) error {
-	err := w.indexTransaction(ctx, txID, tx.BlockchainID, blockHeader)
+	err := w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader)
 	if err != nil {
 		return err
 	}
@@ -186,7 +189,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 }
 
 func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
-	err := w.indexTransaction(ctx, txID, tx.BlockchainID, blockHeader)
+	err := w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader)
 	if err != nil {
 		return err
 	}
