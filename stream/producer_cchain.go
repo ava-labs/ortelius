@@ -43,7 +43,8 @@ const (
 	dbReadTimeout     = 10 * time.Second
 	dbWriteTimeout    = 10 * time.Second
 
-	notFoundSleep = 1 * time.Second
+	notFoundSleep  = 1 * time.Second
+	readRPCTimeout = 500 * time.Millisecond
 )
 
 type ProducerCChain struct {
@@ -164,6 +165,7 @@ func (p *ProducerCChain) updateBlock() error {
 func (p *ProducerCChain) ProcessNextMessage() error {
 	bl, err := p.readBlockFromRPC()
 	if err != nil {
+		time.Sleep(readRPCTimeout)
 		return err
 	}
 
