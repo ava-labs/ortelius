@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -73,6 +75,7 @@ type Context struct {
 	avaxReader  *avax.Reader
 	avmReader   *avm.Reader
 	pvmReader   *pvm.Reader
+	connections *services.Connections
 }
 
 // NetworkID returns the networkID this request is for
@@ -117,6 +120,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 
 	// Write error or response
 	if err != nil {
+		c.connections.Logger().Error("server error %v", err)
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
@@ -182,10 +186,12 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		// Set context properties, context last
 		c.cache = cache
+
+		c.connections = connections
 
 		c.cacheUpdate = cacheUpdate{cache: cache}
 		c.cacheUpdate.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.cacheUpdate.Processor)
