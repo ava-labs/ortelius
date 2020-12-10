@@ -108,14 +108,15 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChainID ids.ID, blockHeader *types.Header) error {
 	_, err := ctx.DB().
 		InsertBySql("insert into cvm_transactions (id,blockchain_id,created_at,block) values(?,?,?,"+blockHeader.Number.String()+")",
-			id.String(), blockChainID.String(), ctx.Time()).ExecContext(ctx.Ctx())
+			id.String(), blockChainID.String(), ctx.Time()).
+		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return ctx.Job().EventErr("cvm_transaction.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
 			UpdateBySql("update cvm_transactions set blockchain_id=?,block="+blockHeader.Number.String()+" where id=?",
-				blockChainID.String(), ctx.Time()).
+				blockChainID.String(), id.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
 			return ctx.Job().EventErr("cvm_transaction.update", err)
