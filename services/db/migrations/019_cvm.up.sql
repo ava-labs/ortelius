@@ -1,4 +1,4 @@
-create table `cvm_block`
+create table `cvm_blocks`
 (
     block decimal(65) not null primary key,
     created_at              timestamp        not null default current_timestamp
@@ -12,7 +12,7 @@ create table `cvm_transactions`
     created_at                     timestamp       not null default current_timestamp
 );
 
-create table `cvm_address`
+create table `cvm_addresses`
 (
     type           smallint        not null,
     id             varchar(50)     not null,
@@ -26,4 +26,4 @@ create table `cvm_address`
     primary key (type, id)
 );
 
-create index cvm_address_transaction_id ON cvm_address (transaction_id);
+create index cvm_address_transaction_id ON cvm_addresses (transaction_id);

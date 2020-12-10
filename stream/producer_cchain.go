@@ -147,7 +147,7 @@ func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time)
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,created_at) values ("+blockNumber.String()+",?)",
+		"insert into cvm_blocks (block,created_at) values ("+blockNumber.String()+",?)",
 		updateTime)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
@@ -256,7 +256,7 @@ func (p *ProducerCChain) getBlock() error {
 
 	var block string
 	_, err = dbRunner.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
-		From("cvm_block").
+		From("cvm_blocks").
 		LoadContext(ctx, &block)
 	if err != nil {
 		return err
@@ -268,6 +268,7 @@ func (p *ProducerCChain) getBlock() error {
 		return fmt.Errorf("invalid block %s", block)
 	}
 	p.block = n
+	p.log.Info("starting processing block %s", p.block.String())
 	return nil
 }
 

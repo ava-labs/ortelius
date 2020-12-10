@@ -127,7 +127,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, blockChai
 func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
 	idprefix := id.Prefix(idx)
 	_, err := ctx.DB().
-		InsertInto("cvm_address").
+		InsertInto("cvm_addresses").
 		Pair("id", idprefix.String()).
 		Pair("type", typ).
 		Pair("idx", idx).
@@ -139,11 +139,11 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("cvm_address.insert", err)
+		return ctx.Job().EventErr("cvm_addresses.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
-			Update("cvm_address").
+			Update("cvm_addresses").
 			Set("idx", idx).
 			Set("transaction_id", id.String()).
 			Set("address", address.String()).
@@ -153,7 +153,7 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 			Where("id = ? and type = ?", idprefix.String(), typ).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			return ctx.Job().EventErr("cvm_address.update", err)
+			return ctx.Job().EventErr("cvm_addresses.update", err)
 		}
 	}
 	return nil
