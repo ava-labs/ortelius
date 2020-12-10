@@ -228,8 +228,6 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		current = current.Add(current, big.NewInt(1))
 	}
-
-	return nil
 }
 
 func (p *ProducerCChain) Failure() {
