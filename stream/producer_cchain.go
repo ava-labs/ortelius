@@ -199,6 +199,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 			p.block.Set(blockNumber)
 		}
+		p.block.Add(p.block, big.NewInt(1))
 
 		return nil
 	}
