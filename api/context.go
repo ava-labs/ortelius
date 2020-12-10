@@ -120,7 +120,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 
 	// Write error or response
 	if err != nil {
-		c.connections.Logger().Error("server error %v", err)
+		c.connections.Logger().Warn("server error %v", err)
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
