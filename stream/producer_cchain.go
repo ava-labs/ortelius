@@ -215,7 +215,9 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return err
 		}
 
-		localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: current, time: time.Now().UTC()})
+		ncurrent := new(big.Int)
+		ncurrent.Set(current)
+		localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
 		if len(localBlocks) > blocksToQueue {
 			err = consumeBlock()
 			if err != nil {
