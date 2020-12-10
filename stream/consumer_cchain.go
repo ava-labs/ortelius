@@ -107,7 +107,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 	return c.Consume(msg)
 }
 
-func (c *ConsumerCChain) Consume(msg *Message) error {
+func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (c *ConsumerCChain) Consume(msg *Message) error {
 	defer cancelFn()
 
 	id := hashing.ComputeHash256(block.BlockExtraData)
-	nmsg := NewMessage(string(id), msg.chainID, block.BlockExtraData, msg.Timestamp())
+	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
 	if err = c.consumer.Consume(ctx, nmsg); err != nil {
 		collectors.Error()
