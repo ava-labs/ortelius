@@ -45,6 +45,8 @@ const (
 
 	notFoundSleep  = 1 * time.Second
 	readRPCTimeout = 500 * time.Millisecond
+
+	blocksToQueue = 25
 )
 
 type ProducerCChain struct {
@@ -93,7 +95,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 			quitCh:                  make(chan struct{}),
 			doneCh:                  make(chan struct{}),
 		}
-
 		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
@@ -113,11 +114,11 @@ func (p *ProducerCChain) ID() string {
 	return p.id
 }
 
-func (p *ProducerCChain) readBlockFromRPC() (*types.Block, error) {
+func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancelCTX()
 
-	bl, err := p.ethClient.BlockByNumber(ctx, p.block)
+	bl, err := p.ethClient.BlockByNumber(ctx, blockNumber)
 	if err == coreth.NotFound {
 		time.Sleep(notFoundSleep)
 		return nil, ErrNoMessage
@@ -129,22 +130,14 @@ func (p *ProducerCChain) readBlockFromRPC() (*types.Block, error) {
 	return bl, nil
 }
 
-func (p *ProducerCChain) writeBlockToKafka(block []byte) error {
+func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), kafkaWriteTimeout)
 	defer cancelCTX()
 
-	kmessage := kafka.Message{}
-	kmessage.Value = block
-	// compute hash before processing.
-	kmessage.Key = hashing.ComputeHash256(kmessage.Value)
-	if err := p.writer.WriteMessages(ctx, kmessage); err != nil {
-		return err
-	}
-
-	return nil
+	return p.writer.WriteMessages(ctx, messages...)
 }
 
-func (p *ProducerCChain) updateBlock() error {
+func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
 	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
 	if err != nil {
 		return err
@@ -154,8 +147,8 @@ func (p *ProducerCChain) updateBlock() error {
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,created_at) values ("+p.block.String()+",?)",
-		time.Now())
+		"insert into cvm_block (block,created_at) values ("+blockNumber.String()+",?)",
+		updateTime)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
 	}
@@ -163,29 +156,78 @@ func (p *ProducerCChain) updateBlock() error {
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
-	bl, err := p.readBlockFromRPC()
-	if err != nil {
-		time.Sleep(readRPCTimeout)
-		return err
+	current := new(big.Int)
+	current.Set(p.block)
+
+	type localBlockObject struct {
+		block       *types.Block
+		blockNumber *big.Int
+		time        time.Time
 	}
 
-	block, err := cblock.Marshal(bl)
-	if err != nil {
-		return err
+	var localBlocks []*localBlockObject
+
+	consumeBlock := func() error {
+		var blockNumberUpdates []*big.Int
+
+		var kafkaMessages []kafka.Message
+
+		for _, bl := range localBlocks {
+			block, err := cblock.Marshal(bl.block)
+			if err != nil {
+				return err
+			}
+
+			kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
+			kafkaMessages = append(kafkaMessages, kafkaMessage)
+
+			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+		}
+
+		localBlocks = nil
+
+		err := p.writeMessagesToKafka(kafkaMessages...)
+		if err != nil {
+			return err
+		}
+
+		for _, blockNumber := range blockNumberUpdates {
+			err := p.updateBlock(blockNumber, time.Now().UTC())
+			if err != nil {
+				return err
+			}
+
+			p.block.Set(blockNumber)
+		}
+		p.block = p.block.Add(p.block, big.NewInt(1))
+
+		return nil
 	}
 
-	err = p.writeBlockToKafka(block)
-	if err != nil {
-		return err
-	}
+	for {
+		bl, err := p.readBlockFromRPC(current)
+		if err != nil {
+			err = consumeBlock()
+			if err != nil {
+				time.Sleep(readRPCTimeout)
+				return err
+			}
+			time.Sleep(readRPCTimeout)
+			return err
+		}
 
-	err = p.updateBlock()
-	if err != nil {
-		return err
-	}
+		ncurrent := new(big.Int)
+		ncurrent.Set(current)
+		localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
+		if len(localBlocks) > blocksToQueue {
+			err = consumeBlock()
+			if err != nil {
+				return err
+			}
+		}
 
-	p.block = p.block.Add(p.block, big.NewInt(1))
-	return nil
+		current = current.Add(current, big.NewInt(1))
+	}
 }
 
 func (p *ProducerCChain) Failure() {
