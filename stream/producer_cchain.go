@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	cblock "github.com/ava-labs/ortelius/models"
+
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -87,9 +89,8 @@ func NewProducerCChain() utils.ListenCloserFactory {
 			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CChainID),
 			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CChainID),
 			writer:                  writer,
-
-			quitCh: make(chan struct{}),
-			doneCh: make(chan struct{}),
+			quitCh:                  make(chan struct{}),
+			doneCh:                  make(chan struct{}),
 		}
 
 		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
@@ -142,7 +143,7 @@ func (p *ProducerCChain) writeBlockToKafka(block []byte) error {
 	return nil
 }
 
-func (p *ProducerCChain) updateBlock(block []byte) error {
+func (p *ProducerCChain) updateBlock() error {
 	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
 	if err != nil {
 		return err
@@ -152,19 +153,10 @@ func (p *ProducerCChain) updateBlock(block []byte) error {
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,canonical_serialization,created_at) values ("+p.block.String()+",?,?)",
-		block,
+		"insert into cvm_block (block,canonical_serialization,created_at) values ("+p.block.String()+",?)",
 		time.Now())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
-	}
-	if cfg.PerformUpdates {
-		_, err = dbRunner.ExecContext(ctx,
-			"update cvm_block set canonical_serialization=? where block="+p.block.String(),
-			block)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -175,19 +167,17 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		return err
 	}
 
-	var block []byte = bl.ExtraData()
-	if len(block) != 0 {
-		err = p.writeBlockToKafka(block)
-		if err != nil {
-			return err
-		}
+	block, err := cblock.Marshal(bl)
+	if err != nil {
+		return err
 	}
 
-	if block == nil || len(block) > 64000 {
-		block = []byte("")
+	err = p.writeBlockToKafka(block)
+	if err != nil {
+		return err
 	}
 
-	err = p.updateBlock(block)
+	err = p.updateBlock()
 	if err != nil {
 		return err
 	}

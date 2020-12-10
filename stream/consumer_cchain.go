@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/hashing"
+	cblock "github.com/ava-labs/ortelius/models"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
 
@@ -101,6 +104,15 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		return err
 	}
 
+	block, err := cblock.Unmarshal(msg.Body())
+	if err != nil {
+		return err
+	}
+
+	if len(block.BlockExtraData) == 0 {
+		return nil
+	}
+
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
@@ -115,7 +127,10 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
 	defer cancelFn()
 
-	if err = c.consumer.Consume(ctx, msg); err != nil {
+	id := hashing.ComputeHash256(block.BlockExtraData)
+	nmsg := NewMessage(string(id), msg.chainID, block.BlockExtraData, msg.Timestamp())
+
+	if err = c.consumer.Consume(ctx, nmsg); err != nil {
 		collectors.Error()
 		c.log.Error("consumer.Consume: %s", err)
 		return err
