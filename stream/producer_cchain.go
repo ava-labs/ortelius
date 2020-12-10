@@ -46,7 +46,7 @@ const (
 	notFoundSleep  = 1 * time.Second
 	readRPCTimeout = 500 * time.Millisecond
 
-	blocksToQueue = 5
+	blocksToQueue = 10
 )
 
 type ProducerCChain struct {
@@ -137,7 +137,7 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 	return p.writer.WriteMessages(ctx, messages...)
 }
 
-func (p *ProducerCChain) updateBlock(currentBlock *big.Int, updateTime time.Time) error {
+func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
 	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func (p *ProducerCChain) updateBlock(currentBlock *big.Int, updateTime time.Time
 	defer cancelCtx()
 
 	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_block (block,created_at) values ("+currentBlock.String()+",?)",
+		"insert into cvm_block (block,created_at) values ("+blockNumber.String()+",?)",
 		updateTime)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return err
@@ -168,9 +168,9 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 	var localBlocks []*localBlockObject
 
 	consumeBlock := func() error {
-		var updatedBlocks []*big.Int
+		var blockNumberUpdates []*big.Int
 
-		var kmessage []kafka.Message
+		var kafkaMessages []kafka.Message
 
 		for _, bl := range localBlocks {
 			block, err := cblock.Marshal(bl.block)
@@ -178,26 +178,26 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				return err
 			}
 
-			nkmessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
-			kmessage = append(kmessage, nkmessage)
+			kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
+			kafkaMessages = append(kafkaMessages, kafkaMessage)
 
-			updatedBlocks = append(updatedBlocks, bl.blockNumber)
+			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 		}
 
 		localBlocks = nil
 
-		err := p.writeMessagesToKafka(kmessage...)
+		err := p.writeMessagesToKafka(kafkaMessages...)
 		if err != nil {
 			return err
 		}
 
-		for _, cblock := range updatedBlocks {
-			err := p.updateBlock(cblock, time.Now().UTC())
+		for _, blockNumber := range blockNumberUpdates {
+			err := p.updateBlock(blockNumber, time.Now().UTC())
 			if err != nil {
 				return err
 			}
 
-			p.block.Set(cblock)
+			p.block.Set(blockNumber)
 		}
 
 		return nil
