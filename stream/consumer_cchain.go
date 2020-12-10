@@ -128,11 +128,11 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		}
 	}()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
-	defer cancelFn()
-
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
+
+	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
+	defer cancelFn()
 
 	if err = c.consumer.Consume(ctx, nmsg); err != nil {
 		collectors.Error()
