@@ -6,6 +6,7 @@ services:
     image: "mysql:8.0.22"
     volumes:
       - /var/lib/ortelius/mysql:/var/lib/mysql
+      - ./../my.cnf:/etc/mysql/my.cnf
     ports:
       - "3306:3306"
     environment:
