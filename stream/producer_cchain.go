@@ -408,7 +408,7 @@ func (p *ProducerCChain) runProcessor() error {
 
 			default:
 				p.Failure()
-				p.log.Error("Unknown error: %s", err.Error())
+				p.log.Error("Unknown error: %w - %v", err, err)
 			}
 
 			failures++
