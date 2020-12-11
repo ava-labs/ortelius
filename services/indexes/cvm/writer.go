@@ -109,7 +109,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 
 func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header) error {
 	_, err := ctx.DB().
-		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,"+blockHeader.Number.String()+")",
+		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
 			id.String(), typ, blockChainID.String(), ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
