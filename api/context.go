@@ -10,6 +10,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/ava-labs/ortelius/services"
+
+	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -31,7 +36,31 @@ var (
 	// errInternalServerError is returned when errors occur that are not due to
 	// a mistake from the caller.
 	errInternalServerError = errors.New("internal server error")
+
+	workerQueueSize   = 10
+	workerThreadCount = 1
 )
+
+type CacheJob struct {
+	key  string
+	body *[]byte
+	ttl  time.Duration
+}
+
+type cacheUpdate struct {
+	cache  cacher
+	worker utils.Worker
+}
+
+func (cacheUpdate *cacheUpdate) Processor(_ int, job interface{}) {
+	if j, ok := job.(*CacheJob); ok {
+		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+		defer cancelFnSet()
+
+		// if cache did not set, we can just ignore.
+		_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
+	}
+}
 
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
@@ -41,10 +70,12 @@ type Context struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	cache      cacher
-	avaxReader *avax.Reader
-	avmReader  *avm.Reader
-	pvmReader  *pvm.Reader
+	cache       cacher
+	cacheUpdate cacheUpdate
+	avaxReader  *avax.Reader
+	avmReader   *avm.Reader
+	pvmReader   *pvm.Reader
+	connections *services.Connections
 }
 
 // NetworkID returns the networkID this request is for
@@ -77,11 +108,10 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
-				ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-				defer cancelFnSet()
-
-				// if cache did not set, we can just ignore.
-				_ = c.cache.Set(ctxset, key, resp, cacheable.TTL)
+				// if we have room in the queue, enque the cache job..
+				if c.cacheUpdate.worker.JobCnt() < int64(workerQueueSize) {
+					c.cacheUpdate.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
+				}
 			}
 		}
 	} else if err == nil {
@@ -90,6 +120,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 
 	// Write error or response
 	if err != nil {
+		c.connections.Logger().Warn("server error %v", err)
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
@@ -155,10 +186,16 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		// Set context properties, context last
 		c.cache = cache
+
+		c.connections = connections
+
+		c.cacheUpdate = cacheUpdate{cache: cache}
+		c.cacheUpdate.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.cacheUpdate.Processor)
+
 		c.networkID = networkID
 		c.job = stream.NewJob(jobNameForPath(r.Request.URL.Path))
 

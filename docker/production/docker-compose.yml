@@ -121,7 +121,7 @@ services:
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
       "
   producer: &ortelius-app
-    image: "avaplatform/ortelius:6530303"
+    image: "avaplatform/ortelius:261ebb5"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - zookeeper

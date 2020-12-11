@@ -194,6 +194,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 				InsertInto("transactions_epoch").
 				Pair("id", txID.String()).
 				Pair("epoch", epoch).
+				Pair("vertex_id", vertex.ID().String()).
 				ExecContext(cCtx.Ctx())
 			if err != nil && !db.ErrIsDuplicateEntryError(err) {
 				return cCtx.Job().EventErr("avm_assets.insert", err)
@@ -202,6 +203,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 				_, err = cCtx.DB().
 					Update("transactions_epoch").
 					Set("epoch", epoch).
+					Set("vertex_id", vertex.ID().String()).
 					Where("id = ?", txID.String()).
 					ExecContext(cCtx.Ctx())
 				if err != nil {
