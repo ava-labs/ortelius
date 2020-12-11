@@ -17,6 +17,7 @@ services:
       --log-level=info
       --http-host=0.0.0.0
       --ipcs-chain-ids=$${P_CHAINID},$${X_CHAINID}
+      --api-ipcs-enabled=true
       --coreth-config='{\"rpc-gas-cap\":2500000000,\"rpc-tx-fee-cap\":100,\"eth-api-enabled\":true,\"debug-api-enabled\":true,\"tx-pool-api-enabled\":true}'
       "
     ports:
