@@ -18,6 +18,7 @@ services:
     image: "mysql:8.0.22"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./../my.cnf:/etc/mysql/my.cnf
     ports:
       - "3306:3306"
     environment:
