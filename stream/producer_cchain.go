@@ -168,6 +168,10 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 	var localBlocks []*localBlockObject
 
 	consumeBlock := func() error {
+		if len(localBlocks) == 0 {
+			return nil
+		}
+
 		var blockNumberUpdates []*big.Int
 
 		var kafkaMessages []kafka.Message
@@ -207,10 +211,10 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 	for {
 		bl, err := p.readBlockFromRPC(current)
 		if err != nil {
-			err = consumeBlock()
-			if err != nil {
+			err2 := consumeBlock()
+			if err2 != nil {
 				time.Sleep(readRPCTimeout)
-				return err
+				return err2
 			}
 			time.Sleep(readRPCTimeout)
 			return err
