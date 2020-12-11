@@ -1,12 +1,12 @@
 # Create base builder image
 FROM golang:1.15.5-alpine
 WORKDIR /go/src/github.com/ava-labs/ortelius
-RUN apk add git
+RUN apk add git alpine-sdk linux-headers
 
 # Build app
 COPY . .
 RUN if [ -d "./vendor" ];then export MOD=vendor; else export MOD=mod; fi && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=$MOD -o /opt/orteliusd ./cmds/orteliusd/*.go
+    GOOS=linux GOARCH=amd64 go build -ldflags '-w -extldflags "-static"' -mod=$MOD -o /opt/orteliusd ./cmds/orteliusd/*.go
 
 RUN go version
 
