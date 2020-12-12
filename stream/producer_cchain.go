@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -407,6 +408,19 @@ func (p *ProducerCChain) runProcessor() error {
 				return io.EOF
 
 			default:
+				if strings.HasPrefix(err.Error(), "404 Not Found") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+				if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+				if strings.HasSuffix(err.Error(), "connect: connection refused") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+
 				p.Failure()
 				p.log.Error("Unknown error: %s", err.Error())
 			}
