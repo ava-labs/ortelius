@@ -68,7 +68,7 @@ type Stream struct {
 	Kafka    `json:"kafka"`
 	Producer Producer `json:"producer"`
 	Consumer Consumer `json:"consumer"`
-	CChainID string   `json:"cChainId"`
+	CchainID string   `json:"cchainId"`
 }
 
 type Kafka struct {
@@ -151,13 +151,13 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 		},
 		Stream: Stream{
-			CChainID: streamViper.GetString(keysStreamProducerCChainID),
+			CchainID: streamViper.GetString(keysStreamProducerCchainID),
 			Kafka: Kafka{
 				Brokers: streamKafkaViper.GetStringSlice(keysStreamKafkaBrokers),
 			},
 			Producer: Producer{
 				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
-				CChainRPC: streamProducerViper.GetString(keysStreamProducerCChainRPC),
+				CChainRPC: streamProducerViper.GetString(keysStreamProducerCchainRPC),
 			},
 			Consumer: Consumer{
 				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),

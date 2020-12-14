@@ -183,15 +183,27 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, []utils.ListenCloserFactory{stream.NewProducerCChain()}),
+		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, producerFactories(config)),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, []utils.ListenCloserFactory{consumers.IndexerCChain()}),
+		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, indexerFactories(config)),
 	})
 
 	return streamCmd
+}
+
+func indexerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
+	var factories []utils.ListenCloserFactory
+	factories = append(factories, consumers.IndexerCChain())
+	return factories
+}
+
+func producerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
+	var factories []utils.ListenCloserFactory
+	factories = append(factories, stream.NewProducerCChain())
+	return factories
 }
 
 func createEnvCmds(config *cfg.Config, runErr *error) *cobra.Command {

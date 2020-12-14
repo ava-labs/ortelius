@@ -73,7 +73,7 @@ type ProducerCChain struct {
 
 func NewProducerCChain() utils.ListenCloserFactory {
 	return func(conf cfg.Config) utils.ListenCloser {
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CChainID)
+		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 
 		writer := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:      conf.Brokers,
@@ -88,10 +88,10 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		p := &ProducerCChain{
 			conf:                    conf,
 			log:                     conf.Log,
-			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CChainID),
-			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CChainID),
-			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CChainID),
-			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CChainID),
+			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
+			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
+			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
+			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
 			writer:                  writer,
 			quitCh:                  make(chan struct{}),
 			doneCh:                  make(chan struct{}),
