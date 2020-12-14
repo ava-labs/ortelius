@@ -32,8 +32,8 @@ const (
 	KeyVersion         = "version"
 	KeyEnableAggregate = "enableAggregate"
 
-	PaginationMaxLimit      = 500
-	PaginationDefaultLimit  = 500
+	PaginationMaxLimit      = 5000
+	PaginationDefaultLimit  = 5000
 	PaginationDefaultOffset = 0
 
 	VersionDefault = 0
