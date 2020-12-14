@@ -57,7 +57,7 @@ services:
       - zookeeper-data:/var/lib/zookeeper/data/
       - zookeeper-log:/var/lib/zookeeper/log/
     healthcheck:
-      test: /bin/sh -c '[ \"imok\" = \"$$(echo ruok | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
+      test: /bin/sh -c '[ \"imok\" = \"$$(echo stat | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
       interval: 1m
     restart: on-failure
   kafka:
