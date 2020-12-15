@@ -273,6 +273,9 @@ func (p *ProducerCChain) getBlock() error {
 		return fmt.Errorf("invalid block %s", block)
 	}
 	p.block = n
+	if p.block.String() != "0" {
+		p.block = p.block.Add(p.block, big.NewInt(1))
+	}
 	p.log.Info("starting processing block %s", p.block.String())
 	return nil
 }
