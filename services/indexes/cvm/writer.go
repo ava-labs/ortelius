@@ -133,37 +133,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChai
 		avmTxtype = "atomic_export"
 	}
 
-	_, err = ctx.DB().
-		InsertInto("avm_transactions").
-		Pair("id", id.String()).
-		Pair("chain_id", blockChainID.String()).
-		Pair("type", avmTxtype).
-		Pair("memo", "").
-		Pair("created_at", ctx.Time()).
-		Pair("canonical_serialization", "").
-		Pair("txfee", txFee).
-		Pair("genesis", false).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
-	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("avm_transactions").
-			Set("chain_id", blockChainID.String()).
-			Set("type", avmTxtype).
-			Set("memo", "").
-			Set("canonical_serialization", "").
-			Set("txfee", txFee).
-			Set("genesis", false).
-			Where("id = ?", id.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), []byte(""), txFee, false)
 }
 
 func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
