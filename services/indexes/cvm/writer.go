@@ -107,7 +107,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64, unsignedBytes []byte) error {
 	_, err := ctx.DB().
 		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
 			id.String(), typ, blockChainID.String(), ctx.Time()).
@@ -125,15 +125,15 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChai
 		}
 	}
 
-	avmTxtype := "unknown"
+	avmTxtype := ""
 	switch typ {
 	case Import:
-		avmTxtype = "atomic_import"
+		avmTxtype = "atomic_import_tx"
 	case Export:
-		avmTxtype = "atomic_export"
+		avmTxtype = "atomic_export_ex"
 	}
 
-	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), []byte(""), txFee, false)
+	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), unsignedBytes, txFee, false)
 }
 
 func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
@@ -172,7 +172,7 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 	return nil
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte, blockHeader *types.Header) error {
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, blockHeader *types.Header) error {
 	var err error
 
 	var totalin uint64
@@ -193,12 +193,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	err = w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader, totalin-totalout)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
 
 func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
@@ -222,10 +217,5 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	err = w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader, totalin-totalout)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
