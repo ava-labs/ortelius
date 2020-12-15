@@ -31,6 +31,8 @@ const (
 	KeyDisableGenesis  = "disableGenesis"
 	KeyVersion         = "version"
 	KeyEnableAggregate = "enableAggregate"
+	KeyOutputType      = "outputType"
+	KeyOutputGroupID   = "outputGroupId"
 
 	PaginationMaxLimit      = 5000
 	PaginationDefaultLimit  = 5000
