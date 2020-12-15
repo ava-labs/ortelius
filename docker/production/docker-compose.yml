@@ -42,9 +42,6 @@ services:
     volumes:
       - /var/lib/ortelius/zookeeper/data:/var/lib/zookeeper/data/
       - /var/lib/ortelius/zookeeper/logs:/var/lib/zookeeper/log/
-    healthcheck:
-      test: /bin/sh -c '[ \"imok\" = \"$$(echo ruok | nc -w 1 127.0.0.1 2181)\" ]' || exit 1
-      interval: 1m
     restart: on-failure
   kafka:
     image: "confluentinc/cp-kafka:5.4.3"
@@ -122,7 +119,7 @@ services:
       kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
       "
   producer: &ortelius-app
-    image: "avaplatform/ortelius:261ebb5"
+    image: "avaplatform/ortelius:361aa7a"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - zookeeper
