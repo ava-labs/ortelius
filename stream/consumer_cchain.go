@@ -55,11 +55,11 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		c := &ConsumerCChain{
 			conf:                          conf,
 			log:                           conf.Log,
-			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CChainID),
-			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s_cchain", conf.CChainID),
-			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s_cchain", conf.CChainID),
-			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s_cchain", conf.CChainID),
-			id:                            fmt.Sprintf("consumer %d %s cchain", conf.NetworkID, conf.CChainID),
+			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CchainID),
+			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s_cchain", conf.CchainID),
+			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s_cchain", conf.CchainID),
+			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s_cchain", conf.CchainID),
+			id:                            fmt.Sprintf("consumer %d %s cchain", conf.NetworkID, conf.CchainID),
 
 			quitCh: make(chan struct{}),
 			doneCh: make(chan struct{}),
@@ -69,7 +69,7 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CChainID)
+		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
@@ -165,7 +165,7 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	}
 
 	return &Message{
-		chainID:   c.conf.CChainID,
+		chainID:   c.conf.CchainID,
 		body:      msg.Value,
 		id:        id.String(),
 		timestamp: msg.Time.UTC().Unix(),
@@ -239,7 +239,7 @@ func (c *ConsumerCChain) init() error {
 	}
 	c.conns = conns
 
-	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.CChainID)
+	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.CchainID)
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 
 type Block struct {
 	Header         types.Header        `json:"header"`
+	Uncles         []types.Header      `json:"uncles"`
 	TxsBytes       [][]byte            `json:"txs"`
 	Version        uint32              `json:"version"`
 	ReceivedAt     time.Time           `json:"received_at"`
@@ -25,6 +26,12 @@ func New(bl *types.Block) (*Block, error) {
 	var h *types.Header = bl.Header()
 	if h != nil {
 		cblock.Header = *h
+	}
+	for _, u := range bl.Uncles() {
+		if u == nil {
+			continue
+		}
+		cblock.Uncles = append(cblock.Uncles, *u)
 	}
 	for _, t := range bl.Transactions() {
 		bdata, err := t.MarshalJSON()

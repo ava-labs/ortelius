@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,7 +73,7 @@ type ProducerCChain struct {
 
 func NewProducerCChain() utils.ListenCloserFactory {
 	return func(conf cfg.Config) utils.ListenCloser {
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CChainID)
+		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 
 		writer := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:      conf.Brokers,
@@ -87,10 +88,10 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		p := &ProducerCChain{
 			conf:                    conf,
 			log:                     conf.Log,
-			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CChainID),
-			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CChainID),
-			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CChainID),
-			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CChainID),
+			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
+			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
+			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
+			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
 			writer:                  writer,
 			quitCh:                  make(chan struct{}),
 			doneCh:                  make(chan struct{}),
@@ -272,6 +273,9 @@ func (p *ProducerCChain) getBlock() error {
 		return fmt.Errorf("invalid block %s", block)
 	}
 	p.block = n
+	if p.block.String() != "0" {
+		p.block = p.block.Add(p.block, big.NewInt(1))
+	}
 	p.log.Info("starting processing block %s", p.block.String())
 	return nil
 }
@@ -407,6 +411,19 @@ func (p *ProducerCChain) runProcessor() error {
 				return io.EOF
 
 			default:
+				if strings.HasPrefix(err.Error(), "404 Not Found") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+				if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+				if strings.HasSuffix(err.Error(), "connect: connection refused") {
+					p.log.Warn("%s", err.Error())
+					return nil
+				}
+
 				p.Failure()
 				p.log.Error("Unknown error: %w - %v", err, err)
 			}

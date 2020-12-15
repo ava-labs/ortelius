@@ -38,8 +38,8 @@ const (
 	keysStreamProducer        = "producer"
 	keysStreamProducerIPCRoot = "ipcRoot"
 
-	keysStreamProducerCChainRPC = "cchainRpc"
-	keysStreamProducerCChainID  = "cchainID"
+	keysStreamProducerCchainRPC = "cchainRpc"
+	keysStreamProducerCchainID  = "cchainID"
 
 	keysStreamConsumer          = "consumer"
 	keysStreamConsumerGroupName = "groupName"
