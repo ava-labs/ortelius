@@ -44,21 +44,21 @@ type Input struct {
 }
 
 type Output struct {
-	ID            StringID    `json:"id"`
-	TransactionID StringID    `json:"transactionID"`
-	OutputIndex   uint64      `json:"outputIndex"`
-	AssetID       StringID    `json:"assetID"`
-	OutputType    OutputType  `json:"outputType"`
-	Amount        TokenAmount `json:"amount"`
-	Locktime      uint64      `json:"locktime"`
-	StakeLocktime uint64      `json:"stakeLocktime"`
-	Threshold     uint64      `json:"threshold"`
-	Addresses     []Address   `json:"addresses"`
-	CreatedAt     time.Time   `json:"timestamp"`
-
-	RedeemingTransactionID StringID `json:"redeemingTransactionID"`
-
-	ChainID StringID `json:"chainID"`
+	ID                     StringID    `json:"id"`
+	TransactionID          StringID    `json:"transactionID"`
+	OutputIndex            uint64      `json:"outputIndex"`
+	AssetID                StringID    `json:"assetID"`
+	OutputType             OutputType  `json:"outputType"`
+	Amount                 TokenAmount `json:"amount"`
+	Locktime               uint64      `json:"locktime"`
+	StakeLocktime          uint64      `json:"stakeLocktime"`
+	Threshold              uint64      `json:"threshold"`
+	Addresses              []Address   `json:"addresses"`
+	CreatedAt              time.Time   `json:"timestamp"`
+	RedeemingTransactionID StringID    `json:"redeemingTransactionID"`
+	ChainID                StringID    `json:"chainID"`
+	GroupID                uint64      `json:"groupID"`
+	Payload                string      `json:"payload"`
 
 	Score uint64 `json:"-"`
 }
