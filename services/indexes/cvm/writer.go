@@ -130,7 +130,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChai
 	case Import:
 		avmTxtype = "atomic_import_tx"
 	case Export:
-		avmTxtype = "atomic_export_ex"
+		avmTxtype = "atomic_export_tx"
 	}
 
 	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), unsignedBytes, txFee, false)
