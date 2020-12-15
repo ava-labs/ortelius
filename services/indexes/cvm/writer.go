@@ -182,7 +182,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		if err != nil {
 			return err
 		}
-		totalin = totalin + in.Amount
+		totalin += in.Amount
 	}
 
 	var totalout uint64
@@ -206,7 +206,7 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		if err != nil {
 			return err
 		}
-		totalout = totalout + out.Amount
+		totalout += out.Amount
 	}
 
 	var totalin uint64
