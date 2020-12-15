@@ -107,7 +107,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64, unsignedBytes []byte) error {
 	_, err := ctx.DB().
 		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
 			id.String(), typ, blockChainID.String(), ctx.Time()).
@@ -124,7 +124,16 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChai
 			return ctx.Job().EventErr("cvm_transaction.update", err)
 		}
 	}
-	return nil
+
+	avmTxtype := ""
+	switch typ {
+	case Import:
+		avmTxtype = "atomic_import_tx"
+	case Export:
+		avmTxtype = "atomic_export_tx"
+	}
+
+	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), unsignedBytes, txFee, false)
 }
 
 func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
@@ -163,52 +172,50 @@ func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uin
 	return nil
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, _ []byte, blockHeader *types.Header) error {
-	err := w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader)
-	if err != nil {
-		return err
-	}
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, blockHeader *types.Header) error {
+	var err error
 
+	var totalin uint64
 	for icnt, in := range tx.Ins {
 		icntval := uint64(icnt)
 		err = w.insertAddress(In, ctx, icntval, txID, in.Address, in.AssetID, in.Amount, in.Nonce)
 		if err != nil {
 			return err
 		}
+		totalin += in.Amount
 	}
 
+	var totalout uint64
 	for idx, out := range tx.ExportedOutputs {
-		var totalout uint64
-		_, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String())
+		totalout, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String())
 		if err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
 
 func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
-	err := w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader)
-	if err != nil {
-		return err
-	}
+	var err error
 
+	var totalout uint64
 	for icnt, out := range tx.Outs {
 		icntval := uint64(icnt)
 		err = w.insertAddress(Out, ctx, icntval, txID, out.Address, out.AssetID, out.Amount, 0)
 		if err != nil {
 			return err
 		}
+		totalout += out.Amount
 	}
 
+	var totalin uint64
 	for inidx, in := range tx.ImportedInputs {
-		var totalin uint64
-		_, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, []verify.Verifiable{in.In}, unsignedBytes, tx.SourceChain.String())
+		totalin, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, []verify.Verifiable{in.In}, unsignedBytes, tx.SourceChain.String())
 		if err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }

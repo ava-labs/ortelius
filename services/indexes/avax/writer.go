@@ -50,7 +50,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		err      error
 		totalin  uint64 = 0
 		totalout uint64 = 0
-		errs            = wrappers.Errs{}
 	)
 
 	inidx := 0
@@ -102,37 +101,43 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Add baseTx to the table
-	_, err = ctx.DB().
+	return w.InsertTransactionBase(ctx, baseTx.ID(), w.chainID, txType.String(), baseTx.Memo, txBytes, txfee, genesis)
+}
+
+func (w *Writer) InsertTransactionBase(ctx services.ConsumerCtx, txID ids.ID, chainID string, txType string, memo []byte, txBytes []byte, txfee uint64, genesis bool) error {
+	if len(txBytes) > 64000 {
+		txBytes = []byte("")
+	}
+	_, err := ctx.DB().
 		InsertInto("avm_transactions").
-		Pair("id", baseTx.ID().String()).
-		Pair("chain_id", w.chainID).
-		Pair("type", txType.String()).
-		Pair("memo", baseTx.Memo).
+		Pair("id", txID.String()).
+		Pair("chain_id", chainID).
+		Pair("type", txType).
+		Pair("memo", memo).
 		Pair("created_at", ctx.Time()).
 		Pair("canonical_serialization", txBytes).
 		Pair("txfee", txfee).
 		Pair("genesis", genesis).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("avm_transactions.insert", err))
+		return w.stream.EventErr("avm_transactions.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err = ctx.DB().
 			Update("avm_transactions").
-			Set("chain_id", w.chainID).
-			Set("type", txType.String()).
-			Set("memo", baseTx.Memo).
+			Set("chain_id", chainID).
+			Set("type", txType).
+			Set("memo", memo).
 			Set("canonical_serialization", txBytes).
 			Set("txfee", txfee).
 			Set("genesis", genesis).
-			Where("id = ?", baseTx.ID().String()).
+			Where("id = ?", txID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			errs.Add(w.stream.EventErr("avm_transactions.update", err))
+			return w.stream.EventErr("avm_transactions.update", err)
 		}
 	}
-
-	return errs.Err
+	return nil
 }
 
 func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin uint64, in *avax.TransferableInput, txID ids.ID, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
