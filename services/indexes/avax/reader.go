@@ -1148,7 +1148,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_output_addresses.redeeming_signature AS signature",
 		"addresses.public_key AS public_key",
 		"avm_outputs.chain_id",
-		"avm_outputs.payload",
+		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
