@@ -89,7 +89,7 @@ services:
     env_file:
       - production.env
     image: "avaplatform/avalanchego:v1.1.0"
-    command: bash -cx "./build/avalanchego
+    command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
       --log-level=info
