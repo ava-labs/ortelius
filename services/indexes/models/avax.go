@@ -58,7 +58,7 @@ type Output struct {
 	RedeemingTransactionID StringID    `json:"redeemingTransactionID"`
 	ChainID                StringID    `json:"chainID"`
 	GroupID                uint64      `json:"groupID"`
-	Payload                string      `json:"payload"`
+	Payload                []byte      `json:"payload"`
 
 	Score uint64 `json:"-"`
 }
