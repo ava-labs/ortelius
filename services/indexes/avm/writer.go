@@ -347,15 +347,10 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 	// we must process the Outs to get the outputCount updated
 	// before working on the Ops
 	// the outs get processed again in InsertTransaction
-	for _, txOut := range tx.Outs {
-		switch xOutOut := txOut.Out.(type) {
-		case *secp256k1fx.TransferOutput:
-			err := w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
-			if err != nil {
-				return err
-			}
-		default:
-			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+	for _, out := range tx.Outs {
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, errs, totalout, out, tx.ID(), w.chainID)
+		if err != nil {
+			return err
 		}
 		outputCount++
 	}
@@ -409,12 +404,10 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	// we must process the Outs to get the outputCount updated
 	// before working on the states
 	// the outs get processed again in InsertTransaction
-	for _, txOut := range tx.Outs {
-		switch xOutOut := txOut.Out.(type) {
-		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
-		default:
-			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+	for _, out := range tx.Outs {
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, errs, totalout, out, tx.ID(), w.chainID)
+		if err != nil {
+			return err
 		}
 		outputCount++
 	}

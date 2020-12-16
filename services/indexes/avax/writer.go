@@ -78,16 +78,16 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		baseTx.Memo = nil
 	}
 
-	idx := 0
+	var idx uint32
 	for _, out := range baseTx.Outs {
-		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, w.chainID)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, errs, totalout, out, baseTx.ID(), w.chainID)
 		if err != nil {
 			return err
 		}
 		idx++
 	}
 	for _, out := range addOuts {
-		totalout, err = w.insertTransactionOuts(idx, ctx, errs, totalout, out, baseTx, outChainID)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, errs, totalout, out, baseTx.ID(), outChainID)
 		if err != nil {
 			return err
 		}
@@ -193,7 +193,7 @@ func (w *Writer) insertTransactionIns(idx int, ctx services.ConsumerCtx, errs wr
 	return totalin, nil
 }
 
-func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs wrappers.Errs, totalout uint64, out *avax.TransferableOutput, baseTx *avax.BaseTx, chainID string) (uint64, error) {
+func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, errs wrappers.Errs, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string) (uint64, error) {
 	var err error
 	switch transferOutput := out.Out.(type) {
 	case *platformvm.StakeableLockOut:
@@ -208,7 +208,7 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 				errs.Add(err)
 			}
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID))
+		errs.Add(w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID))
 	case *secp256k1fx.TransferOutput:
 		if out.AssetID() == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, transferOutput.Amt)
@@ -216,11 +216,11 @@ func (w *Writer) insertTransactionOuts(idx int, ctx services.ConsumerCtx, errs w
 				errs.Add(err)
 			}
 		}
-		errs.Add(w.InsertOutput(ctx, baseTx.ID(), uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID))
+		errs.Add(w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID))
 	default:
 		errs.Add(fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput)))
 	}
-	return totalout, nil
+	return totalout, errs.Err
 }
 
 func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string) error {
