@@ -22,6 +22,9 @@ var (
 	// ErrUnknownProcessorType is returned when encountering a client type with no
 	// known implementation
 	ErrUnknownProcessorType = errors.New("unknown processor type")
+
+	// ErrNoMessage is no message
+	ErrNoMessage = errors.New("no message")
 )
 
 // ProcessorFactory takes in configuration and returns a stream Processor
@@ -49,7 +52,7 @@ type ProcessorManager struct {
 }
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
-func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorManager, error) {
+func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) *ProcessorManager {
 	return &ProcessorManager{
 		conf: conf,
 		log:  conf.Log,
@@ -58,7 +61,7 @@ func NewProcessorManager(conf cfg.Config, factory ProcessorFactory) (*ProcessorM
 
 		quitCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
-	}, nil
+	}
 }
 
 // Listen sets a client to listen for and handle incoming messages
@@ -153,6 +156,11 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			case context.DeadlineExceeded:
 				nomsg++
 				c.log.Debug("context deadline exceeded")
+				return nil
+
+			case ErrNoMessage:
+				nomsg++
+				c.log.Debug("no message")
 				return nil
 
 			// These are always errors

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/ortelius/replay"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -56,12 +58,6 @@ const (
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 )
-
-// listenCloser listens for messages until it's asked to close
-type listenCloser interface {
-	Listen() error
-	Close() error
-}
 
 func main() {
 	if err := execute(); err != nil {
@@ -124,7 +120,7 @@ func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Short: apiCmdDesc,
 		Long:  apiCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			var lc listenCloser
+			var lc utils.ListenCloser
 			lc, err := api.NewServer(*config)
 			if err != nil {
 				*runErr = err
@@ -187,15 +183,27 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor),
+		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, producerFactories(config)),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, consumers.Indexer, consumers.IndexerConsensus),
+		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, indexerFactories(config)),
 	})
 
 	return streamCmd
+}
+
+func indexerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
+	var factories []utils.ListenCloserFactory
+	factories = append(factories, consumers.IndexerCChain())
+	return factories
+}
+
+func producerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
+	var factories []utils.ListenCloserFactory
+	factories = append(factories, stream.NewProducerCChain())
+	return factories
 }
 
 func createEnvCmds(config *cfg.Config, runErr *error) *cobra.Command {
@@ -215,8 +223,8 @@ func createEnvCmds(config *cfg.Config, runErr *error) *cobra.Command {
 	}
 }
 
-// runListenCloser runs the listenCloser until signaled to stop
-func runListenCloser(lc listenCloser) {
+// runListenCloser runs the ListenCloser until signaled to stop
+func runListenCloser(lc utils.ListenCloser) {
 	// Start listening in the background
 	go func() {
 		if err := lc.Listen(); err != nil {
@@ -237,7 +245,7 @@ func runListenCloser(lc listenCloser) {
 
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
-func runStreamProcessorManagers(config *cfg.Config, runErr *error, factories ...stream.ProcessorFactory) func(_ *cobra.Command, _ []string) {
+func runStreamProcessorManagers(config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 		wg.Add(len(factories))
@@ -247,13 +255,19 @@ func runStreamProcessorManagers(config *cfg.Config, runErr *error, factories ...
 				defer wg.Done()
 
 				// Create and start processor manager
-				pm, err := stream.NewProcessorManager(*config, factory)
-				if err != nil {
-					*runErr = err
-					return
-				}
+				pm := stream.NewProcessorManager(*config, factory)
 				runListenCloser(pm)
 			}(factory)
+		}
+
+		wg.Add(len(listenCloseFactories))
+		for _, listenCloseFactory := range listenCloseFactories {
+			go func(listenCloserFactory utils.ListenCloserFactory) {
+				defer wg.Done()
+
+				lc := listenCloserFactory(*config)
+				runListenCloser(lc)
+			}(listenCloseFactory)
 		}
 
 		wg.Wait()
