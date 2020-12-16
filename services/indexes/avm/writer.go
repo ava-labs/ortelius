@@ -372,7 +372,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
 			case *secp256k1fx.TransferOutput:
 				if tx.ID() == w.avaxAssetID {
-					totalout, err = avalancheMath.Add64(totalout, typedOut.Amt)
+					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
 					if err != nil {
 						errs.Add(err)
 					}
@@ -389,7 +389,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		}
 	}
 
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, 0, genesis))
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, totalout, genesis))
 
 	return errs.Err
 }
@@ -428,7 +428,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
 			case *secp256k1fx.TransferOutput:
 				if tx.ID() == w.avaxAssetID {
-					totalout, err = avalancheMath.Add64(totalout, typedOut.Amt)
+					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
 					if err != nil {
 						errs.Add(err)
 					}
