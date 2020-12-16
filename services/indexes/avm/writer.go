@@ -363,11 +363,11 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		for _, out := range castTxOps.Op.Outs() {
 			switch typedOut := out.(type) {
 			case *nftfx.TransferOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID))
 			case *nftfx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID))
 			case *secp256k1fx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
 			case *secp256k1fx.TransferOutput:
 				if tx.ID() == w.avaxAssetID {
 					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
@@ -375,7 +375,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 						errs.Add(err)
 					}
 				}
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
 				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
 					return ctx.Job().EventErr("add_to_amount", err)
 				}
