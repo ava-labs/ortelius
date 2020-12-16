@@ -239,7 +239,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 	default:
 		return 0, fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput))
 	}
-	return totalout, err
+	return totalout, nil
 }
 
 func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string) error {
