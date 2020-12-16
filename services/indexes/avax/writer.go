@@ -77,7 +77,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		baseTx.Memo = nil
 	}
 
-	idx := 0
+	var idx uint32
 	for _, out := range baseTx.Outs {
 		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), w.chainID)
 		if err != nil {
@@ -206,7 +206,7 @@ func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin
 	return totalin, nil
 }
 
-func (w *Writer) InsertTransactionOuts(idx int, ctx services.ConsumerCtx, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string) (uint64, error) {
+func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string) (uint64, error) {
 	var err error
 	switch transferOutput := out.Out.(type) {
 	case *platformvm.StakeableLockOut:
@@ -221,7 +221,7 @@ func (w *Writer) InsertTransactionOuts(idx int, ctx services.ConsumerCtx, totalo
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID)
 		if err != nil {
 			return 0, err
 		}
@@ -232,7 +232,7 @@ func (w *Writer) InsertTransactionOuts(idx int, ctx services.ConsumerCtx, totalo
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID)
 		if err != nil {
 			return 0, err
 		}

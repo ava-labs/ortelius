@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/gocraft/health"
+
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -28,13 +31,11 @@ import (
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/avm"
-	avalancheAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
-	"github.com/gocraft/health"
 	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/ortelius/services"
@@ -322,29 +323,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.CreateAssetTx:
 		return w.insertCreateAssetTx(ctx, txBytes, castTx, tx.Credentials(), "", false)
 	case *avm.OperationTx:
-		addlOuts := make([]*avalancheAvax.TransferableOutput, 0, 1)
-		for _, castTxOps := range castTx.Ops {
-			for _, castTxOpsOpOut := range castTxOps.Op.Outs() {
-				var transferableOutput avalancheAvax.TransferableOutput
-				transferableOutput.Asset = castTxOps.Asset
-				switch castTxOpsOpOutVal := castTxOpsOpOut.(type) {
-				case *secp256k1fx.TransferOutput:
-					transferableOutput.Out = castTxOpsOpOutVal
-				case *nftfx.TransferOutput:
-					var secpTo secp256k1fx.TransferOutput
-					secpTo.OutputOwners = castTxOpsOpOutVal.OutputOwners
-					transferableOutput.Out = &secpTo
-				case *secp256k1fx.MintOutput:
-					var secpTo secp256k1fx.TransferOutput
-					secpTo.OutputOwners = castTxOpsOpOutVal.OutputOwners
-					transferableOutput.Out = &secpTo
-				default:
-					return fmt.Errorf("unknown type %s", reflect.TypeOf(castTxOpsOpOut))
-				}
-				addlOuts = append(addlOuts, &transferableOutput)
-			}
-		}
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeOperation, nil, w.chainID, addlOuts, w.chainID, 0, false)
+		return w.insertOperationTx(ctx, txBytes, castTx, tx.Credentials(), false)
 	case *avm.ImportTx:
 		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
 	case *avm.ExportTx:
@@ -356,6 +335,63 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	}
 }
 
+func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.OperationTx, creds []verify.Verifiable, genesis bool) error {
+	var (
+		err         error
+		outputCount uint32
+		amount      uint64
+		errs               = wrappers.Errs{}
+		totalout    uint64 = 0
+	)
+
+	// we must process the Outs to get the outputCount updated
+	// before working on the Ops
+	// the outs get processed again in InsertTransaction
+	for _, out := range tx.Outs {
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, totalout, out, tx.ID(), w.chainID)
+		if err != nil {
+			return err
+		}
+		outputCount++
+	}
+
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
+	}
+
+	for _, castTxOps := range tx.Ops {
+		for _, out := range castTxOps.Op.Outs() {
+			switch typedOut := out.(type) {
+			case *nftfx.TransferOutput:
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID))
+			case *nftfx.MintOutput:
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID))
+			case *secp256k1fx.MintOutput:
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
+			case *secp256k1fx.TransferOutput:
+				if tx.ID() == w.avaxAssetID {
+					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
+					if err != nil {
+						errs.Add(err)
+					}
+				}
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
+				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
+					return ctx.Job().EventErr("add_to_amount", err)
+				}
+			default:
+				return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+			}
+
+			outputCount++
+		}
+	}
+
+	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, totalout, genesis))
+
+	return errs.Err
+}
+
 func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
 	var (
 		err         error
@@ -365,18 +401,19 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		totalout    uint64 = 0
 	)
 
-	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
-		return &secp256k1fx.TransferOutput{OutputOwners: oo}
-	}
-
-	for _, txOut := range tx.Outs {
-		switch xOutOut := txOut.Out.(type) {
-		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, txOut.AssetID(), xOutOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
-		default:
-			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+	// we must process the Outs to get the outputCount updated
+	// before working on the states
+	// the outs get processed again in InsertTransaction
+	for _, out := range tx.Outs {
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, totalout, out, tx.ID(), w.chainID)
+		if err != nil {
+			return err
 		}
 		outputCount++
+	}
+
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
 	}
 
 	for _, state := range tx.States {
@@ -390,7 +427,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
 			case *secp256k1fx.TransferOutput:
 				if tx.ID() == w.avaxAssetID {
-					totalout, err = avalancheMath.Add64(totalout, typedOut.Amt)
+					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
 					if err != nil {
 						errs.Add(err)
 					}

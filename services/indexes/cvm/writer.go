@@ -186,11 +186,13 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	}
 
 	var totalout uint64
-	for idx, out := range tx.ExportedOutputs {
+	var idx uint32
+	for _, out := range tx.ExportedOutputs {
 		totalout, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String())
 		if err != nil {
 			return err
 		}
+		idx++
 	}
 
 	return w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)

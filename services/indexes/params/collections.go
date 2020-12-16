@@ -148,10 +148,14 @@ func (p *AggregateParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 }
 
 type ListTransactionsParams struct {
-	ListParams     ListParams
-	ChainIDs       []string
-	Addresses      []ids.ShortID
-	AssetID        *ids.ID
+	ListParams ListParams
+	ChainIDs   []string
+	Addresses  []ids.ShortID
+	AssetID    *ids.ID
+
+	OutputOutputTypes []uint64
+	OutputGroupIDs    []uint64
+
 	DisableGenesis bool
 	Sort           TransactionSort
 }
@@ -173,6 +177,24 @@ func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
 	p.AssetID, err = GetQueryID(q, KeyAssetID)
 	if err != nil {
 		return err
+	}
+
+	outputOutputTypes := q[KeyOutputOutputType]
+	for _, outputOutputType := range outputOutputTypes {
+		outpuOutputTypeValue, err := strconv.ParseUint(outputOutputType, 10, 32)
+		if err != nil {
+			return err
+		}
+		p.OutputOutputTypes = append(p.OutputOutputTypes, outpuOutputTypeValue)
+	}
+
+	outputGroupIDs := q[KeyOutputGroupID]
+	for _, outputGroupID := range outputGroupIDs {
+		outputGroupIDValue, err := strconv.ParseUint(outputGroupID, 10, 64)
+		if err != nil {
+			return err
+		}
+		p.OutputGroupIDs = append(p.OutputGroupIDs, outputGroupIDValue)
 	}
 
 	addressStrs := q[KeyAddress]
@@ -250,6 +272,12 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	if p.AssetID != nil {
 		dosq = true
 		subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+		if len(p.OutputOutputTypes) != 0 {
+			subquery = subquery.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
+		}
+		if len(p.OutputGroupIDs) != 0 {
+			subquery = subquery.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
+		}
 	}
 
 	if dosq && dosqRedeem {
