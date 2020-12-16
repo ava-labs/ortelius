@@ -152,6 +152,10 @@ func (p *ListParams) CacheKey() []string {
 }
 
 func (p ListParams) Apply(listTable string, b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	return p.ApplyPk(listTable, b, "id")
+}
+
+func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey string) *dbr.SelectBuilder {
 	if p.Limit > PaginationMaxLimit {
 		p.Limit = PaginationMaxLimit
 	}
@@ -163,7 +167,7 @@ func (p ListParams) Apply(listTable string, b *dbr.SelectBuilder) *dbr.SelectBui
 	}
 
 	if p.ID != nil {
-		b.Where(listTable+".id = ?", p.ID.String()).Limit(1)
+		b.Where(listTable+"."+primaryKey+" = ?", p.ID.String()).Limit(1)
 	}
 
 	if p.Query != "" {
