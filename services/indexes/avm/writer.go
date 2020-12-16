@@ -344,6 +344,9 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		totalout    uint64 = 0
 	)
 
+	// we must process the Outs to get the outputCount updated
+	// before working on the Ops
+	// the outs get processed again in InsertTransaction
 	for _, txOut := range tx.Outs {
 		switch xOutOut := txOut.Out.(type) {
 		case *secp256k1fx.TransferOutput:
@@ -403,10 +406,9 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		totalout    uint64 = 0
 	)
 
-	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
-		return &secp256k1fx.TransferOutput{OutputOwners: oo}
-	}
-
+	// we must process the Outs to get the outputCount updated
+	// before working on the states
+	// the outs get processed again in InsertTransaction
 	for _, txOut := range tx.Outs {
 		switch xOutOut := txOut.Out.(type) {
 		case *secp256k1fx.TransferOutput:
@@ -415,6 +417,10 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 			return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 		}
 		outputCount++
+	}
+
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
 	}
 
 	for _, state := range tx.States {
