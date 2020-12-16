@@ -153,8 +153,8 @@ type ListTransactionsParams struct {
 	Addresses  []ids.ShortID
 	AssetID    *ids.ID
 
-	OutputTypes    []uint64
-	OutputGroupIDs []uint64
+	OutputOutputTypes []uint64
+	OutputGroupIDs    []uint64
 
 	DisableGenesis bool
 	Sort           TransactionSort
@@ -179,13 +179,13 @@ func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
 		return err
 	}
 
-	outputTypes := q[KeyOutputType]
-	for _, outputType := range outputTypes {
-		outputTypeValue, err := strconv.ParseUint(outputType, 10, 32)
+	outputOutputTypes := q[KeyOutputOutputType]
+	for _, outputOutputType := range outputOutputTypes {
+		outpuOutputTypeValue, err := strconv.ParseUint(outputOutputType, 10, 32)
 		if err != nil {
 			return err
 		}
-		p.OutputTypes = append(p.OutputTypes, outputTypeValue)
+		p.OutputOutputTypes = append(p.OutputOutputTypes, outpuOutputTypeValue)
 	}
 
 	outputGroupIDs := q[KeyOutputGroupID]
@@ -272,8 +272,8 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	if p.AssetID != nil {
 		dosq = true
 		subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
-		if len(p.OutputTypes) != 0 {
-			subquery = subquery.Where("avm_outputs.output_type in ?", p.OutputTypes)
+		if len(p.OutputOutputTypes) != 0 {
+			subquery = subquery.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
 		}
 		if len(p.OutputGroupIDs) != 0 {
 			subquery = subquery.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
