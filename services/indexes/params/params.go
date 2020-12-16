@@ -171,7 +171,7 @@ func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey s
 	}
 
 	if p.Query != "" {
-		b.Where(dbr.Like(listTable+".id", p.Query+"%"))
+		b.Where(dbr.Like(listTable+"."+primaryKey, p.Query+"%"))
 	}
 
 	return b
