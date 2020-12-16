@@ -221,7 +221,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID)
 		if err != nil {
 			return 0, err
 		}
@@ -232,7 +232,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, uint32(idx), out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID)
 		if err != nil {
 			return 0, err
 		}
