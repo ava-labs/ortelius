@@ -20,8 +20,10 @@
         "kafka:9092"
       ]
     },
+    "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
     "producer": {
-      "ipcRoot": "/tmp"
+      "ipcRoot": "/tmp",
+      "cchainRpc": "http://avalanche:9650/ext/bc/C/rpc"
     },
     "consumer": {
       "groupName": "indexer"
