@@ -128,29 +128,46 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	}
 
 	var rows []*struct {
-		AssetID     models.StringID `json:"assetID"`
-		VariableCap uint8           `json:"variableCap"`
+		AssetID    models.StringID   `json:"assetID"`
+		OutputType models.OutputType `json:"outputType"`
+		Cnt        uint8             `json:"cnt"`
 	}
 
-	mintOutputs := [2]models.OutputType{models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint}
-	_, err := dbRunner.Select("avm_outputs.asset_id", "CASE WHEN count(avm_outputs.asset_id) > 0 THEN 1 ELSE 0 END AS variable_cap").
+	mintOutputs := [3]models.OutputType{models.OutputTypesSECP2556K1Mint, models.OutputTypesNFTMint, models.OutputTypesNFTTransfer}
+	_, err := dbRunner.Select("avm_outputs.asset_id", "avm_outputs.output_type", "case when count(*) > 0 then 1 else 0 end as cnt").
 		From("avm_outputs").
 		Where("avm_outputs.output_type IN ? and avm_outputs.asset_id in ?", mintOutputs[:], assetIDs).
-		GroupBy("avm_outputs.asset_id").
-		Having("count(avm_outputs.asset_id) > 0").
+		GroupBy("avm_outputs.asset_id", "avm_outputs.output_type").
+		Having("count(*) > 0").
 		LoadContext(ctx, &rows)
 	if err != nil {
 		return err
 	}
 
-	assetMap := make(map[models.StringID]uint8)
-	for pos, row := range rows {
-		assetMap[row.AssetID] = rows[pos].VariableCap
+	assetMapVariableCap := make(map[models.StringID]uint64)
+	assetMapNFT := make(map[models.StringID]uint64)
+	for _, row := range rows {
+		switch row.OutputType {
+		case models.OutputTypesSECP2556K1Mint:
+			assetMapVariableCap[row.AssetID] = 1
+		case models.OutputTypesNFTMint:
+			assetMapVariableCap[row.AssetID] = 1
+			assetMapNFT[row.AssetID] = 1
+		case models.OutputTypesNFTTransfer:
+			assetMapNFT[row.AssetID] = 1
+		}
 	}
 
 	for _, asset := range assets {
-		if variableCap, ok := assetMap[asset.ID]; ok {
-			asset.VariableCap = variableCap
+		if variableCap, ok := assetMapVariableCap[asset.ID]; ok {
+			if variableCap != 0 {
+				asset.VariableCap = 1
+			}
+		}
+		if nft, ok := assetMapNFT[asset.ID]; ok {
+			if nft != 0 {
+				asset.Nft = 1
+			}
 		}
 	}
 
