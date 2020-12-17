@@ -63,34 +63,40 @@ func (replay *replay) Start() error {
 
 	timeLog := time.Now()
 
+	logemit := func(waitGroupCnt int64) {
+		type CounterValues struct {
+			Read  uint64
+			Added uint64
+		}
+
+		ctot := make(map[string]*CounterValues)
+		countersValues := replay.counterRead.Clone()
+		for cnter := range countersValues {
+			if _, ok := ctot[cnter]; !ok {
+				ctot[cnter] = &CounterValues{}
+			}
+			ctot[cnter].Read = countersValues[cnter]
+		}
+		countersValues = replay.counterAdded.Clone()
+		for cnter := range countersValues {
+			if _, ok := ctot[cnter]; !ok {
+				ctot[cnter] = &CounterValues{}
+			}
+			ctot[cnter].Added = countersValues[cnter]
+		}
+
+		for cnter := range ctot {
+			replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
+		}
+	}
+
+	var waitGroupCnt int64
 	for {
-		waitGroupCnt := atomic.LoadInt64(waitGroup)
+		waitGroupCnt = atomic.LoadInt64(waitGroup)
 
 		if time.Now().Sub(timeLog).Seconds() > 30 {
-			type CounterValues struct {
-				Read  uint64
-				Added uint64
-			}
-
-			ctot := make(map[string]*CounterValues)
-			countersValues := replay.counterRead.Clone()
-			for cnter := range countersValues {
-				if _, ok := ctot[cnter]; !ok {
-					ctot[cnter] = &CounterValues{}
-				}
-				ctot[cnter].Read = countersValues[cnter]
-			}
-			countersValues = replay.counterAdded.Clone()
-			for cnter := range countersValues {
-				if _, ok := ctot[cnter]; !ok {
-					ctot[cnter] = &CounterValues{}
-				}
-				ctot[cnter].Added = countersValues[cnter]
-			}
-
-			for cnter := range ctot {
-				replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
-			}
+			timeLog = time.Now()
+			logemit(waitGroupCnt)
 		}
 
 		if waitGroupCnt == 0 {
@@ -98,9 +104,9 @@ func (replay *replay) Start() error {
 		}
 
 		time.Sleep(time.Second)
-
-		timeLog = time.Now()
 	}
+
+	logemit(waitGroupCnt)
 
 	if replay.errs.GetValue() != nil {
 		replay.config.Services.Log.Error("replay failed %w", replay.errs.GetValue().(error))
