@@ -66,9 +66,6 @@ func (replay *replay) Start() error {
 
 	for replay.running.GetValue() {
 		waitGroupCnt := atomic.LoadInt64(waitGroup)
-		if waitGroupCnt == 0 {
-			break
-		}
 
 		type CounterValues struct {
 			Read  uint64
@@ -93,6 +90,10 @@ func (replay *replay) Start() error {
 
 		for cnter := range ctot {
 			replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
+		}
+
+		if waitGroupCnt == 0 {
+			break
 		}
 
 		time.Sleep(5 * time.Second)
