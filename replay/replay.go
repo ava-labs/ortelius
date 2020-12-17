@@ -37,9 +37,8 @@ type replay struct {
 	uniqueIDLock sync.RWMutex
 	uniqueID     map[string]utils.UniqueID
 
-	errs    *avlancheGoUtils.AtomicInterface
-	running *avlancheGoUtils.AtomicBool
-	config  *cfg.Config
+	errs   *avlancheGoUtils.AtomicInterface
+	config *cfg.Config
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
@@ -49,8 +48,6 @@ func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
-	replay.running = &avlancheGoUtils.AtomicBool{}
-	replay.running.SetValue(true)
 
 	// stop when you see messages after this time.
 	replayEndTime := time.Now().UTC().Add(time.Minute)
@@ -64,39 +61,45 @@ func (replay *replay) Start() error {
 		}
 	}
 
-	for replay.running.GetValue() {
+	timeLog := time.Now()
+
+	for {
 		waitGroupCnt := atomic.LoadInt64(waitGroup)
 
-		type CounterValues struct {
-			Read  uint64
-			Added uint64
-		}
-
-		ctot := make(map[string]*CounterValues)
-		countersValues := replay.counterRead.Clone()
-		for cnter := range countersValues {
-			if _, ok := ctot[cnter]; !ok {
-				ctot[cnter] = &CounterValues{}
+		if time.Now().Sub(timeLog).Seconds() > 30 {
+			type CounterValues struct {
+				Read  uint64
+				Added uint64
 			}
-			ctot[cnter].Read = countersValues[cnter]
-		}
-		countersValues = replay.counterAdded.Clone()
-		for cnter := range countersValues {
-			if _, ok := ctot[cnter]; !ok {
-				ctot[cnter] = &CounterValues{}
-			}
-			ctot[cnter].Added = countersValues[cnter]
-		}
 
-		for cnter := range ctot {
-			replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
+			ctot := make(map[string]*CounterValues)
+			countersValues := replay.counterRead.Clone()
+			for cnter := range countersValues {
+				if _, ok := ctot[cnter]; !ok {
+					ctot[cnter] = &CounterValues{}
+				}
+				ctot[cnter].Read = countersValues[cnter]
+			}
+			countersValues = replay.counterAdded.Clone()
+			for cnter := range countersValues {
+				if _, ok := ctot[cnter]; !ok {
+					ctot[cnter] = &CounterValues{}
+				}
+				ctot[cnter].Added = countersValues[cnter]
+			}
+
+			for cnter := range ctot {
+				replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
+			}
 		}
 
 		if waitGroupCnt == 0 {
 			break
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(time.Second)
+
+		timeLog = time.Now()
 	}
 
 	if replay.errs.GetValue() != nil {
@@ -140,7 +143,6 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	atomic.AddInt64(waitGroup, 1)
 	go func() {
 		defer atomic.AddInt64(waitGroup, -1)
-		defer replay.running.SetValue(false)
 		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 		reader := kafka.NewReader(kafka.ReaderConfig{
@@ -159,7 +161,12 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 			return
 		}
 
-		for replay.running.GetValue() {
+		for {
+			if replay.errs.GetValue() != nil {
+				replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+				return
+			}
+
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
 				replay.errs.SetValue(err)
@@ -225,7 +232,6 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	atomic.AddInt64(waitGroup, 1)
 	go func() {
 		defer atomic.AddInt64(waitGroup, -1)
-		defer replay.running.SetValue(false)
 		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
 
 		reader := kafka.NewReader(kafka.ReaderConfig{
@@ -238,7 +244,12 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 
 		ctx := context.Background()
 
-		for replay.running.GetValue() {
+		for {
+			if replay.errs.GetValue() != nil {
+				replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+				return
+			}
+
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
 				replay.errs.SetValue(err)
