@@ -89,7 +89,7 @@ func (replay *replay) Start() error {
 	}
 
 	if replay.errs.GetValue() != nil {
-		replay.config.Services.Log.Info("replay failed %w", replay.errs.GetValue().(error))
+		replay.config.Services.Log.Error("replay failed %w", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
