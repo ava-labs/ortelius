@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -53,9 +54,10 @@ func (replay *replay) Start() error {
 
 	// stop when you see messages after this time.
 	replayEndTime := time.Now().UTC().Add(time.Minute)
+	waitGroup := new(int64)
 
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID, replayEndTime)
+		err := replay.handleReader(chainID, replayEndTime, waitGroup)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
@@ -63,6 +65,11 @@ func (replay *replay) Start() error {
 	}
 
 	for replay.running.GetValue() {
+		waitGroupCnt := atomic.LoadInt64(waitGroup)
+		if waitGroupCnt == 0 {
+			break
+		}
+
 		type CounterValues struct {
 			Read  uint64
 			Added uint64
@@ -85,7 +92,7 @@ func (replay *replay) Start() error {
 		}
 
 		for cnter := range ctot {
-			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 
 		time.Sleep(5 * time.Second)
@@ -99,7 +106,7 @@ func (replay *replay) Start() error {
 	return nil
 }
 
-func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time) error {
+func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64) error {
 	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
 	if err != nil {
 		return err
@@ -129,7 +136,9 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time) err
 	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
 	replay.uniqueIDLock.Unlock()
 
+	atomic.AddInt64(waitGroup, 1)
 	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
 		defer replay.running.SetValue(false)
 		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
@@ -212,7 +221,9 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time) err
 		}
 	}()
 
+	atomic.AddInt64(waitGroup, 1)
 	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
 		defer replay.running.SetValue(false)
 		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
 
