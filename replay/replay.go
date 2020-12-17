@@ -94,7 +94,7 @@ func (replay *replay) Start() error {
 	for {
 		waitGroupCnt = atomic.LoadInt64(waitGroup)
 
-		if time.Now().Sub(timeLog).Seconds() > 30 {
+		if time.Since(timeLog).Seconds() > 30 {
 			timeLog = time.Now()
 			logemit(waitGroupCnt)
 		}
