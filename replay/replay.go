@@ -49,12 +49,13 @@ func (replay *replay) Start() error {
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
+	worker := utils.NewWorker(5000, 10, replay.workerProcessor())
 	// stop when you see messages after this time.
 	replayEndTime := time.Now().UTC().Add(time.Minute)
 	waitGroup := new(int64)
 
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID, replayEndTime, waitGroup)
+		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
@@ -85,22 +86,22 @@ func (replay *replay) Start() error {
 			ctot[cnter].Added = countersValues[cnter]
 		}
 
+		replay.config.Services.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
 		for cnter := range ctot {
-			replay.config.Services.Log.Info("wgc: %d, key:%s read:%d add:%d", waitGroupCnt, cnter, ctot[cnter].Read, ctot[cnter].Added)
+			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 	}
 
 	var waitGroupCnt int64
 	for {
 		waitGroupCnt = atomic.LoadInt64(waitGroup)
+		if waitGroupCnt == 0 && worker.JobCnt() == 0 {
+			break
+		}
 
 		if time.Since(timeLog).Seconds() > 30 {
 			timeLog = time.Now()
 			logemit(waitGroupCnt)
-		}
-
-		if waitGroupCnt == 0 {
-			break
 		}
 
 		time.Sleep(time.Second)
@@ -116,7 +117,13 @@ func (replay *replay) Start() error {
 	return nil
 }
 
-func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64) error {
+type WorkerPacket struct {
+	writer  services.Consumer
+	message services.Consumable
+	consume bool
+}
+
+func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
 	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
 	if err != nil {
 		return err
@@ -167,19 +174,31 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 			return
 		}
 
+		ctxDeadline := time.Now()
+
 		for {
 			if replay.errs.GetValue() != nil {
 				replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
 				return
 			}
 
-			msg, err := reader.ReadMessage(ctx)
+			if time.Since(ctxDeadline).Minutes() > 4 {
+				replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
+				return
+			}
+
+			msg, err := replay.readMessage(10*time.Second, reader)
 			if err != nil {
+				if err != context.DeadlineExceeded {
+					continue
+				}
 				replay.errs.SetValue(err)
 				return
 			}
 
-			if msg.Time.After(replayEndTime) {
+			ctxDeadline = time.Now()
+
+			if msg.Time.UTC().After(replayEndTime) {
 				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
 				return
 			}
@@ -212,18 +231,7 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 				msg.Time.UTC().Unix(),
 			)
 
-			var consumererr error
-			for icnt := 0; icnt < 100; icnt++ {
-				consumererr = writer.Consume(context.Background(), msgc)
-				if consumererr == nil {
-					break
-				}
-				time.Sleep(500 * time.Millisecond)
-			}
-			if consumererr != nil {
-				replay.errs.SetValue(err)
-				return
-			}
+			worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: true})
 
 			replay.uniqueIDLock.RLock()
 			err = replay.uniqueID[uidkeydecision].Put(id.String())
@@ -248,7 +256,7 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 			MaxBytes:    stream.ConsumerMaxBytesDefault,
 		})
 
-		ctx := context.Background()
+		ctxDeadline := time.Now()
 
 		for {
 			if replay.errs.GetValue() != nil {
@@ -256,13 +264,23 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 				return
 			}
 
-			msg, err := reader.ReadMessage(ctx)
+			if time.Since(ctxDeadline).Minutes() > 4 {
+				replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
+				return
+			}
+
+			msg, err := replay.readMessage(10*time.Second, reader)
 			if err != nil {
+				if err != context.DeadlineExceeded {
+					continue
+				}
 				replay.errs.SetValue(err)
 				return
 			}
 
-			if msg.Time.After(replayEndTime) {
+			ctxDeadline = time.Now()
+
+			if msg.Time.UTC().After(replayEndTime) {
 				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
 				return
 			}
@@ -295,18 +313,7 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 				msg.Time.UTC().Unix(),
 			)
 
-			var consumererr error
-			for icnt := 0; icnt < 100; icnt++ {
-				consumererr = writer.ConsumeConsensus(context.Background(), msgc)
-				if consumererr == nil {
-					break
-				}
-				time.Sleep(500 * time.Millisecond)
-			}
-			if consumererr != nil {
-				replay.errs.SetValue(err)
-				return
-			}
+			worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: false})
 
 			replay.uniqueIDLock.RLock()
 			err = replay.uniqueID[uidkeyconsensus].Put(id.String())
@@ -319,4 +326,46 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	}()
 
 	return nil
+}
+
+func (replay *replay) readMessage(duration time.Duration, reader *kafka.Reader) (kafka.Message, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), duration)
+	defer cancelFn()
+	return reader.ReadMessage(ctx)
+}
+
+func (replay *replay) workerProcessor() func(int, interface{}) {
+	return func(_ int, valuei interface{}) {
+		switch value := valuei.(type) {
+		case *WorkerPacket:
+			if value.consume {
+				var consumererr error
+				for icnt := 0; icnt < 100; icnt++ {
+					consumererr = value.writer.Consume(context.Background(), value.message)
+					if consumererr == nil {
+						break
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			} else {
+				var consumererr error
+				for icnt := 0; icnt < 100; icnt++ {
+					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message)
+					if consumererr == nil {
+						break
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			}
+		default:
+		}
+	}
 }
