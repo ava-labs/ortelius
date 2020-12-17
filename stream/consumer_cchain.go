@@ -131,7 +131,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), ProcessWriteTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 
 	if err = c.consumer.Consume(ctx, nmsg, &block.Header); err != nil {

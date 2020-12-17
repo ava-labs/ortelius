@@ -181,8 +181,15 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				msg.Time.UTC().Unix(),
 			)
 
-			err = writer.Consume(msgc)
-			if err != nil {
+			var consumererr error
+			for icnt := 0; icnt < 100; icnt++ {
+				consumererr = writer.Consume(context.Background(), msgc)
+				if consumererr == nil {
+					break
+				}
+				time.Sleep(500 * time.Millisecond)
+			}
+			if consumererr != nil {
 				replay.errs.SetValue(err)
 				return
 			}
@@ -246,8 +253,15 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 				msg.Time.UTC().Unix(),
 			)
 
-			err = writer.ConsumeConsensus(msgc)
-			if err != nil {
+			var consumererr error
+			for icnt := 0; icnt < 100; icnt++ {
+				consumererr = writer.ConsumeConsensus(context.Background(), msgc)
+				if consumererr == nil {
+					break
+				}
+				time.Sleep(500 * time.Millisecond)
+			}
+			if consumererr != nil {
 				replay.errs.SetValue(err)
 				return
 			}
