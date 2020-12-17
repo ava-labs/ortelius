@@ -64,11 +64,11 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) ConsumeConsensus( _ context.Context, c services.Consumable) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable) error {
 	return nil
 }
 
-func (w *Writer) Consume( ctx context.Context, c services.Consumable) error {
+func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
