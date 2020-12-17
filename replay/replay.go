@@ -51,8 +51,11 @@ func (replay *replay) Start() error {
 	replay.running = &avlancheGoUtils.AtomicBool{}
 	replay.running.SetValue(true)
 
+	// stop when you see messages after this time.
+	replayEndTime := time.Now().UTC().Add(time.Minute)
+
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID)
+		err := replay.handleReader(chainID, replayEndTime)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
@@ -96,7 +99,7 @@ func (replay *replay) Start() error {
 	return nil
 }
 
-func (replay *replay) handleReader(chain cfg.Chain) error {
+func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time) error {
 	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
 	if err != nil {
 		return err
@@ -150,6 +153,11 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
 				replay.errs.SetValue(err)
+				return
+			}
+
+			if msg.Time.After(replayEndTime) {
+				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
 				return
 			}
 
@@ -222,6 +230,11 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
 				replay.errs.SetValue(err)
+				return
+			}
+
+			if msg.Time.After(replayEndTime) {
+				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
 				return
 			}
 
