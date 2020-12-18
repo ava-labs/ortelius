@@ -138,7 +138,6 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 		From("avm_outputs").
 		Where("avm_outputs.output_type IN ? and avm_outputs.asset_id in ?", mintOutputs[:], assetIDs).
 		GroupBy("avm_outputs.asset_id", "avm_outputs.output_type").
-		Having("count(*) > 0").
 		LoadContext(ctx, &rows)
 	if err != nil {
 		return err
