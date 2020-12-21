@@ -129,16 +129,16 @@ type OutputList struct {
 }
 
 type CvmAddress struct {
-	ID              StringID   `json:"id"`
-	Idx             uint64     `json:"idx"`
 	Type            CChainType `json:"type"`
+	TransactionType CChainType `json:"transactionType"`
+	Idx             uint64     `json:"idx"`
+	Amount          uint64     `json:"amount"`
+	Nonce           uint64     `json:"nonce"`
+	ID              StringID   `json:"id"`
 	TransactionID   StringID   `json:"transactionID"`
 	Address         string     `json:"address"`
 	AssetID         StringID   `json:"assetID"`
-	Amount          uint64     `json:"amount"`
-	Nonce           uint64     `json:"nonce"`
 	CreatedAt       time.Time  `json:"timestamp"`
-	TransactionType CChainType `json:"transactionType"`
 	ChainID         StringID   `json:"chainID"`
 	Block           string     `json:"block"`
 }

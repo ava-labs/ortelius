@@ -989,16 +989,17 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 
 func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.CvmAddress, map[models.StringID][]models.CvmAddress, error) {
 	var cvmAddress []models.CvmAddress
-	_, err := dbRunner.Select("cvm_addresses.id",
+	_, err := dbRunner.Select(
 		"cvm_addresses.type",
+		"cvm_transactions.type as transaction_type",
 		"cvm_addresses.idx",
+		"cvm_addresses.amount",
+		"cvm_addresses.nonce",
+		"cvm_addresses.id",
 		"cvm_addresses.transaction_id",
 		"cvm_addresses.address",
 		"cvm_addresses.asset_id",
-		"cvm_addresses.amount",
-		"cvm_addresses.nonce",
 		"cvm_addresses.created_at as timestamp",
-		"cvm_transactions.type as transaction_type",
 		"cvm_transactions.blockchain_id as chain_id",
 		"cvm_transactions.block",
 	).
