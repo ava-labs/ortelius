@@ -360,7 +360,6 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 	}
 
 	for _, castTxOps := range tx.Ops {
-
 		var mint bool
 		switch typedOp := castTxOps.Op.(type) {
 		case *secp256k1fx.UpdateManagedAssetOperation:
@@ -370,7 +369,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		for _, out := range castTxOps.Op.Outs() {
 			switch typedOut := out.(type) {
 			case *secp256k1fx.ManagedAssetStatusOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.Manager), models.OutputTypesSECP2556K1Operation, 0, nil, 0, w.chainID, typedOut.Frozen, mint))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.Manager), models.OutputTypesManagedAsset, 0, nil, 0, w.chainID, typedOut.Frozen, mint))
 			case *nftfx.TransferOutput:
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID, false, mint))
 			case *nftfx.MintOutput:
@@ -429,7 +428,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		for _, out := range state.Outs {
 			switch typedOut := out.(type) {
 			case *secp256k1fx.ManagedAssetStatusOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.Manager), models.OutputTypesSECP2556K1Operation, 0, nil, 0, w.chainID, false, false))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.Manager), models.OutputTypesManagedAsset, 0, nil, 0, w.chainID, false, false))
 			case *nftfx.TransferOutput:
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID, false, false))
 			case *nftfx.MintOutput:

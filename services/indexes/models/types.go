@@ -4,11 +4,11 @@
 package models
 
 var (
-	OutputTypesSECP2556K1Transfer  OutputType = 7
-	OutputTypesSECP2556K1Mint      OutputType = 6
-	OutputTypesNFTMint             OutputType = 10
-	OutputTypesNFTTransfer         OutputType = 11
-	OutputTypesSECP2556K1Operation OutputType = 12
+	OutputTypesSECP2556K1Transfer OutputType = 7
+	OutputTypesSECP2556K1Mint     OutputType = 6
+	OutputTypesNFTMint            OutputType = 10
+	OutputTypesNFTTransfer        OutputType = 11
+	OutputTypesManagedAsset       OutputType = 12
 
 	BlockTypeProposal BlockType = 0x0
 	BlockTypeAbort    BlockType = 0x1
