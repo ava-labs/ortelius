@@ -142,3 +142,4 @@ type CvmAddress struct {
 	ChainID         StringID   `json:"chainID"`
 	Block           string     `json:"block"`
 }
+
