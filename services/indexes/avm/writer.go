@@ -369,7 +369,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		for _, out := range castTxOps.Op.Outs() {
 			switch typedOut := out.(type) {
 			case *secp256k1fx.ManagedAssetStatusOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.Manager), models.OutputTypesManagedAsset, 0, nil, 0, w.chainID, typedOut.Frozen, mint))
+				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.Manager), models.OutputTypesManagedAsset, 0, nil, 0, w.chainID, typedOut.Frozen, mint))
 			case *nftfx.TransferOutput:
 				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID, false, mint))
 			case *nftfx.MintOutput:
