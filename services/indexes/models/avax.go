@@ -35,8 +35,8 @@ type Transaction struct {
 
 	VertexID StringID `json:"vertexId"`
 
-	CvmIns  []CvmAddress
-	CvmOuts []CvmAddress
+	CIns  []CvmOutput `json:"cIns"`
+	COuts []CvmOutput `json:"cOuts"`
 
 	Score uint64 `json:"-"`
 }
@@ -128,7 +128,7 @@ type OutputList struct {
 	Outputs []*Output `json:"outputs"`
 }
 
-type CvmAddress struct {
+type CvmOutput struct {
 	Type            CChainType `json:"type"`
 	TransactionType CChainType `json:"transactionType"`
 	Idx             uint64     `json:"idx"`
