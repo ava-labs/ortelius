@@ -97,6 +97,8 @@ func (t OutputType) String() string {
 		return "nft_transfer"
 	case OutputTypesNFTMint:
 		return "nft_mint"
+	case OutputTypesManagedAsset:
+		return "managed_asset"
 	default:
 		return TypeUnknown
 	}
