@@ -874,11 +874,16 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 
-	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap)
+	cvmin, cvmout, error := r.collectCvmTransactions(ctx, dbRunner, txIDs)
+	if error != nil {
+		return error
+	}
+
+	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
 	return nil
 }
 
-func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel) {
+func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.CvmAddress, cvmouts map[models.StringID][]models.CvmAddress) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -909,6 +914,13 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 		if rewardsType, ok := rewardsTypesMap[tx.ID]; ok {
 			tx.Rewarded = rewardsType.Type == models.BlockTypeCommit
 			tx.RewardedTime = &rewardsType.CreatedAt
+		}
+
+		if cvmin, ok := cvmins[tx.ID]; ok {
+			tx.CvmIns = cvmin
+		}
+		if cvmout, ok := cvmouts[tx.ID]; ok {
+			tx.CvmOuts = cvmout
 		}
 	}
 }
@@ -973,6 +985,50 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	}
 
 	return outputs, nil
+}
+
+func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.CvmAddress, map[models.StringID][]models.CvmAddress, error) {
+	var cvmAddress []models.CvmAddress
+	_, err := dbRunner.Select("cvm_addresses.id",
+		"cvm_addresses.type",
+		"cvm_addresses.idx",
+		"cvm_addresses.transaction_id",
+		"cvm_addresses.address",
+		"cvm_addresses.asset_id",
+		"cvm_addresses.amount",
+		"cvm_addresses.nonce",
+		"cvm_addresses.created_at as timestamp",
+		"cvm_transactions.type as transaction_type",
+		"cvm_transactions.blockchain_id as chain_id",
+		"cvm_transactions.block",
+	).
+		From("cvm_addresses").
+		Join("cvm_transactions", "cvm_addresses.transaction_id=cvm_transactions.id").
+		Where("cvm_addresses.transaction_id IN ?", txIDs).
+		LoadContext(ctx, &cvmAddress)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ins := make(map[models.StringID][]models.CvmAddress)
+	outs := make(map[models.StringID][]models.CvmAddress)
+
+	for _, a := range cvmAddress {
+		if _, ok := ins[a.TransactionID]; !ok {
+			ins[a.TransactionID] = make([]models.CvmAddress, 0)
+		}
+		if _, ok := outs[a.TransactionID]; !ok {
+			outs[a.TransactionID] = make([]models.CvmAddress, 0)
+		}
+		switch a.Type {
+		case models.CChainIn:
+			ins[a.TransactionID] = append(ins[a.TransactionID], a)
+		case models.CchainOut:
+			outs[a.TransactionID] = append(outs[a.TransactionID], a)
+		}
+	}
+
+	return ins, outs, nil
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {

@@ -5,6 +5,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type Transaction struct {
@@ -34,6 +36,9 @@ type Transaction struct {
 	Epoch uint64 `json:"epoch"`
 
 	VertexID StringID `json:"vertexId"`
+
+	CvmIns  []CvmAddress
+	CvmOuts []CvmAddress
 
 	Score uint64 `json:"-"`
 }
@@ -123,4 +128,19 @@ type AddressChainInfo struct {
 type OutputList struct {
 	ListMetadata
 	Outputs []*Output `json:"outputs"`
+}
+
+type CvmAddress struct {
+	ID              StringID       `json:"id"`
+	Idx             uint64         `json:"idx"`
+	Type            CChainType     `json:"type"`
+	TransactionID   StringID       `json:"transactionID"`
+	Address         common.Address `json:"address"`
+	AssetID         StringID       `json:"assetID"`
+	Amount          uint64         `json:"amount"`
+	Nonce           uint64         `json:"nonce"`
+	CreatedAt       time.Time      `json:"timestamp"`
+	TransactionType CChainType     `json:"transactionType"`
+	ChainID         StringID       `json:"chainID"`
+	Block           string         `json:"block"`
 }
