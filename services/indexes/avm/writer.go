@@ -26,8 +26,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/utils/codec"
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/avm"
@@ -144,7 +144,7 @@ func (w *Writer) ConsumeConsensus(c services.Consumable) error {
 	serializer := &state.Serializer{}
 	serializer.Initialize(w.ctx, w.vm, noopdb)
 
-	vertex, err := serializer.ParseVertex(c.Body())
+	vertex, err := serializer.Parse(c.Body())
 	if err != nil {
 		return err
 	}
