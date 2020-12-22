@@ -635,7 +635,11 @@ func (r *Reader) ListOutputs(ctx context.Context, p *params.ListOutputsParams) (
 		if output == nil {
 			continue
 		}
-		output.Addresses = append(output.Addresses, address.Address)
+		baddr, err := address.Address.MarshalString()
+		if err != nil {
+			return nil, err
+		}
+		output.Addresses = append(output.Addresses, string(baddr))
 	}
 
 	var count *uint64
@@ -847,13 +851,17 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	// Collect the addresses into a list on each outpoint
 	var input *models.Input
 	for _, out := range outputs {
-		out.Addresses = make([]models.Address, 0, len(outputAddrs[out.ID]))
+		out.Addresses = make([]string, 0, len(outputAddrs[out.ID]))
 		for addr := range outputAddrs[out.ID] {
 			// mock in records have a blank address.  Drop them.
 			if len(addr) == 0 {
 				continue
 			}
-			out.Addresses = append(out.Addresses, addr)
+			baddr, err := addr.MarshalString()
+			if err != nil {
+				return err
+			}
+			out.Addresses = append(out.Addresses, string(baddr))
 		}
 
 		// If this Address didn't sign any txs then we're done
@@ -1054,8 +1062,7 @@ func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
 	case models.CChainImport:
 		o.OutputType = models.OutputTypesAtomicImportTx
 	}
-	o.Addresses = []models.Address{}
-	o.CAddress = a.Address
+	o.Addresses = []string{a.Address}
 	o.Nonce = a.Nonce
 	o.Block = a.Block
 	return o
