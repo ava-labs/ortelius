@@ -993,7 +993,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_addresses.type",
 		"cvm_transactions.type as transaction_type",
 		"cvm_addresses.idx",
-		"cvm_addresses.amount",
+		"cast(cvm_addresses.amount as char) as amount",
 		"cvm_addresses.nonce",
 		"cvm_addresses.id",
 		"cvm_addresses.transaction_id",
