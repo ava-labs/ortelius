@@ -1054,7 +1054,8 @@ func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
 	case models.CChainImport:
 		o.OutputType = models.OutputTypesAtomicImportTx
 	}
-	o.Addresses = []models.Address{models.Address(a.Address)}
+	o.Addresses = []models.Address{}
+	o.CAddress = a.Address
 	o.Nonce = a.Nonce
 	o.Block = a.Block
 	return o

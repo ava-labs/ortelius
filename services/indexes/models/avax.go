@@ -61,6 +61,7 @@ type Output struct {
 	Payload                []byte      `json:"payload"`
 	Nonce                  uint64      `json:"nonce"`
 	Block                  string      `json:"block"`
+	CAddress               string      `json:"caddress"`
 	Score                  uint64      `json:"-"`
 }
 
