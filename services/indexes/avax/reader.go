@@ -44,6 +44,8 @@ var (
 		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
 		"avm_outputs.group_id",
 		"avm_outputs.payload",
+		"avm_outputs.frozen",
+		"avm_outputs.mint",
 	}
 )
 
@@ -965,6 +967,8 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.public_key",
 		"union_q.chain_id",
 		"union_q.payload",
+		"union_q.frozen",
+		"union_q.mint",
 	).
 		From(su).
 		LoadContext(ctx, &outputs)
@@ -1149,6 +1153,8 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
+		"avm_outputs.frozen",
+		"avm_outputs.mint",
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
@@ -1176,6 +1182,8 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs_redeeming.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
+		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
+		"case when avm_outputs.mint is null then 0 else avm_outputs.mint end as mint",
 	).
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").

@@ -262,6 +262,8 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("payload", payload).
 		Pair("stake_locktime", stakeLocktime).
 		Pair("created_at", ctx.Time()).
+		Pair("frozen", frozen).
+		Pair("mint", mint).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		errs.Add(w.stream.EventErr("avm_outputs.insert", err))
@@ -280,6 +282,8 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 			Set("group_id", groupID).
 			Set("payload", payload).
 			Set("stake_locktime", stakeLocktime).
+			Set("frozen", frozen).
+			Set("mint", mint).
 			Where("id = ?", outputID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
