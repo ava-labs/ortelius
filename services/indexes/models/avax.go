@@ -35,9 +35,6 @@ type Transaction struct {
 
 	VertexID StringID `json:"vertexId"`
 
-	CIns  []CvmOutput `json:"cIns"`
-	COuts []CvmOutput `json:"cOuts"`
-
 	Score uint64 `json:"-"`
 }
 
@@ -62,8 +59,9 @@ type Output struct {
 	ChainID                StringID    `json:"chainID"`
 	GroupID                uint64      `json:"groupID"`
 	Payload                []byte      `json:"payload"`
-
-	Score uint64 `json:"-"`
+	Nonce                  uint64      `json:"nonce"`
+	Block                  string      `json:"block"`
+	Score                  uint64      `json:"-"`
 }
 
 type InputCredentials struct {

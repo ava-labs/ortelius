@@ -16,6 +16,9 @@ var (
 	OutputTypesNFTMint            OutputType = 10
 	OutputTypesNFTTransfer        OutputType = 11
 
+	OutputTypesAtomicExportTx OutputType = 0xFFFFFFF1
+	OutputTypesAtomicImportTx OutputType = 0xFFFFFFF2
+
 	BlockTypeProposal BlockType = 0x0
 	BlockTypeAbort    BlockType = 0x1
 	BlockTypeCommit   BlockType = 0x2
@@ -103,6 +106,10 @@ func (t OutputType) String() string {
 		return "nft_transfer"
 	case OutputTypesNFTMint:
 		return "nft_mint"
+	case OutputTypesAtomicExportTx:
+		return "atomic_export"
+	case OutputTypesAtomicImportTx:
+		return "atomic_import"
 	default:
 		return TypeUnknown
 	}

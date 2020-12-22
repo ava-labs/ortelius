@@ -883,7 +883,7 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 	return nil
 }
 
-func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.CvmOutput, cvmouts map[models.StringID][]models.CvmOutput) {
+func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.Output, cvmouts map[models.StringID][]models.Output) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -894,10 +894,24 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 				tx.Inputs = append(tx.Inputs, input)
 			}
 		}
+		if inputs, ok := cvmins[tx.ID]; ok {
+			for _, input := range inputs {
+				var i models.Input
+				var o models.Output = input
+				i.Output = &o
+				tx.Inputs = append(tx.Inputs, &i)
+			}
+		}
 
 		if outputs, ok := outputsMap[tx.ID]; ok {
 			for _, output := range outputs {
 				tx.Outputs = append(tx.Outputs, output)
+			}
+		}
+		if outputs, ok := cvmouts[tx.ID]; ok {
+			for _, output := range outputs {
+				var o models.Output = output
+				tx.Outputs = append(tx.Outputs, &o)
 			}
 		}
 
@@ -914,13 +928,6 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 		if rewardsType, ok := rewardsTypesMap[tx.ID]; ok {
 			tx.Rewarded = rewardsType.Type == models.BlockTypeCommit
 			tx.RewardedTime = &rewardsType.CreatedAt
-		}
-
-		if cvmin, ok := cvmins[tx.ID]; ok {
-			tx.CIns = cvmin
-		}
-		if cvmout, ok := cvmouts[tx.ID]; ok {
-			tx.COuts = cvmout
 		}
 	}
 }
@@ -987,7 +994,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	return outputs, nil
 }
 
-func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.CvmOutput, map[models.StringID][]models.CvmOutput, error) {
+func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
 	var cvmAddress []models.CvmOutput
 	_, err := dbRunner.Select(
 		"cvm_addresses.type",
@@ -1011,25 +1018,46 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		return nil, nil, err
 	}
 
-	ins := make(map[models.StringID][]models.CvmOutput)
-	outs := make(map[models.StringID][]models.CvmOutput)
+	ins := make(map[models.StringID][]models.Output)
+	outs := make(map[models.StringID][]models.Output)
 
 	for _, a := range cvmAddress {
 		if _, ok := ins[a.TransactionID]; !ok {
-			ins[a.TransactionID] = make([]models.CvmOutput, 0)
+			ins[a.TransactionID] = make([]models.Output, 0)
 		}
 		if _, ok := outs[a.TransactionID]; !ok {
-			outs[a.TransactionID] = make([]models.CvmOutput, 0)
+			outs[a.TransactionID] = make([]models.Output, 0)
 		}
 		switch a.Type {
 		case models.CChainIn:
-			ins[a.TransactionID] = append(ins[a.TransactionID], a)
+			ins[a.TransactionID] = append(ins[a.TransactionID], r.mapOutput(a))
 		case models.CchainOut:
-			outs[a.TransactionID] = append(outs[a.TransactionID], a)
+			outs[a.TransactionID] = append(outs[a.TransactionID], r.mapOutput(a))
 		}
 	}
 
 	return ins, outs, nil
+}
+
+func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
+	var o models.Output
+	o.TransactionID = a.TransactionID
+	o.ID = a.ID
+	o.OutputIndex = a.Idx
+	o.AssetID = a.AssetID
+	o.Amount = models.TokenAmount(fmt.Sprintf("%d", a.Amount))
+	o.ChainID = a.ChainID
+	o.CreatedAt = a.CreatedAt
+	switch a.TransactionType {
+	case models.CChainExport:
+		o.OutputType = models.OutputTypesAtomicExportTx
+	case models.CChainImport:
+		o.OutputType = models.OutputTypesAtomicImportTx
+	}
+	o.Addresses = []models.Address{models.Address(a.Address)}
+	o.Nonce = a.Nonce
+	o.Block = a.Block
+	return o
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
