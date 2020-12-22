@@ -15,9 +15,8 @@ var (
 	OutputTypesSECP2556K1Mint     OutputType = 6
 	OutputTypesNFTMint            OutputType = 10
 	OutputTypesNFTTransfer        OutputType = 11
-
-	OutputTypesAtomicExportTx OutputType = 0xFFFFFFF1
-	OutputTypesAtomicImportTx OutputType = 0xFFFFFFF2
+	OutputTypesAtomicExportTx     OutputType = 0xFFFFFFF1
+	OutputTypesAtomicImportTx     OutputType = 0xFFFFFFF2
 
 	BlockTypeProposal BlockType = 0x0
 	BlockTypeAbort    BlockType = 0x1
