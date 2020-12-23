@@ -276,18 +276,11 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
 
-			// ctxDeadline := time.Now()
-
 			for {
 				if replay.errs.GetValue() != nil {
 					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
 					return
 				}
-
-				// if time.Since(ctxDeadline).Minutes() > 4 {
-				// 	replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
-				// 	return
-				// }
 
 				msg, err := replay.readMessage(10*time.Second, reader)
 				if err != nil {
@@ -297,8 +290,6 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 					replay.errs.SetValue(err)
 					return
 				}
-
-				// ctxDeadline = time.Now()
 
 				if msg.Time.UTC().After(replayEndTime) {
 					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
@@ -372,18 +363,11 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				return
 			}
 
-			// ctxDeadline := time.Now()
-
 			for {
 				if replay.errs.GetValue() != nil {
 					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
 					return
 				}
-
-				// if time.Since(ctxDeadline).Minutes() > 4 {
-				// 	replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
-				// 	return
-				// }
 
 				msg, err := replay.readMessage(10*time.Second, reader)
 				if err != nil {
@@ -393,8 +377,6 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 					replay.errs.SetValue(err)
 					return
 				}
-
-				// ctxDeadline = time.Now()
 
 				if msg.Time.UTC().After(replayEndTime) {
 					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
