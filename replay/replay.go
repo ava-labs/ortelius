@@ -251,7 +251,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 	for part := range parts {
 		partOffset := parts[part]
 
-		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", part, partOffset, tn)
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
@@ -260,7 +260,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
-				Partition:   part,
+				Partition:   partOffset.Partition,
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
@@ -339,7 +339,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 	for part := range parts {
 		partOffset := parts[part]
 
-		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", part, partOffset, tn)
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
@@ -348,7 +348,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
-				Partition:   part,
+				Partition:   partOffset.Partition,
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
