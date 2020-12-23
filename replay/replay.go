@@ -185,10 +185,8 @@ func (replay *replay) isPresent(uidkey string, id string) (bool, error) {
 	replay.uniqueIDLock.Lock()
 	present, err = replay.uniqueID[uidkey].Get(id)
 	if err == nil && !present {
+		present = false
 		err = replay.uniqueID[uidkey].Put(id)
-		if err == nil {
-			present = true
-		}
 	}
 	replay.uniqueIDLock.Unlock()
 	if err != nil {
@@ -280,7 +278,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 
 				msg, err := replay.readMessage(10*time.Second, reader)
 				if err != nil {
-					if err != context.DeadlineExceeded {
+					if err == context.DeadlineExceeded {
 						continue
 					}
 					replay.errs.SetValue(err)
