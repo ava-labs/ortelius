@@ -27,11 +27,13 @@ type Replay interface {
 	Start() error
 }
 
-func New(config *cfg.Config) Replay {
+func New(config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
 	return &replay{config: config,
 		counterRead:  utils.NewCounterID(),
 		counterAdded: utils.NewCounterID(),
 		uniqueID:     make(map[string]utils.UniqueID),
+		queueSize:    replayqueuesize,
+		queueTheads:  replayqueuethreads,
 	}
 }
 
@@ -44,6 +46,8 @@ type replay struct {
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
+	queueSize    int
+	queueTheads  int
 }
 
 func (replay *replay) Start() error {
@@ -51,7 +55,7 @@ func (replay *replay) Start() error {
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
-	worker := utils.NewWorker(5000, 10, replay.workerProcessor())
+	worker := utils.NewWorker(replay.queueSize, replay.queueTheads, replay.workerProcessor())
 	// stop when you see messages after this time.
 	replayEndTime := time.Now().UTC().Add(time.Minute)
 	waitGroup := new(int64)
