@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -153,179 +154,47 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
 	replay.uniqueIDLock.Unlock()
 
-	atomic.AddInt64(waitGroup, 1)
-	go func() {
-		defer atomic.AddInt64(waitGroup, -1)
-		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	addr, err := net.ResolveTCPAddr("tcp", replay.config.Kafka.Brokers[0])
+	if err != nil {
+		return err
+	}
 
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Topic:       tn,
-			Brokers:     replay.config.Kafka.Brokers,
-			GroupID:     replay.config.Consumer.GroupName,
-			StartOffset: kafka.FirstOffset,
-			MaxBytes:    stream.ConsumerMaxBytesDefault,
-		})
-
-		ctx := context.Background()
-
-		err := writer.Bootstrap(ctx)
-		if err != nil {
-			replay.errs.SetValue(err)
-			return
-		}
-
-		ctxDeadline := time.Now()
-
-		for {
-			if replay.errs.GetValue() != nil {
-				replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
-				return
-			}
-
-			if time.Since(ctxDeadline).Minutes() > 4 {
-				replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
-				return
-			}
-
-			msg, err := replay.readMessage(10*time.Second, reader)
-			if err != nil {
-				if err != context.DeadlineExceeded {
-					continue
-				}
-				replay.errs.SetValue(err)
-				return
-			}
-
-			ctxDeadline = time.Now()
-
-			if msg.Time.UTC().After(replayEndTime) {
-				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
-				return
-			}
-
-			replay.counterRead.Inc(tn)
-
-			id, err := ids.ToID(msg.Key)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.uniqueIDLock.RLock()
-			present, err := replay.uniqueID[uidkeydecision].Get(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-			if present {
-				continue
-			}
-
-			replay.counterAdded.Inc(tn)
-
-			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
-				msg.Value,
-				msg.Time.UTC().Unix(),
-			)
-
-			worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: true})
-
-			replay.uniqueIDLock.RLock()
-			err = replay.uniqueID[uidkeydecision].Put(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-		}
-	}()
-
-	atomic.AddInt64(waitGroup, 1)
-	go func() {
-		defer atomic.AddInt64(waitGroup, -1)
-		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
-
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Topic:       tn,
-			Brokers:     replay.config.Kafka.Brokers,
-			GroupID:     replay.config.Consumer.GroupName,
-			StartOffset: kafka.FirstOffset,
-			MaxBytes:    stream.ConsumerMaxBytesDefault,
-		})
-
-		ctxDeadline := time.Now()
-
-		for {
-			if replay.errs.GetValue() != nil {
-				replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
-				return
-			}
-
-			if time.Since(ctxDeadline).Minutes() > 4 {
-				replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
-				return
-			}
-
-			msg, err := replay.readMessage(10*time.Second, reader)
-			if err != nil {
-				if err != context.DeadlineExceeded {
-					continue
-				}
-				replay.errs.SetValue(err)
-				return
-			}
-
-			ctxDeadline = time.Now()
-
-			if msg.Time.UTC().After(replayEndTime) {
-				replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
-				return
-			}
-
-			replay.counterRead.Inc(tn)
-
-			id, err := ids.ToID(msg.Key)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.uniqueIDLock.RLock()
-			present, err := replay.uniqueID[uidkeyconsensus].Get(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-			if present {
-				continue
-			}
-
-			replay.counterAdded.Inc(tn)
-
-			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
-				msg.Value,
-				msg.Time.UTC().Unix(),
-			)
-
-			worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: false})
-
-			replay.uniqueIDLock.RLock()
-			err = replay.uniqueID[uidkeyconsensus].Put(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-		}
-	}()
+	err = replay.startDecision(addr, chain, replayEndTime, waitGroup, worker, writer, uidkeydecision)
+	if err != nil {
+		return err
+	}
+	err = replay.startConsensus(addr, chain, replayEndTime, waitGroup, worker, writer, uidkeyconsensus)
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (replay *replay) isPresent(uidkey string, id string) (bool, error) {
+	replay.uniqueIDLock.RLock()
+	present, err := replay.uniqueID[uidkey].Get(id)
+	replay.uniqueIDLock.RUnlock()
+	if err != nil {
+		return false, err
+	}
+	if present {
+		return present, nil
+	}
+
+	replay.uniqueIDLock.Lock()
+	present, err = replay.uniqueID[uidkey].Get(id)
+	if err == nil && !present {
+		err = replay.uniqueID[uidkey].Put(id)
+		if err == nil {
+			present = true
+		}
+	}
+	replay.uniqueIDLock.Unlock()
+	if err != nil {
+		return false, err
+	}
+	return present, nil
 }
 
 func (replay *replay) readMessage(duration time.Duration, reader *kafka.Reader) (kafka.Message, error) {
@@ -368,4 +237,189 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 		default:
 		}
 	}
+}
+
+func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
+	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+
+	parts, err := tu.Partitions(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for part := range parts {
+		partOffset := parts[part]
+
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", part, partOffset, tn)
+
+		atomic.AddInt64(waitGroup, 1)
+		go func() {
+			defer atomic.AddInt64(waitGroup, -1)
+
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Topic:       tn,
+				Brokers:     replay.config.Kafka.Brokers,
+				Partition:   part,
+				StartOffset: partOffset.FirstOffset,
+				MaxBytes:    stream.ConsumerMaxBytesDefault,
+			})
+
+			// ctxDeadline := time.Now()
+
+			for {
+				if replay.errs.GetValue() != nil {
+					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					return
+				}
+
+				// if time.Since(ctxDeadline).Minutes() > 4 {
+				// 	replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
+				// 	return
+				// }
+
+				msg, err := replay.readMessage(10*time.Second, reader)
+				if err != nil {
+					if err != context.DeadlineExceeded {
+						continue
+					}
+					replay.errs.SetValue(err)
+					return
+				}
+
+				// ctxDeadline = time.Now()
+
+				if msg.Time.UTC().After(replayEndTime) {
+					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					return
+				}
+
+				replay.counterRead.Inc(tn)
+
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				present, err := replay.isPresent(uidkey, id.String())
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+				if present {
+					continue
+				}
+
+				replay.counterAdded.Inc(tn)
+
+				msgc := stream.NewMessage(
+					id.String(),
+					chain.ID,
+					msg.Value,
+					msg.Time.UTC().Unix(),
+				)
+
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: false})
+			}
+		}()
+	}
+	return nil
+}
+
+func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+
+	parts, err := tu.Partitions(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for part := range parts {
+		partOffset := parts[part]
+
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", part, partOffset, tn)
+
+		atomic.AddInt64(waitGroup, 1)
+		go func() {
+			defer atomic.AddInt64(waitGroup, -1)
+
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Topic:       tn,
+				Brokers:     replay.config.Kafka.Brokers,
+				Partition:   part,
+				StartOffset: partOffset.FirstOffset,
+				MaxBytes:    stream.ConsumerMaxBytesDefault,
+			})
+
+			ctx := context.Background()
+
+			err := writer.Bootstrap(ctx)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			// ctxDeadline := time.Now()
+
+			for {
+				if replay.errs.GetValue() != nil {
+					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					return
+				}
+
+				// if time.Since(ctxDeadline).Minutes() > 4 {
+				// 	replay.config.Services.Log.Info("replay for topic %s stopped ctx deadline", tn)
+				// 	return
+				// }
+
+				msg, err := replay.readMessage(10*time.Second, reader)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						continue
+					}
+					replay.errs.SetValue(err)
+					return
+				}
+
+				// ctxDeadline = time.Now()
+
+				if msg.Time.UTC().After(replayEndTime) {
+					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					return
+				}
+
+				replay.counterRead.Inc(tn)
+
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				present, err := replay.isPresent(uidkey, id.String())
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+				if present {
+					continue
+				}
+
+				replay.counterAdded.Inc(tn)
+
+				msgc := stream.NewMessage(
+					id.String(),
+					chain.ID,
+					msg.Value,
+					msg.Time.UTC().Unix(),
+				)
+
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: true})
+			}
+		}()
+	}
+
+	return nil
 }
