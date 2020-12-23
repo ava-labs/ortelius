@@ -89,13 +89,13 @@ func (tu *topicUtil) Consume(brokers []string, offset int64, maxBytes int, readT
 	wg := sync.WaitGroup{}
 	for ipos := 0; ipos < len(partitions); ipos++ {
 		wg.Add(1)
-		go func() {
+		go func(partition int) {
 			defer wg.Done()
 
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tu.topicName,
 				Brokers:     brokers,
-				Partition:   ipos,
+				Partition:   partition,
 				StartOffset: offset,
 				MaxBytes:    maxBytes,
 			})
@@ -126,7 +126,7 @@ func (tu *topicUtil) Consume(brokers []string, offset int64, maxBytes int, readT
 					}
 				}
 			}
-		}()
+		}(ipos)
 	}
 
 	wg.Wait()
