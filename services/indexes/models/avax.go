@@ -53,7 +53,8 @@ type Output struct {
 	Locktime               uint64      `json:"locktime"`
 	StakeLocktime          uint64      `json:"stakeLocktime"`
 	Threshold              uint64      `json:"threshold"`
-	Addresses              []string    `json:"addresses"`
+	Addresses              []Address   `json:"addresses"`
+	CAddresses             []string    `json:"caddresses"`
 	CreatedAt              time.Time   `json:"timestamp"`
 	RedeemingTransactionID StringID    `json:"redeemingTransactionID"`
 	ChainID                StringID    `json:"chainID"`
