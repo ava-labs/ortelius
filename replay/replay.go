@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -207,10 +208,14 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 		case *WorkerPacket:
 			if value.consume {
 				var consumererr error
-				for icnt := 0; icnt < 100; icnt++ {
+				icnt := 0
+				for ; icnt < 100; icnt++ {
 					consumererr = value.writer.Consume(context.Background(), value.message)
 					if consumererr == nil {
 						break
+					}
+					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)
 				}
@@ -220,10 +225,14 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			} else {
 				var consumererr error
-				for icnt := 0; icnt < 100; icnt++ {
+				icnt := 0
+				for ; icnt < 100; icnt++ {
 					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message)
 					if consumererr == nil {
 						break
+					}
+					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)
 				}
