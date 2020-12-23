@@ -105,9 +105,9 @@ func execute() error {
 	)
 
 	// Add flags and commands
-	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "")
-	cmd.PersistentFlags().IntVarP(replayqueuesize, "replayqueuesize", "", defaultReplayQueueSize, "")
-	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, "")
+	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "config file")
+	cmd.PersistentFlags().IntVarP(replayqueuesize, "replayqueuesize", "", defaultReplayQueueSize, fmt.Sprintf("replay queue size default %d", defaultReplayQueueSize))
+	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, fmt.Sprintf("replay queue size threads default %d", defaultReplayQueueThreads))
 
 	cmd.AddCommand(
 		createReplayCmds(config, &runErr, replayqueuesize, replayqueuethreads),
