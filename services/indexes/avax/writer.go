@@ -291,7 +291,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		errs.Add(w.InsertOutputAddress(ctx, outputID, ids.NewShortID(addrBytes), nil))
+		errs.Add(w.InsertOutputAddress(ctx, outputID, ids.ShortID(addrBytes), nil))
 	}
 	return errs.Err
 }
