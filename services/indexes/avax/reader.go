@@ -874,9 +874,9 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 
-	cvmin, cvmout, error := r.collectCvmTransactions(ctx, dbRunner, txIDs)
-	if error != nil {
-		return error
+	cvmin, cvmout, err := r.collectCvmTransactions(ctx, dbRunner, txIDs)
+	if err != nil {
+		return err
 	}
 
 	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
