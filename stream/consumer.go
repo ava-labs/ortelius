@@ -150,7 +150,8 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	for icnt := 0; icnt < 100; icnt++ {
+	icnt := 0
+	for ; icnt < 100; icnt++ {
 		err = c.persistConsume(msg)
 		if err == nil {
 			break
