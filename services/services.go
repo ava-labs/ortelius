@@ -19,8 +19,8 @@ type Consumable interface {
 type Consumer interface {
 	Name() string
 	Bootstrap(context.Context) error
-	Consume(Consumable) error
-	ConsumeConsensus(Consumable) error
+	Consume(context.Context, Consumable) error
+	ConsumeConsensus(context.Context, Consumable) error
 }
 
 // ConsumerCtx
