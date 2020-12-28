@@ -60,8 +60,8 @@ type Output struct {
 	ChainID                StringID    `json:"chainID"`
 	GroupID                uint64      `json:"groupID"`
 	Payload                []byte      `json:"payload"`
-	Nonce                  uint64      `json:"nonce"`
 	Block                  string      `json:"block"`
+	Nonce                  uint64      `json:"nonce"`
 	Score                  uint64      `json:"-"`
 }
 
