@@ -6,7 +6,10 @@ package stream
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/ortelius/services/metrics"
 
@@ -147,14 +150,25 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-	defer cancelFn()
-	if err = c.consumer.Consume(ctx, msg); err != nil {
+	for {
+		err = c.persistConsume(msg)
+		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
+}
+
+func (c *consumer) persistConsume(msg *Message) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.Consume(ctx, msg)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {

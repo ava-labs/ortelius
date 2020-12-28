@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/db"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -210,16 +212,12 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 	return func(_ int, valuei interface{}) {
 		switch value := valuei.(type) {
 		case *WorkerPacket:
+			var consumererr error
 			if value.consume {
-				var consumererr error
-				icnt := 0
-				for ; icnt < 100; icnt++ {
+				for {
 					consumererr = value.writer.Consume(context.Background(), value.message)
-					if consumererr == nil {
+					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
-					}
-					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
-						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)
 				}
@@ -228,15 +226,10 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					return
 				}
 			} else {
-				var consumererr error
-				icnt := 0
-				for ; icnt < 100; icnt++ {
+				for {
 					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message)
-					if consumererr == nil {
+					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
-					}
-					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
-						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)
 				}

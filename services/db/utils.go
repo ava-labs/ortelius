@@ -13,6 +13,8 @@ import (
 
 const (
 	RemovedPassword = "[removed]"
+
+	DeadlockDBErrorMessage = "Deadlock found when trying to get lock; try restarting transaction"
 )
 
 func SanitizedDSN(cfg *cfg.DB) (string, string, error) {
