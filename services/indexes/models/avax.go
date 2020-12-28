@@ -49,6 +49,7 @@ type Output struct {
 	OutputIndex            uint64      `json:"outputIndex"`
 	AssetID                StringID    `json:"assetID"`
 	OutputType             OutputType  `json:"outputType"`
+	Frozen                 uint8       `json:"frozen"`
 	Amount                 TokenAmount `json:"amount"`
 	Locktime               uint64      `json:"locktime"`
 	StakeLocktime          uint64      `json:"stakeLocktime"`
@@ -62,7 +63,6 @@ type Output struct {
 	Payload                []byte      `json:"payload"`
 	Block                  string      `json:"block"`
 	Nonce                  uint64      `json:"nonce"`
-	Frozen                 uint8       `json:"frozen"`
 	Score                  uint64      `json:"-"`
 }
 
