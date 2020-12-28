@@ -7,6 +7,9 @@ const (
 	RequestTimeout   = 10 * time.Second
 	HTTPWriteTimeout = 20 * time.Second
 	CacheTimeout     = 3 * time.Second
+
+	// DefaultConsumeProcessWriteTimeout consume context
+	DefaultConsumeProcessWriteTimeout = 10 * time.Second
 )
 
 // PerformUpdates controls for performing sql update operations.  Disabled by normal operation.

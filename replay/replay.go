@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -24,11 +27,13 @@ type Replay interface {
 	Start() error
 }
 
-func New(config *cfg.Config) Replay {
+func New(config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
 	return &replay{config: config,
 		counterRead:  utils.NewCounterID(),
 		counterAdded: utils.NewCounterID(),
 		uniqueID:     make(map[string]utils.UniqueID),
+		queueSize:    replayqueuesize,
+		queueTheads:  replayqueuethreads,
 	}
 }
 
@@ -36,30 +41,36 @@ type replay struct {
 	uniqueIDLock sync.RWMutex
 	uniqueID     map[string]utils.UniqueID
 
-	errs    *avlancheGoUtils.AtomicInterface
-	running *avlancheGoUtils.AtomicBool
-	config  *cfg.Config
+	errs   *avlancheGoUtils.AtomicInterface
+	config *cfg.Config
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
+	queueSize    int
+	queueTheads  int
 }
 
 func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
-	replay.running = &avlancheGoUtils.AtomicBool{}
-	replay.running.SetValue(true)
+
+	worker := utils.NewWorker(replay.queueSize, replay.queueTheads, replay.workerProcessor())
+	// stop when you see messages after this time.
+	replayEndTime := time.Now().UTC().Add(time.Minute)
+	waitGroup := new(int64)
 
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID)
+		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
 		}
 	}
 
-	for replay.running.GetValue() {
+	timeLog := time.Now()
+
+	logemit := func(waitGroupCnt int64) {
 		type CounterValues struct {
 			Read  uint64
 			Added uint64
@@ -81,22 +92,44 @@ func (replay *replay) Start() error {
 			ctot[cnter].Added = countersValues[cnter]
 		}
 
+		replay.config.Services.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
 		for cnter := range ctot {
 			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
-
-		time.Sleep(5 * time.Second)
 	}
 
+	var waitGroupCnt int64
+	for {
+		waitGroupCnt = atomic.LoadInt64(waitGroup)
+		if waitGroupCnt == 0 && worker.JobCnt() == 0 {
+			break
+		}
+
+		if time.Since(timeLog).Seconds() > 30 {
+			timeLog = time.Now()
+			logemit(waitGroupCnt)
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	logemit(waitGroupCnt)
+
 	if replay.errs.GetValue() != nil {
-		replay.config.Services.Log.Info("replay failed %w", replay.errs.GetValue().(error))
+		replay.config.Services.Log.Error("replay failed %w", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
 	return nil
 }
 
-func (replay *replay) handleReader(chain cfg.Chain) error {
+type WorkerPacket struct {
+	writer  services.Consumer
+	message services.Consumable
+	consume bool
+}
+
+func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
 	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
 	if err != nil {
 		return err
@@ -126,141 +159,260 @@ func (replay *replay) handleReader(chain cfg.Chain) error {
 	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
 	replay.uniqueIDLock.Unlock()
 
-	go func() {
-		defer replay.running.SetValue(false)
-		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	addr, err := net.ResolveTCPAddr("tcp", replay.config.Kafka.Brokers[0])
+	if err != nil {
+		return err
+	}
 
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Topic:       tn,
-			Brokers:     replay.config.Kafka.Brokers,
-			GroupID:     replay.config.Consumer.GroupName,
-			StartOffset: kafka.FirstOffset,
-			MaxBytes:    stream.ConsumerMaxBytesDefault,
-		})
+	err = replay.startDecision(addr, chain, replayEndTime, waitGroup, worker, writer, uidkeydecision)
+	if err != nil {
+		return err
+	}
+	err = replay.startConsensus(addr, chain, replayEndTime, waitGroup, worker, writer, uidkeyconsensus)
+	if err != nil {
+		return err
+	}
 
-		ctx := context.Background()
+	return nil
+}
 
-		err := writer.Bootstrap(ctx)
-		if err != nil {
-			replay.errs.SetValue(err)
-			return
+func (replay *replay) isPresent(uidkey string, id string) (bool, error) {
+	replay.uniqueIDLock.RLock()
+	present, err := replay.uniqueID[uidkey].Get(id)
+	replay.uniqueIDLock.RUnlock()
+	if err != nil {
+		return false, err
+	}
+	if present {
+		return present, nil
+	}
+
+	replay.uniqueIDLock.Lock()
+	present, err = replay.uniqueID[uidkey].Get(id)
+	if err == nil && !present {
+		present = false
+		err = replay.uniqueID[uidkey].Put(id)
+	}
+	replay.uniqueIDLock.Unlock()
+	if err != nil {
+		return false, err
+	}
+	return present, nil
+}
+
+func (replay *replay) readMessage(duration time.Duration, reader *kafka.Reader) (kafka.Message, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), duration)
+	defer cancelFn()
+	return reader.ReadMessage(ctx)
+}
+
+func (replay *replay) workerProcessor() func(int, interface{}) {
+	return func(_ int, valuei interface{}) {
+		switch value := valuei.(type) {
+		case *WorkerPacket:
+			if value.consume {
+				var consumererr error
+				icnt := 0
+				for ; icnt < 100; icnt++ {
+					consumererr = value.writer.Consume(context.Background(), value.message)
+					if consumererr == nil {
+						break
+					}
+					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+						icnt = 0
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			} else {
+				var consumererr error
+				icnt := 0
+				for ; icnt < 100; icnt++ {
+					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message)
+					if consumererr == nil {
+						break
+					}
+					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+						icnt = 0
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			}
+		default:
 		}
+	}
+}
 
-		for replay.running.GetValue() {
-			msg, err := reader.ReadMessage(ctx)
+func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
+	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+
+	parts, err := tu.Partitions(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for part := range parts {
+		partOffset := parts[part]
+
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+
+		atomic.AddInt64(waitGroup, 1)
+		go func() {
+			defer atomic.AddInt64(waitGroup, -1)
+
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Topic:       tn,
+				Brokers:     replay.config.Kafka.Brokers,
+				Partition:   partOffset.Partition,
+				StartOffset: partOffset.FirstOffset,
+				MaxBytes:    stream.ConsumerMaxBytesDefault,
+			})
+
+			for {
+				if replay.errs.GetValue() != nil {
+					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					return
+				}
+
+				msg, err := replay.readMessage(10*time.Second, reader)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						continue
+					}
+					replay.errs.SetValue(err)
+					return
+				}
+
+				if msg.Time.UTC().After(replayEndTime) {
+					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					return
+				}
+
+				replay.counterRead.Inc(tn)
+
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				present, err := replay.isPresent(uidkey, id.String())
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+				if present {
+					continue
+				}
+
+				replay.counterAdded.Inc(tn)
+
+				msgc := stream.NewMessage(
+					id.String(),
+					chain.ID,
+					msg.Value,
+					msg.Time.UTC().Unix(),
+				)
+
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: false})
+			}
+		}()
+	}
+	return nil
+}
+
+func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+
+	parts, err := tu.Partitions(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for part := range parts {
+		partOffset := parts[part]
+
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+
+		atomic.AddInt64(waitGroup, 1)
+		go func() {
+			defer atomic.AddInt64(waitGroup, -1)
+
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Topic:       tn,
+				Brokers:     replay.config.Kafka.Brokers,
+				Partition:   partOffset.Partition,
+				StartOffset: partOffset.FirstOffset,
+				MaxBytes:    stream.ConsumerMaxBytesDefault,
+			})
+
+			ctx := context.Background()
+
+			err := writer.Bootstrap(ctx)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
 			}
 
-			replay.counterRead.Inc(tn)
+			for {
+				if replay.errs.GetValue() != nil {
+					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					return
+				}
 
-			id, err := ids.ToID(msg.Key)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
+				msg, err := replay.readMessage(10*time.Second, reader)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						continue
+					}
+					replay.errs.SetValue(err)
+					return
+				}
+
+				if msg.Time.UTC().After(replayEndTime) {
+					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					return
+				}
+
+				replay.counterRead.Inc(tn)
+
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				present, err := replay.isPresent(uidkey, id.String())
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+				if present {
+					continue
+				}
+
+				replay.counterAdded.Inc(tn)
+
+				msgc := stream.NewMessage(
+					id.String(),
+					chain.ID,
+					msg.Value,
+					msg.Time.UTC().Unix(),
+				)
+
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: true})
 			}
-
-			replay.uniqueIDLock.RLock()
-			present, err := replay.uniqueID[uidkeydecision].Get(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-			if present {
-				continue
-			}
-
-			replay.counterAdded.Inc(tn)
-
-			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
-				msg.Value,
-				msg.Time.UTC().Unix(),
-			)
-
-			err = writer.Consume(msgc)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.uniqueIDLock.RLock()
-			err = replay.uniqueID[uidkeydecision].Put(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-		}
-	}()
-
-	go func() {
-		defer replay.running.SetValue(false)
-		tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
-
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Topic:       tn,
-			Brokers:     replay.config.Kafka.Brokers,
-			GroupID:     replay.config.Consumer.GroupName,
-			StartOffset: kafka.FirstOffset,
-			MaxBytes:    stream.ConsumerMaxBytesDefault,
-		})
-
-		ctx := context.Background()
-
-		for replay.running.GetValue() {
-			msg, err := reader.ReadMessage(ctx)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.counterRead.Inc(tn)
-
-			id, err := ids.ToID(msg.Key)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.uniqueIDLock.RLock()
-			present, err := replay.uniqueID[uidkeyconsensus].Get(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-			if present {
-				continue
-			}
-
-			replay.counterAdded.Inc(tn)
-
-			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
-				msg.Value,
-				msg.Time.UTC().Unix(),
-			)
-
-			err = writer.ConsumeConsensus(msgc)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			replay.uniqueIDLock.RLock()
-			err = replay.uniqueID[uidkeyconsensus].Put(id.String())
-			replay.uniqueIDLock.RUnlock()
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-		}
-	}()
+		}()
+	}
 
 	return nil
 }

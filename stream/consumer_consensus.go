@@ -133,7 +133,10 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 	}()
 
-	if err = c.consumer.ConsumeConsensus(msg); err != nil {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+
+	if err = c.consumer.ConsumeConsensus(ctx, msg); err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err

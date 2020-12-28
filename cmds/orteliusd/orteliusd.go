@@ -57,6 +57,9 @@ const (
 
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
+
+	defaultReplayQueueSize    = int(5000)
+	defaultReplayQueueThreads = int(4)
 )
 
 func main() {
@@ -68,10 +71,12 @@ func main() {
 // Execute runs the root command for ortelius
 func execute() error {
 	var (
-		runErr     error
-		config     = &cfg.Config{}
-		configFile = func() *string { s := ""; return &s }()
-		cmd        = &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc,
+		runErr             error
+		config             = &cfg.Config{}
+		configFile         = func() *string { s := ""; return &s }()
+		replayqueuesize    = func() *int { i := defaultReplayQueueSize; return &i }()
+		replayqueuethreads = func() *int { i := defaultReplayQueueThreads; return &i }()
+		cmd                = &cobra.Command{Use: rootCmdUse, Short: rootCmdDesc, Long: rootCmdDesc,
 			PersistentPreRun: func(cmd *cobra.Command, args []string) {
 				c, err := cfg.NewFromFile(*configFile)
 				if err != nil {
@@ -100,9 +105,12 @@ func execute() error {
 	)
 
 	// Add flags and commands
-	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "")
+	cmd.PersistentFlags().StringVarP(configFile, "config", "c", "config.json", "config file")
+	cmd.PersistentFlags().IntVarP(replayqueuesize, "replayqueuesize", "", defaultReplayQueueSize, fmt.Sprintf("replay queue size default %d", defaultReplayQueueSize))
+	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, fmt.Sprintf("replay queue size threads default %d", defaultReplayQueueThreads))
+
 	cmd.AddCommand(
-		createReplayCmds(config, &runErr),
+		createReplayCmds(config, &runErr, replayqueuesize, replayqueuethreads),
 		createStreamCmds(config, &runErr),
 		createAPICmds(config, &runErr),
 		createEnvCmds(config, &runErr))
@@ -131,13 +139,13 @@ func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
 	}
 }
 
-func createReplayCmds(config *cfg.Config, runErr *error) *cobra.Command {
+func createReplayCmds(config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
 	replayCmd := &cobra.Command{
 		Use:   streamReplayCmdUse,
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			replay := replay.New(config)
+			replay := replay.New(config, *replayqueuesize, *replayqueuethreads)
 			err := replay.Start()
 			if err != nil {
 				*runErr = err

@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	kafkaReadTimeout    = 10 * time.Second
-	ProcessWriteTimeout = 10 * time.Second
+	kafkaReadTimeout = 10 * time.Second
 
 	ConsumerEventTypeDefault = EventTypeDecisions
 	ConsumerMaxBytesDefault  = 10e8
@@ -148,7 +147,9 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	if err = c.consumer.Consume(msg); err != nil {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	if err = c.consumer.Consume(ctx, msg); err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
