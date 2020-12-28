@@ -6,7 +6,7 @@ require (
 	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/ava-labs/avalanchego v1.1.1-0.20201218205402-6153919004df
+	github.com/ava-labs/avalanchego v1.1.1-0.20201223222211-7ffa22f99287
 	github.com/ava-labs/coreth v0.3.18-rc.1.0.20201221200035-40a46b02b916
 	github.com/ethereum/go-ethereum v1.9.23
 	github.com/go-redis/cache/v8 v8.2.1
@@ -17,7 +17,7 @@ require (
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gomodule/redigo v1.8.2 // indirect
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.9.0
 	github.com/segmentio/kafka-go v0.4.8
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1

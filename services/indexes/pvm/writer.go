@@ -132,9 +132,9 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
 			}
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, ChainID.String(), false, false))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, ChainID.String(), false))
 		case *secp256k1fx.TransferOutput:
-			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, ChainID.String(), false, false))
+			errs.Add(w.avax.InsertOutput(cCtx, ChainID, uint32(idx), utxo.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, ChainID.String(), false))
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(transferOutput))
 		}

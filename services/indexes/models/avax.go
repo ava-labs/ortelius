@@ -60,7 +60,6 @@ type Output struct {
 	GroupID                uint64      `json:"groupID"`
 	Payload                []byte      `json:"payload"`
 	Frozen                 uint8       `json:"frozen"`
-	Mint                   uint8       `json:"mint"`
 
 	Score uint64 `json:"-"`
 }

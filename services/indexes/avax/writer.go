@@ -221,7 +221,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID, false, false)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID, false)
 		if err != nil {
 			return 0, err
 		}
@@ -232,7 +232,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 				return 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID, false, false)
+		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID, false)
 		if err != nil {
 			return 0, err
 		}
@@ -242,7 +242,7 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 	return totalout, nil
 }
 
-func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string, frozen bool, mint bool) error {
+func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string, frozen bool) error {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
@@ -263,7 +263,6 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("stake_locktime", stakeLocktime).
 		Pair("created_at", ctx.Time()).
 		Pair("frozen", frozen).
-		Pair("mint", mint).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		errs.Add(w.stream.EventErr("avm_outputs.insert", err))
@@ -283,7 +282,6 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 			Set("payload", payload).
 			Set("stake_locktime", stakeLocktime).
 			Set("frozen", frozen).
-			Set("mint", mint).
 			Where("id = ?", outputID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
