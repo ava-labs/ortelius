@@ -54,13 +54,15 @@ type Output struct {
 	StakeLocktime          uint64      `json:"stakeLocktime"`
 	Threshold              uint64      `json:"threshold"`
 	Addresses              []Address   `json:"addresses"`
+	CAddresses             []string    `json:"caddresses"`
 	CreatedAt              time.Time   `json:"timestamp"`
 	RedeemingTransactionID StringID    `json:"redeemingTransactionID"`
 	ChainID                StringID    `json:"chainID"`
 	GroupID                uint64      `json:"groupID"`
 	Payload                []byte      `json:"payload"`
-
-	Score uint64 `json:"-"`
+	Block                  string      `json:"block"`
+	Nonce                  uint64      `json:"nonce"`
+	Score                  uint64      `json:"-"`
 }
 
 type InputCredentials struct {
@@ -123,4 +125,19 @@ type AddressChainInfo struct {
 type OutputList struct {
 	ListMetadata
 	Outputs []*Output `json:"outputs"`
+}
+
+type CvmOutput struct {
+	Type            CChainType  `json:"type"`
+	TransactionType CChainType  `json:"transactionType"`
+	Idx             uint64      `json:"idx"`
+	Amount          TokenAmount `json:"amount"`
+	Nonce           uint64      `json:"nonce"`
+	ID              StringID    `json:"id"`
+	TransactionID   StringID    `json:"transactionID"`
+	Address         string      `json:"address"`
+	AssetID         StringID    `json:"assetID"`
+	CreatedAt       time.Time   `json:"timestamp"`
+	ChainID         StringID    `json:"chainID"`
+	Block           string      `json:"block"`
 }
