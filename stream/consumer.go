@@ -150,14 +150,10 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	icnt := 0
-	for ; icnt < 100; icnt++ {
+	for {
 		err = c.persistConsume(msg)
-		if err == nil {
+		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			break
-		}
-		if strings.Contains(err.Error(), db.DuplicateDBErrorMessage) {
-			icnt = 0
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
