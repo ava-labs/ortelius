@@ -105,7 +105,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 }
 
 func (w *Writer) InsertTransactionBase(ctx services.ConsumerCtx, txID ids.ID, chainID string, txType string, memo []byte, txBytes []byte, txfee uint64, genesis bool) error {
-	if len(txBytes) > 64000 {
+	if len(txBytes) > MaxSerializationLen {
 		txBytes = []byte("")
 	}
 	_, err := ctx.DB().
