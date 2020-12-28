@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
 	"github.com/ava-labs/coreth/core/types"
 
 	"github.com/ava-labs/avalanchego/vms/components/verify"
@@ -26,14 +28,7 @@ import (
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 )
 
-type CChainType uint16
-
 var (
-	In     CChainType = 1
-	Out    CChainType = 2
-	Import CChainType = 1
-	Export CChainType = 2
-
 	ErrUnknownBlockType = errors.New("unknown block type")
 )
 
@@ -107,7 +102,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64, unsignedBytes []byte) error {
+func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ models.CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64, unsignedBytes []byte) error {
 	_, err := ctx.DB().
 		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
 			id.String(), typ, blockChainID.String(), ctx.Time()).
@@ -127,16 +122,16 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ CChai
 
 	avmTxtype := ""
 	switch typ {
-	case Import:
+	case models.CChainImport:
 		avmTxtype = "atomic_import_tx"
-	case Export:
+	case models.CChainExport:
 		avmTxtype = "atomic_export_tx"
 	}
 
 	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), unsignedBytes, txFee, false)
 }
 
-func (w *Writer) insertAddress(typ CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
+func (w *Writer) insertAddress(typ models.CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
 	idprefix := id.Prefix(idx)
 	_, err := ctx.DB().
 		InsertInto("cvm_addresses").
@@ -178,7 +173,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	var totalin uint64
 	for icnt, in := range tx.Ins {
 		icntval := uint64(icnt)
-		err = w.insertAddress(In, ctx, icntval, txID, in.Address, in.AssetID, in.Amount, in.Nonce)
+		err = w.insertAddress(models.CChainIn, ctx, icntval, txID, in.Address, in.AssetID, in.Amount, in.Nonce)
 		if err != nil {
 			return err
 		}
@@ -195,7 +190,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		idx++
 	}
 
-	return w.indexTransaction(ctx, txID, Export, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
 
 func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
@@ -204,7 +199,7 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	var totalout uint64
 	for icnt, out := range tx.Outs {
 		icntval := uint64(icnt)
-		err = w.insertAddress(Out, ctx, icntval, txID, out.Address, out.AssetID, out.Amount, 0)
+		err = w.insertAddress(models.CchainOut, ctx, icntval, txID, out.Address, out.AssetID, out.Amount, 0)
 		if err != nil {
 			return err
 		}
@@ -219,5 +214,5 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	return w.indexTransaction(ctx, txID, Import, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
