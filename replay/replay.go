@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/db"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -218,7 +220,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					if consumererr == nil {
 						break
 					}
-					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+					if strings.Contains(consumererr.Error(), db.DuplicateDBErrorMessage) {
 						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)
@@ -235,7 +237,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					if consumererr == nil {
 						break
 					}
-					if strings.Contains(consumererr.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+					if strings.Contains(consumererr.Error(), db.DuplicateDBErrorMessage) {
 						icnt = 0
 					}
 					time.Sleep(500 * time.Millisecond)

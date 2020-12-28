@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/db"
+
 	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -140,7 +142,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		if err == nil {
 			break
 		}
-		if strings.Contains(err.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+		if strings.Contains(err.Error(), db.DuplicateDBErrorMessage) {
 			icnt = 0
 		}
 		time.Sleep(500 * time.Millisecond)
