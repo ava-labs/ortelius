@@ -3,12 +3,21 @@
 
 package models
 
+type CChainType uint16
+
 var (
+	CChainIn     CChainType = 1
+	CchainOut    CChainType = 2
+	CChainImport CChainType = 1
+	CChainExport CChainType = 2
+
 	OutputTypesSECP2556K1Transfer OutputType = 7
 	OutputTypesSECP2556K1Mint     OutputType = 6
 	OutputTypesNFTMint            OutputType = 10
 	OutputTypesNFTTransfer        OutputType = 11
 	OutputTypesManagedAsset       OutputType = 12
+	OutputTypesAtomicExportTx     OutputType = 0xFFFFFFF1
+	OutputTypesAtomicImportTx     OutputType = 0xFFFFFFF2
 
 	BlockTypeProposal BlockType = 0x0
 	BlockTypeAbort    BlockType = 0x1
@@ -99,6 +108,10 @@ func (t OutputType) String() string {
 		return "nft_mint"
 	case OutputTypesManagedAsset:
 		return "managed_asset"
+	case OutputTypesAtomicExportTx:
+		return "atomic_export"
+	case OutputTypesAtomicImportTx:
+		return "atomic_import"
 	default:
 		return TypeUnknown
 	}
