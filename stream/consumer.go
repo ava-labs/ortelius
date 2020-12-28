@@ -6,6 +6,7 @@ package stream
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/metrics"
@@ -147,14 +148,28 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-	defer cancelFn()
-	if err = c.consumer.Consume(ctx, msg); err != nil {
+	for icnt := 0; icnt < 100; icnt++ {
+		err = c.persistConsume(msg)
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "Deadlock found when trying to get lock; try restarting transaction") {
+			icnt = 0
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if err != nil {
 		collectors.Error()
 		c.conns.Logger().Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
+}
+
+func (c *consumer) persistConsume(msg *Message) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.Consume(ctx, msg)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {
