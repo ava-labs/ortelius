@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -115,7 +116,13 @@ func (replay *replay) Start() error {
 		}
 
 		replay.config.Services.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
+
+		var sortedcnters []string
 		for cnter := range ctot {
+			sortedcnters = append(sortedcnters, cnter)
+		}
+		sort.Strings(sortedcnters)
+		for _, cnter := range sortedcnters {
 			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 		}
 	}
