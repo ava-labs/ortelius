@@ -58,8 +58,8 @@ const (
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 
-	defaultReplayQueueSize    = int(5000)
-	defaultReplayQueueThreads = int(4)
+	defaultReplayQueueSize    = int(1000)
+	defaultReplayQueueThreads = int(2)
 )
 
 func main() {
