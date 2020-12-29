@@ -10,6 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/hashing"
+	cblock "github.com/ava-labs/ortelius/models"
+
+	"github.com/ava-labs/ortelius/services/indexes/cvm"
+
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -70,6 +75,12 @@ func (replay *replay) Start() error {
 		}
 	}
 
+	err := replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker)
+	if err != nil {
+		log.Fatalln("reader failed", replay.config.CchainID, ":", err.Error())
+		return err
+	}
+
 	timeLog := time.Now()
 
 	logemit := func(waitGroupCnt int64) {
@@ -125,10 +136,50 @@ func (replay *replay) Start() error {
 	return nil
 }
 
+type ConsumeType uint32
+
+var (
+	CONSUME          ConsumeType = 1
+	CONSUMECONSENSUS ConsumeType = 2
+	CONSUMEC         ConsumeType = 3
+)
+
 type WorkerPacket struct {
-	writer  services.Consumer
-	message services.Consumable
-	consume bool
+	writer      services.Consumer
+	cwriter     *cvm.Writer
+	message     services.Consumable
+	consumeType ConsumeType
+	block       *cblock.Block
+}
+
+func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
+	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
+	if err != nil {
+		return err
+	}
+
+	writer, err := cvm.NewWriter(conns, replay.config.NetworkID, chain)
+	if err != nil {
+		return err
+	}
+
+	uidkeycchain := fmt.Sprintf("cchain:%s", chain)
+
+	replay.uniqueIDLock.Lock()
+	replay.uniqueID[uidkeycchain] = utils.NewMemoryUniqueID()
+	replay.uniqueIDLock.Unlock()
+
+	addr, err := net.ResolveTCPAddr("tcp", replay.config.Kafka.Brokers[0])
+	if err != nil {
+		return err
+	}
+
+	err = replay.startCchain(addr, chain, replayEndTime, waitGroup, worker, writer, uidkeycchain)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
@@ -213,7 +264,8 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 		switch value := valuei.(type) {
 		case *WorkerPacket:
 			var consumererr error
-			if value.consume {
+			switch value.consumeType {
+			case CONSUME:
 				for {
 					consumererr = value.writer.Consume(context.Background(), value.message)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
@@ -225,9 +277,21 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					replay.errs.SetValue(consumererr)
 					return
 				}
-			} else {
+			case CONSUMECONSENSUS:
 				for {
 					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message)
+					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
+						break
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			case CONSUMEC:
+				for {
+					consumererr = value.cwriter.Consume(context.Background(), value.message, &value.block.Header)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -241,6 +305,97 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 		default:
 		}
 	}
+}
+
+func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer *cvm.Writer, uidkey string) error {
+	tn := fmt.Sprintf("%d-%s-cchain", replay.config.NetworkID, chain)
+	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+
+	parts, err := tu.Partitions(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for part := range parts {
+		partOffset := parts[part]
+
+		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+
+		atomic.AddInt64(waitGroup, 1)
+		go func() {
+			defer atomic.AddInt64(waitGroup, -1)
+
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Topic:       tn,
+				Brokers:     replay.config.Kafka.Brokers,
+				Partition:   partOffset.Partition,
+				StartOffset: partOffset.FirstOffset,
+				MaxBytes:    stream.ConsumerMaxBytesDefault,
+			})
+
+			for {
+				if replay.errs.GetValue() != nil {
+					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					return
+				}
+
+				msg, err := replay.readMessage(10*time.Second, reader)
+				if err != nil {
+					if err == context.DeadlineExceeded {
+						continue
+					}
+					replay.errs.SetValue(err)
+					return
+				}
+
+				if msg.Time.UTC().After(replayEndTime) {
+					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					return
+				}
+
+				replay.counterRead.Inc(tn)
+
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				present, err := replay.isPresent(uidkey, id.String())
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+				if present {
+					continue
+				}
+
+				replay.counterAdded.Inc(tn)
+
+				block, err := cblock.Unmarshal(msg.Value)
+				if err != nil {
+					replay.errs.SetValue(err)
+					return
+				}
+
+				if len(block.BlockExtraData) == 0 {
+					continue
+				}
+
+				hid := hashing.ComputeHash256(block.BlockExtraData)
+
+				msgc := stream.NewMessage(
+					string(hid),
+					chain,
+					block.BlockExtraData,
+					msg.Time.UTC().Unix(),
+				)
+
+				worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMEC})
+			}
+		}()
+	}
+	return nil
 }
 
 func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
@@ -315,7 +470,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 					msg.Time.UTC().Unix(),
 				)
 
-				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: false})
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUMECONSENSUS})
 			}
 		}()
 	}
@@ -402,7 +557,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 					msg.Time.UTC().Unix(),
 				)
 
-				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consume: true})
+				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUME})
 			}
 		}()
 	}
