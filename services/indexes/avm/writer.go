@@ -460,7 +460,7 @@ func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids
 			return amount, totalout, ctx.Job().EventErr("add_to_amount", err)
 		}
 	default:
-		return amount, totalout, ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+		return amount, totalout, ctx.Job().EventErr("assertion_to_output", errors.New(fmt.Sprintf("unknown type %s", reflect.TypeOf(out))))
 	}
 
 	return amount, totalout, nil
