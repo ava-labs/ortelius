@@ -431,36 +431,36 @@ func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids
 	case *nftfx.TransferOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID)
 		if err != nil {
-			return amount, totalout, err
+			return 0, 0, err
 		}
 	case *nftfx.MintOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID)
 		if err != nil {
-			return amount, totalout, err
+			return 0, 0, err
 		}
 	case *secp256k1fx.MintOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID)
 		if err != nil {
-			return amount, totalout, err
+			return 0, 0, err
 		}
 	case *secp256k1fx.TransferOutput:
 		var err error
 		if txID == w.avaxAssetID {
 			totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
 			if err != nil {
-				return amount, totalout, err
+				return 0, 0, err
 			}
 		}
 		err = w.avax.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
 		if err != nil {
-			return amount, totalout, err
+			return 0, 0, err
 		}
 		amount, err = avalancheMath.Add64(amount, typedOut.Amount())
 		if err != nil {
-			return amount, totalout, ctx.Job().EventErr("add_to_amount", err)
+			return 0, 0, ctx.Job().EventErr("add_to_amount", err)
 		}
 	default:
-		return amount, totalout, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
+		return 0, 0, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
 	}
 
 	return amount, totalout, nil
