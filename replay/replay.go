@@ -67,15 +67,20 @@ func (replay *replay) Start() error {
 	replayEndTime := time.Now().UTC().Add(time.Minute)
 	waitGroup := new(int64)
 
+	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
+	if err != nil {
+		return err
+	}
+
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker)
+		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker, conns)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
 		}
 	}
 
-	err := replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker)
+	err = replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker, conns)
 	if err != nil {
 		log.Fatalln("reader failed", replay.config.CchainID, ":", err.Error())
 		return err
@@ -152,12 +157,7 @@ type WorkerPacket struct {
 	block       *cblock.Block
 }
 
-func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
-	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
-	if err != nil {
-		return err
-	}
-
+func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, conns *services.Connections) error {
 	writer, err := cvm.NewWriter(conns, replay.config.NetworkID, chain)
 	if err != nil {
 		return err
@@ -182,12 +182,8 @@ func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitG
 	return nil
 }
 
-func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
-	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
-	if err != nil {
-		return err
-	}
-
+func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, conns *services.Connections) error {
+	var err error
 	var writer services.Consumer
 	switch chain.VMType {
 	case consumers.IndexerAVMName:
