@@ -29,7 +29,6 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
@@ -334,7 +333,6 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		err         error
 		outputCount uint32
 		amount      uint64
-		errs               = wrappers.Errs{}
 		totalout    uint64 = 0
 	)
 
@@ -342,16 +340,16 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 	// before working on the Ops
 	// the outs get processed again in InsertTransaction
 	for _, out := range tx.Outs {
-		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, totalout, out, tx.ID(), w.chainID)
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID)
 		if err != nil {
 			return err
 		}
 		outputCount++
 	}
 
-	for _, castTxOps := range tx.Ops {
-		for _, out := range castTxOps.Op.Outs() {
-			amount, err = w.processOut(ctx, out, tx.ID(), outputCount, castTxOps.AssetID(), amount)
+	for _, txOps := range tx.Ops {
+		for _, out := range txOps.Op.Outs() {
+			amount, totalout, err = w.processOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout)
 			if err != nil {
 				return err
 			}
@@ -359,9 +357,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		}
 	}
 
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, totalout, genesis))
-
-	return errs.Err
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, totalout, genesis)
 }
 
 func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
@@ -369,7 +365,6 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		err         error
 		outputCount uint32
 		amount      uint64
-		errs               = wrappers.Errs{}
 		totalout    uint64 = 0
 	)
 
@@ -377,7 +372,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	// before working on the states
 	// the outs get processed again in InsertTransaction
 	for _, out := range tx.Outs {
-		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, totalout, out, tx.ID(), w.chainID)
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID)
 		if err != nil {
 			return err
 		}
@@ -386,7 +381,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
-			amount, err = w.processOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount)
+			amount, totalout, err = w.processOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount, totalout)
 			if err != nil {
 				return err
 			}
@@ -424,12 +419,10 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		}
 	}
 
-	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis))
-
-	return errs.Err
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis)
 }
 
-func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64) (uint64, error) {
+func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64, totalout uint64) (uint64, uint64, error) {
 	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
 		return &secp256k1fx.TransferOutput{OutputOwners: oo}
 	}
@@ -438,36 +431,37 @@ func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids
 	case *nftfx.TransferOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID)
 		if err != nil {
-			return amount, err
+			return amount, totalout, err
 		}
 	case *nftfx.MintOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID)
 		if err != nil {
-			return amount, err
+			return amount, totalout, err
 		}
 	case *secp256k1fx.MintOutput:
 		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID)
 		if err != nil {
-			return amount, err
+			return amount, totalout, err
 		}
 	case *secp256k1fx.TransferOutput:
+		var err error
 		if txID == w.avaxAssetID {
-			var totalout uint64
-			_, err := avalancheMath.Add64(totalout, typedOut.Amount())
+			totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
 			if err != nil {
-				return amount, err
+				return amount, totalout, err
 			}
 		}
-		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
+		err = w.avax.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
 		if err != nil {
-			return amount, err
+			return amount, totalout, err
 		}
-		if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
-			return amount, ctx.Job().EventErr("add_to_amount", err)
+		amount, err = avalancheMath.Add64(amount, typedOut.Amount())
+		if err != nil {
+			return amount, totalout, ctx.Job().EventErr("add_to_amount", err)
 		}
 	default:
-		return amount, ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+		return amount, totalout, ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
 	}
 
-	return amount, nil
+	return amount, totalout, nil
 }
