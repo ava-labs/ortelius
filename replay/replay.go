@@ -137,7 +137,7 @@ func (replay *replay) Start() error {
 	logemit(waitGroupCnt)
 
 	if replay.errs.GetValue() != nil {
-		replay.config.Services.Log.Error("replay failed %w", replay.errs.GetValue().(error))
+		replay.config.Services.Log.Error("replay failed %v", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
