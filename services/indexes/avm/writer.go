@@ -28,12 +28,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
-	avalancheMath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/dbr/v2"
 	"github.com/palantir/stacktrace"
 
@@ -349,7 +346,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 
 	for _, txOps := range tx.Ops {
 		for _, out := range txOps.Op.Outs() {
-			amount, totalout, err = w.processOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout)
+			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout, w.chainID)
 			if err != nil {
 				return err
 			}
@@ -381,7 +378,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
-			amount, totalout, err = w.processOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount, totalout)
+			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount, totalout, w.chainID)
 			if err != nil {
 				return err
 			}
@@ -420,48 +417,4 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	}
 
 	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis)
-}
-
-func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64, totalout uint64) (uint64, uint64, error) {
-	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
-		return &secp256k1fx.TransferOutput{OutputOwners: oo}
-	}
-
-	switch typedOut := out.(type) {
-	case *nftfx.TransferOutput:
-		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID)
-		if err != nil {
-			return 0, 0, err
-		}
-	case *nftfx.MintOutput:
-		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID)
-		if err != nil {
-			return 0, 0, err
-		}
-	case *secp256k1fx.MintOutput:
-		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID)
-		if err != nil {
-			return 0, 0, err
-		}
-	case *secp256k1fx.TransferOutput:
-		var err error
-		if txID == w.avaxAssetID {
-			totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
-			if err != nil {
-				return 0, 0, err
-			}
-		}
-		err = w.avax.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
-		if err != nil {
-			return 0, 0, err
-		}
-		amount, err = avalancheMath.Add64(amount, typedOut.Amount())
-		if err != nil {
-			return 0, 0, ctx.Job().EventErr("add_to_amount", err)
-		}
-	default:
-		return 0, 0, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
-	}
-
-	return amount, totalout, nil
 }
