@@ -92,7 +92,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 		return err
 	}
 
-	switch atx := (*atomicTX).UnsignedTx.(type) {
+	switch atx := atomicTX.UnsignedTx.(type) {
 	case *evm.UnsignedExportTx:
 		return w.indexExportTx(ctx, txID, atx, blockBytes, blockHeader)
 	case *evm.UnsignedImportTx:
