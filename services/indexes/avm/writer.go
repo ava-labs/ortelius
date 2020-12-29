@@ -349,34 +349,12 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		outputCount++
 	}
 
-	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
-		return &secp256k1fx.TransferOutput{OutputOwners: oo}
-	}
-
 	for _, castTxOps := range tx.Ops {
 		for _, out := range castTxOps.Op.Outs() {
-			switch typedOut := out.(type) {
-			case *nftfx.TransferOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID))
-			case *nftfx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID))
-			case *secp256k1fx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
-			case *secp256k1fx.TransferOutput:
-				if tx.ID() == w.avaxAssetID {
-					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
-					if err != nil {
-						errs.Add(err)
-					}
-				}
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, castTxOps.AssetID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
-				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
-					return ctx.Job().EventErr("add_to_amount", err)
-				}
-			default:
-				return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+			amount, err = w.processOut(ctx, out, tx.ID(), outputCount, castTxOps.AssetID(), amount)
+			if err != nil {
+				return err
 			}
-
 			outputCount++
 		}
 	}
@@ -406,34 +384,12 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		outputCount++
 	}
 
-	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
-		return &secp256k1fx.TransferOutput{OutputOwners: oo}
-	}
-
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
-			switch typedOut := out.(type) {
-			case *nftfx.TransferOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID))
-			case *nftfx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID))
-			case *secp256k1fx.MintOutput:
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID))
-			case *secp256k1fx.TransferOutput:
-				if tx.ID() == w.avaxAssetID {
-					totalout, err = avalancheMath.Add64(totalout, typedOut.Amount())
-					if err != nil {
-						errs.Add(err)
-					}
-				}
-				errs.Add(w.avax.InsertOutput(ctx, tx.ID(), outputCount, tx.ID(), typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID))
-				if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
-					return ctx.Job().EventErr("add_to_amount", err)
-				}
-			default:
-				return ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+			amount, err = w.processOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount)
+			if err != nil {
+				return err
 			}
-
 			outputCount++
 		}
 	}
@@ -471,4 +427,47 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	errs.Add(w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis))
 
 	return errs.Err
+}
+
+func (w *Writer) processOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64) (uint64, error) {
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
+	}
+
+	switch typedOut := out.(type) {
+	case *nftfx.TransferOutput:
+		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, w.chainID)
+		if err != nil {
+			return amount, err
+		}
+	case *nftfx.MintOutput:
+		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, w.chainID)
+		if err != nil {
+			return amount, err
+		}
+	case *secp256k1fx.MintOutput:
+		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, w.chainID)
+		if err != nil {
+			return amount, err
+		}
+	case *secp256k1fx.TransferOutput:
+		if txID == w.avaxAssetID {
+			var totalout uint64
+			_, err := avalancheMath.Add64(totalout, typedOut.Amount())
+			if err != nil {
+				return amount, err
+			}
+		}
+		err := w.avax.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, w.chainID)
+		if err != nil {
+			return amount, err
+		}
+		if amount, err = avalancheMath.Add64(amount, typedOut.Amount()); err != nil {
+			return amount, ctx.Job().EventErr("add_to_amount", err)
+		}
+	default:
+		return amount, ctx.Job().EventErr("assertion_to_output", errors.New("output is not known"))
+	}
+
+	return amount, nil
 }
