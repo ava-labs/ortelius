@@ -368,7 +368,7 @@ func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txI
 			return 0, 0, err
 		}
 	case *secp256k1fx.TransferOutput:
-		if txID == w.avaxAssetID {
+		if assetID == w.avaxAssetID {
 			totalout, err = math.Add64(totalout, typedOut.Amount())
 			if err != nil {
 				return 0, 0, err
