@@ -71,9 +71,10 @@ func (replay *replay) Start() error {
 	if err != nil {
 		return err
 	}
-	conns.DB().SetMaxOpenConns(20)
-	conns.DB().SetMaxIdleConns(1)
-	conns.DB().SetConnMaxIdleTime(time.Second)
+	conns.DB().SetMaxOpenConns(32)
+	conns.DB().SetMaxIdleConns(32)
+	conns.DB().SetConnMaxIdleTime(10 * time.Second)
+	conns.DB().SetConnMaxLifetime(time.Second)
 
 	for _, chainID := range replay.config.Chains {
 		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker, conns)
