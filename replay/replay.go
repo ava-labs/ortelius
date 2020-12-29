@@ -163,7 +163,7 @@ func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitG
 		return err
 	}
 
-	uidkeycchain := fmt.Sprintf("cchaiin:%s", chain)
+	uidkeycchain := fmt.Sprintf("cchain:%s", chain)
 
 	replay.uniqueIDLock.Lock()
 	replay.uniqueID[uidkeycchain] = utils.NewMemoryUniqueID()
@@ -379,8 +379,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				}
 
 				if len(block.BlockExtraData) == 0 {
-					replay.errs.SetValue(err)
-					return
+					continue
 				}
 
 				hid := hashing.ComputeHash256(block.BlockExtraData)
