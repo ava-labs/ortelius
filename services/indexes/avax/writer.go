@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/vms/platformvm"
+
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/gocraft/dbr/v2"
@@ -17,7 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/gocraft/health"
 
@@ -105,7 +107,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 }
 
 func (w *Writer) InsertTransactionBase(ctx services.ConsumerCtx, txID ids.ID, chainID string, txType string, memo []byte, txBytes []byte, txfee uint64, genesis bool) error {
-	if len(txBytes) > 64000 {
+	if len(txBytes) > MaxSerializationLen {
 		txBytes = []byte("")
 	}
 	_, err := ctx.DB().
@@ -208,36 +210,9 @@ func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin
 
 func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string) (uint64, error) {
 	var err error
-	switch transferOutput := out.Out.(type) {
-	case *platformvm.StakeableLockOut:
-		xOut, ok := transferOutput.TransferableOut.(*secp256k1fx.TransferOutput)
-		if !ok {
-			return 0, fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
-		}
-
-		if out.AssetID() == w.avaxAssetID {
-			totalout, err = math.Add64(totalout, xOut.Amt)
-			if err != nil {
-				return 0, err
-			}
-		}
-		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, transferOutput.Locktime, chainID, false)
-		if err != nil {
-			return 0, err
-		}
-	case *secp256k1fx.TransferOutput:
-		if out.AssetID() == w.avaxAssetID {
-			totalout, err = math.Add64(totalout, transferOutput.Amt)
-			if err != nil {
-				return 0, err
-			}
-		}
-		err = w.InsertOutput(ctx, txID, idx, out.AssetID(), transferOutput, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID, false)
-		if err != nil {
-			return 0, err
-		}
-	default:
-		return 0, fmt.Errorf("unknown type %s", reflect.TypeOf(transferOutput))
+	_, totalout, err = w.ProcessStateOut(ctx, out.Out, txID, idx, out.AssetID(), 0, totalout, chainID)
+	if err != nil {
+		return 0, err
 	}
 	return totalout, nil
 }
@@ -354,4 +329,69 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 	}
 
 	return errs.Err
+}
+
+func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64, totalout uint64, chainID string) (uint64, uint64, error) {
+	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
+		return &secp256k1fx.TransferOutput{OutputOwners: oo}
+	}
+
+	var err error
+
+	switch typedOut := out.(type) {
+	case *platformvm.StakeableLockOut:
+		xOut, ok := typedOut.TransferableOut.(*secp256k1fx.TransferOutput)
+		if !ok {
+			return 0, 0, fmt.Errorf("invalid type *secp256k1fx.TransferOutput")
+		}
+		if assetID == w.avaxAssetID {
+			totalout, err = math.Add64(totalout, xOut.Amt)
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, typedOut.Locktime, chainID, false)
+		if err != nil {
+			return 0, 0, err
+		}
+	case *secp256k1fx.ManagedAssetStatusOutput:
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.Mgr), models.OutputTypesManagedAsset, 0, nil, 0, chainID, typedOut.IsFrozen)
+		if err != nil {
+			return 0, 0, err
+		}
+	case *nftfx.TransferOutput:
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, chainID, false)
+		if err != nil {
+			return 0, 0, err
+		}
+	case *nftfx.MintOutput:
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, chainID, false)
+		if err != nil {
+			return 0, 0, err
+		}
+	case *secp256k1fx.MintOutput:
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, chainID, false)
+		if err != nil {
+			return 0, 0, err
+		}
+	case *secp256k1fx.TransferOutput:
+		if assetID == w.avaxAssetID {
+			totalout, err = math.Add64(totalout, typedOut.Amount())
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+		err = w.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID, false)
+		if err != nil {
+			return 0, 0, err
+		}
+		amount, err = math.Add64(amount, typedOut.Amount())
+		if err != nil {
+			return 0, 0, ctx.Job().EventErr("add_to_amount", err)
+		}
+	default:
+		return 0, 0, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
+	}
+
+	return amount, totalout, nil
 }

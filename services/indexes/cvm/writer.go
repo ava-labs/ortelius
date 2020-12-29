@@ -81,7 +81,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 }
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHeader *types.Header) error {
-	atomicTX := new(evm.UnsignedAtomicTx)
+	atomicTX := new(evm.Tx)
 	_, err := w.codec.Unmarshal(blockBytes, atomicTX)
 	if err != nil {
 		return err
@@ -92,11 +92,11 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 		return err
 	}
 
-	switch atx := (*atomicTX).(type) {
+	switch atx := atomicTX.UnsignedTx.(type) {
 	case *evm.UnsignedExportTx:
 		return w.indexExportTx(ctx, txID, atx, blockBytes, blockHeader)
 	case *evm.UnsignedImportTx:
-		return w.indexImportTx(ctx, txID, atx, blockBytes, blockHeader)
+		return w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, blockHeader)
 	default:
 		return ctx.Job().EventErr(fmt.Sprintf("unknown atomic tx %s", reflect.TypeOf(atx)), ErrUnknownBlockType)
 	}
@@ -193,7 +193,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, unsignedBytes []byte, blockHeader *types.Header) error {
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte, blockHeader *types.Header) error {
 	var err error
 
 	var totalout uint64
@@ -208,7 +208,7 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 
 	var totalin uint64
 	for inidx, in := range tx.ImportedInputs {
-		totalin, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, []verify.Verifiable{in.In}, unsignedBytes, tx.SourceChain.String())
+		totalin, err = w.avax.InsertTransactionIns(inidx, ctx, totalin, in, txID, creds, unsignedBytes, tx.SourceChain.String())
 		if err != nil {
 			return err
 		}
