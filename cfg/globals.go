@@ -4,9 +4,10 @@ import "time"
 
 const (
 	// RequestTimeout is the maximum duration to allow an API request to execute
-	RequestTimeout   = 10 * time.Second
-	HTTPWriteTimeout = 20 * time.Second
-	CacheTimeout     = 3 * time.Second
+	AggregateRequestTimeout = 20 * time.Second
+	RequestTimeout          = 5 * time.Second
+	HTTPWriteTimeout        = 20 * time.Second
+	CacheTimeout            = 3 * time.Second
 
 	// DefaultConsumeProcessWriteTimeout consume context
 	DefaultConsumeProcessWriteTimeout = 10 * time.Second
