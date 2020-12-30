@@ -98,13 +98,15 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 		cache = &nullCache{}
 	}
 
+	cacheUpdate := NewCacheUpdate(cache)
+
 	avaxReader := avax.NewReader(connections)
 	avmReader := avm.NewReader(connections)
 	pvmReader := pvm.NewReader(connections)
 
 	// Build router
 	router := web.New(Context{}).
-		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), cache, connections)).
+		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), cache, connections, cacheUpdate)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {

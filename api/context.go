@@ -10,11 +10,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/ortelius/services"
-
-	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -41,27 +38,6 @@ var (
 	workerThreadCount = 1
 )
 
-type CacheJob struct {
-	key  string
-	body *[]byte
-	ttl  time.Duration
-}
-
-type cacheUpdate struct {
-	cache  cacher
-	worker utils.Worker
-}
-
-func (cacheUpdate *cacheUpdate) Processor(_ int, job interface{}) {
-	if j, ok := job.(*CacheJob); ok {
-		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-		defer cancelFnSet()
-
-		// if cache did not set, we can just ignore.
-		_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
-	}
-}
-
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
 	job *health.Job
@@ -71,7 +47,7 @@ type Context struct {
 	avaxAssetID ids.ID
 
 	cache       cacher
-	cacheUpdate cacheUpdate
+	cacheUpdate *cacheUpdate
 	avaxReader  *avax.Reader
 	avmReader   *avm.Reader
 	pvmReader   *pvm.Reader
@@ -186,16 +162,12 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, cacheUpdate *cacheUpdate) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		// Set context properties, context last
 		c.cache = cache
-
 		c.connections = connections
-
-		c.cacheUpdate = cacheUpdate{cache: cache}
-		c.cacheUpdate.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.cacheUpdate.Processor)
-
+		c.cacheUpdate = cacheUpdate
 		c.networkID = networkID
 		c.job = stream.NewJob(jobNameForPath(r.Request.URL.Path))
 
