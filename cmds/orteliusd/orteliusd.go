@@ -13,6 +13,9 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json2"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/replay"
@@ -30,6 +33,8 @@ import (
 	// Register service plugins
 	_ "github.com/ava-labs/ortelius/services/indexes/avm"
 	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
+
+	oreliusRpc "github.com/ava-labs/ortelius/rpc"
 )
 
 const (
@@ -58,7 +63,7 @@ const (
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 
-	defaultReplayQueueSize    = int(5000)
+	defaultReplayQueueSize    = int(2000)
 	defaultReplayQueueThreads = int(4)
 )
 
@@ -91,14 +96,33 @@ func execute() error {
 				*config = *c
 
 				if config.MetricsListenAddr != "" {
-					http.Handle("/metrics", promhttp.Handler())
+					sm := http.NewServeMux()
+					sm.Handle("/metrics", promhttp.Handler())
 					go func() {
-						err = http.ListenAndServe(config.MetricsListenAddr, nil)
+						err = http.ListenAndServe(config.MetricsListenAddr, sm)
 						if err != nil {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
 					}()
 					alog.Info("Starting metrics handler on %s", config.MetricsListenAddr)
+				}
+				if config.AdminListenAddr != "" {
+					rpcServer := rpc.NewServer()
+					codec := json2.NewCodec()
+					rpcServer.RegisterCodec(codec, "application/json")
+					rpcServer.RegisterCodec(codec, "application/json;charset=UTF-8")
+					api := oreliusRpc.NewAPI(alog)
+					if err := rpcServer.RegisterService(api, "api"); err != nil {
+						log.Fatalln("Failed to start admin listener", err.Error())
+					}
+					sm := http.NewServeMux()
+					sm.Handle("/api", rpcServer)
+					go func() {
+						err = http.ListenAndServe(config.AdminListenAddr, sm)
+						if err != nil {
+							log.Fatalln("Failed to start metrics listener", err.Error())
+						}
+					}()
 				}
 			},
 		}
@@ -128,7 +152,6 @@ func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Short: apiCmdDesc,
 		Long:  apiCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			var lc utils.ListenCloser
 			lc, err := api.NewServer(*config)
 			if err != nil {
 				*runErr = err

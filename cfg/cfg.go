@@ -28,6 +28,7 @@ type Config struct {
 	Stream            `json:"stream"`
 	Services          `json:"services"`
 	MetricsListenAddr string `json:"metricsListenAddr"`
+	AdminListenAddr   string `json:"adminListenAddr"`
 }
 
 type Chain struct {
@@ -40,11 +41,10 @@ type Chains map[string]Chain
 
 type Services struct {
 	Logging logging.Config `json:"logging"`
-
-	Log    logging.Logger `json:"log"`
-	API    `json:"api"`
-	*DB    `json:"db"`
-	*Redis `json:"redis"`
+	Log     logging.Logger `json:"log"`
+	API     `json:"api"`
+	*DB     `json:"db"`
+	*Redis  `json:"redis"`
 }
 
 type API struct {
@@ -100,7 +100,6 @@ func NewFromFile(filePath string) (*Config, error) {
 
 	// Get sub vipers for all objects with parents
 	servicesViper := newSubViper(v, keysServices)
-	servicesAPIViper := newSubViper(servicesViper, keysServicesAPI)
 	servicesDBViper := newSubViper(servicesViper, keysServicesDB)
 	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
 
@@ -133,10 +132,11 @@ func NewFromFile(filePath string) (*Config, error) {
 		NetworkID:         v.GetUint32(keysNetworkID),
 		Chains:            chains,
 		MetricsListenAddr: v.GetString(keysServicesMetricsListenAddr),
+		AdminListenAddr:   v.GetString(keysServicesAdminListenAddr),
 		Services: Services{
 			Logging: loggingConf,
 			API: API{
-				ListenAddr: servicesAPIViper.GetString(keysServicesAPIListenAddr),
+				ListenAddr: v.GetString(keysServicesAPIListenAddr),
 			},
 			DB: &DB{
 				Driver: servicesDBViper.GetString(keysServicesDBDriver),

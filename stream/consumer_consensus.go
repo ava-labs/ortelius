@@ -44,6 +44,10 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			return nil, err
 		}
 
+		conns.DB().SetMaxIdleConns(32)
+		conns.DB().SetConnMaxIdleTime(5 * time.Minute)
+		conns.DB().SetConnMaxLifetime(5 * time.Minute)
+
 		c := &consumerconsensus{
 			chainID:                       chainID,
 			conns:                         conns,

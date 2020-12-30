@@ -92,11 +92,16 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	if err != nil {
 		return nil, err
 	}
+	connections.DB().SetMaxIdleConns(32)
+	connections.DB().SetConnMaxIdleTime(5 * time.Minute)
+	connections.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	var cache cacher = connections.Cache()
 	if cache == nil {
 		cache = &nullCache{}
 	}
+
+	delayCache := NewDelayCache(cache)
 
 	avaxReader := avax.NewReader(connections)
 	avmReader := avm.NewReader(connections)
@@ -104,7 +109,7 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 
 	// Build router
 	router := web.New(Context{}).
-		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), cache, connections)).
+		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), connections, delayCache)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
