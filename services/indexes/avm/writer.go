@@ -304,6 +304,7 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 		switch conflictTxType := conflictTx.Transition().(type) {
 		case *avm.UniqueTx:
 			tx = conflictTxType.Tx
+			txBytes = tx.Bytes()
 		default:
 			return fmt.Errorf("invalid type %s", reflect.TypeOf(conflictTx.Transition()))
 		}
