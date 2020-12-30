@@ -91,6 +91,7 @@ func (replay *replay) Start() error {
 	}
 
 	timeLog := time.Now()
+	lastLogLine := make(map[string]int)
 
 	logemit := func(waitGroupCnt int64) {
 		type CounterValues struct {
@@ -121,9 +122,15 @@ func (replay *replay) Start() error {
 			sortedcnters = append(sortedcnters, cnter)
 		}
 		sort.Strings(sortedcnters)
+		currentlogline := make(map[string]int)
 		for _, cnter := range sortedcnters {
-			replay.config.Services.Log.Info("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			newlogline := fmt.Sprintf("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
+			currentlogline[newlogline] = 1
+			if _, ok := lastLogLine[newlogline]; !ok {
+				replay.config.Services.Log.Info(newlogline)
+			}
 		}
+		lastLogLine = currentlogline
 	}
 
 	var waitGroupCnt int64
