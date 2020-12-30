@@ -15,12 +15,12 @@ type CacheJob struct {
 }
 
 type DelayCache struct {
-	cache  cacher
+	Cache  cacher
 	worker utils.Worker
 }
 
 func NewDelayCache(cache cacher) *DelayCache {
-	c := &DelayCache{cache: cache}
+	c := &DelayCache{Cache: cache}
 	c.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.Processor)
 	return c
 }
@@ -31,6 +31,6 @@ func (c *DelayCache) Processor(_ int, job interface{}) {
 		defer cancelFnSet()
 
 		// if cache did not set, we can just ignore.
-		_ = c.cache.Set(ctxset, j.key, *j.body, j.ttl)
+		_ = c.Cache.Set(ctxset, j.key, *j.body, j.ttl)
 	}
 }

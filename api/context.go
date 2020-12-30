@@ -46,7 +46,6 @@ type Context struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	cache       cacher
 	delayCache  *DelayCache
 	avaxReader  *avax.Reader
 	avmReader   *avm.Reader
@@ -71,7 +70,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	var resp []byte
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err = c.cache.Get(ctxget, key)
+	resp, err = c.delayCache.Cache.Get(ctxget, key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
 
@@ -164,8 +163,6 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 
 func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
-		// Set context properties, context last
-		c.cache = cache
 		c.connections = connections
 		c.delayCache = delayCache
 		c.networkID = networkID
