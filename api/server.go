@@ -92,6 +92,9 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	if err != nil {
 		return nil, err
 	}
+	connections.DB().SetMaxIdleConns(32)
+	connections.DB().SetConnMaxIdleTime(5 * time.Minute)
+	connections.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	var cache cacher = connections.Cache()
 	if cache == nil {
