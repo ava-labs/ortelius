@@ -41,11 +41,10 @@ type Chains map[string]Chain
 
 type Services struct {
 	Logging logging.Config `json:"logging"`
-
-	Log    logging.Logger `json:"log"`
-	API    `json:"api"`
-	*DB    `json:"db"`
-	*Redis `json:"redis"`
+	Log     logging.Logger `json:"log"`
+	API     `json:"api"`
+	*DB     `json:"db"`
+	*Redis  `json:"redis"`
 }
 
 type API struct {

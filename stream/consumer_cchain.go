@@ -237,6 +237,11 @@ func (c *ConsumerCChain) init() error {
 	if err != nil {
 		return err
 	}
+
+	conns.DB().SetMaxIdleConns(32)
+	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
+	conns.DB().SetConnMaxLifetime(5 * time.Minute)
+
 	c.conns = conns
 
 	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.CchainID)

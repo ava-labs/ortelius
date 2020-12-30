@@ -57,6 +57,10 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			return nil, err
 		}
 
+		conns.DB().SetMaxIdleConns(32)
+		conns.DB().SetConnMaxIdleTime(5 * time.Minute)
+		conns.DB().SetConnMaxLifetime(5 * time.Minute)
+
 		c := &consumer{
 			chainID:                       chainID,
 			conns:                         conns,
