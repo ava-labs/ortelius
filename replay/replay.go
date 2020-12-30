@@ -341,7 +341,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -355,7 +355,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
