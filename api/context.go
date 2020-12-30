@@ -161,7 +161,7 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		c.connections = connections
 		c.delayCache = delayCache
