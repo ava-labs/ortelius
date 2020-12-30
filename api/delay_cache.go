@@ -14,23 +14,23 @@ type CacheJob struct {
 	ttl  time.Duration
 }
 
-type cacheUpdate struct {
+type DelayCache struct {
 	cache  cacher
 	worker utils.Worker
 }
 
-func NewCacheUpdate(cache cacher) *cacheUpdate {
-	cacheUpdate := &cacheUpdate{cache: cache}
-	cacheUpdate.worker = utils.NewWorker(workerQueueSize, workerThreadCount, cacheUpdate.Processor)
-	return cacheUpdate
+func NewDelayCache(cache cacher) *DelayCache {
+	c := &DelayCache{cache: cache}
+	c.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.Processor)
+	return c
 }
 
-func (cacheUpdate *cacheUpdate) Processor(_ int, job interface{}) {
+func (c *DelayCache) Processor(_ int, job interface{}) {
 	if j, ok := job.(*CacheJob); ok {
 		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
 		defer cancelFnSet()
 
 		// if cache did not set, we can just ignore.
-		_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
+		_ = c.cache.Set(ctxset, j.key, *j.body, j.ttl)
 	}
 }

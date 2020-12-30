@@ -47,7 +47,7 @@ type Context struct {
 	avaxAssetID ids.ID
 
 	cache       cacher
-	cacheUpdate *cacheUpdate
+	delayCache  *DelayCache
 	avaxReader  *avax.Reader
 	avmReader   *avm.Reader
 	pvmReader   *pvm.Reader
@@ -85,8 +85,8 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 			resp, err = json.Marshal(obj)
 			if err == nil {
 				// if we have room in the queue, enque the cache job..
-				if c.cacheUpdate.worker.JobCnt() < int64(workerQueueSize) {
-					c.cacheUpdate.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
+				if c.delayCache.worker.JobCnt() < int64(workerQueueSize) {
+					c.delayCache.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
 				}
 			}
 		}
@@ -162,12 +162,12 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, cacheUpdate *cacheUpdate) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		// Set context properties, context last
 		c.cache = cache
 		c.connections = connections
-		c.cacheUpdate = cacheUpdate
+		c.delayCache = delayCache
 		c.networkID = networkID
 		c.job = stream.NewJob(jobNameForPath(r.Request.URL.Path))
 
