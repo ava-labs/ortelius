@@ -4,6 +4,10 @@
 package avm
 
 import (
+	"time"
+
+	"github.com/ava-labs/avalanchego/vms/propertyfx"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/genesis"
@@ -62,11 +66,12 @@ func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 		fxIDs = createChainTx.FxIDs
 		fxs   = make([]*common.Fx, 0, len(fxIDs))
 		ctx   = &snow.Context{
-			NetworkID: networkID,
-			ChainID:   id,
-			Log:       logging.NoLog{},
-			Metrics:   prometheus.NewRegistry(),
-			BCLookup:  bcLookup,
+			NetworkID:     networkID,
+			ChainID:       id,
+			Log:           logging.NoLog{},
+			Metrics:       prometheus.NewRegistry(),
+			BCLookup:      bcLookup,
+			EpochDuration: time.Hour,
 		}
 	)
 	for _, fxID := range fxIDs {
@@ -79,6 +84,11 @@ func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 		case fxID == nftfx.ID:
 			fxs = append(fxs, &common.Fx{
 				Fx: &nftfx.Fx{},
+				ID: fxID,
+			})
+		case fxID == propertyfx.ID:
+			fxs = append(fxs, &common.Fx{
+				Fx: &propertyfx.Fx{},
 				ID: fxID,
 			})
 		default:

@@ -65,6 +65,8 @@ github.com/aryann/difflib v0.0.0-20170710044230-e206f873d14a/go.mod h1:DAHtR1m6l
 github.com/ava-labs/avalanchego v1.1.1-0.20201218205402-6153919004df/go.mod h1:Q/I7LaMv2EYL8plNVRbcpBJsDk2py2XISfov0KK1MgU=
 github.com/ava-labs/avalanchego v1.1.2-0.20201230070027-f602ce7bf565 h1:iMrvLfkCNwiQZWUuW7yLZwSEZ/SafULtO3zuhJAicYE=
 github.com/ava-labs/avalanchego v1.1.2-0.20201230070027-f602ce7bf565/go.mod h1:Rt6uG5z0/p55UySty7NXIlYd9qXp2/bYO6t5MNShcRc=
+github.com/ava-labs/avalanchego v1.1.2-0.20201230181323-a9e29dd0df01 h1:oUIJg1XVLAA5EWEyxdMupAaMF89E6veJLGRuk9GZtV0=
+github.com/ava-labs/avalanchego v1.1.2-0.20201230181323-a9e29dd0df01/go.mod h1:Rt6uG5z0/p55UySty7NXIlYd9qXp2/bYO6t5MNShcRc=
 github.com/ava-labs/coreth v0.4.0-rc.3 h1:MTFowuEEDVsKOFUz+M1j80UJKymMEEv5zY/JHb2GtXw=
 github.com/ava-labs/coreth v0.4.0-rc.3/go.mod h1:zSN1fSIs3ezKqbClnWIzTQsXkp80u89RJIHma6IUQRs=
 github.com/aws/aws-lambda-go v1.13.3/go.mod h1:4UKl9IzQMoD+QF79YdCuzCwp8VbmG4VAQwij/eHl5CU=
