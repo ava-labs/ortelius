@@ -331,6 +331,11 @@ func (p *ProducerCChain) init() error {
 	if err != nil {
 		return err
 	}
+
+	conns.DB().SetMaxIdleConns(32)
+	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
+	conns.DB().SetConnMaxLifetime(5 * time.Minute)
+
 	p.conns = conns
 
 	err = p.getBlock()

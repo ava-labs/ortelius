@@ -10,11 +10,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/ortelius/services"
-
-	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -41,27 +38,6 @@ var (
 	workerThreadCount = 1
 )
 
-type CacheJob struct {
-	key  string
-	body *[]byte
-	ttl  time.Duration
-}
-
-type cacheUpdate struct {
-	cache  cacher
-	worker utils.Worker
-}
-
-func (cacheUpdate *cacheUpdate) Processor(_ int, job interface{}) {
-	if j, ok := job.(*CacheJob); ok {
-		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-		defer cancelFnSet()
-
-		// if cache did not set, we can just ignore.
-		_ = cacheUpdate.cache.Set(ctxset, j.key, *j.body, j.ttl)
-	}
-}
-
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
 	job *health.Job
@@ -70,8 +46,7 @@ type Context struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	cache       cacher
-	cacheUpdate cacheUpdate
+	delayCache  *DelayCache
 	avaxReader  *avax.Reader
 	avmReader   *avm.Reader
 	pvmReader   *pvm.Reader
@@ -95,7 +70,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	var resp []byte
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err = c.cache.Get(ctxget, key)
+	resp, err = c.delayCache.Cache.Get(ctxget, key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
 
@@ -109,8 +84,8 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 			resp, err = json.Marshal(obj)
 			if err == nil {
 				// if we have room in the queue, enque the cache job..
-				if c.cacheUpdate.worker.JobCnt() < int64(workerQueueSize) {
-					c.cacheUpdate.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
+				if c.delayCache.worker.JobCnt() < int64(workerQueueSize) {
+					c.delayCache.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
 				}
 			}
 		}
@@ -186,16 +161,10 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(networkID uint32, stream *health.Stream, cache cacher, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
-		// Set context properties, context last
-		c.cache = cache
-
 		c.connections = connections
-
-		c.cacheUpdate = cacheUpdate{cache: cache}
-		c.cacheUpdate.worker = utils.NewWorker(workerQueueSize, workerThreadCount, c.cacheUpdate.Processor)
-
+		c.delayCache = delayCache
 		c.networkID = networkID
 		c.job = stream.NewJob(jobNameForPath(r.Request.URL.Path))
 

@@ -14,9 +14,8 @@ const (
 
 	keysServices = "services"
 
-	keysServicesAPI           = "api"
-	keysServicesAPIListenAddr = "listenAddr"
-
+	keysServicesAPIListenAddr     = "listenAddr"
+	keysServicesAdminListenAddr   = "adminListenAddr"
 	keysServicesMetricsListenAddr = "metricsListenAddr"
 
 	keysServicesDB       = "db"

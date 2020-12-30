@@ -5,12 +5,10 @@ package cfg
 
 const defaultJSON = `{
   "networkID": 1,
-  "logDirectory": "/tmp/ortelius/logs/producer/avm",
+  "logDirectory": "/tmp/ortelius/logs",
+  "listenAddr": ":8080",
   "chains": {},
   "services": {
-    "api": {
-			"listenAddr": ":8080"
-		},
     "db": {
       "dsn": "root:password@tcp(127.0.0.1:3306)/ortelius_dev",
       "driver": "mysql"
