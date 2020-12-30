@@ -72,7 +72,6 @@ func (replay *replay) Start() error {
 	if err != nil {
 		return err
 	}
-	conns.DB().SetMaxOpenConns(32)
 	conns.DB().SetMaxIdleConns(32)
 	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
 	conns.DB().SetConnMaxLifetime(5 * time.Minute)
