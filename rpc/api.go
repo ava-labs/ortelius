@@ -54,15 +54,6 @@ func (service *API) LockProfile(_ *http.Request, args *Profile, reply *SuccessRe
 	return service.performance.LockProfile(args.File)
 }
 
-const (
-	// Name of file that CPU profile is written to when StartCPUProfiler called
-	cpuProfileFile = "cpu.profile"
-	// Name of file that memory profile is written to when MemoryProfile called
-	memProfileFile = "mem.profile"
-	// Name of file that lock profile is written to
-	lockProfileFile = "lock.profile"
-)
-
 var (
 	errCPUProfilerRunning    = errors.New("cpu profiler already running")
 	errCPUProfilerNotRunning = errors.New("cpu profiler doesn't exist")
