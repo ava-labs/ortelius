@@ -432,7 +432,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -446,7 +446,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
@@ -519,7 +519,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s stopped for errors", tn)
+					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -533,7 +533,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s reached %s", tn, replayEndTime.String())
+					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
