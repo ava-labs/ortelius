@@ -58,7 +58,7 @@ const (
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
 
-	defaultReplayQueueSize    = int(5000)
+	defaultReplayQueueSize    = int(2000)
 	defaultReplayQueueThreads = int(4)
 )
 
