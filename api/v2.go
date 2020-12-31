@@ -103,7 +103,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.AggregateRequestTimeout, Cacheable{
+	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.Aggregate(ctx, p)
