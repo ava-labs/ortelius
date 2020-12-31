@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -58,28 +58,35 @@ func (c *Context) NetworkID() uint32 {
 	return c.networkID
 }
 
+func (c *Context) cacheGet(key string) ([]byte, error) {
+	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+	defer cancelFnGet()
+	// Get from cache or, if there is a cache miss, from the cacheablefn
+	return c.delayCache.Cache.Get(ctxget, key)
+}
+
+func (c *Context) cacheRun(reqTime time.Duration, cacheable Cacheable) (interface{}, error) {
+	ctxreq, cancelFnReq := context.WithTimeout(context.Background(), reqTime)
+	defer cancelFnReq()
+
+	return cacheable.CacheableFn(ctxreq)
+}
+
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
 func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
-	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-	defer cancelFnGet()
-
-	var err error
-	var resp []byte
-
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err = c.delayCache.Cache.Get(ctxget, key)
-	if err == cache.ErrMiss {
+	resp, err := c.cacheGet(key)
+	switch err {
+	case nil:
+		c.job.KeyValue("cache", "hit")
+	default:
 		c.job.KeyValue("cache", "miss")
 
-		ctxreq, cancelFnReq := context.WithTimeout(context.Background(), cfg.RequestTimeout)
-		defer cancelFnReq()
-
 		var obj interface{}
-		obj, err = cacheable.CacheableFn(ctxreq)
-
+		obj, err = c.cacheRun(cfg.RequestTimeout, cacheable)
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
@@ -89,8 +96,6 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 				}
 			}
 		}
-	} else if err == nil {
-		c.job.KeyValue("cache", "hit")
 	}
 
 	// Write error or response

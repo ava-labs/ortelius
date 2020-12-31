@@ -37,22 +37,22 @@ func GetQueryString(q url.Values, key string, defaultVal string) string {
 	return defaultVal
 }
 
-func GetQueryTime(q url.Values, key string) (time.Time, error) {
+func GetQueryTime(q url.Values, key string) (bool, time.Time, error) {
 	strs, ok := q[key]
 	if !ok || len(strs) < 1 {
-		return time.Time{}, nil
+		return false, time.Time{}, nil
 	}
 
 	timestamp, err := strconv.Atoi(strs[0])
 	if err == nil {
-		return time.Unix(int64(timestamp), 0).UTC(), nil
+		return true, time.Unix(int64(timestamp), 0).UTC(), nil
 	}
 
 	t, err := time.Parse(time.RFC3339, strs[0])
 	if err != nil {
-		return time.Time{}, err
+		return false, time.Time{}, err
 	}
-	return t, nil
+	return true, t, nil
 }
 
 func GetQueryID(q url.Values, key string) (*ids.ID, error) {

@@ -80,15 +80,17 @@ func CacheKey(name string, val interface{}) string {
 // Global params
 //
 type ListParams struct {
-	Limit  int
-	Offset int
-
 	ID        *ids.ID
 	Query     string
 	StartTime time.Time
 	EndTime   time.Time
 
-	DisableCounting bool
+	Limit               int
+	Offset              int
+	DisableCounting     bool
+	StartTimeProvided   bool
+	EndTimeProvided     bool
+	ObserveTimeProvided bool
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
@@ -106,13 +108,13 @@ func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
 		return err
 	}
 
-	p.StartTime, err = GetQueryTime(q, KeyStartTime)
+	p.StartTimeProvided, p.StartTime, err = GetQueryTime(q, KeyStartTime)
 	if err != nil {
 		return err
 	}
 	p.StartTime = p.StartTime.Round(TransactionRoundDuration)
 
-	p.EndTime, err = GetQueryTime(q, KeyEndTime)
+	p.EndTimeProvided, p.EndTime, err = GetQueryTime(q, KeyEndTime)
 	if err != nil {
 		return err
 	}
