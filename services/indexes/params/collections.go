@@ -241,7 +241,8 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	} else if !p.ListParams.StartTime.IsZero() {
 		b.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
 	}
-	if !p.ListParams.EndTime.IsZero() {
+	if p.ListParams.ObserveStartTimeProvided && !p.ListParams.EndTimeProvided {
+	} else if !p.ListParams.EndTime.IsZero() {
 		b.Where("avm_transactions.created_at < ?", p.ListParams.EndTime)
 	}
 
