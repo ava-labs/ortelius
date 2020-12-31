@@ -45,7 +45,7 @@ func GetQueryTime(q url.Values, key string) (bool, time.Time, error) {
 
 	timestamp, err := strconv.Atoi(strs[0])
 	if err == nil {
-		return false, time.Unix(int64(timestamp), 0).UTC(), nil
+		return true, time.Unix(int64(timestamp), 0).UTC(), nil
 	}
 
 	t, err := time.Parse(time.RFC3339, strs[0])
