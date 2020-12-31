@@ -74,7 +74,7 @@ func (c *Context) cacheRun(reqTime time.Duration, cacheable Cacheable) (interfac
 
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
-func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, cacheable Cacheable) {
+func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
@@ -86,7 +86,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, c
 		c.job.KeyValue("cache", "miss")
 
 		var obj interface{}
-		obj, err = c.cacheRun(reqTime, cacheable)
+		obj, err = c.cacheRun(cfg.RequestTimeout, cacheable)
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {

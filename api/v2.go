@@ -7,8 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/web"
@@ -69,7 +67,7 @@ func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("search", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.Search(ctx, p, c.avaxAssetID)
@@ -86,7 +84,7 @@ func (c *V2Context) TxfeeAggregate(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate_txfee", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.TxfeeAggregate(ctx, p)
@@ -103,7 +101,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.Aggregate(ctx, p)
@@ -120,7 +118,7 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -136,7 +134,7 @@ func (c *V2Context) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -154,7 +152,7 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_addresses", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -179,7 +177,7 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 	p.ListParams.DisableCounting = true
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 1 * time.Second,
 		Key: c.cacheKeyForParams("get_address", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -195,7 +193,7 @@ func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("address_chains", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -213,7 +211,7 @@ func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_outputs", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -229,7 +227,7 @@ func (c *V2Context) GetOutput(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForID("get_output", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.GetOutput(ctx, id)
@@ -247,7 +245,7 @@ func (c *V2Context) ListAssets(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("list_assets", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avmReader.ListAssets(ctx, p)
@@ -264,7 +262,7 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 	id := r.PathParams["id"]
 	p.PathParamID = id
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("get_asset", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avmReader.GetAsset(ctx, p, id)
@@ -282,7 +280,7 @@ func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_blocks", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
@@ -298,7 +296,7 @@ func (c *V2Context) GetBlock(w web.ResponseWriter, r *web.Request) {
 		return
 	}
 
-	c.WriteCacheable(w, cfg.RequestTimeout, Cacheable{
+	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForID("get_block", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.pvmReader.GetBlock(ctx, id)
