@@ -59,28 +59,32 @@ func (c *Context) NetworkID() uint32 {
 	return c.networkID
 }
 
+func (c *Context) cacheGet(key string) ([]byte, error) {
+	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
+	defer cancelFnGet()
+	// Get from cache or, if there is a cache miss, from the cacheablefn
+	return c.delayCache.Cache.Get(ctxget, key)
+}
+
+func (c *Context) cacheRun(reqTime time.Duration, cacheable Cacheable) (interface{}, error) {
+	ctxreq, cancelFnReq := context.WithTimeout(context.Background(), reqTime)
+	defer cancelFnReq()
+
+	return cacheable.CacheableFn(ctxreq)
+}
+
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
 func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
-	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
-	defer cancelFnGet()
-
-	var err error
-	var resp []byte
-
 	// Get from cache or, if there is a cache miss, from the cacheablefn
-	resp, err = c.delayCache.Cache.Get(ctxget, key)
+	resp, err := c.cacheGet(key)
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
 
-		ctxreq, cancelFnReq := context.WithTimeout(context.Background(), reqTime)
-		defer cancelFnReq()
-
 		var obj interface{}
-		obj, err = cacheable.CacheableFn(ctxreq)
-
+		obj, err = c.cacheRun(reqTime, cacheable)
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
