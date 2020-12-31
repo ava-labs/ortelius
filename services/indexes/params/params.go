@@ -85,12 +85,12 @@ type ListParams struct {
 	StartTime time.Time
 	EndTime   time.Time
 
-	Limit                    int
-	Offset                   int
-	DisableCounting          bool
-	StartTimeProvided        bool
-	EndTimeProvided          bool
-	ObserveStartTimeProvided bool
+	Limit               int
+	Offset              int
+	DisableCounting     bool
+	StartTimeProvided   bool
+	EndTimeProvided     bool
+	ObserveTimeProvided bool
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {

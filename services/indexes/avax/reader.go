@@ -451,7 +451,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	p.ListParams.ObserveStartTimeProvided = true
+	p.ListParams.ObserveTimeProvided = true
 	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
 
 	var applySort2 func(sort params.TransactionSort)
