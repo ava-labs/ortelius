@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -80,7 +79,10 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, c
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
 	resp, err := c.cacheGet(key)
-	if err == cache.ErrMiss {
+	switch err {
+	case nil:
+		c.job.KeyValue("cache", "hit")
+	default:
 		c.job.KeyValue("cache", "miss")
 
 		var obj interface{}
@@ -94,8 +96,6 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, c
 				}
 			}
 		}
-	} else if err == nil {
-		c.job.KeyValue("cache", "hit")
 	}
 
 	// Write error or response
