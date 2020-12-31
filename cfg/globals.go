@@ -3,8 +3,10 @@ package cfg
 import "time"
 
 const (
+	// AggregateRequestTimeout is the maximum duration to allow an Aggregate API request to execute
+	AggregateRequestTimeout = 20 * time.Second
 	// RequestTimeout is the maximum duration to allow an API request to execute
-	RequestTimeout   = 10 * time.Second
+	RequestTimeout   = 5 * time.Second
 	HTTPWriteTimeout = 20 * time.Second
 	CacheTimeout     = 3 * time.Second
 

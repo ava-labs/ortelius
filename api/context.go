@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ava-labs/ortelius/services"
 
@@ -60,7 +61,7 @@ func (c *Context) NetworkID() uint32 {
 
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
-func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
+func (c *Context) WriteCacheable(w http.ResponseWriter, reqTime time.Duration, cacheable Cacheable) {
 	key := cacheKey(c.NetworkID(), cacheable.Key...)
 
 	ctxget, cancelFnGet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
@@ -74,7 +75,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 	if err == cache.ErrMiss {
 		c.job.KeyValue("cache", "miss")
 
-		ctxreq, cancelFnReq := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+		ctxreq, cancelFnReq := context.WithTimeout(context.Background(), reqTime)
 		defer cancelFnReq()
 
 		var obj interface{}
