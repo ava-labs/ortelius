@@ -287,27 +287,11 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	noopdb := &utils.NoopDatabase{}
-
-	serializer := &state.Serializer{}
-	serializer.Initialize(w.ctx, w.vm, noopdb)
-
 	var tx *avm.Tx
-
-	conflictTx, err := serializer.ParseTx(txBytes)
+	var err error
+	_, tx, err = parseTx(w.codec, txBytes)
 	if err != nil {
-		_, tx, err = parseTx(w.codec, txBytes)
-		if err != nil {
-			return err
-		}
-	} else {
-		switch conflictTxType := conflictTx.Transition().(type) {
-		case *avm.UniqueTx:
-			tx = conflictTxType.Tx
-			txBytes = tx.Bytes()
-		default:
-			return fmt.Errorf("invalid type %s", reflect.TypeOf(conflictTx.Transition()))
-		}
+		return err
 	}
 
 	// Finish processing with a type-specific ingestion routine
