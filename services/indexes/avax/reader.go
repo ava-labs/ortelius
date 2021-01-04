@@ -1242,7 +1242,7 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
-		"case when avm_outputs.stakeable is null then 0 else avm_outputs.stakeable as stakeable",
+		"case when avm_outputs.stakeable is null then 0 else avm_outputs.stakeable end as stakeable",
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
@@ -1270,7 +1270,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs_redeeming.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
-		"case when avm_outputs.stakeable is null then 0 else avm_outputs.stakeable as stakeable",
+		"case when avm_outputs.stakeable is null then 0 else avm_outputs.stakeable end as stakeable",
 	).
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
