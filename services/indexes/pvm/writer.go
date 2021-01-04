@@ -338,26 +338,26 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
 	_, err := ctx.DB().
-		InsertInto("transaction_validator").
+		InsertInto("transactions_validator").
 		Pair("id", txID.String()).
-		Pair("node_id", validator.NodeID).
+		Pair("node_id", validator.NodeID.String()).
 		Pair("start", validator.Start).
 		Pair("end", validator.End).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transaction_validator.insert", err)
+		return ctx.Job().EventErr("transactions_validator.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
-			Update("transaction_validator").
-			Set("node_id", validator.NodeID).
+			Update("transactions_validator").
+			Set("node_id", validator.NodeID.String()).
 			Set("start", validator.Start).
 			Set("end", validator.End).
 			Where("id = ?", txID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			return ctx.Job().EventErr("transaction_validator.update", err)
+			return ctx.Job().EventErr("transactions_validator.update", err)
 		}
 	}
 	return nil
@@ -365,22 +365,22 @@ func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.I
 
 func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
 	_, err := ctx.DB().
-		InsertInto("transaction_block").
+		InsertInto("transactions_block").
 		Pair("id", txID.String()).
 		Pair("block_id", blkTxID.String()).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transaction_block.insert", err)
+		return ctx.Job().EventErr("transactions_block.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
-			Update("transaction_block").
+			Update("transactions_block").
 			Set("block_id", blkTxID.String()).
 			Where("id = ?", txID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			return ctx.Job().EventErr("transaction_block.update", err)
+			return ctx.Job().EventErr("transactions_block.update", err)
 		}
 	}
 	return nil

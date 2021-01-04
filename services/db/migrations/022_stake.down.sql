@@ -1,3 +1,3 @@
 ALTER TABLE `avm_outputs` DROP COLUMN `stakeable`;
-drop table `transaction_validator`;
-drop table `transaction_block`;
+drop table `transactions_validator`;
+drop table `transactions_block`;

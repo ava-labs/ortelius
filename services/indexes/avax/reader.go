@@ -488,16 +488,16 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"avm_transactions.genesis",
 			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
 			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
-			"case when transaction_validator.node_id is null then ' else transaction_validator.node_id end as validator_node_id",
-			"case when transaction_validator.start is null then 0 else transaction_validator.start end as validator_start",
-			"case when transaction_validator.end is null then 0 else transaction_validator.end end as validator_end",
-			"case when transaction_block.block_id is null then '' else transaction_block.block_id end as tx_block_id",
+			"case when transactions_validator.node_id is null then ' else transactions_validator.node_id end as validator_node_id",
+			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
+			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
+			"case when transactions_block.block_id is null then '' else transactions_block.block_id end as tx_block_id",
 		).
 		From("avm_transactions").
 		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
 		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
-		LeftJoin("transaction_validator", "avm_transactions.id = transaction_validator.id").
-		LeftJoin("transaction_block", "avm_transactions.id = transaction_block.id")
+		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
