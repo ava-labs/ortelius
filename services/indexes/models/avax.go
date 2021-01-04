@@ -54,7 +54,7 @@ type Output struct {
 	TransactionID          StringID    `json:"transactionID"`
 	OutputIndex            uint64      `json:"outputIndex"`
 	AssetID                StringID    `json:"assetID"`
-	Stakeable              uint8       `json:"stakeable"`
+	Stake                  uint8       `json:"stake"`
 	OutputType             OutputType  `json:"outputType"`
 	Amount                 TokenAmount `json:"amount"`
 	Locktime               uint64      `json:"locktime"`

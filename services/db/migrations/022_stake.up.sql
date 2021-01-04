@@ -1,4 +1,4 @@
-ALTER TABLE `avm_outputs` ADD COLUMN `stakeable` smallint unsigned default 0;
+ALTER TABLE `avm_outputs` ADD COLUMN `stake` smallint unsigned default 0;
 
 create table `transactions_validator`
 (
