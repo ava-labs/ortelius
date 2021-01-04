@@ -234,7 +234,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	)
 
 	var ins []*avax.TransferableInput
-	var outs []*avax.TransferableOutput
+	var outs avaxIndexer.AddOutsContainer
 
 	outChain := w.chainID
 	inChain := w.chainID
@@ -243,7 +243,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.Stake
+		outs.Outs = castTx.Stake
+		outs.Stakeable = true
 		typ = models.TransactionTypeAddValidator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -262,7 +263,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		}
 	case *platformvm.UnsignedAddDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.Stake
+		outs.Outs = castTx.Stake
+		outs.Stakeable = true
 		typ = models.TransactionTypeAddDelegator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -297,7 +299,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		}
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.ExportedOutputs
+		outs.Outs = castTx.ExportedOutputs
 		outChain = castTx.DestinationChain.String()
 		typ = models.TransactionTypePVMExport
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
@@ -333,7 +335,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, outs, outChain, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, &outs, outChain, 0, genesis)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {

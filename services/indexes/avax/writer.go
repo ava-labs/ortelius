@@ -47,7 +47,12 @@ func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Write
 	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID, stream: stream}
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, inChainID string, addOuts []*avax.TransferableOutput, outChainID string, addlOutTxfee uint64, genesis bool) error {
+type AddOutsContainer struct {
+	Outs      []*avax.TransferableOutput
+	Stakeable bool
+}
+
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, inChainID string, addOuts *AddOutsContainer, outChainID string, addlOutTxfee uint64, genesis bool) error {
 	var (
 		err      error
 		totalin  uint64 = 0
@@ -88,16 +93,14 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		idx++
 	}
 
-	stakeable := false
-	if txType == models.TransactionTypeAddValidator || txType == models.TransactionTypeAddDelegator {
-		stakeable = true
-	}
-	for _, out := range addOuts {
-		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID, stakeable)
-		if err != nil {
-			return err
+	if addOuts != nil {
+		for _, out := range addOuts.Outs {
+			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID, addOuts.Stakeable)
+			if err != nil {
+				return err
+			}
+			idx++
 		}
-		idx++
 	}
 
 	txfee := totalin - (totalout + addlOutTxfee)
