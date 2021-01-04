@@ -369,7 +369,7 @@ func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, b
 	_, err := ctx.DB().
 		InsertInto("transactions_block").
 		Pair("id", txID.String()).
-		Pair("block_id", blkTxID.String()).
+		Pair("tx_block_id", blkTxID.String()).
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -378,7 +378,7 @@ func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, b
 	if cfg.PerformUpdates {
 		_, err := ctx.DB().
 			Update("transactions_block").
-			Set("block_id", blkTxID.String()).
+			Set("tx_block_id", blkTxID.String()).
 			Where("id = ?", txID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {

@@ -491,7 +491,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
 			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
 			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
-			"case when transactions_block.block_id is null then '' else transactions_block.block_id end as tx_block_id",
+			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
 		).
 		From("avm_transactions").
 		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").

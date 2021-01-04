@@ -11,8 +11,8 @@ create table `transactions_validator`
 
 create table `transactions_block`
 (
-    id         varchar(50)        not null primary key,
-    block_id   varchar(50)        default '',
-    created_at timestamp not null default current_timestamp
+    id          varchar(50)        not null primary key,
+    tx_block_id varchar(50)        default '',
+    created_at  timestamp not null default current_timestamp
 );
 
