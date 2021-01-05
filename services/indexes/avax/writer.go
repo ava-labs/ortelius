@@ -368,7 +368,7 @@ func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txI
 			}
 		}
 
-		// these would be from geneiss, and they are stake..
+		// these would be from genesis, and they are stake..
 		stake = true
 
 		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, typedOut.Locktime, chainID, stake)
