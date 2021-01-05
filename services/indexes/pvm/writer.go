@@ -243,7 +243,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.Stake,
 			Stake:   true,
-			ChainID: w.chainID}
+			ChainID: w.chainID,
+		}
 		typ = models.TransactionTypeAddValidator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -265,7 +266,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.Stake,
 			Stake:   true,
-			ChainID: w.chainID}
+			ChainID: w.chainID,
+		}
 		typ = models.TransactionTypeAddDelegator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -293,7 +295,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		baseTx = castTx.BaseTx.BaseTx
 		ins = &avaxIndexer.AddInsContainer{
 			Ins:     castTx.ImportedInputs,
-			ChainID: castTx.SourceChain.String()}
+			ChainID: castTx.SourceChain.String(),
+		}
 		typ = models.TransactionTypePVMImport
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
@@ -303,7 +306,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.ExportedOutputs,
-			ChainID: castTx.DestinationChain.String()}
+			ChainID: castTx.DestinationChain.String(),
+		}
 		typ = models.TransactionTypePVMExport
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
