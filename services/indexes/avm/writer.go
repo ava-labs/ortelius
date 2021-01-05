@@ -315,17 +315,56 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.OperationTx:
 		return w.insertOperationTx(ctx, txBytes, castTx, tx.Credentials(), false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, &avax.AddInsContainer{Ins: castTx.ImportedIns, ChainID: castTx.SourceChain.String()}, nil, 0, false)
+		return w.avax.InsertTransaction(
+			ctx,
+			txBytes,
+			tx.UnsignedBytes(),
+			&castTx.BaseTx.BaseTx,
+			tx.Credentials(),
+			models.TransactionTypeAVMImport,
+			&avax.AddInsContainer{Ins: castTx.ImportedIns, ChainID: castTx.SourceChain.String()},
+			nil,
+			0,
+			false,
+		)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, &avax.AddOutsContainer{Outs: castTx.ExportedOuts, ChainID: castTx.DestinationChain.String()}, 0, false)
+		return w.avax.InsertTransaction(
+			ctx,
+			txBytes,
+			tx.UnsignedBytes(),
+			&castTx.BaseTx.BaseTx,
+			tx.Credentials(),
+			models.TransactionTypeAVMExport,
+			nil,
+			&avax.AddOutsContainer{Outs: castTx.ExportedOuts, ChainID: castTx.DestinationChain.String()},
+			0,
+			false,
+		)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, nil, 0, false)
+		return w.avax.InsertTransaction(
+			ctx,
+			txBytes,
+			tx.UnsignedBytes(),
+			&castTx.BaseTx,
+			tx.Credentials(),
+			models.TransactionTypeBase,
+			nil,
+			nil,
+			0,
+			false,
+		)
 	default:
 		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
 }
 
-func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.OperationTx, creds []verify.Verifiable, genesis bool) error {
+func (w *Writer) insertOperationTx(
+	ctx services.ConsumerCtx,
+	txBytes []byte,
+	tx *avm.OperationTx,
+	creds []verify.Verifiable,
+	genesis bool,
+) error {
 	var (
 		err         error
 		outputCount uint32
