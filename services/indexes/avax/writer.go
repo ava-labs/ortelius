@@ -47,12 +47,18 @@ func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Write
 	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID, stream: stream}
 }
 
-type AddOutsContainer struct {
-	Outs  []*avax.TransferableOutput
-	Stake bool
+type AddInsContainer struct {
+	Ins     []*avax.TransferableInput
+	ChainID string
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, inChainID string, addOuts *AddOutsContainer, outChainID string, addlOutTxfee uint64, genesis bool) error {
+type AddOutsContainer struct {
+	Outs    []*avax.TransferableOutput
+	Stake   bool
+	ChainID string
+}
+
+func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns *AddInsContainer, addOuts *AddOutsContainer, addlOutTxfee uint64, genesis bool) error {
 	var (
 		err      error
 		totalin  uint64 = 0
@@ -67,12 +73,15 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 		}
 		inidx++
 	}
-	for _, in := range addIns {
-		totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, inChainID)
-		if err != nil {
-			return err
+
+	if addIns != nil {
+		for _, in := range addIns.Ins {
+			totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, addIns.ChainID)
+			if err != nil {
+				return err
+			}
+			inidx++
 		}
-		inidx++
 	}
 
 	// If the tx or memo is too big we can't store it in the db
@@ -95,7 +104,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	if addOuts != nil {
 		for _, out := range addOuts.Outs {
-			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID, addOuts.Stake)
+			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), addOuts.ChainID, addOuts.Stake)
 			if err != nil {
 				return err
 			}

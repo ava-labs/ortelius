@@ -315,11 +315,11 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	case *avm.OperationTx:
 		return w.insertOperationTx(ctx, txBytes, castTx, tx.Credentials(), false)
 	case *avm.ImportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, castTx.ImportedIns, castTx.SourceChain.String(), nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMImport, &avax.AddInsContainer{Ins: castTx.ImportedIns, ChainID: castTx.SourceChain.String()}, nil, 0, false)
 	case *avm.ExportTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, w.chainID, &avax.AddOutsContainer{Outs: castTx.ExportedOuts}, castTx.DestinationChain.String(), 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx.BaseTx, tx.Credentials(), models.TransactionTypeAVMExport, nil, &avax.AddOutsContainer{Outs: castTx.ExportedOuts, ChainID: castTx.DestinationChain.String()}, 0, false)
 	case *avm.BaseTx:
-		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, w.chainID, nil, w.chainID, 0, false)
+		return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &castTx.BaseTx, tx.Credentials(), models.TransactionTypeBase, nil, nil, 0, false)
 	default:
 		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
@@ -354,7 +354,7 @@ func (w *Writer) insertOperationTx(ctx services.ConsumerCtx, txBytes []byte, tx 
 		}
 	}
 
-	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, w.chainID, nil, w.chainID, totalout, genesis)
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, nil, totalout, genesis)
 }
 
 func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
@@ -416,5 +416,5 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		}
 	}
 
-	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, w.chainID, nil, w.chainID, totalout, genesis)
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis)
 }

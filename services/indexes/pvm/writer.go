@@ -233,11 +233,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		typ    models.TransactionType
 	)
 
-	var ins []*avax.TransferableInput
+	var ins avaxIndexer.AddInsContainer
 	var outs avaxIndexer.AddOutsContainer
-
-	outChain := w.chainID
-	inChain := w.chainID
 
 	var err error
 	switch castTx := tx.UnsignedTx.(type) {
@@ -245,6 +242,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		baseTx = castTx.BaseTx.BaseTx
 		outs.Outs = castTx.Stake
 		outs.Stake = true
+		outs.ChainID = w.chainID
 		typ = models.TransactionTypeAddValidator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -290,8 +288,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		}
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
-		ins = castTx.ImportedInputs
-		inChain = castTx.SourceChain.String()
+		ins.Ins = castTx.ImportedInputs
+		ins.ChainID = castTx.SourceChain.String()
 		typ = models.TransactionTypePVMImport
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
@@ -300,7 +298,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs.Outs = castTx.ExportedOutputs
-		outChain = castTx.DestinationChain.String()
+		outs.ChainID = castTx.DestinationChain.String()
 		typ = models.TransactionTypePVMExport
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
@@ -335,7 +333,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, &outs, outChain, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, &ins, &outs, 0, genesis)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
