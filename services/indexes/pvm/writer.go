@@ -119,7 +119,17 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		_, _, err = w.avax.ProcessStateOut(cCtx, utxo.Out, ChainID, uint32(idx), utxo.AssetID(), 0, 0, w.chainID, false)
+		_, _, err = w.avax.ProcessStateOut(
+			cCtx,
+			utxo.Out,
+			ChainID,
+			uint32(idx),
+			utxo.AssetID(),
+			0,
+			0,
+			w.chainID,
+			false,
+		)
 		if err != nil {
 			return err
 		}
@@ -193,7 +203,13 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	return errs.Err
 }
 
-func (w *Writer) indexCommonBlock(ctx services.ConsumerCtx, blkID ids.ID, blkType models.BlockType, blk platformvm.CommonBlock, blockBytes []byte) error {
+func (w *Writer) indexCommonBlock(
+	ctx services.ConsumerCtx,
+	blkID ids.ID,
+	blkType models.BlockType,
+	blk platformvm.CommonBlock,
+	blockBytes []byte,
+) error {
 	if len(blockBytes) > 32000 {
 		blockBytes = []byte("")
 	}
@@ -342,7 +358,18 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, outs, 0, genesis)
+	return w.avax.InsertTransaction(
+		ctx,
+		tx.Bytes(),
+		tx.UnsignedBytes(),
+		&baseTx,
+		tx.Creds,
+		typ,
+		ins,
+		outs,
+		0,
+		genesis,
+	)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
