@@ -102,7 +102,15 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	}
 }
 
-func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ models.CChainType, blockChainID ids.ID, blockHeader *types.Header, txFee uint64, unsignedBytes []byte) error {
+func (w *Writer) indexTransaction(
+	ctx services.ConsumerCtx,
+	id ids.ID,
+	typ models.CChainType,
+	blockChainID ids.ID,
+	blockHeader *types.Header,
+	txFee uint64,
+	unsignedBytes []byte,
+) error {
 	_, err := ctx.DB().
 		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
 			id.String(), typ, blockChainID.String(), ctx.Time()).
@@ -128,10 +136,28 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, id ids.ID, typ model
 		avmTxtype = "atomic_export_tx"
 	}
 
-	return w.avax.InsertTransactionBase(ctx, id, blockChainID.String(), avmTxtype, []byte(""), unsignedBytes, txFee, false)
+	return w.avax.InsertTransactionBase(
+		ctx,
+		id,
+		blockChainID.String(),
+		avmTxtype,
+		[]byte(""),
+		unsignedBytes,
+		txFee,
+		false,
+	)
 }
 
-func (w *Writer) insertAddress(typ models.CChainType, ctx services.ConsumerCtx, idx uint64, id ids.ID, address common.Address, assetID ids.ID, amount uint64, nonce uint64) error {
+func (w *Writer) insertAddress(
+	typ models.CChainType,
+	ctx services.ConsumerCtx,
+	idx uint64,
+	id ids.ID,
+	address common.Address,
+	assetID ids.ID,
+	amount uint64,
+	nonce uint64,
+) error {
 	idprefix := id.Prefix(idx)
 	_, err := ctx.DB().
 		InsertInto("cvm_addresses").
