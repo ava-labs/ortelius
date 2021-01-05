@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
@@ -58,7 +57,18 @@ type AddOutsContainer struct {
 	ChainID string
 }
 
-func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns *AddInsContainer, addOuts *AddOutsContainer, addlOutTxfee uint64, genesis bool) error {
+func (w *Writer) InsertTransaction(
+	ctx services.ConsumerCtx,
+	txBytes []byte,
+	unsignedBytes []byte,
+	baseTx *avax.BaseTx,
+	creds []verify.Verifiable,
+	txType models.TransactionType,
+	addIns *AddInsContainer,
+	addOuts *AddOutsContainer,
+	addlOutTxfee uint64,
+	genesis bool,
+) error {
 	var (
 		err      error
 		totalin  uint64 = 0
@@ -82,15 +92,6 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 			}
 			inidx++
 		}
-	}
-
-	// If the tx or memo is too big we can't store it in the db
-	if len(txBytes) > MaxSerializationLen {
-		txBytes = []byte{}
-	}
-
-	if len(baseTx.Memo) > MaxMemoLen {
-		baseTx.Memo = nil
 	}
 
 	var idx uint32
@@ -120,13 +121,35 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 	}
 
 	// Add baseTx to the table
-	return w.InsertTransactionBase(ctx, baseTx.ID(), w.chainID, txType.String(), baseTx.Memo, txBytes, txfee, genesis)
+	return w.InsertTransactionBase(
+		ctx,
+		baseTx.ID(),
+		w.chainID,
+		txType.String(),
+		baseTx.Memo,
+		txBytes,
+		txfee,
+		genesis,
+	)
 }
 
-func (w *Writer) InsertTransactionBase(ctx services.ConsumerCtx, txID ids.ID, chainID string, txType string, memo []byte, txBytes []byte, txfee uint64, genesis bool) error {
+func (w *Writer) InsertTransactionBase(
+	ctx services.ConsumerCtx,
+	txID ids.ID,
+	chainID string,
+	txType string,
+	memo []byte,
+	txBytes []byte,
+	txfee uint64,
+	genesis bool,
+) error {
 	if len(txBytes) > MaxSerializationLen {
 		txBytes = []byte("")
 	}
+	if len(memo) > MaxMemoLen {
+		memo = nil
+	}
+
 	_, err := ctx.DB().
 		InsertInto("avm_transactions").
 		Pair("id", txID.String()).
@@ -159,7 +182,16 @@ func (w *Writer) InsertTransactionBase(ctx services.ConsumerCtx, txID ids.ID, ch
 	return nil
 }
 
-func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin uint64, in *avax.TransferableInput, txID ids.ID, creds []verify.Verifiable, unsignedBytes []byte, chainID string) (uint64, error) {
+func (w *Writer) InsertTransactionIns(
+	idx int,
+	ctx services.ConsumerCtx,
+	totalin uint64,
+	in *avax.TransferableInput,
+	txID ids.ID,
+	creds []verify.Verifiable,
+	unsignedBytes []byte,
+	chainID string,
+) (uint64, error) {
 	var err error
 	if in.AssetID() == w.avaxAssetID {
 		totalin, err = math.Add64(totalin, in.Input().Amount())
@@ -225,7 +257,15 @@ func (w *Writer) InsertTransactionIns(idx int, ctx services.ConsumerCtx, totalin
 	return totalin, nil
 }
 
-func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, totalout uint64, out *avax.TransferableOutput, txID ids.ID, chainID string, stake bool) (uint64, error) {
+func (w *Writer) InsertTransactionOuts(
+	idx uint32,
+	ctx services.ConsumerCtx,
+	totalout uint64,
+	out *avax.TransferableOutput,
+	txID ids.ID,
+	chainID string,
+	stake bool,
+) (uint64, error) {
 	var err error
 	_, totalout, err = w.ProcessStateOut(ctx, out.Out, txID, idx, out.AssetID(), 0, totalout, chainID, stake)
 	if err != nil {
@@ -234,11 +274,23 @@ func (w *Writer) InsertTransactionOuts(idx uint32, ctx services.ConsumerCtx, tot
 	return totalout, nil
 }
 
-func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32, assetID ids.ID, out *secp256k1fx.TransferOutput, outputType models.OutputType, groupID uint32, payload []byte, stakeLocktime uint64, chainID string, stake bool, frozen bool) error {
+func (w *Writer) InsertOutput(
+	ctx services.ConsumerCtx,
+	txID ids.ID,
+	idx uint32,
+	assetID ids.ID,
+	out *secp256k1fx.TransferOutput,
+	outputType models.OutputType,
+	groupID uint32,
+	payload []byte,
+	stakeLocktime uint64,
+	chainID string,
+	stake bool,
+	frozen bool,
+) error {
 	outputID := txID.Prefix(uint64(idx))
 
 	var err error
-	errs := wrappers.Errs{}
 	_, err = ctx.DB().
 		InsertInto("avm_outputs").
 		Pair("id", outputID.String()).
@@ -258,7 +310,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("avm_outputs.insert", err))
+		return w.stream.EventErr("avm_outputs.insert", err)
 	}
 	if cfg.PerformUpdates {
 		_, err = ctx.DB().
@@ -279,7 +331,7 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 			Where("id = ?", outputID.String()).
 			ExecContext(ctx.Ctx())
 		if err != nil {
-			errs.Add(w.stream.EventErr("avm_outputs.update", err))
+			return w.stream.EventErr("avm_outputs.update", err)
 		}
 	}
 
@@ -287,12 +339,18 @@ func (w *Writer) InsertOutput(ctx services.ConsumerCtx, txID ids.ID, idx uint32,
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		errs.Add(w.InsertOutputAddress(ctx, outputID, ids.ShortID(addrBytes), nil))
+		err = w.InsertOutputAddress(ctx, outputID, ids.ShortID(addrBytes), nil)
+		if err != nil {
+			return err
+		}
 	}
-	return errs.Err
+	return nil
 }
 
-func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey crypto.PublicKey) error {
+func (w *Writer) InsertAddressFromPublicKey(
+	ctx services.ConsumerCtx,
+	publicKey crypto.PublicKey,
+) error {
 	_, err := ctx.DB().
 		InsertInto("addresses").
 		Pair("address", publicKey.Address().String()).
@@ -305,9 +363,12 @@ func (w *Writer) InsertAddressFromPublicKey(ctx services.ConsumerCtx, publicKey 
 	return nil
 }
 
-func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, address ids.ShortID, sig []byte) error {
-	errs := wrappers.Errs{}
-
+func (w *Writer) InsertOutputAddress(
+	ctx services.ConsumerCtx,
+	outputID ids.ID,
+	address ids.ShortID,
+	sig []byte,
+) error {
 	_, err := ctx.DB().
 		InsertInto("address_chain").
 		Pair("address", address.String()).
@@ -315,7 +376,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 		Pair("created_at", ctx.Time()).
 		ExecContext(ctx.Ctx())
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		errs.Add(w.stream.EventErr("address_chain.insert", err))
+		return w.stream.EventErr("address_chain.insert", err)
 	}
 
 	builder := ctx.DB().
@@ -333,7 +394,7 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 	case err == nil:
 		return nil
 	case !db.ErrIsDuplicateEntryError(err):
-		errs.Add(ctx.Job().EventErr("avm_output_addresses.insert", err))
+		return ctx.Job().EventErr("avm_output_addresses.insert", err)
 	case sig == nil:
 		return nil
 	}
@@ -344,13 +405,23 @@ func (w *Writer) InsertOutputAddress(ctx services.ConsumerCtx, outputID ids.ID, 
 		Where("output_id = ? and address = ?", outputID.String(), address.String()).
 		ExecContext(ctx.Ctx())
 	if err != nil {
-		errs.Add(ctx.Job().EventErr("avm_output_addresses.update", err))
+		return ctx.Job().EventErr("avm_output_addresses.update", err)
 	}
 
-	return errs.Err
+	return nil
 }
 
-func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txID ids.ID, outputCount uint32, assetID ids.ID, amount uint64, totalout uint64, chainID string, stake bool) (uint64, uint64, error) {
+func (w *Writer) ProcessStateOut(
+	ctx services.ConsumerCtx,
+	out verify.State,
+	txID ids.ID,
+	outputCount uint32,
+	assetID ids.ID,
+	amount uint64,
+	totalout uint64,
+	chainID string,
+	stake bool,
+) (uint64, uint64, error) {
 	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
 		return &secp256k1fx.TransferOutput{OutputOwners: oo}
 	}
@@ -373,28 +444,92 @@ func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txI
 		// these would be from genesis, and they are stake..
 		stake = true
 
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut, models.OutputTypesSECP2556K1Transfer, 0, nil, typedOut.Locktime, chainID, stake, false)
-
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			xOut,
+			models.OutputTypesSECP2556K1Transfer,
+			0,
+			nil,
+			typedOut.Locktime,
+			chainID,
+			stake,
+			false,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
 	case *secp256k1fx.ManagedAssetStatusOutput:
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.Mgr), models.OutputTypesManagedAsset, 0, nil, 0, chainID, stake, typedOut.IsFrozen)
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			xOut(typedOut.Mgr),
+			models.OutputTypesSECP2556K1Transfer,
+			0,
+			nil,
+			0,
+			chainID,
+			stake,
+			typedOut.IsFrozen,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
 	case *nftfx.TransferOutput:
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTTransfer, typedOut.GroupID, typedOut.Payload, 0, chainID, stake, false)
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			xOut(typedOut.OutputOwners),
+			models.OutputTypesNFTTransfer,
+			typedOut.GroupID,
+			typedOut.Payload,
+			0,
+			chainID,
+			stake,
+			false,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
 	case *nftfx.MintOutput:
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesNFTMint, typedOut.GroupID, nil, 0, chainID, stake, false)
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			xOut(typedOut.OutputOwners),
+			models.OutputTypesNFTMint,
+			typedOut.GroupID,
+			nil,
+			0,
+			chainID,
+			stake,
+			false,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
 	case *secp256k1fx.MintOutput:
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, xOut(typedOut.OutputOwners), models.OutputTypesSECP2556K1Mint, 0, nil, 0, chainID, stake, false)
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			xOut(typedOut.OutputOwners),
+			models.OutputTypesSECP2556K1Mint,
+			0,
+			nil,
+			0,
+			chainID,
+			stake,
+			false,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -405,7 +540,20 @@ func (w *Writer) ProcessStateOut(ctx services.ConsumerCtx, out verify.State, txI
 				return 0, 0, err
 			}
 		}
-		err = w.InsertOutput(ctx, txID, outputCount, assetID, typedOut, models.OutputTypesSECP2556K1Transfer, 0, nil, 0, chainID, stake, false)
+		err = w.InsertOutput(
+			ctx,
+			txID,
+			outputCount,
+			assetID,
+			typedOut,
+			models.OutputTypesSECP2556K1Transfer,
+			0,
+			nil,
+			0,
+			chainID,
+			stake,
+			false,
+		)
 		if err != nil {
 			return 0, 0, err
 		}
