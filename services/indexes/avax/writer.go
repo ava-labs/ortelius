@@ -144,9 +144,8 @@ func (w *Writer) InsertTransactionBase(
 	genesis bool,
 ) error {
 	if len(txBytes) > MaxSerializationLen {
-		txBytes = []byte{}
+		txBytes = []byte("")
 	}
-
 	if len(memo) > MaxMemoLen {
 		memo = nil
 	}
