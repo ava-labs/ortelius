@@ -244,7 +244,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs.Outs = castTx.Stake
-		outs.Stakeable = true
+		outs.Stake = true
 		typ = models.TransactionTypeAddValidator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
@@ -264,7 +264,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedAddDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs.Outs = castTx.Stake
-		outs.Stakeable = true
+		outs.Stake = true
 		typ = models.TransactionTypeAddDelegator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {

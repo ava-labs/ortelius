@@ -48,8 +48,8 @@ func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Write
 }
 
 type AddOutsContainer struct {
-	Outs      []*avax.TransferableOutput
-	Stakeable bool
+	Outs  []*avax.TransferableOutput
+	Stake bool
 }
 
 func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, unsignedBytes []byte, baseTx *avax.BaseTx, creds []verify.Verifiable, txType models.TransactionType, addIns []*avax.TransferableInput, inChainID string, addOuts *AddOutsContainer, outChainID string, addlOutTxfee uint64, genesis bool) error {
@@ -95,7 +95,7 @@ func (w *Writer) InsertTransaction(ctx services.ConsumerCtx, txBytes []byte, uns
 
 	if addOuts != nil {
 		for _, out := range addOuts.Outs {
-			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID, addOuts.Stakeable)
+			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), outChainID, addOuts.Stake)
 			if err != nil {
 				return err
 			}
