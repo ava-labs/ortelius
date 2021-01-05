@@ -35,6 +35,12 @@ type Transaction struct {
 
 	VertexID StringID `json:"vertexId"`
 
+	ValidatorNodeID StringID `json:"validatorNodeID"`
+	ValidatorStart  uint64   `json:"validatorStart"`
+	ValidatorEnd    uint64   `json:"validatorEnd"`
+
+	TxBlockID StringID `json:"txBlockId"`
+
 	Score uint64 `json:"-"`
 }
 
@@ -48,8 +54,9 @@ type Output struct {
 	TransactionID          StringID    `json:"transactionID"`
 	OutputIndex            uint64      `json:"outputIndex"`
 	AssetID                StringID    `json:"assetID"`
+	Stake                  bool        `json:"stake"`
+	Frozen                 bool        `json:"frozen"`
 	OutputType             OutputType  `json:"outputType"`
-	Frozen                 uint8       `json:"frozen"`
 	Amount                 TokenAmount `json:"amount"`
 	Locktime               uint64      `json:"locktime"`
 	StakeLocktime          uint64      `json:"stakeLocktime"`

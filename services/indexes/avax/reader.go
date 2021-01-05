@@ -489,10 +489,16 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"avm_transactions.genesis",
 			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
 			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
+			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
+			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
+			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
+			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
 		).
 		From("avm_transactions").
 		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
-		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id")
+		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
+		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -986,6 +992,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.public_key",
 		"union_q.chain_id",
 		"union_q.payload",
+		"union_q.stake",
 		"union_q.frozen",
 	).
 		From(su).
@@ -1237,7 +1244,8 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
-		"avm_outputs.frozen",
+		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
+		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
@@ -1265,6 +1273,7 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"addresses.public_key AS public_key",
 		"avm_outputs_redeeming.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
+		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
 		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs_redeeming").
