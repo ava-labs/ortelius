@@ -263,6 +263,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		baseTx = castTx.BaseTx.BaseTx
 		outs.Outs = castTx.Stake
 		outs.Stake = true
+		outs.ChainID = w.chainID
 		typ = models.TransactionTypeAddDelegator
 		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
 		if err != nil {
