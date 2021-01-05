@@ -119,7 +119,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		default:
 		}
 
-		_, _, err = w.avax.ProcessStateOut(cCtx, utxo.Out, ChainID, uint32(idx), utxo.AssetID(), 0, 0, w.chainID)
+		_, _, err = w.avax.ProcessStateOut(cCtx, utxo.Out, ChainID, uint32(idx), utxo.AssetID(), 0, 0, w.chainID, false)
 		if err != nil {
 			return err
 		}
@@ -233,40 +233,78 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		typ    models.TransactionType
 	)
 
-	var ins []*avax.TransferableInput
-	var outs []*avax.TransferableOutput
+	var ins avaxIndexer.AddInsContainer
+	var outs avaxIndexer.AddOutsContainer
 
-	outChain := w.chainID
-	inChain := w.chainID
-
+	var err error
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.Stake
+		outs.Outs = castTx.Stake
+		outs.Stake = true
+		outs.ChainID = w.chainID
 		typ = models.TransactionTypeAddValidator
+		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
+		if err != nil {
+			return err
+		}
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedAddDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.Stake
+		outs.Outs = castTx.Stake
+		outs.Stake = true
+		outs.ChainID = w.chainID
 		typ = models.TransactionTypeAddDelegator
+		err = w.InsertTransactionValidator(ctx, baseTx.ID(), castTx.Validator)
+		if err != nil {
+			return err
+		}
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateSubnet
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedCreateChainTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateChain
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedImportTx:
 		baseTx = castTx.BaseTx.BaseTx
-		ins = castTx.ImportedInputs
-		inChain = castTx.SourceChain.String()
+		ins.Ins = castTx.ImportedInputs
+		ins.ChainID = castTx.SourceChain.String()
 		typ = models.TransactionTypePVMImport
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedExportTx:
 		baseTx = castTx.BaseTx.BaseTx
-		outs = castTx.ExportedOutputs
-		outChain = castTx.DestinationChain.String()
+		outs.Outs = castTx.ExportedOutputs
+		outs.ChainID = castTx.DestinationChain.String()
 		typ = models.TransactionTypePVMExport
+		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
+		if err != nil {
+			return err
+		}
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
@@ -296,5 +334,55 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return nil
 	}
 
-	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, ins, inChain, outs, outChain, 0, genesis)
+	return w.avax.InsertTransaction(ctx, tx.Bytes(), tx.UnsignedBytes(), &baseTx, tx.Creds, typ, &ins, &outs, 0, genesis)
+}
+
+func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
+	_, err := ctx.DB().
+		InsertInto("transactions_validator").
+		Pair("id", txID.String()).
+		Pair("node_id", validator.NodeID.String()).
+		Pair("start", validator.Start).
+		Pair("end", validator.End).
+		Pair("created_at", ctx.Time()).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return ctx.Job().EventErr("transactions_validator.insert", err)
+	}
+	if cfg.PerformUpdates {
+		_, err := ctx.DB().
+			Update("transactions_validator").
+			Set("node_id", validator.NodeID.String()).
+			Set("start", validator.Start).
+			Set("end", validator.End).
+			Where("id = ?", txID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			return ctx.Job().EventErr("transactions_validator.update", err)
+		}
+	}
+	return nil
+}
+
+func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
+	_, err := ctx.DB().
+		InsertInto("transactions_block").
+		Pair("id", txID.String()).
+		Pair("tx_block_id", blkTxID.String()).
+		Pair("created_at", ctx.Time()).
+		ExecContext(ctx.Ctx())
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return ctx.Job().EventErr("transactions_block.insert", err)
+	}
+	if cfg.PerformUpdates {
+		_, err := ctx.DB().
+			Update("transactions_block").
+			Set("tx_block_id", blkTxID.String()).
+			Where("id = ?", txID.String()).
+			ExecContext(ctx.Ctx())
+		if err != nil {
+			return ctx.Job().EventErr("transactions_block.update", err)
+		}
+	}
+	return nil
 }

@@ -183,7 +183,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	var totalout uint64
 	var idx uint32
 	for _, out := range tx.ExportedOutputs {
-		totalout, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String())
+		totalout, err = w.avax.InsertTransactionOuts(idx, ctx, totalout, out, txID, tx.DestinationChain.String(), false)
 		if err != nil {
 			return err
 		}
