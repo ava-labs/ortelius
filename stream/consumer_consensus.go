@@ -141,18 +141,32 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 	}()
 
-	for {
+	id, err := ids.FromString(msg.ID())
+	if err != nil {
+		collectors.Error()
+		c.conns.Logger().Error("consumer.Consume: %s %v", id.String(), err)
+		return err
+	}
+
+	icnt := 0
+	for ; icnt <= cfg.DatabaseRetries; icnt++ {
 		err = c.persistConsume(msg)
-		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+		if err == nil {
 			break
+		}
+		if !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			c.conns.Logger().Warn("consumer.Consume: %s %v", id.String(), err)
+		} else {
+			icnt = 0
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.ConsumeConsensus: %s", err)
+		c.conns.Logger().Error("consumer.Consume: %s %v", id.String(), err)
 		return err
 	}
+
 	return nil
 }
 

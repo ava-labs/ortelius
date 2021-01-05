@@ -10,6 +10,8 @@ const (
 
 	// DefaultConsumeProcessWriteTimeout consume context
 	DefaultConsumeProcessWriteTimeout = 10 * time.Second
+
+	DatabaseRetries = 60
 )
 
 // PerformUpdates controls for performing sql update operations.  Disabled by normal operation.

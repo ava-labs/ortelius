@@ -7,8 +7,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	cblock "github.com/ava-labs/ortelius/models"
@@ -128,19 +131,43 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		}
 	}()
 
-	id := hashing.ComputeHash256(block.BlockExtraData)
-	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
-
-	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-	defer cancelFn()
-
-	if err = c.consumer.Consume(ctx, nmsg, &block.Header); err != nil {
+	idh := hashing.ComputeHash256(block.BlockExtraData)
+	id, err := ids.ToID(idh)
+	if err != nil {
 		collectors.Error()
-		c.log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		c.conns.Logger().Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		return err
+	}
+
+	nmsg := NewMessage(id.String(), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
+
+	icnt := 0
+	for ; icnt <= cfg.DatabaseRetries; icnt++ {
+		err = c.persistConsume(nmsg, block)
+		if err == nil {
+			break
+		}
+		if !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			c.conns.Logger().Warn("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
+		} else {
+			icnt = 0
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if err != nil {
+		collectors.Error()
+		c.conns.Logger().Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
 		return err
 	}
 
 	return nil
+}
+
+func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.Consume(ctx, msg, &block.Header)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {
