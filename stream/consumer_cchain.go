@@ -27,15 +27,13 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/metrics"
 )
 
 type ConsumerCChain struct {
-	id  string
-	log logging.Logger
+	id string
+	sc *services.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -54,10 +52,10 @@ type ConsumerCChain struct {
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
-	return func(conf cfg.Config) utils.ListenCloser {
+	return func(sc *services.Control, conf cfg.Config) utils.ListenCloser {
 		c := &ConsumerCChain{
 			conf:                          conf,
-			log:                           conf.Log,
+			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CchainID),
 			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s_cchain", conf.CchainID),
 			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s_cchain", conf.CchainID),
@@ -102,7 +100,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
-			c.log.Error("consumer.getNextMessage: %s", err.Error())
+			c.sc.Log.Error("consumer.getNextMessage: %s", err.Error())
 		}
 		return err
 	}
@@ -127,7 +125,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.conns.Logger().Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("collectors.Collect: %s", err)
 		}
 	}()
 
@@ -135,7 +133,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	id, err := ids.ToID(idh)
 	if err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		c.sc.Log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
 		return err
 	}
 
@@ -148,7 +146,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 			break
 		}
 		if !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
-			c.conns.Logger().Warn("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
+			c.sc.Log.Warn("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
 		} else {
 			icnt = 0
 		}
@@ -157,7 +155,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 
 	if err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		c.sc.Log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
 		return err
 	}
 
@@ -202,14 +200,14 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 func (c *ConsumerCChain) Failure() {
 	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	if err != nil {
-		c.log.Error("prometheus.CounterInc %s", err)
+		c.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }
 
 func (c *ConsumerCChain) Success() {
 	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	if err != nil {
-		c.log.Error("prometheus.CounterInc %s", err)
+		c.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }
 
@@ -218,8 +216,8 @@ func (c *ConsumerCChain) Listen() error {
 	wg.Add(1)
 
 	go func() {
-		c.log.Info("Started worker manager for cchain")
-		defer c.log.Info("Exiting worker manager for cchain")
+		c.sc.Log.Info("Started worker manager for cchain")
+		defer c.sc.Log.Info("Exiting worker manager for cchain")
 		defer wg.Done()
 
 		// Keep running the worker until we're asked to stop
@@ -230,7 +228,7 @@ func (c *ConsumerCChain) Listen() error {
 			// If there was an error we want to log it, and iff we are not stopping
 			// we want to add a retry delay.
 			if err != nil {
-				c.log.Error("Error running worker: %s", err.Error())
+				c.sc.Log.Error("Error running worker: %s", err.Error())
 			}
 			if c.isStopping() {
 				return
@@ -243,7 +241,7 @@ func (c *ConsumerCChain) Listen() error {
 
 	// Wait for all workers to finish
 	wg.Wait()
-	c.log.Info("All workers stopped")
+	c.sc.Log.Info("All workers stopped")
 	close(c.doneCh)
 
 	return nil
@@ -260,14 +258,10 @@ func (c *ConsumerCChain) isStopping() bool {
 }
 
 func (c *ConsumerCChain) init() error {
-	conns, err := services.NewConnectionsFromConfig(c.conf.Services, false)
+	conns, err := c.sc.Database()
 	if err != nil {
 		return err
 	}
-
-	conns.DB().SetMaxIdleConns(32)
-	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-	conns.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	c.conns = conns
 
@@ -293,12 +287,12 @@ func (c *ConsumerCChain) processorClose() error {
 // finished
 func (c *ConsumerCChain) runProcessor() error {
 	if c.isStopping() {
-		c.log.Info("Not starting worker for cchain because we're stopping")
+		c.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
 
-	c.log.Info("Starting worker for cchain")
-	defer c.log.Info("Exiting worker for cchain")
+	c.sc.Log.Info("Starting worker for cchain")
+	defer c.sc.Log.Info("Exiting worker for cchain")
 
 	err := c.init()
 	if err != nil {
@@ -308,7 +302,7 @@ func (c *ConsumerCChain) runProcessor() error {
 	defer func() {
 		err := c.processorClose()
 		if err != nil {
-			c.log.Warn("Stopping worker for cchain %w", err)
+			c.sc.Log.Warn("Stopping worker for cchain %w", err)
 		}
 	}()
 
@@ -329,21 +323,21 @@ func (c *ConsumerCChain) runProcessor() error {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
-				c.log.Debug("context deadline exceeded")
+				c.sc.Log.Debug("context deadline exceeded")
 				return nil
 
 			case ErrNoMessage:
 				nomsg++
-				c.log.Debug("no message")
+				c.sc.Log.Debug("no message")
 				return nil
 
 			case io.EOF:
-				c.log.Error("EOF")
+				c.sc.Log.Error("EOF")
 				return io.EOF
 
 			default:
 				c.Failure()
-				c.log.Error("Unknown error: %s", err.Error())
+				c.sc.Log.Error("Unknown error: %s", err.Error())
 			}
 
 			failures++
@@ -358,7 +352,7 @@ func (c *ConsumerCChain) runProcessor() error {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
-			c.log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+			c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
 			if c.isStopping() {
 				return
 			}
