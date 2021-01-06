@@ -188,6 +188,10 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
+	if err := p.ForValues(c.version, ParseGet(r)); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
 		return
