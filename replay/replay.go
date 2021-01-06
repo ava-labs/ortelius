@@ -246,6 +246,21 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 		return err
 	}
 
+	tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
+	atomic.AddInt64(waitGroup, 1)
+	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
+		ctx := context.Background()
+
+		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
+		err := writer.Bootstrap(ctx)
+		replay.sc.Log.Info("replay for topic %s bootstrap end", tn)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return
+		}
+	}()
+
 	return nil
 }
 
@@ -519,20 +534,6 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 	if err != nil {
 		return err
 	}
-
-	atomic.AddInt64(waitGroup, 1)
-	go func() {
-		defer atomic.AddInt64(waitGroup, -1)
-		ctx := context.Background()
-
-		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
-		err := writer.Bootstrap(ctx)
-		replay.sc.Log.Info("replay for topic %s:%d bootstrap end", tn)
-		if err != nil {
-			replay.errs.SetValue(err)
-			return
-		}
-	}()
 
 	for part := range parts {
 		partOffset := parts[part]
