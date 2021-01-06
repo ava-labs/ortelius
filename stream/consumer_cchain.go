@@ -155,7 +155,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 
 	if err != nil {
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		c.sc.Log.Error("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
 		return err
 	}
 
