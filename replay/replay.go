@@ -540,10 +540,16 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
+		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
+			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -551,6 +557,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
