@@ -73,8 +73,6 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 
-		initializeConsumerTasker(conns)
-
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
 		if err != nil {
