@@ -232,6 +232,18 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
 	replay.uniqueIDLock.Unlock()
 
+	{
+		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
+		ctx := context.Background()
+		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
+		err := writer.Bootstrap(ctx)
+		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return err
+		}
+	}
+
 	addr, err := net.ResolveTCPAddr("tcp", replay.config.Kafka.Brokers[0])
 	if err != nil {
 		return err
@@ -245,21 +257,6 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	if err != nil {
 		return err
 	}
-
-	tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
-	atomic.AddInt64(waitGroup, 1)
-	go func() {
-		defer atomic.AddInt64(waitGroup, -1)
-		ctx := context.Background()
-
-		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
-		err := writer.Bootstrap(ctx)
-		replay.sc.Log.Info("replay for topic %s bootstrap end", tn)
-		if err != nil {
-			replay.errs.SetValue(err)
-			return
-		}
-	}()
 
 	return nil
 }
