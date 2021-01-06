@@ -142,7 +142,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	id, err := ids.FromString(msg.ID())
 	if err != nil {
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s %v", id.String(), err)
+		c.sc.Log.Error("consumer.Consume: %v", err)
 		return err
 	}
 
@@ -161,7 +161,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	}
 	if err != nil {
 		collectors.Error()
-		c.sc.Log.Error("consumer.ConsumeConsensus: %s", err)
+		c.sc.Log.Error("consumer.ConsumeConsensus: %s %v", id.String(), err)
 		return err
 	}
 
