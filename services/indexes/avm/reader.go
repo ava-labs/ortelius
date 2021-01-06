@@ -105,8 +105,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 
 		id, err := ids.FromString(string(asset.ID))
 		if err != nil {
-			r.conns.Logger().Warn("asset to id convert failed %s", err)
-			continue
+			return err
 		}
 
 		asset.Aggregates = make(map[string]*models.Aggregates)
@@ -120,8 +119,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 			}
 			hm, err := r.avaxReader.Aggregate(ctx, &aparams)
 			if err != nil {
-				r.conns.Logger().Warn("aggregate query failed %s", err)
-				continue
+				return err
 			}
 			asset.Aggregates[intervalName] = &hm.Aggregates
 		}

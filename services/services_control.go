@@ -22,7 +22,7 @@ func (s *Control) Database() (*Connections, error) {
 	if s.connections != nil {
 		return s.connections, nil
 	}
-	c, err := NewConnectionsFromConfig(s.Log, s.Services, false)
+	c, err := NewConnectionsFromConfig(s.Services, false)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 	if s.connectionsRO != nil {
 		return s.connectionsRO, nil
 	}
-	c, err := NewConnectionsFromConfig(s.Log, s.Services, true)
+	c, err := NewConnectionsFromConfig(s.Services, true)
 	if err != nil {
 		return nil, err
 	}

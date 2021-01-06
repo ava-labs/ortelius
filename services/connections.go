@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/go-redis/redis/v8"
 	"github.com/gocraft/health"
@@ -21,14 +20,13 @@ import (
 
 type Connections struct {
 	stream *health.Stream
-	logger logging.Logger
 
 	db    *db.Conn
 	redis *redis.Client
 	cache *cache.Cache
 }
 
-func NewConnectionsFromConfig(l logging.Logger, conf cfg.Services, ro bool) (*Connections, error) {
+func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
 
@@ -74,17 +72,16 @@ func NewConnectionsFromConfig(l logging.Logger, conf cfg.Services, ro bool) (*Co
 		stream.Event("connect.db.skip")
 	}
 
-	return NewConnections(l, stream, dbConn, redisClient), nil
+	return NewConnections(stream, dbConn, redisClient), nil
 }
 
-func NewConnections(l logging.Logger, s *health.Stream, db *db.Conn, r *redis.Client) *Connections {
+func NewConnections(s *health.Stream, db *db.Conn, r *redis.Client) *Connections {
 	var c *cache.Cache
 	if r != nil {
 		c = cache.New(r)
 	}
 
 	return &Connections{
-		logger: l,
 		stream: s,
 
 		db:    db,
@@ -94,7 +91,6 @@ func NewConnections(l logging.Logger, s *health.Stream, db *db.Conn, r *redis.Cl
 }
 
 func (c Connections) Stream() *health.Stream { return c.stream }
-func (c Connections) Logger() logging.Logger { return c.logger }
 func (c Connections) DB() *db.Conn           { return c.db }
 func (c Connections) Redis() *redis.Client   { return c.redis }
 func (c Connections) Cache() *cache.Cache    { return c.cache }
