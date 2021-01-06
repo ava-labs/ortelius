@@ -350,6 +350,9 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
 
+			// inject a sleep to allow everyone to catch up
+			time.Sleep(2 * time.Second)
+
 			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
@@ -450,6 +453,9 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
+
+			// inject a sleep to allow everyone to catch up
+			time.Sleep(2 * time.Second)
 
 			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
