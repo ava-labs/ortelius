@@ -41,6 +41,7 @@ type consumer struct {
 	reader   *kafka.Reader
 	consumer services.Consumer
 	conns    *services.Connections
+	sc       *services.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -51,19 +52,16 @@ type consumer struct {
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		conns, err := services.NewConnectionsFromConfig(conf.Services, false)
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+		conns, err := sc.Database()
 		if err != nil {
 			return nil, err
 		}
 
-		conns.DB().SetMaxIdleConns(32)
-		conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-		conns.DB().SetConnMaxLifetime(5 * time.Minute)
-
 		c := &consumer{
 			chainID:                       chainID,
 			conns:                         conns,
+			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s", chainID),
 			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
 			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
@@ -138,7 +136,7 @@ func (c *consumer) ProcessNextMessage() error {
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
-			c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
+			c.sc.Log.Error("consumer.getNextMessage: %s", err.Error())
 		}
 		return err
 	}
@@ -150,7 +148,7 @@ func (c *consumer) ProcessNextMessage() error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.conns.Logger().Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("collectors.Collect: %s", err)
 		}
 	}()
 
@@ -163,7 +161,7 @@ func (c *consumer) ProcessNextMessage() error {
 	}
 	if err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.Consume: %s", err)
+		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
 	return nil
@@ -185,14 +183,14 @@ func (c *consumer) nextMessage() (*Message, error) {
 func (c *consumer) Failure() {
 	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	if err != nil {
-		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
 	}
 }
 
 func (c *consumer) Success() {
 	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	if err != nil {
-		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
 	}
 }
 

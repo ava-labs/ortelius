@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/genesis"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	avmVM "github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
@@ -22,13 +21,13 @@ import (
 
 // Server is an HTTP server configured with various ortelius APIs
 type Server struct {
-	log    logging.Logger
+	sc     *services.Control
 	server *http.Server
 }
 
 // NewServer creates a new *Server based on the given config
-func NewServer(conf cfg.Config) (*Server, error) {
-	router, err := newRouter(conf, true)
+func NewServer(sc *services.Control, conf cfg.Config) (*Server, error) {
+	router, err := newRouter(sc, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +36,7 @@ func NewServer(conf cfg.Config) (*Server, error) {
 	models.SetBech32HRP(conf.NetworkID)
 
 	return &Server{
-		log: conf.Services.Log,
+		sc: sc,
 		server: &http.Server{
 			Addr:         conf.ListenAddr,
 			ReadTimeout:  5 * time.Second,
@@ -50,19 +49,19 @@ func NewServer(conf cfg.Config) (*Server, error) {
 
 // Listen begins listening for new socket connections and blocks until closed
 func (s *Server) Listen() error {
-	s.log.Info("Server listening on %s", s.server.Addr)
+	s.sc.Log.Info("Server listening on %s", s.server.Addr)
 	return s.server.ListenAndServe()
 }
 
 // Close shuts the server down
 func (s *Server) Close() error {
-	s.log.Info("Server shutting down")
+	s.sc.Log.Info("Server shutting down")
 	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFn()
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
+func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	// Pre-calculate IDs and index responses
 	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
 	if err != nil {
@@ -75,7 +74,7 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	}
 
 	xChainID := xChainGenesisTx.ID()
-	conf.Log.Info("Router chainID %s", xChainID.String())
+	sc.Log.Info("Router chainID %s", xChainID.String())
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
 	if err != nil {
@@ -88,13 +87,10 @@ func newRouter(conf cfg.Config, ro bool) (*web.Router, error) {
 	}
 
 	// Create connections and readers
-	connections, err := services.NewConnectionsFromConfig(conf.Services, ro)
+	connections, err := sc.DatabaseRO()
 	if err != nil {
 		return nil, err
 	}
-	connections.DB().SetMaxIdleConns(32)
-	connections.DB().SetConnMaxIdleTime(5 * time.Minute)
-	connections.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	var cache cacher = connections.Cache()
 	if cache == nil {
