@@ -21,12 +21,12 @@ import (
 
 // Server is an HTTP server configured with various ortelius APIs
 type Server struct {
-	sc     *services.ServicesControl
+	sc     *services.Control
 	server *http.Server
 }
 
 // NewServer creates a new *Server based on the given config
-func NewServer(sc *services.ServicesControl, conf cfg.Config) (*Server, error) {
+func NewServer(sc *services.Control, conf cfg.Config) (*Server, error) {
 	router, err := newRouter(sc, conf, true)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(sc *services.ServicesControl, conf cfg.Config, ro bool) (*web.Router, error) {
+func newRouter(sc *services.Control, conf cfg.Config, ro bool) (*web.Router, error) {
 	// Pre-calculate IDs and index responses
 	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
 	if err != nil {

@@ -57,7 +57,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 		},
 	}
 
-	sc := &services.ServicesControl{Log: logging.NoLog{}, Services: conf}
+	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
 	conns, err := sc.Database()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())

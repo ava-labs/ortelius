@@ -35,7 +35,7 @@ type Replay interface {
 	Start() error
 }
 
-func New(sc *services.ServicesControl, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
+func New(sc *services.Control, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
 	return &replay{
 		sc:           sc,
 		config:       config,
@@ -52,7 +52,7 @@ type replay struct {
 	uniqueID     map[string]utils.UniqueID
 
 	errs   *avlancheGoUtils.AtomicInterface
-	sc     *services.ServicesControl
+	sc     *services.Control
 	config *cfg.Config
 
 	counterRead  *utils.CounterID

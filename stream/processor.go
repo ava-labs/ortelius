@@ -29,7 +29,7 @@ var (
 )
 
 // ProcessorFactory takes in configuration and returns a stream Processor
-type ProcessorFactory func(*services.ServicesControl, cfg.Config, string, string) (Processor, error)
+type ProcessorFactory func(*services.Control, cfg.Config, string, string) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
@@ -44,7 +44,7 @@ type Processor interface {
 // configuration and ProcessorFactory to keep a Processor active
 type ProcessorManager struct {
 	conf    cfg.Config
-	sc      *services.ServicesControl
+	sc      *services.Control
 	factory ProcessorFactory
 
 	// Concurrency control
@@ -53,7 +53,7 @@ type ProcessorManager struct {
 }
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
-func NewProcessorManager(sc *services.ServicesControl, conf cfg.Config, factory ProcessorFactory) *ProcessorManager {
+func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory) *ProcessorManager {
 	return &ProcessorManager{
 		conf: conf,
 		sc:   sc,

@@ -80,7 +80,7 @@ func execute() error {
 	var (
 		runErr             error
 		config             = &cfg.Config{}
-		serviceControl     = &services.ServicesControl{}
+		serviceControl     = &services.Control{}
 		configFile         = func() *string { s := ""; return &s }()
 		replayqueuesize    = func() *int { i := defaultReplayQueueSize; return &i }()
 		replayqueuethreads = func() *int { i := defaultReplayQueueThreads; return &i }()
@@ -151,7 +151,7 @@ func execute() error {
 	return runErr
 }
 
-func createAPICmds(sc *services.ServicesControl, config *cfg.Config, runErr *error) *cobra.Command {
+func createAPICmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	return &cobra.Command{
 		Use:   apiCmdUse,
 		Short: apiCmdDesc,
@@ -167,7 +167,7 @@ func createAPICmds(sc *services.ServicesControl, config *cfg.Config, runErr *err
 	}
 }
 
-func createReplayCmds(sc *services.ServicesControl, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
+func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
 	replayCmd := &cobra.Command{
 		Use:   streamReplayCmdUse,
 		Short: streamReplayCmdDesc,
@@ -185,7 +185,7 @@ func createReplayCmds(sc *services.ServicesControl, config *cfg.Config, runErr *
 	return replayCmd
 }
 
-func createStreamCmds(sc *services.ServicesControl, config *cfg.Config, runErr *error) *cobra.Command {
+func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
 		Short: streamCmdDesc,
@@ -281,7 +281,7 @@ func runListenCloser(lc utils.ListenCloser) {
 
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
-func runStreamProcessorManagers(sc *services.ServicesControl, config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
+func runStreamProcessorManagers(sc *services.Control, config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 		wg.Add(len(factories))

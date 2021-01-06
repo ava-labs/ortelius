@@ -30,7 +30,7 @@ import (
 
 type ConsumerCChain struct {
 	id string
-	sc *services.ServicesControl
+	sc *services.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -49,7 +49,7 @@ type ConsumerCChain struct {
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
-	return func(sc *services.ServicesControl, conf cfg.Config) utils.ListenCloser {
+	return func(sc *services.Control, conf cfg.Config) utils.ListenCloser {
 		c := &ConsumerCChain{
 			conf:                          conf,
 			sc:                            sc,

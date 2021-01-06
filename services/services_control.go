@@ -8,7 +8,7 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 )
 
-type ServicesControl struct {
+type Control struct {
 	Services      cfg.Services
 	Log           logging.Logger `json:"log"`
 	lock          sync.Mutex
@@ -16,7 +16,7 @@ type ServicesControl struct {
 	connectionsRO *Connections
 }
 
-func (s *ServicesControl) Database() (*Connections, error) {
+func (s *Control) Database() (*Connections, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.connections != nil {
@@ -33,7 +33,7 @@ func (s *ServicesControl) Database() (*Connections, error) {
 	return c, err
 }
 
-func (s *ServicesControl) DatabaseRO() (*Connections, error) {
+func (s *Control) DatabaseRO() (*Connections, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.connectionsRO != nil {

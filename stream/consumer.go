@@ -51,7 +51,7 @@ type consumer struct {
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 		conns, err := sc.Database()
 		if err != nil {
 			return nil, err

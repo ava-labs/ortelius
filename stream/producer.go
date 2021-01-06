@@ -20,7 +20,7 @@ type Producer struct {
 	eventType   EventType
 	sock        *socket.Client
 	writeBuffer *bufferedWriter
-	sc          *services.ServicesControl
+	sc          *services.Control
 
 	// metrics
 	metricProcessedCountKey string
@@ -29,7 +29,7 @@ type Producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(sc *services.ServicesControl, conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
+func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
 	p := &Producer{
 		chainID:                 chainID,
 		eventType:               eventType,
@@ -54,12 +54,12 @@ func NewProducer(sc *services.ServicesControl, conf cfg.Config, _ string, chainI
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+func NewConsensusProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeConsensus)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeDecisions)
 }
 
