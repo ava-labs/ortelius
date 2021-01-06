@@ -28,7 +28,7 @@ type Connections struct {
 	cache *cache.Cache
 }
 
-func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
+func NewConnectionsFromConfig(l logging.Logger, conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
 
@@ -74,7 +74,7 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 		stream.Event("connect.db.skip")
 	}
 
-	return NewConnections(conf.Log, stream, dbConn, redisClient), nil
+	return NewConnections(l, stream, dbConn, redisClient), nil
 }
 
 func NewConnections(l logging.Logger, s *health.Stream, db *db.Conn, r *redis.Client) *Connections {

@@ -28,6 +28,7 @@ type consumerconsensus struct {
 	reader   *kafka.Reader
 	consumer services.Consumer
 	conns    *services.Connections
+	sc       *services.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -38,19 +39,16 @@ type consumerconsensus struct {
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
 func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		conns, err := services.NewConnectionsFromConfig(conf.Services, false)
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+		conns, err := sc.Database()
 		if err != nil {
 			return nil, err
 		}
 
-		conns.DB().SetMaxIdleConns(32)
-		conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-		conns.DB().SetConnMaxLifetime(5 * time.Minute)
-
 		c := &consumerconsensus{
 			chainID:                       chainID,
 			conns:                         conns,
+			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_consensus_records_processed_%s", chainID),
 			metricProcessMillisCounterKey: fmt.Sprintf("consume_consensus_records_process_millis_%s", chainID),
 			metricSuccessCountKey:         fmt.Sprintf("consume_consensus_records_success_%s", chainID),
@@ -125,7 +123,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
-			c.conns.Logger().Error("consumer.getNextMessage: %s", err.Error())
+			c.sc.Log.Error("consumer.getNextMessage: %s", err.Error())
 		}
 		return err
 	}
@@ -137,7 +135,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.conns.Logger().Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("collectors.Collect: %s", err)
 		}
 	}()
 
@@ -150,7 +148,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	}
 	if err != nil {
 		collectors.Error()
-		c.conns.Logger().Error("consumer.ConsumeConsensus: %s", err)
+		c.sc.Log.Error("consumer.ConsumeConsensus: %s", err)
 		return err
 	}
 	return nil
@@ -172,14 +170,14 @@ func (c *consumerconsensus) nextMessage() (*Message, error) {
 func (c *consumerconsensus) Failure() {
 	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	if err != nil {
-		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
 	}
 }
 
 func (c *consumerconsensus) Success() {
 	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	if err != nil {
-		c.conns.Logger().Error("prmetheus.CounterInc: %s", err)
+		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
 	}
 }
 
