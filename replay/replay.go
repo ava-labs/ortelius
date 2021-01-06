@@ -342,6 +342,9 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
@@ -435,6 +438,9 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
