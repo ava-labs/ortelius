@@ -350,9 +350,6 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
 
-			// inject a sleep to allow everyone to catch up
-			time.Sleep(2 * time.Second)
-
 			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
@@ -362,9 +359,6 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
-
-			// inject a sleep to allow everyone to catch up
-			time.Sleep(5 * time.Second)
 
 			for {
 				if replay.errs.GetValue() != nil {
@@ -454,9 +448,6 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
 
-			// inject a sleep to allow everyone to catch up
-			time.Sleep(2 * time.Second)
-
 			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
@@ -466,9 +457,6 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
-
-			// inject a sleep to allow everyone to catch up
-			time.Sleep(5 * time.Second)
 
 			for {
 				if replay.errs.GetValue() != nil {
@@ -532,6 +520,20 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 		return err
 	}
 
+	atomic.AddInt64(waitGroup, 1)
+	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
+		ctx := context.Background()
+
+		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
+		err := writer.Bootstrap(ctx)
+		replay.sc.Log.Info("replay for topic %s:%d bootstrap end", tn)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return
+		}
+	}()
+
 	for part := range parts {
 		partOffset := parts[part]
 
@@ -548,14 +550,6 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
-
-			ctx := context.Background()
-
-			err := writer.Bootstrap(ctx)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
 
 			for {
 				if replay.errs.GetValue() != nil {
