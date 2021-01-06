@@ -360,6 +360,9 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
+			// inject a sleep to allow everyone to catch up
+			time.Sleep(5 * time.Second)
+
 			for {
 				if replay.errs.GetValue() != nil {
 					replay.sc.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
@@ -457,6 +460,9 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
+
+			// inject a sleep to allow everyone to catch up
+			time.Sleep(5 * time.Second)
 
 			for {
 				if replay.errs.GetValue() != nil {
