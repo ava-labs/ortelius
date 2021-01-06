@@ -53,19 +53,30 @@ func WriteErr(w http.ResponseWriter, code int, msg string) {
 
 func ParseGet(r *web.Request) url.Values {
 	if r == nil {
-		return url.Values{}
+		return r.URL.Query()
 	}
 	pf := r.Body
 	if pf == nil {
-		return url.Values{}
+		return r.URL.Query()
 	}
 	buf := new(strings.Builder)
 	_, err := io.Copy(buf, pf)
 	if err == nil && buf.Len() > 0 {
 		getq, err := url.ParseQuery(buf.String())
 		if err == nil {
-			return getq
+			return mergeValues(getq, r.URL.Query())
 		}
 	}
-	return url.Values{}
+	return r.URL.Query()
+}
+
+func mergeValues(a url.Values, b url.Values) url.Values {
+	for k, v := range b {
+		if _, present := a[k]; present {
+			a[k] = append(a[k], v...)
+		} else {
+			a[k] = append([]string{}, v...)
+		}
+	}
+	return a
 }
