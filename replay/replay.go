@@ -41,6 +41,7 @@ func New(sc *services.Control, config *cfg.Config, replayqueuesize int, replayqu
 		config:       config,
 		counterRead:  utils.NewCounterID(),
 		counterAdded: utils.NewCounterID(),
+		counterWaits: utils.NewCounterID(),
 		uniqueID:     make(map[string]utils.UniqueID),
 		queueSize:    replayqueuesize,
 		queueTheads:  replayqueuethreads,
@@ -57,8 +58,10 @@ type replay struct {
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
-	queueSize    int
-	queueTheads  int
+	counterWaits *utils.CounterID
+
+	queueSize   int
+	queueTheads int
 }
 
 func (replay *replay) Start() error {
@@ -91,12 +94,12 @@ func (replay *replay) Start() error {
 	}
 
 	timeLog := time.Now()
-	lastLogLine := make(map[string]int)
 
 	logemit := func(waitGroupCnt int64) {
 		type CounterValues struct {
-			Read  uint64
-			Added uint64
+			Read  int64
+			Added int64
+			Waits int64
 		}
 
 		ctot := make(map[string]*CounterValues)
@@ -114,6 +117,13 @@ func (replay *replay) Start() error {
 			}
 			ctot[cnter].Added = countersValues[cnter]
 		}
+		countersValues = replay.counterWaits.Clone()
+		for cnter := range countersValues {
+			if _, ok := ctot[cnter]; !ok {
+				ctot[cnter] = &CounterValues{}
+			}
+			ctot[cnter].Waits = countersValues[cnter]
+		}
 
 		replay.sc.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
 
@@ -122,15 +132,12 @@ func (replay *replay) Start() error {
 			sortedcnters = append(sortedcnters, cnter)
 		}
 		sort.Strings(sortedcnters)
-		currentlogline := make(map[string]int)
 		for _, cnter := range sortedcnters {
-			newlogline := fmt.Sprintf("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
-			currentlogline[newlogline] = 1
-			if _, ok := lastLogLine[newlogline]; !ok {
+			if ctot[cnter].Waits != 0 {
+				newlogline := fmt.Sprintf("key:%s read:%d add:%d wait:%d", cnter, ctot[cnter].Read, ctot[cnter].Added, ctot[cnter].Waits)
 				replay.sc.Log.Info(newlogline)
 			}
 		}
-		lastLogLine = currentlogline
 	}
 
 	var waitGroupCnt int64
@@ -224,6 +231,18 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	replay.uniqueID[uidkeyconsensus] = utils.NewMemoryUniqueID()
 	replay.uniqueID[uidkeydecision] = utils.NewMemoryUniqueID()
 	replay.uniqueIDLock.Unlock()
+
+	{
+		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
+		ctx := context.Background()
+		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
+		err := writer.Bootstrap(ctx)
+		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return err
+		}
+	}
 
 	addr, err := net.ResolveTCPAddr("tcp", replay.config.Kafka.Brokers[0])
 	if err != nil {
@@ -334,10 +353,16 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
+		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
+			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -345,6 +370,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
@@ -425,10 +451,16 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
+		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
+			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -436,6 +468,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
@@ -504,10 +537,16 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 
 		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
+		replay.counterWaits.Inc(tn)
+		replay.counterAdded.Add(tn, 0)
+		replay.counterRead.Add(tn, 0)
+
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
 			defer atomic.AddInt64(waitGroup, -1)
+			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -515,14 +554,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
-
-			ctx := context.Background()
-
-			err := writer.Bootstrap(ctx)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
