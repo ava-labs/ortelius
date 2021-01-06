@@ -350,6 +350,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -357,6 +358,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
@@ -446,6 +448,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 			defer atomic.AddInt64(waitGroup, -1)
 			defer replay.counterWaits.Add(tn, -1)
 
+			replay.sc.Log.Info("replay for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     replay.config.Kafka.Brokers,
@@ -453,6 +456,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
+			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if replay.errs.GetValue() != nil {
