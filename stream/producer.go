@@ -6,7 +6,7 @@ package stream
 import (
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/avalanchego/ipcs/socket"
 	"github.com/ava-labs/ortelius/cfg"
@@ -20,7 +20,7 @@ type Producer struct {
 	eventType   EventType
 	sock        *socket.Client
 	writeBuffer *bufferedWriter
-	log         logging.Logger
+	sc          *services.ServicesControl
 
 	// metrics
 	metricProcessedCountKey string
@@ -29,12 +29,12 @@ type Producer struct {
 }
 
 // NewProducer creates a producer using the given config
-func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
+func NewProducer(sc *services.ServicesControl, conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
 	p := &Producer{
 		chainID:                 chainID,
 		eventType:               eventType,
-		writeBuffer:             newBufferedWriter(conf.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
-		log:                     conf.Log,
+		writeBuffer:             newBufferedWriter(sc.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		sc:                      sc,
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
@@ -54,13 +54,13 @@ func NewProducer(conf cfg.Config, _ string, chainID string, eventType EventType)
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, chainVM, chainID, EventTypeConsensus)
+func NewConsensusProducerProcessor(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+	return NewProducer(sc, conf, chainVM, chainID, EventTypeConsensus)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-	return NewProducer(conf, chainVM, chainID, EventTypeDecisions)
+func NewDecisionsProducerProcessor(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+	return NewProducer(sc, conf, chainVM, chainID, EventTypeDecisions)
 }
 
 // Close shuts down the producer
@@ -77,7 +77,7 @@ func (p *Producer) ID() string {
 func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
-		p.log.Error("sock.Recv: %s", err.Error())
+		p.sc.Log.Error("sock.Recv: %s", err.Error())
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (p *Producer) ProcessNextMessage() error {
 
 	err = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 	if err != nil {
-		p.log.Error("prometheus.CounterInc %s", err)
+		p.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 
 	return nil
@@ -94,13 +94,13 @@ func (p *Producer) ProcessNextMessage() error {
 func (p *Producer) Failure() {
 	err := metrics.Prometheus.CounterInc(p.metricFailureCountKey)
 	if err != nil {
-		p.log.Error("prometheus.CounterInc %s", err)
+		p.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }
 
 func (p *Producer) Success() {
 	err := metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
 	if err != nil {
-		p.log.Error("prometheus.CounterInc %s", err)
+		p.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }

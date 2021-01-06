@@ -32,8 +32,6 @@ import (
 	"github.com/ava-labs/coreth/rpc"
 	"github.com/ava-labs/ortelius/services"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/metrics"
 )
@@ -51,8 +49,8 @@ const (
 )
 
 type ProducerCChain struct {
-	id  string
-	log logging.Logger
+	id string
+	sc *services.ServicesControl
 
 	// metrics
 	metricProcessedCountKey string
@@ -72,7 +70,7 @@ type ProducerCChain struct {
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
-	return func(conf cfg.Config) utils.ListenCloser {
+	return func(sc *services.ServicesControl, conf cfg.Config) utils.ListenCloser {
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 
 		writer := kafka.NewWriter(kafka.WriterConfig{
@@ -87,7 +85,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 
 		p := &ProducerCChain{
 			conf:                    conf,
-			log:                     conf.Log,
+			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
 			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
 			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
@@ -238,14 +236,14 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 func (p *ProducerCChain) Failure() {
 	err := metrics.Prometheus.CounterInc(p.metricFailureCountKey)
 	if err != nil {
-		p.log.Error("prometheus.CounterInc %s", err)
+		p.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }
 
 func (p *ProducerCChain) Success() {
 	err := metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
 	if err != nil {
-		p.log.Error("prometheus.CounterInc %s", err)
+		p.sc.Log.Error("prometheus.CounterInc %s", err)
 	}
 }
 
@@ -276,7 +274,7 @@ func (p *ProducerCChain) getBlock() error {
 	if p.block.String() != "0" {
 		p.block = p.block.Add(p.block, big.NewInt(1))
 	}
-	p.log.Info("starting processing block %s", p.block.String())
+	p.sc.Log.Info("starting processing block %s", p.block.String())
 	return nil
 }
 
@@ -285,8 +283,8 @@ func (p *ProducerCChain) Listen() error {
 	wg.Add(1)
 
 	go func() {
-		p.log.Info("Started worker manager for cchain")
-		defer p.log.Info("Exiting worker manager for cchain")
+		p.sc.Log.Info("Started worker manager for cchain")
+		defer p.sc.Log.Info("Exiting worker manager for cchain")
 		defer wg.Done()
 
 		// Keep running the worker until we're asked to stop
@@ -297,7 +295,7 @@ func (p *ProducerCChain) Listen() error {
 			// If there was an error we want to log it, and iff we are not stopping
 			// we want to add a retry delay.
 			if err != nil {
-				p.log.Error("Error running worker: %s", err.Error())
+				p.sc.Log.Error("Error running worker: %s", err.Error())
 			}
 			if p.isStopping() {
 				return
@@ -310,7 +308,7 @@ func (p *ProducerCChain) Listen() error {
 
 	// Wait for all workers to finish
 	wg.Wait()
-	p.log.Info("All workers stopped")
+	p.sc.Log.Info("All workers stopped")
 	close(p.doneCh)
 
 	return nil
@@ -327,14 +325,10 @@ func (p *ProducerCChain) isStopping() bool {
 }
 
 func (p *ProducerCChain) init() error {
-	conns, err := services.NewConnectionsFromConfig(p.conf.Services, false)
+	conns, err := p.sc.Database()
 	if err != nil {
 		return err
 	}
-
-	conns.DB().SetMaxIdleConns(32)
-	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-	conns.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	p.conns = conns
 
@@ -368,12 +362,12 @@ func (p *ProducerCChain) processorClose() error {
 // finished
 func (p *ProducerCChain) runProcessor() error {
 	if p.isStopping() {
-		p.log.Info("Not starting worker for cchain because we're stopping")
+		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
 
-	p.log.Info("Starting worker for cchain")
-	defer p.log.Info("Exiting worker for cchain")
+	p.sc.Log.Info("Starting worker for cchain")
+	defer p.sc.Log.Info("Exiting worker for cchain")
 
 	err := p.init()
 	if err != nil {
@@ -382,7 +376,7 @@ func (p *ProducerCChain) runProcessor() error {
 	defer func() {
 		err := p.processorClose()
 		if err != nil {
-			p.log.Warn("Stopping worker for cchain %w", err)
+			p.sc.Log.Warn("Stopping worker for cchain %w", err)
 		}
 	}()
 
@@ -403,34 +397,34 @@ func (p *ProducerCChain) runProcessor() error {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
-				p.log.Debug("context deadline exceeded")
+				p.sc.Log.Debug("context deadline exceeded")
 				return nil
 
 			case ErrNoMessage:
 				nomsg++
-				p.log.Debug("no message")
+				p.sc.Log.Debug("no message")
 				return nil
 
 			case io.EOF:
-				p.log.Error("EOF")
+				p.sc.Log.Error("EOF")
 				return io.EOF
 
 			default:
 				if strings.HasPrefix(err.Error(), "404 Not Found") {
-					p.log.Warn("%s", err.Error())
+					p.sc.Log.Warn("%s", err.Error())
 					return nil
 				}
 				if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
-					p.log.Warn("%s", err.Error())
+					p.sc.Log.Warn("%s", err.Error())
 					return nil
 				}
 				if strings.HasSuffix(err.Error(), "connect: connection refused") {
-					p.log.Warn("%s", err.Error())
+					p.sc.Log.Warn("%s", err.Error())
 					return nil
 				}
 
 				p.Failure()
-				p.log.Error("Unknown error: %w - %v", err, err)
+				p.sc.Log.Error("Unknown error: %w - %v", err, err)
 			}
 
 			failures++
@@ -445,7 +439,7 @@ func (p *ProducerCChain) runProcessor() error {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
-			p.log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+			p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
 			if p.isStopping() {
 				return
 			}

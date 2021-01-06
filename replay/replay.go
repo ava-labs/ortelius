@@ -35,8 +35,10 @@ type Replay interface {
 	Start() error
 }
 
-func New(config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
-	return &replay{config: config,
+func New(sc *services.ServicesControl, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
+	return &replay{
+		sc:           sc,
+		config:       config,
 		counterRead:  utils.NewCounterID(),
 		counterAdded: utils.NewCounterID(),
 		uniqueID:     make(map[string]utils.UniqueID),
@@ -50,6 +52,7 @@ type replay struct {
 	uniqueID     map[string]utils.UniqueID
 
 	errs   *avlancheGoUtils.AtomicInterface
+	sc     *services.ServicesControl
 	config *cfg.Config
 
 	counterRead  *utils.CounterID
@@ -68,13 +71,10 @@ func (replay *replay) Start() error {
 	replayEndTime := time.Now().UTC().Add(time.Minute)
 	waitGroup := new(int64)
 
-	conns, err := services.NewConnectionsFromConfig(replay.config.Services, false)
+	conns, err := replay.sc.Database()
 	if err != nil {
 		return err
 	}
-	conns.DB().SetMaxIdleConns(32)
-	conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-	conns.DB().SetConnMaxLifetime(5 * time.Minute)
 
 	for _, chainID := range replay.config.Chains {
 		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker, conns)
@@ -115,7 +115,7 @@ func (replay *replay) Start() error {
 			ctot[cnter].Added = countersValues[cnter]
 		}
 
-		replay.config.Services.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
+		replay.sc.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
 
 		var sortedcnters []string
 		for cnter := range ctot {
@@ -127,7 +127,7 @@ func (replay *replay) Start() error {
 			newlogline := fmt.Sprintf("key:%s read:%d add:%d", cnter, ctot[cnter].Read, ctot[cnter].Added)
 			currentlogline[newlogline] = 1
 			if _, ok := lastLogLine[newlogline]; !ok {
-				replay.config.Services.Log.Info(newlogline)
+				replay.sc.Log.Info(newlogline)
 			}
 		}
 		lastLogLine = currentlogline
@@ -151,7 +151,7 @@ func (replay *replay) Start() error {
 	logemit(waitGroupCnt)
 
 	if replay.errs.GetValue() != nil {
-		replay.config.Services.Log.Error("replay failed %v", replay.errs.GetValue().(error))
+		replay.sc.Log.Error("replay failed %v", replay.errs.GetValue().(error))
 		return replay.errs.GetValue().(error)
 	}
 
@@ -332,7 +332,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 	for part := range parts {
 		partOffset := parts[part]
 
-		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
@@ -348,7 +348,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					replay.sc.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -362,7 +362,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					replay.sc.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
@@ -423,7 +423,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 	for part := range parts {
 		partOffset := parts[part]
 
-		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
@@ -439,7 +439,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					replay.sc.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -453,7 +453,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					replay.sc.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
@@ -502,7 +502,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 	for part := range parts {
 		partOffset := parts[part]
 
-		replay.config.Services.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
+		replay.sc.Log.Info("processing part %d offset %d on topic %s", partOffset.Partition, partOffset.FirstOffset, tn)
 
 		atomic.AddInt64(waitGroup, 1)
 		go func() {
@@ -526,7 +526,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 
 			for {
 				if replay.errs.GetValue() != nil {
-					replay.config.Services.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					replay.sc.Log.Info("replay for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -540,7 +540,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					replay.config.Services.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					replay.sc.Log.Info("replay for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 

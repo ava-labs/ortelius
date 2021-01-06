@@ -51,15 +51,11 @@ type consumer struct {
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		conns, err := services.NewConnectionsFromConfig(conf.Services, false)
+	return func(sc *services.ServicesControl, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+		conns, err := sc.Database()
 		if err != nil {
 			return nil, err
 		}
-
-		conns.DB().SetMaxIdleConns(32)
-		conns.DB().SetConnMaxIdleTime(5 * time.Minute)
-		conns.DB().SetConnMaxLifetime(5 * time.Minute)
 
 		c := &consumer{
 			chainID:                       chainID,

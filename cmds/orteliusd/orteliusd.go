@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/gorilla/rpc/v2"
 	"github.com/gorilla/rpc/v2/json2"
 
@@ -78,6 +80,7 @@ func execute() error {
 	var (
 		runErr             error
 		config             = &cfg.Config{}
+		serviceControl     = &services.ServicesControl{}
 		configFile         = func() *string { s := ""; return &s }()
 		replayqueuesize    = func() *int { i := defaultReplayQueueSize; return &i }()
 		replayqueuethreads = func() *int { i := defaultReplayQueueThreads; return &i }()
@@ -92,7 +95,9 @@ func execute() error {
 					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
 				}
 
-				c.Services.Log = alog
+				serviceControl.Log = alog
+				serviceControl.Services = c.Services
+
 				*config = *c
 
 				if config.MetricsListenAddr != "" {
@@ -134,9 +139,9 @@ func execute() error {
 	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, fmt.Sprintf("replay queue size threads default %d", defaultReplayQueueThreads))
 
 	cmd.AddCommand(
-		createReplayCmds(config, &runErr, replayqueuesize, replayqueuethreads),
-		createStreamCmds(config, &runErr),
-		createAPICmds(config, &runErr),
+		createReplayCmds(serviceControl, config, &runErr, replayqueuesize, replayqueuethreads),
+		createStreamCmds(serviceControl, config, &runErr),
+		createAPICmds(serviceControl, config, &runErr),
 		createEnvCmds(config, &runErr))
 
 	// Execute the command and return the runErr to the caller
@@ -146,13 +151,13 @@ func execute() error {
 	return runErr
 }
 
-func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
+func createAPICmds(sc *services.ServicesControl, config *cfg.Config, runErr *error) *cobra.Command {
 	return &cobra.Command{
 		Use:   apiCmdUse,
 		Short: apiCmdDesc,
 		Long:  apiCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			lc, err := api.NewServer(*config)
+			lc, err := api.NewServer(sc, *config)
 			if err != nil {
 				*runErr = err
 				return
@@ -162,13 +167,13 @@ func createAPICmds(config *cfg.Config, runErr *error) *cobra.Command {
 	}
 }
 
-func createReplayCmds(config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
+func createReplayCmds(sc *services.ServicesControl, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
 	replayCmd := &cobra.Command{
 		Use:   streamReplayCmdUse,
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			replay := replay.New(config, *replayqueuesize, *replayqueuethreads)
+			replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
 			err := replay.Start()
 			if err != nil {
 				*runErr = err
@@ -180,7 +185,7 @@ func createReplayCmds(config *cfg.Config, runErr *error, replayqueuesize *int, r
 	return replayCmd
 }
 
-func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
+func createStreamCmds(sc *services.ServicesControl, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
 		Short: streamCmdDesc,
@@ -214,12 +219,12 @@ func createStreamCmds(config *cfg.Config, runErr *error) *cobra.Command {
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, producerFactories(config)),
+		Run:   runStreamProcessorManagers(sc, config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, producerFactories(config)),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, indexerFactories(config)),
+		Run:   runStreamProcessorManagers(sc, config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, indexerFactories(config)),
 	})
 
 	return streamCmd
@@ -276,7 +281,7 @@ func runListenCloser(lc utils.ListenCloser) {
 
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
-func runStreamProcessorManagers(config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
+func runStreamProcessorManagers(sc *services.ServicesControl, config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 		wg.Add(len(factories))
@@ -286,7 +291,7 @@ func runStreamProcessorManagers(config *cfg.Config, _ *error, factories []stream
 				defer wg.Done()
 
 				// Create and start processor manager
-				pm := stream.NewProcessorManager(*config, factory)
+				pm := stream.NewProcessorManager(sc, *config, factory)
 				runListenCloser(pm)
 			}(factory)
 		}
@@ -296,7 +301,7 @@ func runStreamProcessorManagers(config *cfg.Config, _ *error, factories []stream
 			go func(listenCloserFactory utils.ListenCloserFactory) {
 				defer wg.Done()
 
-				lc := listenCloserFactory(*config)
+				lc := listenCloserFactory(sc, *config)
 				runListenCloser(lc)
 			}(listenCloseFactory)
 		}
