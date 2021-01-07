@@ -239,7 +239,7 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
 		ctx := context.Background()
 		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
-		err := writer.Bootstrap(ctx , replay.persist)
+		err := writer.Bootstrap(ctx, replay.persist)
 		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
 		if err != nil {
 			replay.errs.SetValue(err)
@@ -302,7 +302,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 			switch value.consumeType {
 			case CONSUME:
 				for {
-					consumererr = value.writer.Consume(context.Background(), value.message , replay.persist)
+					consumererr = value.writer.Consume(context.Background(), value.message, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -314,7 +314,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMECONSENSUS:
 				for {
-						consumererr = value.writer.ConsumeConsensus(context.Background(), value.message , replay.persist)
+					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -326,7 +326,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), value.message, &value.block.Header , replay.persist)
+					consumererr = value.cwriter.Consume(context.Background(), value.message, &value.block.Header, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
