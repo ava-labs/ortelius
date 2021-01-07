@@ -31,7 +31,6 @@ import (
 	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
@@ -180,25 +179,16 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 		case *avm.UniqueTx:
 
 			txID := txt.Tx.ID()
-			_, err = cCtx.DB().
-				InsertInto("transactions_epoch").
-				Pair("id", txID.String()).
-				Pair("epoch", epoch).
-				Pair("vertex_id", vertex.ID().String()).
-				ExecContext(cCtx.Ctx())
-			if err != nil && !db.ErrIsDuplicateEntryError(err) {
-				return cCtx.Job().EventErr("avm_assets.insert", err)
+
+			transactionsEpoch := &services.TransactionsEpoch{
+				ID:        txID.String(),
+				Epoch:     epoch,
+				VertexID:  vertex.ID().String(),
+				CreatedAt: cCtx.Time(),
 			}
-			if cfg.PerformUpdates {
-				_, err = cCtx.DB().
-					Update("transactions_epoch").
-					Set("epoch", epoch).
-					Set("vertex_id", vertex.ID().String()).
-					Where("id = ?", txID.String()).
-					ExecContext(cCtx.Ctx())
-				if err != nil {
-					return cCtx.Job().EventErr("avm_assets.update", err)
-				}
+			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
+			if err != nil {
+				return cCtx.Job().EventErr("InsertOutputAddresses", err)
 			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
@@ -412,7 +402,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), asset, cfg.PerformUpdates)
 	if err != nil {
-		return w.conns.Stream().EventErr("InsertTransaction", err)
+		return ctx.Job().EventErr("InsertAssets", err)
 	}
 
 	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis)

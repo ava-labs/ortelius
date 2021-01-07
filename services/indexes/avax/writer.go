@@ -160,7 +160,7 @@ func (w *Writer) InsertTransactionBase(
 
 	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertTransaction", err)
+		return ctx.Job().EventErr("InsertTransaction", err)
 	}
 	return nil
 }
@@ -199,7 +199,7 @@ func (w *Writer) InsertTransactionIns(
 
 	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), &outputsRedeeming, cfg.PerformUpdates)
 	if err != nil {
-		return 0, w.stream.EventErr("InsertOutputsRedeeming", err)
+		return 0, ctx.Job().EventErr("InsertOutputsRedeeming", err)
 	}
 
 	if idx < len(creds) {
@@ -277,7 +277,7 @@ func (w *Writer) InsertOutput(
 
 	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertOutputs", err)
+		return ctx.Job().EventErr("InsertOutputs", err)
 	}
 
 	// Ingest each Output Address
@@ -303,7 +303,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 	}
 	err := ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertOutputs", err)
+		return ctx.Job().EventErr("InsertOutputs", err)
 	}
 	return nil
 }
@@ -321,7 +321,7 @@ func (w *Writer) InsertOutputAddress(
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertOutputs", err)
+		return ctx.Job().EventErr("InsertOutputs", err)
 	}
 
 	outputAddresses := &services.OutputAddresses{
@@ -332,7 +332,7 @@ func (w *Writer) InsertOutputAddress(
 	}
 	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertOutputAddresses", err)
+		return ctx.Job().EventErr("InsertOutputAddresses", err)
 	}
 
 	if sig == nil {
@@ -341,7 +341,7 @@ func (w *Writer) InsertOutputAddress(
 
 	err = ctx.Persist().UpdateOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses)
 	if err != nil {
-		return w.stream.EventErr("UpdateOutputAddresses", err)
+		return ctx.Job().EventErr("UpdateOutputAddresses", err)
 	}
 
 	return nil

@@ -450,3 +450,53 @@ func TestOutputAddresses(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestTransactionsEpoch(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &TransactionsEpoch{}
+	v.ID = "id1"
+	v.Epoch = 10
+	v.VertexID = "vid1"
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+
+	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Epoch = 11
+	v.VertexID = "vid2"
+	v.CreatedAt = tm
+
+	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.VertexID != "vid2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

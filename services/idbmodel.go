@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -18,6 +20,7 @@ const TableAssets = "avm_assets"
 const TableAddresses = "addresses"
 const TableAddressChain = "address_chain"
 const TableOutputAddresses = "avm_output_addresses"
+const TableTransactionsEpochs = "transactions_epoch"
 
 type Persist interface {
 	InsertTransaction(
@@ -115,6 +118,19 @@ type Persist interface {
 		ctx context.Context,
 		sess dbr.SessionRunner,
 		v *OutputAddresses,
+	) error
+
+	QueryTransactionsEpoch(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsEpoch,
+	) (*TransactionsEpoch, error)
+
+	InsertTransactionsEpoch(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *TransactionsEpoch,
+		upd bool,
 	) error
 }
 
@@ -596,5 +612,61 @@ func (p *persist) UpdateOutputAddresses(
 	if err != nil {
 		return stacktrace.Propagate(err, TableOutputAddresses+".update")
 	}
+	return nil
+}
+
+type TransactionsEpoch struct {
+	ID        string
+	Epoch     uint32
+	VertexID  string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsEpoch(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsEpoch,
+) (*TransactionsEpoch, error) {
+	v := &TransactionsEpoch{}
+	err := sess.Select(
+		"id",
+		"epoch",
+		"vertex_id",
+		"created_at",
+	).From(TableTransactionsEpochs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsEpoch(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsEpoch,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsEpochs).
+		Pair("id", v.ID).
+		Pair("epoch", v.Epoch).
+		Pair("vertex_id", v.VertexID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableTransactionsEpochs+".update")
+	}
+	if cfg.PerformUpdates {
+		_, err = sess.
+			Update(TableTransactionsEpochs).
+			Set("epoch", v.Epoch).
+			Set("vertex_id", v.VertexID).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableOutputAddresses+".update")
+		}
+	}
+
 	return nil
 }
