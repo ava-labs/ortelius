@@ -20,8 +20,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
 
-	"github.com/ava-labs/ortelius/stream"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/avalanchego/codec"
@@ -81,7 +79,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "avm-index" }
 
-func (w *Writer) Bootstrap(ctx context.Context) error {
+func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -125,14 +123,14 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		}
 
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
+		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
 
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, persist services.Persist) error {
 	noopdb := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -175,7 +173,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp())
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
 
 	for _, vtx := range vertexTxs {
 		switch txt := vtx.(type) {
@@ -202,21 +200,6 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 					return cCtx.Job().EventErr("avm_assets.update", err)
 				}
 			}
-
-			if false {
-				// Disabled to avoid conflicts with timestamps.
-				// if a consensus is processed before a decision, the timestamp of the TX could/would change to the consensus time.
-				body := txt.Bytes()
-				m := stream.NewMessage(
-					txt.Tx.ID().String(),
-					w.chainID,
-					body,
-					c.Timestamp())
-				err = w.Consume(ctx, m)
-				if err != nil {
-					return err
-				}
-			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
 		}
@@ -229,7 +212,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
+func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
@@ -255,7 +238,7 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp()), i.Body())
+	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), persist), i.Body())
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}

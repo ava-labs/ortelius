@@ -27,6 +27,7 @@ type Control struct {
 	lock          sync.Mutex
 	connections   *Connections
 	connectionsRO *Connections
+	Persist       Persist
 }
 
 func (s *Control) InitProduceMetrics() {

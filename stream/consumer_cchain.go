@@ -103,10 +103,10 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		return err
 	}
 
-	return c.Consume(msg)
+	return c.Consume(msg, c.sc.Persist)
 }
 
-func (c *ConsumerCChain) Consume(msg services.Consumable) error {
+func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persist) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 
-	if err = c.consumer.Consume(ctx, nmsg, &block.Header); err != nil {
+	if err = c.consumer.Consume(ctx, nmsg, &block.Header, persist); err != nil {
 		collectors.Error()
 		c.sc.Log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
 		return err
