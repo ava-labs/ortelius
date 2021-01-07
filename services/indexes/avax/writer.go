@@ -150,36 +150,17 @@ func (w *Writer) InsertTransactionBase(
 		memo = nil
 	}
 
-	_, err := ctx.DB().
-		InsertInto("avm_transactions").
-		Pair("id", txID.String()).
-		Pair("chain_id", chainID).
-		Pair("type", txType).
-		Pair("memo", memo).
-		Pair("created_at", ctx.Time()).
-		Pair("canonical_serialization", txBytes).
-		Pair("txfee", txfee).
-		Pair("genesis", genesis).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return w.stream.EventErr("avm_transactions.insert", err)
+	t := &services.Transaction{
+		TxID:    txID.String(),
+		ChainID: chainID,
+		TxType:  txType,
+		Memo:    memo,
+		TxBytes: txBytes,
+		Txfee:   txfee,
+		Genesis: genesis,
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("avm_transactions").
-			Set("chain_id", chainID).
-			Set("type", txType).
-			Set("memo", memo).
-			Set("canonical_serialization", txBytes).
-			Set("txfee", txfee).
-			Set("genesis", genesis).
-			Where("id = ?", txID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return w.stream.EventErr("avm_transactions.update", err)
-		}
-	}
-	return nil
+
+	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Time(), t, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionIns(

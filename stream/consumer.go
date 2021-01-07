@@ -83,7 +83,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx); err != nil {
+		if err = c.consumer.Bootstrap(ctx, sc.Persist); err != nil {
 			return nil, err
 		}
 
@@ -171,7 +171,7 @@ func (c *consumer) ProcessNextMessage() error {
 func (c *consumer) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, msg)
+	return c.consumer.Consume(ctx, msg, c.sc.Persist)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {
