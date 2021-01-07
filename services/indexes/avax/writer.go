@@ -149,14 +149,14 @@ func (w *Writer) InsertTransactionBase(
 	}
 
 	t := &services.Transaction{
-		ID:        txID.String(),
-		ChainID:   chainID,
-		TxType:    txType,
-		Memo:      memo,
-		TxBytes:   txBytes,
-		Txfee:     txfee,
-		Genesis:   genesis,
-		CreatedAt: ctx.Time(),
+		ID:                     txID.String(),
+		ChainID:                chainID,
+		TxType:                 txType,
+		Memo:                   memo,
+		CanonicalSerialization: txBytes,
+		Txfee:                  txfee,
+		Genesis:                genesis,
+		CreatedAt:              ctx.Time(),
 	}
 
 	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)

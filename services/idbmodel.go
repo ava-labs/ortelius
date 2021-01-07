@@ -57,14 +57,14 @@ func New() Persist {
 }
 
 type Transaction struct {
-	ID        string
-	ChainID   string
-	TxType    string
-	Memo      []byte
-	TxBytes   []byte
-	Txfee     uint64
-	Genesis   bool
-	CreatedAt time.Time
+	ID                     string
+	ChainID                string
+	TxType                 string
+	Memo                   []byte
+	CanonicalSerialization []byte
+	Txfee                  uint64
+	Genesis                bool
+	CreatedAt              time.Time
 }
 
 func (p *persist) QueryTransaction(
@@ -98,7 +98,7 @@ func (p *persist) InsertTransaction(
 		Pair("type", v.TxType).
 		Pair("memo", v.Memo).
 		Pair("created_at", v.CreatedAt).
-		Pair("canonical_serialization", v.TxBytes).
+		Pair("canonical_serialization", v.CanonicalSerialization).
 		Pair("txfee", v.Txfee).
 		Pair("genesis", v.Genesis).
 		ExecContext(ctx)
@@ -111,7 +111,7 @@ func (p *persist) InsertTransaction(
 			Set("chain_id", v.ChainID).
 			Set("type", v.TxType).
 			Set("memo", v.Memo).
-			Set("canonical_serialization", v.TxBytes).
+			Set("canonical_serialization", v.CanonicalSerialization).
 			Set("txfee", v.Txfee).
 			Set("genesis", v.Genesis).
 			Where("id = ?", v.ID).
@@ -285,5 +285,3 @@ func (p *persist) InsertOutputs(
 	}
 	return nil
 }
-
-
