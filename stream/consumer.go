@@ -6,10 +6,7 @@ package stream
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
-
-	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/ortelius/services/metrics"
 
@@ -160,26 +157,8 @@ func (c *consumer) ProcessNextMessage() error {
 		return err
 	}
 
-	icnt := 0
-	for ; icnt <= cfg.DatabaseRetries; icnt++ {
-		err = c.persistConsume(msg)
-		if err == nil {
-			break
-		}
-		if !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
-			c.sc.Log.Warn("consumer.Consume: %s %v", id.String(), err)
-		} else {
-			icnt = 0
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-	if err != nil {
-		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s %v", id.String(), err)
-		return err
-	}
-	return nil
+	msgprefix := "consumer.Consume: " + id.String()
+	return RetryDb(cfg.DatabaseRetries, func() error { return c.persistConsume(msg) }, c.sc.Log, msgprefix, collectors)
 }
 
 func (c *consumer) persistConsume(msg *Message) error {

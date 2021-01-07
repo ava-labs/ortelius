@@ -7,11 +7,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	cblock "github.com/ava-labs/ortelius/models"
@@ -142,27 +139,8 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 
 	nmsg := NewMessage(id.String(), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
-	icnt := 0
-	for ; icnt <= cfg.DatabaseRetries; icnt++ {
-		err = c.persistConsume(nmsg, block)
-		if err == nil {
-			break
-		}
-		if !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
-			c.sc.Log.Warn("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
-		} else {
-			icnt = 0
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	if err != nil {
-		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String(), err)
-		return err
-	}
-
-	return nil
+	msgprefix := fmt.Sprintf("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String())
+	return RetryDb(cfg.DatabaseRetries, func() error { return c.persistConsume(nmsg, block) }, c.sc.Log, msgprefix, collectors)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
