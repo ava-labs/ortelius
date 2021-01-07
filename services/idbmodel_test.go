@@ -370,12 +370,6 @@ func TestOutputAddresses(t *testing.T) {
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
-	v := &OutputAddresses{}
-	v.OutputID = "oid1"
-	v.Address = "id1"
-	v.RedeemingSignature = []byte("rd1")
-	v.CreatedAt = tm
-
 	stream := health.NewStream()
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
@@ -383,11 +377,36 @@ func TestOutputAddresses(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddresses).Exec()
 
+	v := &OutputAddresses{}
+	v.OutputID = "oid1"
+	v.Address = "id1"
+	v.CreatedAt = tm
+
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
 	fv, err := p.QueryOutputAddresses(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.RedeemingSignature != nil {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputID = "oid1"
+	v.Address = "id1"
+	v.RedeemingSignature = []byte("rd1")
+	v.CreatedAt = tm
+
+	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputAddresses(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}

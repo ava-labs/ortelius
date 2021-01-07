@@ -557,13 +557,15 @@ func (p *persist) InsertOutputAddresses(
 	upd bool,
 ) error {
 	var err error
-	_, err = sess.
+	stmt := sess.
 		InsertInto(TableOutputAddresses).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
-		Pair("redeeming_signature", v.RedeemingSignature).
-		Pair("created_at", v.CreatedAt).
-		ExecContext(ctx)
+		Pair("created_at", v.CreatedAt)
+	if v.RedeemingSignature != nil {
+		stmt = stmt.Pair("redeeming_signature", v.RedeemingSignature)
+	}
+	_, err = stmt.ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return stacktrace.Propagate(err, TableOutputAddresses+".insert")
 	}
