@@ -321,7 +321,7 @@ func (w *Writer) InsertOutputAddress(
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {
-		return ctx.Job().EventErr("InsertOutputs", err)
+		return ctx.Job().EventErr("InsertAddressChain", err)
 	}
 
 	outputAddresses := &services.OutputAddresses{
