@@ -131,7 +131,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("collectors.Collect: %v", err)
 		}
 	}()
 
