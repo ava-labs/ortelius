@@ -14,6 +14,10 @@ import (
 const TableTransactions = "avm_transactions"
 const TableOutputsRedeeming = "avm_outputs_redeeming"
 const TableOutputs = "avm_outputs"
+const TableAssets = "avm_assets"
+const TableAddresses = "addresses"
+const TableAddressChain = "address_chain"
+const TableOutputAddresses = "avm_output_addresses"
 
 type Persist interface {
 	InsertTransaction(
@@ -26,11 +30,13 @@ type Persist interface {
 	QueryTransaction(
 		context.Context,
 		dbr.SessionRunner,
+		*Transaction,
 	) (*Transaction, error)
 
 	QueryOutputsRedeeming(
 		context.Context,
 		dbr.SessionRunner,
+		*OutputsRedeeming,
 	) (*OutputsRedeeming, error)
 
 	InsertOutputsRedeeming(
@@ -43,6 +49,7 @@ type Persist interface {
 	QueryOutputs(
 		context.Context,
 		dbr.SessionRunner,
+		*Outputs,
 	) (*Outputs, error)
 
 	InsertOutputs(
@@ -50,6 +57,64 @@ type Persist interface {
 		sess dbr.SessionRunner,
 		v *Outputs,
 		upd bool,
+	) error
+
+	QueryAssets(
+		context.Context,
+		dbr.SessionRunner,
+		*Assets,
+	) (*Assets, error)
+
+	InsertAssets(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *Assets,
+		upd bool,
+	) error
+
+	QueryAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*Addresses,
+	) (*Addresses, error)
+
+	InsertAddresses(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *Addresses,
+		upd bool,
+	) error
+
+	QueryAddressChain(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressChain,
+	) (*AddressChain, error)
+
+	InsertAddressChain(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *AddressChain,
+		upd bool,
+	) error
+
+	QueryOutputAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputAddresses,
+	) (*OutputAddresses, error)
+
+	InsertOutputAddresses(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *OutputAddresses,
+		upd bool,
+	) error
+
+	UpdateOutputAddresses(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *OutputAddresses,
 	) error
 }
 
@@ -74,6 +139,7 @@ type Transaction struct {
 func (p *persist) QueryTransaction(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *Transaction,
 ) (*Transaction, error) {
 	v := &Transaction{}
 	err := sess.Select(
@@ -85,7 +151,9 @@ func (p *persist) QueryTransaction(
 		"canonical_serialization",
 		"txfee",
 		"genesis",
-	).From(TableTransactions).LoadOneContext(ctx, v)
+	).From(TableTransactions).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -142,6 +210,7 @@ type OutputsRedeeming struct {
 func (p *persist) QueryOutputsRedeeming(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *OutputsRedeeming,
 ) (*OutputsRedeeming, error) {
 	v := &OutputsRedeeming{}
 	err := sess.Select(
@@ -154,7 +223,9 @@ func (p *persist) QueryOutputsRedeeming(
 		"asset_id",
 		"chain_id",
 		"created_at",
-	).From(TableOutputsRedeeming).LoadOneContext(ctx, v)
+	).From(TableOutputsRedeeming).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -218,6 +289,7 @@ type Outputs struct {
 func (p *persist) QueryOutputs(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *Outputs,
 ) (*Outputs, error) {
 	v := &Outputs{}
 	err := sess.Select(
@@ -235,7 +307,9 @@ func (p *persist) QueryOutputs(
 		"stake_locktime",
 		"stake",
 		"created_at",
-	).From(TableOutputs).LoadOneContext(ctx, v)
+	).From(TableOutputs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -286,6 +360,239 @@ func (p *persist) InsertOutputs(
 		if err != nil {
 			return stacktrace.Propagate(err, TableOutputs+".update")
 		}
+	}
+	return nil
+}
+
+type Assets struct {
+	ID            string
+	ChainID       string
+	Name          string
+	Symbol        string
+	Denomination  byte
+	Alias         string
+	CurrentSupply uint64
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryAssets(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Assets,
+) (*Assets, error) {
+	v := &Assets{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"name",
+		"symbol",
+		"denomination",
+		"alias",
+		"current_supply",
+		"created_at",
+	).From(TableAssets).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAssets(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *Assets,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto("avm_assets").
+		Pair("id", v.ID).
+		Pair("chain_Id", v.ChainID).
+		Pair("name", v.Name).
+		Pair("symbol", v.Symbol).
+		Pair("denomination", v.Denomination).
+		Pair("alias", v.Alias).
+		Pair("current_supply", v.CurrentSupply).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableAssets+".insert")
+	}
+	if upd {
+		_, err = sess.
+			Update("avm_assets").
+			Set("chain_Id", v.ChainID).
+			Set("name", v.Name).
+			Set("symbol", v.Symbol).
+			Set("denomination", v.Denomination).
+			Set("alias", v.Alias).
+			Set("current_supply", v.CurrentSupply).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableAssets+".update")
+		}
+	}
+	return nil
+}
+
+type Addresses struct {
+	Address   string
+	PublicKey []byte
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Addresses,
+) (*Addresses, error) {
+	v := &Addresses{}
+	err := sess.Select(
+		"address",
+		"public_key",
+		"created_at",
+	).From(TableAddresses).
+		Where("address=?", q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *Addresses,
+	upd bool,
+) error {
+	_, err := sess.
+		InsertInto(TableAddresses).
+		Pair("address", v.Address).
+		Pair("public_key", v.PublicKey).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableAddresses+".insert")
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddresses).
+			Set("public_key", v.PublicKey).
+			Where("address = ?", v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableAddresses+".update")
+		}
+	}
+
+	return nil
+}
+
+type AddressChain struct {
+	Address   string
+	ChainID   string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryAddressChain(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *AddressChain,
+) (*AddressChain, error) {
+	v := &AddressChain{}
+	err := sess.Select(
+		"address",
+		"chain_id",
+		"created_at",
+	).From(TableAddressChain).
+		Where("address=? and chain_id=?", q.Address, q.ChainID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddressChain(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *AddressChain,
+	_ bool,
+) error {
+	_, err := sess.
+		InsertInto("address_chain").
+		Pair("address", v.Address).
+		Pair("chain_id", v.ChainID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableAddressChain+".insert")
+	}
+	return nil
+}
+
+type OutputAddresses struct {
+	OutputID           string
+	Address            string
+	RedeemingSignature []byte
+	CreatedAt          time.Time
+}
+
+func (p *persist) QueryOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputAddresses,
+) (*OutputAddresses, error) {
+	v := &OutputAddresses{}
+	err := sess.Select(
+		"output_id",
+		"address",
+		"redeeming_signature",
+		"created_at",
+	).From(TableOutputAddresses).
+		Where("output_id=? and address=?", q.OutputID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputAddresses,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableOutputAddresses).
+		Pair("output_id", v.OutputID).
+		Pair("address", v.Address).
+		Pair("redeeming_signature", v.RedeemingSignature).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableOutputAddresses+".insert")
+	}
+	if v.RedeemingSignature != nil && upd {
+		_, err = sess.
+			Update(TableOutputAddresses).
+			Set("redeeming_signature", v.RedeemingSignature).
+			Where("output_id = ? and address=?", v.OutputID, v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableOutputAddresses+".update")
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputAddresses,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableOutputAddresses).
+		Set("redeeming_signature", v.RedeemingSignature).
+		Where("output_id = ? and address=?", v.OutputID, v.Address).
+		ExecContext(ctx)
+	if err != nil {
+		return stacktrace.Propagate(err, TableOutputAddresses+".update")
 	}
 	return nil
 }

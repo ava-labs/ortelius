@@ -21,7 +21,6 @@ import (
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
@@ -297,14 +296,14 @@ func (w *Writer) InsertAddressFromPublicKey(
 	ctx services.ConsumerCtx,
 	publicKey crypto.PublicKey,
 ) error {
-	_, err := ctx.DB().
-		InsertInto("addresses").
-		Pair("address", publicKey.Address().String()).
-		Pair("public_key", publicKey.Bytes()).
-		ExecContext(ctx.Ctx())
-
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("addresses.insert", err)
+	addresses := &services.Addresses{
+		Address:   publicKey.Address().String(),
+		PublicKey: publicKey.Bytes(),
+		CreatedAt: ctx.Time(),
+	}
+	err := ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
+	if err != nil {
+		return w.stream.EventErr("InsertOutputs", err)
 	}
 	return nil
 }
@@ -315,43 +314,37 @@ func (w *Writer) InsertOutputAddress(
 	address ids.ShortID,
 	sig []byte,
 ) error {
-	_, err := ctx.DB().
-		InsertInto("address_chain").
-		Pair("address", address.String()).
-		Pair("chain_id", w.chainID).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return w.stream.EventErr("address_chain.insert", err)
+	addressChain := &services.AddressChain{
+		Address:   address.String(),
+		ChainID:   w.chainID,
+		CreatedAt: ctx.Time(),
+	}
+	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
+	if err != nil {
+		return w.stream.EventErr("InsertOutputs", err)
 	}
 
-	builder := ctx.DB().
-		InsertInto("avm_output_addresses").
-		Pair("output_id", outputID.String()).
-		Pair("address", address.String()).
-		Pair("created_at", ctx.Time())
-
-	if sig != nil {
-		builder = builder.Pair("redeeming_signature", sig)
+	outputAddresses := &services.OutputAddresses{
+		OutputID:           outputID.String(),
+		Address:            address.String(),
+		RedeemingSignature: sig,
+		CreatedAt:          ctx.Time(),
+	}
+	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses, cfg.PerformUpdates)
+	if err != nil {
+		return w.stream.EventErr("InsertOutputAddresses", err)
 	}
 
-	_, err = builder.ExecContext(ctx.Ctx())
 	switch {
 	case err == nil:
 		return nil
-	case !db.ErrIsDuplicateEntryError(err):
-		return ctx.Job().EventErr("avm_output_addresses.insert", err)
 	case sig == nil:
 		return nil
 	}
 
-	_, err = ctx.DB().
-		Update("avm_output_addresses").
-		Set("redeeming_signature", sig).
-		Where("output_id = ? and address = ?", outputID.String(), address.String()).
-		ExecContext(ctx.Ctx())
+	err = ctx.Persist().UpdateOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses)
 	if err != nil {
-		return ctx.Job().EventErr("avm_output_addresses.update", err)
+		return w.stream.EventErr("UpdateOutputAddresses", err)
 	}
 
 	return nil
