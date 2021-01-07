@@ -20,7 +20,7 @@ func TestTransaction(t *testing.T) {
 
 	v := &Transaction{}
 	v.ChainID = "cid1"
-	v.TxID = "tid1"
+	v.ID = "tid1"
 	v.Memo = []byte("memo")
 	v.Txfee = 1
 	v.CreatedAt = tm

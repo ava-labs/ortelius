@@ -57,7 +57,7 @@ func New() Persist {
 }
 
 type Transaction struct {
-	TxID      string
+	ID        string
 	ChainID   string
 	TxType    string
 	Memo      []byte
@@ -93,7 +93,7 @@ func (p *persist) InsertTransaction(
 ) error {
 	_, err := sess.
 		InsertInto("avm_transactions").
-		Pair("id", v.TxID).
+		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
 		Pair("type", v.TxType).
 		Pair("memo", v.Memo).
@@ -114,7 +114,7 @@ func (p *persist) InsertTransaction(
 			Set("canonical_serialization", v.TxBytes).
 			Set("txfee", v.Txfee).
 			Set("genesis", v.Genesis).
-			Where("id = ?", v.TxID).
+			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return stacktrace.Propagate(err, "avm_transactions.update")
