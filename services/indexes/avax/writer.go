@@ -149,7 +149,7 @@ func (w *Writer) InsertTransactionBase(
 	}
 
 	t := &services.Transaction{
-		TxID:      txID.String(),
+		ID:        txID.String(),
 		ChainID:   chainID,
 		TxType:    txType,
 		Memo:      memo,
