@@ -51,7 +51,7 @@ Ortelius is a collection of services. The full stack consists of the Producer, I
 ```
 ortelius stream producer -c path/to/config.json
 ortelius stream indexer -c path/to/config.json
-ortelius stream api -c path/to/config.json
+ortelius api -c path/to/config.json
 ```
 
 These processes are separated so they can scale independently as needed. They can start on a single machine or small cluster and be scaled out as the system grows.

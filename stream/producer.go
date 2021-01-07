@@ -43,6 +43,7 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+	sc.InitProduceMetrics()
 
 	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
@@ -83,10 +84,8 @@ func (p *Producer) ProcessNextMessage() error {
 
 	p.writeBuffer.Write(rawMsg)
 
-	err = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-	if err != nil {
-		p.sc.Log.Error("prometheus.CounterInc %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
 	return nil
 }

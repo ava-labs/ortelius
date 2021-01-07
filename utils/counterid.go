@@ -7,18 +7,22 @@ import (
 
 type CounterID struct {
 	lock     sync.RWMutex
-	counters map[string]*uint64
+	counters map[string]*int64
 }
 
 func NewCounterID() *CounterID {
-	return &CounterID{counters: make(map[string]*uint64)}
+	return &CounterID{counters: make(map[string]*int64)}
 }
 
 func (c *CounterID) Inc(v string) {
+	c.Add(v, 1)
+}
+
+func (c *CounterID) Add(v string, delta int64) {
 	found := false
 	c.lock.RLock()
 	if counter, ok := c.counters[v]; ok {
-		atomic.AddUint64(counter, 1)
+		atomic.AddInt64(counter, delta)
 		found = true
 	}
 	c.lock.RUnlock()
@@ -29,17 +33,17 @@ func (c *CounterID) Inc(v string) {
 
 	c.lock.Lock()
 	if _, ok := c.counters[v]; !ok {
-		c.counters[v] = new(uint64)
+		c.counters[v] = new(int64)
 	}
-	atomic.AddUint64(c.counters[v], 1)
+	atomic.AddInt64(c.counters[v], delta)
 	c.lock.Unlock()
 }
 
-func (c *CounterID) Clone() map[string]uint64 {
-	countersValues := make(map[string]uint64)
+func (c *CounterID) Clone() map[string]int64 {
+	countersValues := make(map[string]int64)
 	c.lock.RLock()
 	for cnter := range c.counters {
-		cv := atomic.LoadUint64(c.counters[cnter])
+		cv := atomic.LoadInt64(c.counters[cnter])
 		if cv != 0 {
 			countersValues[cnter] = cv
 		}

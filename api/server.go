@@ -104,7 +104,7 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	pvmReader := pvm.NewReader(connections)
 
 	// Build router
-	router := web.New(Context{}).
+	router := web.New(Context{sc: sc}).
 		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), connections, delayCache)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {

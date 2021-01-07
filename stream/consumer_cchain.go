@@ -69,6 +69,7 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
+		sc.InitConsumeMetrics()
 
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 
@@ -121,6 +122,8 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -198,17 +201,13 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 }
 
 func (c *ConsumerCChain) Failure() {
-	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	if err != nil {
-		c.sc.Log.Error("prometheus.CounterInc %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
 }
 
 func (c *ConsumerCChain) Success() {
-	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	if err != nil {
-		c.sc.Log.Error("prometheus.CounterInc %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
 func (c *ConsumerCChain) Listen() error {

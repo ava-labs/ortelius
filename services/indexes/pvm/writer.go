@@ -6,11 +6,8 @@ package pvm
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
-
-	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -67,13 +64,6 @@ func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable) erro
 func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
-
-	if stream.IndexerTaskEnabled {
-		// fire and forget..
-		// update the created_at on the state table if we have an earlier date in ctx.Time().
-		// which means we need to re-run aggregation calculations from this earlier date.
-		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
-	}
 
 	dbTx, err := sess.Begin()
 	if err != nil {
