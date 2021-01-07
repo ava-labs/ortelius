@@ -97,6 +97,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+		sc.InitProduceMetrics()
 
 		return p
 	}
@@ -218,6 +219,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			time.Sleep(readRPCTimeout)
 			return err
 		}
+		_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+		_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
 		ncurrent := new(big.Int)
 		ncurrent.Set(current)
@@ -234,17 +237,13 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 }
 
 func (p *ProducerCChain) Failure() {
-	err := metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	if err != nil {
-		p.sc.Log.Error("prometheus.CounterInc %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
 }
 
 func (p *ProducerCChain) Success() {
-	err := metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	if err != nil {
-		p.sc.Log.Error("prometheus.CounterInc %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
 }
 
 func (p *ProducerCChain) getBlock() error {
