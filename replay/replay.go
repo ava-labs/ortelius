@@ -68,7 +68,7 @@ type replay struct {
 
 func (replay *replay) Start() error {
 	cfg.PerformUpdates = true
-	replay.persist = services.New()
+	replay.persist = services.NewPersist()
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 

@@ -151,7 +151,7 @@ func (w *Writer) InsertTransactionBase(
 	t := &services.Transaction{
 		ID:                     txID.String(),
 		ChainID:                chainID,
-		TxType:                 txType,
+		Type:                   txType,
 		Memo:                   memo,
 		CanonicalSerialization: txBytes,
 		Txfee:                  txfee,
@@ -192,7 +192,7 @@ func (w *Writer) InsertTransactionIns(
 		RedeemingTransactionID: txID.String(),
 		Amount:                 in.Input().Amount(),
 		OutputIndex:            in.OutputIndex,
-		InTX:                   in.TxID.String(),
+		Intx:                   in.TxID.String(),
 		AssetID:                in.AssetID().String(),
 		ChainID:                chainID,
 		CreatedAt:              ctx.Time(),

@@ -97,7 +97,7 @@ func execute() error {
 
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
-				serviceControl.Persist = services.New()
+				serviceControl.Persist = services.NewPersist()
 
 				*config = *c
 

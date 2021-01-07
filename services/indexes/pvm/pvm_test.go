@@ -17,7 +17,7 @@ func TestBootstrap(t *testing.T) {
 	w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
-	persist := services.New()
+	persist := services.NewPersist()
 	if err := w.Bootstrap(context.Background(), persist); err != nil {
 		t.Fatal(err)
 	}

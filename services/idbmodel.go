@@ -52,14 +52,14 @@ type Persist interface {
 type persist struct {
 }
 
-func New() Persist {
+func NewPersist() Persist {
 	return &persist{}
 }
 
 type Transaction struct {
 	ID                     string
 	ChainID                string
-	TxType                 string
+	Type                   string
 	Memo                   []byte
 	CanonicalSerialization []byte
 	Txfee                  uint64
@@ -95,7 +95,7 @@ func (p *persist) InsertTransaction(
 		InsertInto("avm_transactions").
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
-		Pair("type", v.TxType).
+		Pair("type", v.Type).
 		Pair("memo", v.Memo).
 		Pair("created_at", v.CreatedAt).
 		Pair("canonical_serialization", v.CanonicalSerialization).
@@ -109,7 +109,7 @@ func (p *persist) InsertTransaction(
 		_, err = sess.
 			Update("avm_transactions").
 			Set("chain_id", v.ChainID).
-			Set("type", v.TxType).
+			Set("type", v.Type).
 			Set("memo", v.Memo).
 			Set("canonical_serialization", v.CanonicalSerialization).
 			Set("txfee", v.Txfee).
@@ -129,7 +129,7 @@ type OutputsRedeeming struct {
 	RedeemingTransactionID string
 	Amount                 uint64
 	OutputIndex            uint32
-	InTX                   string
+	Intx                   string
 	AssetID                string
 	ChainID                string
 	CreatedAt              time.Time
@@ -168,7 +168,7 @@ func (p *persist) InsertOutputsRedeeming(
 		Pair("redeeming_transaction_id", v.RedeemingTransactionID).
 		Pair("amount", v.Amount).
 		Pair("output_index", v.OutputIndex).
-		Pair("intx", v.InTX).
+		Pair("intx", v.Intx).
 		Pair("asset_id", v.AssetID).
 		Pair("created_at", v.CreatedAt).
 		Pair("chain_id", v.ChainID).
@@ -182,7 +182,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Set("redeeming_transaction_id", v.RedeemingTransactionID).
 			Set("amount", v.Amount).
 			Set("output_index", v.OutputIndex).
-			Set("intx", v.InTX).
+			Set("intx", v.Intx).
 			Set("asset_id", v.AssetID).
 			Set("chain_id", v.ChainID).
 			Where("id = ?", v.ID).
@@ -231,7 +231,7 @@ func (p *persist) QueryOutputs(
 		"stake_locktime",
 		"stake",
 		"created_at",
-	).From("outputs").LoadOneContext(ctx, v)
+	).From("avm_outputs").LoadOneContext(ctx, v)
 	return v, err
 }
 
