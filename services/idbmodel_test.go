@@ -50,7 +50,12 @@ func TestTransaction(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 
+	v.ChainID = "cid2"
+	v.Type = "txtype1"
+	v.Memo = []byte("memo1")
+	v.CanonicalSerialization = []byte("cs1")
 	v.Txfee = 2
+	v.Genesis = false
 	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
@@ -103,7 +108,13 @@ func TestOutputsRedeeming(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 
+	v.RedeemingTransactionID = "rtxid1"
+	v.Amount = 102
+	v.OutputIndex = 3
 	v.Intx = "intx2"
+	v.AssetID = "aid2"
+	v.ChainID = "cid2"
+
 	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
@@ -160,7 +171,18 @@ func TestOutputs(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 
-	v.Amount = 200
+	v.ChainID = "cid2"
+	v.TransactionID = "txid2"
+	v.OutputIndex = 2
+	v.AssetID = "aid2"
+	v.OutputType = models.OutputTypesSECP2556K1Mint
+	v.Amount = 3
+	v.Locktime = 4
+	v.Threshold = 5
+	v.GroupID = 6
+	v.Payload = []byte("payload2")
+	v.StakeLocktime = 7
+	v.Stake = false
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -170,7 +192,7 @@ func TestOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
-	if fv.Amount != 200 {
+	if fv.Amount != 3 {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
