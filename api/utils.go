@@ -61,13 +61,19 @@ func ParseGet(r *web.Request, n int64) (url.Values, error) {
 	}
 	buf := new(strings.Builder)
 	_, err := io.CopyN(buf, pf, n)
-	if err != nil {
+	switch err {
+	case io.EOF:
+	case nil:
+	default:
 		return r.URL.Query(), err
 	}
 	if buf.Len() > 0 {
 		getq, err := url.ParseQuery(buf.String())
-		if err == nil {
+		switch err {
+		case nil:
 			return mergeValues(getq, r.URL.Query()), nil
+		default:
+			return r.URL.Query(), err
 		}
 	}
 	return r.URL.Query(), nil
