@@ -314,7 +314,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMECONSENSUS:
 				for {
-					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message , replay.persist)
+						consumererr = value.writer.ConsumeConsensus(context.Background(), value.message , replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}

@@ -149,16 +149,17 @@ func (w *Writer) InsertTransactionBase(
 	}
 
 	t := &services.Transaction{
-		TxID:    txID.String(),
-		ChainID: chainID,
-		TxType:  txType,
-		Memo:    memo,
-		TxBytes: txBytes,
-		Txfee:   txfee,
-		Genesis: genesis,
+		TxID:      txID.String(),
+		ChainID:   chainID,
+		TxType:    txType,
+		Memo:      memo,
+		TxBytes:   txBytes,
+		Txfee:     txfee,
+		Genesis:   genesis,
+		CreatedAt: ctx.Time(),
 	}
 
-	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Time(), t, cfg.PerformUpdates)
+	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
 	if err != nil {
 		return w.stream.EventErr("InsertTransaction", err)
 	}
@@ -186,18 +187,18 @@ func (w *Writer) InsertTransactionIns(
 	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
 	outputsRedeeming := services.OutputsRedeeming{
-		InputID:     txID.String(),
-		RedeemedAt:  ctx.Time(),
-		TxID:        txID.String(),
-		Amount:      in.Input().Amount(),
-		OutputIndex: in.OutputIndex,
-		InTxID:      chainID,
-		AssetID:     chainID,
-		ChainID:     chainID,
-		CreatedAt:   ctx.Time(),
+		ID:                     txID.String(),
+		RedeemedAt:             ctx.Time(),
+		RedeemingTransactionID: txID.String(),
+		Amount:                 in.Input().Amount(),
+		OutputIndex:            in.OutputIndex,
+		InTX:                   in.TxID.String(),
+		AssetID:                in.AssetID().String(),
+		ChainID:                chainID,
+		CreatedAt:              ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), ctx.Time(), &outputsRedeeming, cfg.PerformUpdates)
+	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), &outputsRedeeming, cfg.PerformUpdates)
 	if err != nil {
 		return 0, w.stream.EventErr("InsertOutputsRedeeming", err)
 	}
@@ -258,47 +259,26 @@ func (w *Writer) InsertOutput(
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
-	var err error
-	_, err = ctx.DB().
-		InsertInto("avm_outputs").
-		Pair("id", outputID.String()).
-		Pair("chain_id", chainID).
-		Pair("transaction_id", txID.String()).
-		Pair("output_index", idx).
-		Pair("asset_id", assetID.String()).
-		Pair("output_type", outputType).
-		Pair("amount", out.Amount()).
-		Pair("locktime", out.Locktime).
-		Pair("threshold", out.Threshold).
-		Pair("group_id", groupID).
-		Pair("payload", payload).
-		Pair("stake_locktime", stakeLocktime).
-		Pair("stake", stake).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return w.stream.EventErr("avm_outputs.insert", err)
+	output := &services.Outputs{
+		ID:            outputID.String(),
+		TransactionID: txID.String(),
+		OutputIndex:   idx,
+		AssetID:       assetID.String(),
+		Amount:        out.Amount(),
+		Locktime:      out.Locktime,
+		Threshold:     out.Threshold,
+		OutputType:    outputType,
+		GroupID:       groupID,
+		Payload:       payload,
+		StakeLocktime: stakeLocktime,
+		ChainID:       chainID,
+		Stake:         stake,
+		CreatedAt:     ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("avm_outputs").
-			Set("chain_id", chainID).
-			Set("transaction_id", txID.String()).
-			Set("output_index", idx).
-			Set("asset_id", assetID.String()).
-			Set("output_type", outputType).
-			Set("amount", out.Amount()).
-			Set("locktime", out.Locktime).
-			Set("threshold", out.Threshold).
-			Set("group_id", groupID).
-			Set("payload", payload).
-			Set("stake_locktime", stakeLocktime).
-			Set("stake", stake).
-			Where("id = ?", outputID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return w.stream.EventErr("avm_outputs.update", err)
-		}
+
+	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
+	if err != nil {
+		return w.stream.EventErr("InsertOutputs", err)
 	}
 
 	// Ingest each Output Address
