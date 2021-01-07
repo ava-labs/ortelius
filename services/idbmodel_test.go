@@ -18,26 +18,54 @@ func TestTransaction(t *testing.T) {
 	ctx := context.Background()
 	tm := time.Now().UTC()
 
-	tran := &Transaction{}
-	tran.ChainID = "cid1"
-	tran.TxID = "tid1"
-	tran.Memo = []byte("memo")
-	tran.Txfee = 1
+	v := &Transaction{}
+	v.ChainID = "cid1"
+	v.TxID = "tid1"
+	v.Memo = []byte("memo")
+	v.Txfee = 1
 
 	stream := health.NewStream()
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), tm, tran, true)
+	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), tm, v, true)
 	if err != nil {
-		t.Fatal("insert transaction fail", err)
+		t.Fatal("insert fail", err)
 	}
-	tranf, err := p.QueryTransaction(ctx, rawDBConn.NewSession(stream))
+	fv, err := p.QueryTransaction(ctx, rawDBConn.NewSession(stream))
 	if err != nil {
-		t.Fatal("query transaction fail", err)
+		t.Fatal("query fail", err)
 	}
-	if !reflect.DeepEqual(*tran, *tranf) {
-		t.Fatal("transaction compare fail")
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestOutputsRedeeming(t *testing.T) {
+	p := New()
+	ctx := context.Background()
+	tm := time.Now().UTC()
+
+	v := &OutputsRedeeming{}
+	v.InputID = "inid1"
+	v.ChainID = "cid1"
+	v.TxID = "tid1"
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), tm, v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryOutputsRedeeming(ctx, rawDBConn.NewSession(stream))
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
 	}
 }

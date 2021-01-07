@@ -11,8 +11,6 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 
-	"github.com/gocraft/dbr/v2"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -160,7 +158,11 @@ func (w *Writer) InsertTransactionBase(
 		Genesis: genesis,
 	}
 
-	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Time(), t, cfg.PerformUpdates)
+	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Time(), t, cfg.PerformUpdates)
+	if err != nil {
+		return w.stream.EventErr("InsertTransaction", err)
+	}
+	return nil
 }
 
 func (w *Writer) InsertTransactionIns(
@@ -183,35 +185,21 @@ func (w *Writer) InsertTransactionIns(
 
 	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
-	_, err = ctx.DB().
-		InsertInto("avm_outputs_redeeming").
-		Pair("id", inputID.String()).
-		Pair("redeemed_at", dbr.Now).
-		Pair("redeeming_transaction_id", txID.String()).
-		Pair("amount", in.Input().Amount()).
-		Pair("output_index", in.OutputIndex).
-		Pair("intx", in.TxID.String()).
-		Pair("asset_id", in.AssetID().String()).
-		Pair("created_at", ctx.Time()).
-		Pair("chain_id", chainID).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return 0, w.stream.EventErr("avm_outputs_redeeming.insert", err)
+	outputsRedeeming := services.OutputsRedeeming{
+		InputID:     txID.String(),
+		RedeemedAt:  ctx.Time(),
+		TxID:        txID.String(),
+		Amount:      in.Input().Amount(),
+		OutputIndex: in.OutputIndex,
+		InTxID:      chainID,
+		AssetID:     chainID,
+		ChainID:     chainID,
+		CreatedAt:   ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("avm_outputs_redeeming").
-			Set("redeeming_transaction_id", txID.String()).
-			Set("amount", in.Input().Amount()).
-			Set("output_index", in.OutputIndex).
-			Set("intx", in.TxID.String()).
-			Set("asset_id", in.AssetID().String()).
-			Set("chain_id", chainID).
-			Where("id = ?", inputID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return 0, w.stream.EventErr("avm_outputs_redeeming.update", err)
-		}
+
+	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), ctx.Time(), &outputsRedeeming, cfg.PerformUpdates)
+	if err != nil {
+		return 0, w.stream.EventErr("InsertOutputsRedeeming", err)
 	}
 
 	if idx < len(creds) {
