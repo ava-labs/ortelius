@@ -335,10 +335,7 @@ func (w *Writer) InsertOutputAddress(
 		return w.stream.EventErr("InsertOutputAddresses", err)
 	}
 
-	switch {
-	case err == nil:
-		return nil
-	case sig == nil:
+	if sig == nil {
 		return nil
 	}
 
