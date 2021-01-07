@@ -99,5 +99,3 @@ func TestOutputs(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
-
-
