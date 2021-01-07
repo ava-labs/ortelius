@@ -59,8 +59,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
-
-		initializeConsumerTasker(conns)
+		sc.InitConsumeMetrics()
 
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
@@ -71,7 +70,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx); err != nil {
+		if err = c.consumer.Bootstrap(ctx, c.sc.Persist); err != nil {
 			return nil, err
 		}
 
@@ -131,6 +130,8 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -157,7 +158,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 func (c *consumerconsensus) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.ConsumeConsensus(ctx, msg)
+	return c.consumer.ConsumeConsensus(ctx, msg, c.sc.Persist)
 }
 
 func (c *consumerconsensus) nextMessage() (*Message, error) {
@@ -168,17 +169,13 @@ func (c *consumerconsensus) nextMessage() (*Message, error) {
 }
 
 func (c *consumerconsensus) Failure() {
-	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	if err != nil {
-		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
 }
 
 func (c *consumerconsensus) Success() {
-	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	if err != nil {
-		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

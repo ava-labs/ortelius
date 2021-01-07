@@ -72,8 +72,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
-
-		initializeConsumerTasker(conns)
+		sc.InitConsumeMetrics()
 
 		// Create consumer backend
 		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
@@ -84,7 +83,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx); err != nil {
+		if err = c.consumer.Bootstrap(ctx, sc.Persist); err != nil {
 			return nil, err
 		}
 
@@ -144,6 +143,8 @@ func (c *consumer) ProcessNextMessage() error {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -170,7 +171,7 @@ func (c *consumer) ProcessNextMessage() error {
 func (c *consumer) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, msg)
+	return c.consumer.Consume(ctx, msg, c.sc.Persist)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {
@@ -181,17 +182,13 @@ func (c *consumer) nextMessage() (*Message, error) {
 }
 
 func (c *consumer) Failure() {
-	err := metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	if err != nil {
-		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
 }
 
 func (c *consumer) Success() {
-	err := metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	if err != nil {
-		c.sc.Log.Error("prmetheus.CounterInc: %s", err)
-	}
+	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
 // getNextMessage gets the next Message from the Kafka Indexer

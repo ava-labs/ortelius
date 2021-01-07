@@ -40,6 +40,8 @@ var (
 
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
+	sc *services.Control
+
 	job *health.Job
 	err error
 
@@ -100,7 +102,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 
 	// Write error or response
 	if err != nil {
-		c.connections.Logger().Warn("server error %v", err)
+		c.sc.Log.Warn("server error %v", err)
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
@@ -150,6 +152,7 @@ func (*Context) setHeaders(w web.ResponseWriter, r *web.Request, next web.NextMi
 	h.Add("access-control-allow-origin", "*")
 
 	h.Add("Content-Type", "application/json")
+	h.Add("Cache-Control", "no-store")
 
 	next(w, r)
 }

@@ -26,7 +26,8 @@ func TestIndexBootstrap(t *testing.T) {
 	writer, reader, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 
-	err := writer.Bootstrap(newTestContext())
+	persist := services.NewPersist()
+	err := writer.Bootstrap(newTestContext(), persist)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}

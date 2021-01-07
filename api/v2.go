@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/web"
@@ -188,7 +190,12 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
-	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+	q, err := ParseGet(r, cfg.RequestGetMaxSize)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	if err := p.ForValues(c.version, q); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}

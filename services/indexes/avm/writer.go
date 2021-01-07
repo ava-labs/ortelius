@@ -11,8 +11,6 @@ import (
 
 	"github.com/gocraft/health"
 
-	"time"
-
 	"github.com/ava-labs/avalanchego/database"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -21,8 +19,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
-
-	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -83,7 +79,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "avm-index" }
 
-func (w *Writer) Bootstrap(ctx context.Context) error {
+func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -127,14 +123,14 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 		}
 
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp))
+		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
 
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, persist services.Persist) error {
 	noopdb := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -177,7 +173,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp())
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
 
 	for _, vtx := range vertexTxs {
 		switch vtxTransition := vtx.Transition().(type) {
@@ -215,7 +211,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable) er
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
+func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
 		job  = w.conns.Stream().NewJob("index")
@@ -232,13 +228,6 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 		job.Complete(health.Success)
 	}()
 
-	if stream.IndexerTaskEnabled {
-		// fire and forget..
-		// update the created_at on the state table if we have an earlier date in ctx.Time().
-		// which means we need to re-run aggregation calculations from this earlier date.
-		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(i.Timestamp(), 0))
-	}
-
 	// Create db tx
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
@@ -248,7 +237,7 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp()), i.Body())
+	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), persist), i.Body())
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}

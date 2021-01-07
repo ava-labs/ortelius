@@ -6,11 +6,8 @@ package pvm
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
-
-	"github.com/ava-labs/ortelius/stream"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -60,20 +57,13 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable, persist services.Persist) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
+func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist services.Persist) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
-
-	if stream.IndexerTaskEnabled {
-		// fire and forget..
-		// update the created_at on the state table if we have an earlier date in ctx.Time().
-		// which means we need to re-run aggregation calculations from this earlier date.
-		_, _ = models.UpdateAvmAssetAggregationLiveStateTimestamp(ctx, sess, time.Unix(c.Timestamp(), 0))
-	}
 
 	dbTx, err := sess.Begin()
 	if err != nil {
@@ -82,14 +72,14 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp()), c.Body())
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist), c.Body())
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context) error {
+func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
 	job := w.conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID)
@@ -109,7 +99,7 @@ func (w *Writer) Bootstrap(ctx context.Context) error {
 	var (
 		db   = w.conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
-		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp))
+		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), persist)
 	)
 
 	for idx, utxo := range platformGenesis.UTXOs {
