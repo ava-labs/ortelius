@@ -187,7 +187,7 @@ func (w *Writer) InsertTransactionIns(
 	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
 	outputsRedeeming := services.OutputsRedeeming{
-		ID:                     txID.String(),
+		ID:                     inputID.String(),
 		RedeemedAt:             ctx.Time(),
 		RedeemingTransactionID: txID.String(),
 		Amount:                 in.Input().Amount(),
