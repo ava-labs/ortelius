@@ -27,17 +27,17 @@ func TestTransaction(t *testing.T) {
 	stream := health.NewStream()
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
-		t.Fatalf("db fail", err)
+		t.Fatal("db fail", err)
 	}
 	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), tm, tran, true)
 	if err != nil {
-		t.Fatalf("insert transaction fail", err)
+		t.Fatal("insert transaction fail", err)
 	}
 	tranf, err := p.QueryTransaction(ctx, rawDBConn.NewSession(stream))
 	if err != nil {
-		t.Fatalf("query transaction fail", err)
+		t.Fatal("query transaction fail", err)
 	}
 	if !reflect.DeepEqual(*tran, *tranf) {
-		t.Fatalf("transaction compare fail")
+		t.Fatal("transaction compare fail")
 	}
 }
