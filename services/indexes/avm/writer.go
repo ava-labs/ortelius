@@ -123,7 +123,7 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 		}
 
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp),persist)
+		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
 
@@ -173,7 +173,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(),persist)
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
 
 	for _, vtx := range vertexTxs {
 		switch txt := vtx.(type) {
