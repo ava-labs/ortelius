@@ -35,7 +35,7 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom("avm_transactions").Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactions).Exec()
 
 	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -94,7 +94,7 @@ func TestOutputsRedeeming(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom("avm_outputs_redeeming").Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputsRedeeming).Exec()
 
 	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestOutputs(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom("avm_outputs").Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputs).Exec()
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

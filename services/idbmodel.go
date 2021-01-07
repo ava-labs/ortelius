@@ -11,6 +11,10 @@ import (
 	"github.com/palantir/stacktrace"
 )
 
+const TableTransactions = "avm_transactions"
+const TableOutputsRedeeming = "avm_outputs_redeeming"
+const TableOutputs = "avm_outputs"
+
 type Persist interface {
 	InsertTransaction(
 		context.Context,
@@ -81,7 +85,7 @@ func (p *persist) QueryTransaction(
 		"canonical_serialization",
 		"txfee",
 		"genesis",
-	).From("avm_transactions").LoadOneContext(ctx, v)
+	).From(TableTransactions).LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -92,7 +96,7 @@ func (p *persist) InsertTransaction(
 	upd bool,
 ) error {
 	_, err := sess.
-		InsertInto("avm_transactions").
+		InsertInto(TableTransactions).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
 		Pair("type", v.Type).
@@ -103,11 +107,11 @@ func (p *persist) InsertTransaction(
 		Pair("genesis", v.Genesis).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, "avm_transactions.insert")
+		return stacktrace.Propagate(err, TableTransactions+".insert")
 	}
 	if upd {
 		_, err = sess.
-			Update("avm_transactions").
+			Update(TableTransactions).
 			Set("chain_id", v.ChainID).
 			Set("type", v.Type).
 			Set("memo", v.Memo).
@@ -117,7 +121,7 @@ func (p *persist) InsertTransaction(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, "avm_transactions.update")
+			return stacktrace.Propagate(err, TableTransactions+".update")
 		}
 	}
 	return nil
@@ -150,7 +154,7 @@ func (p *persist) QueryOutputsRedeeming(
 		"asset_id",
 		"chain_id",
 		"created_at",
-	).From("avm_outputs_redeeming").LoadOneContext(ctx, v)
+	).From(TableOutputsRedeeming).LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -162,7 +166,7 @@ func (p *persist) InsertOutputsRedeeming(
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto("avm_outputs_redeeming").
+		InsertInto(TableOutputsRedeeming).
 		Pair("id", v.ID).
 		Pair("redeemed_at", v.RedeemedAt).
 		Pair("redeeming_transaction_id", v.RedeemingTransactionID).
@@ -174,11 +178,11 @@ func (p *persist) InsertOutputsRedeeming(
 		Pair("chain_id", v.ChainID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, "avm_outputs_redeeming.insert")
+		return stacktrace.Propagate(err, TableOutputsRedeeming+".insert")
 	}
 	if upd {
 		_, err = sess.
-			Update("avm_outputs_redeeming").
+			Update(TableOutputsRedeeming).
 			Set("redeeming_transaction_id", v.RedeemingTransactionID).
 			Set("amount", v.Amount).
 			Set("output_index", v.OutputIndex).
@@ -188,7 +192,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, "avm_outputs_redeeming.update")
+			return stacktrace.Propagate(err, TableOutputsRedeeming+".update")
 		}
 	}
 	return nil
@@ -231,7 +235,7 @@ func (p *persist) QueryOutputs(
 		"stake_locktime",
 		"stake",
 		"created_at",
-	).From("avm_outputs").LoadOneContext(ctx, v)
+	).From(TableOutputs).LoadOneContext(ctx, v)
 	return v, err
 }
 
@@ -243,7 +247,7 @@ func (p *persist) InsertOutputs(
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto("avm_outputs").
+		InsertInto(TableOutputs).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
 		Pair("transaction_id", v.TransactionID).
@@ -260,11 +264,11 @@ func (p *persist) InsertOutputs(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, "avm_outputs.insert")
+		return stacktrace.Propagate(err, TableOutputs+".insert")
 	}
 	if upd {
 		_, err = sess.
-			Update("avm_outputs").
+			Update(TableOutputs).
 			Set("chain_id", v.ChainID).
 			Set("transaction_id", v.TransactionID).
 			Set("output_index", v.OutputIndex).
@@ -280,7 +284,7 @@ func (p *persist) InsertOutputs(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, "avm_outputs.update")
+			return stacktrace.Propagate(err, TableOutputs+".update")
 		}
 	}
 	return nil
