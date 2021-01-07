@@ -261,17 +261,17 @@ func (w *Writer) InsertOutput(
 
 	output := &services.Outputs{
 		ID:            outputID.String(),
+		ChainID:       chainID,
 		TransactionID: txID.String(),
 		OutputIndex:   idx,
 		AssetID:       assetID.String(),
+		OutputType:    outputType,
 		Amount:        out.Amount(),
 		Locktime:      out.Locktime,
 		Threshold:     out.Threshold,
-		OutputType:    outputType,
 		GroupID:       groupID,
 		Payload:       payload,
 		StakeLocktime: stakeLocktime,
-		ChainID:       chainID,
 		Stake:         stake,
 		CreatedAt:     ctx.Time(),
 	}
