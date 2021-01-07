@@ -51,23 +51,26 @@ func WriteErr(w http.ResponseWriter, code int, msg string) {
 	_, _ = w.Write(errBytes)
 }
 
-func ParseGet(r *web.Request) url.Values {
+func ParseGet(r *web.Request, n int64) (url.Values, error) {
 	if r == nil {
-		return r.URL.Query()
+		return r.URL.Query(), nil
 	}
 	pf := r.Body
 	if pf == nil {
-		return r.URL.Query()
+		return r.URL.Query(), nil
 	}
 	buf := new(strings.Builder)
-	_, err := io.Copy(buf, pf)
-	if err == nil && buf.Len() > 0 {
+	_, err := io.CopyN(buf, pf, n)
+	if err != nil {
+		return r.URL.Query(), err
+	}
+	if buf.Len() > 0 {
 		getq, err := url.ParseQuery(buf.String())
 		if err == nil {
-			return mergeValues(getq, r.URL.Query())
+			return mergeValues(getq, r.URL.Query()), nil
 		}
 	}
-	return r.URL.Query()
+	return r.URL.Query(), nil
 }
 
 func mergeValues(a url.Values, b url.Values) url.Values {
