@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/ortelius/services/db"
 )
 
-func RetryDb(retries uint32, persist func() error, log logging.Logger, msgprefix string, collectors metrics.Collector) error {
+func RetryDB(retries uint32, persist func() error, log logging.Logger, msgprefix string, collectors metrics.Collector) error {
 	var err error
 	icnt := uint32(0)
 	for ; icnt <= retries; icnt++ {

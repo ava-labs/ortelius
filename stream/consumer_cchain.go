@@ -140,7 +140,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	nmsg := NewMessage(id.String(), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
 	msgprefix := fmt.Sprintf("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String())
-	return RetryDb(cfg.DatabaseRetries, func() error { return c.persistConsume(nmsg, block) }, c.sc.Log, msgprefix, collectors)
+	return RetryDB(cfg.DatabaseRetries, func() error { return c.persistConsume(nmsg, block) }, c.sc.Log, msgprefix, collectors)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {

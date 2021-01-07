@@ -158,7 +158,7 @@ func (c *consumer) ProcessNextMessage() error {
 	}
 
 	msgprefix := "consumer.Consume: " + id.String()
-	return RetryDb(cfg.DatabaseRetries, func() error { return c.persistConsume(msg) }, c.sc.Log, msgprefix, collectors)
+	return RetryDB(cfg.DatabaseRetries, func() error { return c.persistConsume(msg) }, c.sc.Log, msgprefix, collectors)
 }
 
 func (c *consumer) persistConsume(msg *Message) error {
