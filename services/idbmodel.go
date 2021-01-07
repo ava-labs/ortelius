@@ -199,8 +199,8 @@ type Outputs struct {
 	ChainID       string
 	TransactionID string
 	OutputIndex   uint32
-	AssetID       string
 	OutputType    models.OutputType
+	AssetID       string
 	Amount        uint64
 	Locktime      uint64
 	Threshold     uint32

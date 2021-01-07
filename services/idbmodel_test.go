@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
@@ -19,10 +21,13 @@ func TestTransaction(t *testing.T) {
 	tm := time.Now().UTC()
 
 	v := &Transaction{}
+	v.ID = "id"
 	v.ChainID = "cid1"
-	v.ID = "tid1"
+	v.TxType = "txtype"
 	v.Memo = []byte("memo")
+	v.CanonicalSerialization = []byte("cs")
 	v.Txfee = 1
+	v.Genesis = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -49,9 +54,14 @@ func TestOutputsRedeeming(t *testing.T) {
 	tm := time.Now().UTC()
 
 	v := &OutputsRedeeming{}
-	v.ID = "inid1"
+	v.ID = "id1"
+	v.RedeemedAt = tm
+	v.RedeemingTransactionID = "rtxid"
+	v.Amount = 100
+	v.OutputIndex = 1
+	v.InTX = "intx"
+	v.AssetID = "aid1"
 	v.ChainID = "cid1"
-	v.RedeemingTransactionID = "tid1"
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -78,8 +88,19 @@ func TestOutputs(t *testing.T) {
 	tm := time.Now().UTC()
 
 	v := &Outputs{}
-	v.ID = "inid1"
+	v.ID = "id1"
 	v.ChainID = "cid1"
+	v.TransactionID = "txid1"
+	v.OutputIndex = 1
+	v.AssetID = "aid1"
+	v.OutputType = models.OutputTypesSECP2556K1Transfer
+	v.Amount = 2
+	v.Locktime = 3
+	v.Threshold = 4
+	v.GroupID = 5
+	v.Payload = []byte("payload")
+	v.StakeLocktime = 6
+	v.Stake = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
