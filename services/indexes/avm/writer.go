@@ -200,7 +200,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 				}
 			}
 		default:
-			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(vtx))
+			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(vtxTransition))
 		}
 	}
 
