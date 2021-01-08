@@ -137,4 +137,3 @@ func TestInsertTxInternalImport(t *testing.T) {
 		t.Fatal("insert failed")
 	}
 }
-
