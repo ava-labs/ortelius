@@ -7,8 +7,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	cblock "github.com/ava-labs/ortelius/models"
@@ -132,16 +136,26 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-	defer cancelFn()
-
-	if err = c.consumer.Consume(ctx, nmsg, &block.Header, persist); err != nil {
+	for {
+		err = c.persistConsume(nmsg, &block.Header)
+		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if err != nil {
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s %v", block.Header.Number.String(), err)
+		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
 
 	return nil
+}
+
+func (c *ConsumerCChain) persistConsume(msg services.Consumable, header *types.Header) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.Consume(ctx, msg, header, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {
