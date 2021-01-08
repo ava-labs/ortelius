@@ -20,6 +20,9 @@ type MockPersist struct {
 	Addresses             map[string]*Addresses
 	AddressChain          map[string]*AddressChain
 	OutputAddresses       map[string]*OutputAddresses
+	Assets                map[string]*Assets
+	TransactionsEpoch     map[string]*TransactionsEpoch
+	PvmBlocks             map[string]*PvmBlocks
 }
 
 func NewPersistMock() *MockPersist {
@@ -35,6 +38,9 @@ func NewPersistMock() *MockPersist {
 		Addresses:             make(map[string]*Addresses),
 		AddressChain:          make(map[string]*AddressChain),
 		OutputAddresses:       make(map[string]*OutputAddresses),
+		Assets:                make(map[string]*Assets),
+		TransactionsEpoch:     make(map[string]*TransactionsEpoch),
+		PvmBlocks:             make(map[string]*PvmBlocks),
 	}
 }
 
@@ -92,12 +98,22 @@ func (m *MockPersist) InsertOutputs(ctx context.Context, runner dbr.SessionRunne
 	return nil
 }
 
-func (m *MockPersist) QueryAssets(ctx context.Context, runner dbr.SessionRunner, assets *Assets) (*Assets, error) {
-	panic("implement me")
+func (m *MockPersist) QueryAssets(ctx context.Context, runner dbr.SessionRunner, v *Assets) (*Assets, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.Assets[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertAssets(ctx context.Context, runner dbr.SessionRunner, assets *Assets, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertAssets(ctx context.Context, runner dbr.SessionRunner, v *Assets, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &Assets{}
+	*nv = *v
+	m.Assets[v.ID] = nv
+	return nil
 }
 
 func (m *MockPersist) QueryAddresses(ctx context.Context, runner dbr.SessionRunner, v *Addresses) (*Addresses, error) {
@@ -163,12 +179,22 @@ func (m *MockPersist) UpdateOutputAddresses(ctx context.Context, runner dbr.Sess
 	return nil
 }
 
-func (m *MockPersist) QueryTransactionsEpoch(ctx context.Context, runner dbr.SessionRunner, epoch *TransactionsEpoch) (*TransactionsEpoch, error) {
-	panic("implement me")
+func (m *MockPersist) QueryTransactionsEpoch(ctx context.Context, runner dbr.SessionRunner, v *TransactionsEpoch) (*TransactionsEpoch, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.TransactionsEpoch[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertTransactionsEpoch(ctx context.Context, runner dbr.SessionRunner, epoch *TransactionsEpoch, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertTransactionsEpoch(ctx context.Context, runner dbr.SessionRunner, v *TransactionsEpoch, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &TransactionsEpoch{}
+	*nv = *v
+	m.TransactionsEpoch[v.ID] = nv
+	return nil
 }
 
 func (m *MockPersist) QueryCvmAddresses(ctx context.Context, runner dbr.SessionRunner, v *CvmAddresses) (*CvmAddresses, error) {
@@ -207,12 +233,22 @@ func (m *MockPersist) InsertCvmTransactions(ctx context.Context, runner dbr.Sess
 	return nil
 }
 
-func (m *MockPersist) QueryPvmBlocks(ctx context.Context, runner dbr.SessionRunner, blocks *PvmBlocks) (*PvmBlocks, error) {
-	panic("implement me")
+func (m *MockPersist) QueryPvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *PvmBlocks) (*PvmBlocks, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.PvmBlocks[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertPvmBlocks(ctx context.Context, runner dbr.SessionRunner, blocks *PvmBlocks, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertPvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *PvmBlocks, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &PvmBlocks{}
+	*nv = *v
+	m.PvmBlocks[v.ID] = nv
+	return nil
 }
 
 func (m *MockPersist) QueryRewards(ctx context.Context, runner dbr.SessionRunner, v *Rewards) (*Rewards, error) {

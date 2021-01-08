@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/vms/components/core"
+
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 
 	"github.com/alicebob/miniredis"
@@ -139,6 +143,27 @@ func TestInsertTxInternalRewards(t *testing.T) {
 		t.Fatal("insert failed")
 	}
 	if len(persist.Rewards) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestCommonBlock(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := platformvm.CommonBlock{Block: &core.Block{}}
+	blkid := ids.ID{}
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.indexCommonBlock(cCtx, blkid, models.BlockTypeCommit, tx, []byte(""))
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.PvmBlocks) != 1 {
 		t.Fatal("insert failed")
 	}
 }

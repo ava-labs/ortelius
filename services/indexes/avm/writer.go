@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -174,6 +176,20 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
 
+	err = w.insertVertex(cCtx, vertexTxs, vertex.ID(), epoch)
+	if err != nil {
+		return err
+	}
+
+	if err = dbTx.Commit(); err != nil {
+		return stacktrace.Propagate(err, "Failed to commit database tx")
+	}
+
+	return nil
+}
+
+func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []snowstorm.Tx, vertexID ids.ID, epoch uint32) error {
+	var err error
 	for _, vtx := range vertexTxs {
 		switch txt := vtx.(type) {
 		case *avm.UniqueTx:
@@ -183,7 +199,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 			transactionsEpoch := &services.TransactionsEpoch{
 				ID:        txID.String(),
 				Epoch:     epoch,
-				VertexID:  vertex.ID().String(),
+				VertexID:  vertexID.String(),
 				CreatedAt: cCtx.Time(),
 			}
 			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
@@ -194,11 +210,6 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
 		}
 	}
-
-	if err = dbTx.Commit(); err != nil {
-		return stacktrace.Propagate(err, "Failed to commit database tx")
-	}
-
 	return nil
 }
 

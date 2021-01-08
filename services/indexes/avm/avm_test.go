@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 
@@ -218,6 +220,102 @@ func TestInsertTxInternal(t *testing.T) {
 		t.Fatal("insert failed")
 	}
 	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestInsertTxInternalCreateAsset(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.CreateAssetTx{}
+
+	transferableOut := &avalancheGoAvax.TransferableOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	baseTx.Outs = []*avalancheGoAvax.TransferableOutput{transferableOut}
+
+	transferableIn := &avalancheGoAvax.TransferableInput{}
+	transferableIn.In = &secp256k1fx.TransferInput{}
+	baseTx.Ins = []*avalancheGoAvax.TransferableInput{transferableIn}
+
+	tx.UnsignedTx = baseTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Outputs) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Assets) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestInsertVertex(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.BaseTx{}
+
+	tx.UnsignedTx = baseTx
+
+	utx := &avm.UniqueTx{TxState: &avm.TxState{}}
+	utx.Tx = tx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertVertex(cCtx, []snowstorm.Tx{utx}, tx.ID(), 0)
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Outputs) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Assets) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsEpoch) != 1 {
 		t.Fatal("insert failed")
 	}
 }
