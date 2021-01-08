@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -212,6 +213,10 @@ func NewPersist() Persist {
 	return &persist{}
 }
 
+func EventErr(t string, err error) error {
+	return fmt.Errorf("%w; %s", err, t)
+}
+
 type Transaction struct {
 	ID                     string
 	ChainID                string
@@ -263,7 +268,7 @@ func (p *persist) InsertTransaction(
 		Pair("genesis", v.Genesis).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableTransactionsBlock, err)
 	}
 	if upd {
 		_, err = sess.
@@ -277,7 +282,7 @@ func (p *persist) InsertTransaction(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableTransactionsBlock, err)
 		}
 	}
 	return nil
@@ -337,7 +342,7 @@ func (p *persist) InsertOutputsRedeeming(
 		Pair("chain_id", v.ChainID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableOutputsRedeeming, err)
 	}
 	if upd {
 		_, err = sess.
@@ -351,7 +356,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableOutputsRedeeming, err)
 		}
 	}
 	return nil
@@ -429,7 +434,7 @@ func (p *persist) InsertOutputs(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableOutputs, err)
 	}
 	if upd {
 		_, err = sess.
@@ -450,7 +455,7 @@ func (p *persist) InsertOutputs(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableOutputs, err)
 		}
 	}
 	return nil
@@ -507,7 +512,7 @@ func (p *persist) InsertAssets(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableAssets, err)
 	}
 	if upd {
 		_, err = sess.
@@ -521,7 +526,7 @@ func (p *persist) InsertAssets(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableAssets, err)
 		}
 	}
 	return nil
@@ -563,7 +568,7 @@ func (p *persist) InsertAddresses(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableAddresses, err)
 	}
 	if upd {
 		_, err = sess.
@@ -572,7 +577,7 @@ func (p *persist) InsertAddresses(
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableAddresses, err)
 		}
 	}
 
@@ -615,7 +620,7 @@ func (p *persist) InsertAddressChain(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableAddressChain, err)
 	}
 	return nil
 }
@@ -661,7 +666,7 @@ func (p *persist) InsertOutputAddresses(
 	}
 	_, err = stmt.ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableOutputAddresses, err)
 	}
 	if v.RedeemingSignature != nil && upd {
 		_, err = sess.
@@ -670,7 +675,7 @@ func (p *persist) InsertOutputAddresses(
 			Where("output_id = ? and address=?", v.OutputID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableOutputAddresses, err)
 		}
 	}
 	return nil
@@ -688,7 +693,7 @@ func (p *persist) UpdateOutputAddresses(
 		Where("output_id = ? and address=?", v.OutputID, v.Address).
 		ExecContext(ctx)
 	if err != nil {
-		return err
+		return EventErr(TableOutputAddresses, err)
 	}
 	return nil
 }
@@ -732,7 +737,7 @@ func (p *persist) InsertTransactionsEpoch(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableTransactionsEpochs, err)
 	}
 	if upd {
 		_, err = sess.
@@ -742,7 +747,7 @@ func (p *persist) InsertTransactionsEpoch(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableTransactionsEpochs, err)
 		}
 	}
 
@@ -803,7 +808,7 @@ func (p *persist) InsertCvmAddresses(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableCvmAddresses, err)
 	}
 	if upd {
 		_, err = sess.
@@ -818,7 +823,7 @@ func (p *persist) InsertCvmAddresses(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableCvmAddresses, err)
 		}
 	}
 	return nil
@@ -862,7 +867,7 @@ func (p *persist) InsertCvmTransactions(
 			v.ID, v.Type, v.BlockchainID, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableCvmTransactions, err)
 	}
 	if upd {
 		_, err = sess.
@@ -870,7 +875,7 @@ func (p *persist) InsertCvmTransactions(
 				v.Type, v.BlockchainID, v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableCvmTransactions, err)
 		}
 	}
 	return nil
@@ -921,7 +926,7 @@ func (p *persist) InsertPvmBlocks(
 		Pair("serialization", v.Serialization).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TablePvmBlocks, err)
 	}
 	if upd {
 		_, err = sess.
@@ -933,7 +938,7 @@ func (p *persist) InsertPvmBlocks(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TablePvmBlocks, err)
 		}
 	}
 
@@ -982,7 +987,7 @@ func (p *persist) InsertRewards(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableRewards, err)
 	}
 	if upd {
 		_, err = sess.
@@ -993,7 +998,7 @@ func (p *persist) InsertRewards(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableRewards, err)
 		}
 	}
 
@@ -1042,7 +1047,7 @@ func (p *persist) InsertTransactionsValidator(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableTransactionsValidator, err)
 	}
 	if upd {
 		_, err = sess.
@@ -1053,7 +1058,7 @@ func (p *persist) InsertTransactionsValidator(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableTransactionsValidator, err)
 		}
 	}
 	return nil
@@ -1095,7 +1100,7 @@ func (p *persist) InsertTransactionsBlock(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+		return EventErr(TableTransactionsBlock, err)
 	}
 	if upd {
 		_, err = sess.
@@ -1104,7 +1109,7 @@ func (p *persist) InsertTransactionsBlock(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return err
+			return EventErr(TableTransactionsBlock, err)
 		}
 	}
 	return nil
