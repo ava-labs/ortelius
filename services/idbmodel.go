@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -684,7 +682,7 @@ func (p *persist) InsertTransactionsEpoch(
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return stacktrace.Propagate(err, TableTransactionsEpochs+".update")
 	}
-	if cfg.PerformUpdates {
+	if upd {
 		_, err = sess.
 			Update(TableTransactionsEpochs).
 			Set("epoch", v.Epoch).
@@ -792,7 +790,7 @@ func (p *persist) QueryCvmTransactions(
 		"id",
 		"type",
 		"blockchain_id",
-		"cast(block as char)",
+		"cast(block as char) as block",
 		"created_at",
 	).From(TableCvmTransactions).
 		Where("id=?", q.ID).
@@ -808,7 +806,7 @@ func (p *persist) InsertCvmTransactions(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+v.Block+")",
+		InsertBySql("insert into "+TableCvmTransactions+" (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+v.Block+")",
 			v.ID, v.Type, v.BlockchainID, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -816,7 +814,7 @@ func (p *persist) InsertCvmTransactions(
 	}
 	if upd {
 		_, err := sess.
-			UpdateBySql("update cvm_transactions set type=?,blockchain_id=?,block="+v.Block+" where id=?",
+			UpdateBySql("update "+TableCvmTransactions+" set type=?,blockchain_id=?,block="+v.Block+" where id=?",
 				v.Type, v.BlockchainID, v.ID).
 			ExecContext(ctx)
 		if err != nil {

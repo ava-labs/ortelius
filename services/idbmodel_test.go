@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -467,7 +469,7 @@ func TestTransactionsEpoch(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsEpochs).Exec()
 
 	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -522,7 +524,7 @@ func TestCvmAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmAddresses).Exec()
 
 	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -578,7 +580,7 @@ func TestCvmTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmTransactions).Exec()
 
 	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -588,6 +590,7 @@ func TestCvmTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
+	fmt.Fprintf(os.Stderr, "%v\n%v\n", v, fv)
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
