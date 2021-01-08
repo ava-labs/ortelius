@@ -2,8 +2,9 @@ package services
 
 import (
 	"context"
-	"github.com/gocraft/health"
 	"time"
+
+	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -39,10 +40,9 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*health.Job,
-	*Transaction,
+		*Transaction,
 		bool,
 	) error
-
 
 	QueryOutputsRedeeming(
 		context.Context,
@@ -63,11 +63,11 @@ type Persist interface {
 		*Outputs,
 	) (*Outputs, error)
 	InsertOutputs(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *Outputs,
-		 bool,
+		*Outputs,
+		bool,
 	) error
 
 	QueryAssets(
@@ -76,11 +76,11 @@ type Persist interface {
 		*Assets,
 	) (*Assets, error)
 	InsertAssets(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *Assets,
-		 bool,
+		*Assets,
+		bool,
 	) error
 
 	QueryAddresses(
@@ -89,11 +89,11 @@ type Persist interface {
 		*Addresses,
 	) (*Addresses, error)
 	InsertAddresses(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *Addresses,
-		 bool,
+		*Addresses,
+		bool,
 	) error
 
 	QueryAddressChain(
@@ -103,11 +103,11 @@ type Persist interface {
 	) (*AddressChain, error)
 
 	InsertAddressChain(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *AddressChain,
-		 bool,
+		*AddressChain,
+		bool,
 	) error
 
 	QueryOutputAddresses(
@@ -117,17 +117,17 @@ type Persist interface {
 	) (*OutputAddresses, error)
 
 	InsertOutputAddresses(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *OutputAddresses,
-		 bool,
+		*OutputAddresses,
+		bool,
 	) error
 	UpdateOutputAddresses(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *OutputAddresses,
+		*OutputAddresses,
 	) error
 
 	QueryTransactionsEpoch(
@@ -137,11 +137,11 @@ type Persist interface {
 	) (*TransactionsEpoch, error)
 
 	InsertTransactionsEpoch(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *TransactionsEpoch,
-		 bool,
+		*TransactionsEpoch,
+		bool,
 	) error
 
 	QueryCvmAddresses(
@@ -150,11 +150,11 @@ type Persist interface {
 		*CvmAddresses,
 	) (*CvmAddresses, error)
 	InsertCvmAddresses(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *CvmAddresses,
-		 bool,
+		*CvmAddresses,
+		bool,
 	) error
 
 	QueryCvmTransactions(
@@ -163,11 +163,11 @@ type Persist interface {
 		*CvmTransactions,
 	) (*CvmTransactions, error)
 	InsertCvmTransactions(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *CvmTransactions,
-		 bool,
+		*CvmTransactions,
+		bool,
 	) error
 
 	QueryPvmBlocks(
@@ -176,11 +176,11 @@ type Persist interface {
 		*PvmBlocks,
 	) (*PvmBlocks, error)
 	InsertPvmBlocks(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *PvmBlocks,
-		 bool,
+		*PvmBlocks,
+		bool,
 	) error
 
 	QueryRewards(
@@ -189,11 +189,11 @@ type Persist interface {
 		*Rewards,
 	) (*Rewards, error)
 	InsertRewards(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *Rewards,
-		 bool,
+		*Rewards,
+		bool,
 	) error
 
 	QueryTransactionsValidator(
@@ -202,11 +202,11 @@ type Persist interface {
 		*TransactionsValidator,
 	) (*TransactionsValidator, error)
 	InsertTransactionsValidator(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *TransactionsValidator,
-		 bool,
+		*TransactionsValidator,
+		bool,
 	) error
 
 	QueryTransactionsBlock(
@@ -216,11 +216,11 @@ type Persist interface {
 	) (*TransactionsBlock, error)
 
 	InsertTransactionsBlock(
-		 context.Context,
-		 dbr.SessionRunner,
+		context.Context,
+		dbr.SessionRunner,
 		*health.Job,
-		 *TransactionsBlock,
-		 bool,
+		*TransactionsBlock,
+		bool,
 	) error
 }
 
@@ -231,8 +231,8 @@ func NewPersist() Persist {
 	return &persist{}
 }
 
-func EventErr( j *health.Job, t string, err error ) error {
-	return j.EventErr(t,stacktrace.Propagate(err, TableTransactions))
+func EventErr(j *health.Job, t string, err error) error {
+	return j.EventErr(t, stacktrace.Propagate(err, TableTransactions))
 }
 
 type Transaction struct {

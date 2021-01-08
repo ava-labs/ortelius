@@ -31,13 +31,14 @@ func TestTransaction(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactions).Exec()
 
-	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -56,7 +57,7 @@ func TestTransaction(t *testing.T) {
 	v.CanonicalSerialization = []byte("cs1")
 	v.Txfee = 2
 	v.Genesis = false
-	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -90,13 +91,14 @@ func TestOutputsRedeeming(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputsRedeeming).Exec()
 
-	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -115,7 +117,7 @@ func TestOutputsRedeeming(t *testing.T) {
 	v.AssetID = "aid2"
 	v.ChainID = "cid2"
 
-	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputsRedeeming(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -153,13 +155,14 @@ func TestOutputs(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputs).Exec()
 
-	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -184,7 +187,7 @@ func TestOutputs(t *testing.T) {
 	v.StakeLocktime = 7
 	v.Stake = false
 
-	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -216,13 +219,14 @@ func TestAssets(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAssets).Exec()
 
-	err = p.InsertAssets(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAssets(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -242,7 +246,7 @@ func TestAssets(t *testing.T) {
 	v.CurrentSupply = 2
 	v.CreatedAt = tm
 
-	err = p.InsertAssets(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAssets(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -275,13 +279,14 @@ func TestAddresses(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddresses).Exec()
 
-	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -298,7 +303,7 @@ func TestAddresses(t *testing.T) {
 	copy(v.PublicKey, basebin[:])
 	v.CreatedAt = tm
 
-	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -328,13 +333,14 @@ func TestAddressChain(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
 
-	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -349,7 +355,7 @@ func TestAddressChain(t *testing.T) {
 	v.ChainID = "ch2"
 	v.CreatedAt = tm
 
-	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -371,6 +377,7 @@ func TestOutputAddresses(t *testing.T) {
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
@@ -382,7 +389,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.Address = "id1"
 	v.CreatedAt = tm
 
-	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -402,7 +409,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.RedeemingSignature = []byte("rd1")
 	v.CreatedAt = tm
 
-	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -417,7 +424,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.RedeemingSignature = []byte("rd2")
 	v.CreatedAt = tm
 
-	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -435,7 +442,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.RedeemingSignature = []byte("rd3")
 	v.CreatedAt = tm
 
-	err = p.UpdateOutputAddresses(ctx, rawDBConn.NewSession(stream), v)
+	err = p.UpdateOutputAddresses(ctx, rawDBConn.NewSession(stream), j, v)
 	if err != nil {
 		t.Fatal("update fail", err)
 	}
@@ -463,13 +470,14 @@ func TestTransactionsEpoch(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsEpochs).Exec()
 
-	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -485,7 +493,7 @@ func TestTransactionsEpoch(t *testing.T) {
 	v.VertexID = "vid2"
 	v.CreatedAt = tm
 
-	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsEpoch(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -518,13 +526,14 @@ func TestCvmAddresses(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmAddresses).Exec()
 
-	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -545,7 +554,7 @@ func TestCvmAddresses(t *testing.T) {
 	v.Nonce = 4
 	v.CreatedAt = tm
 
-	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -574,13 +583,14 @@ func TestCvmTransactions(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmTransactions).Exec()
 
-	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -597,7 +607,7 @@ func TestCvmTransactions(t *testing.T) {
 	v.Block = "2"
 	v.CreatedAt = tm
 
-	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -627,13 +637,14 @@ func TestPvmBlocks(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TablePvmBlocks).Exec()
 
-	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -651,7 +662,7 @@ func TestPvmBlocks(t *testing.T) {
 	v.Serialization = []byte("ser2")
 	v.CreatedAt = tm
 
-	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -680,13 +691,14 @@ func TestRewards(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableRewards).Exec()
 
-	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -703,7 +715,7 @@ func TestRewards(t *testing.T) {
 	v.Shouldprefercommit = false
 	v.CreatedAt = tm
 
-	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -732,13 +744,14 @@ func TestTransactionsValidator(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsValidator).Exec()
 
-	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -755,7 +768,7 @@ func TestTransactionsValidator(t *testing.T) {
 	v.End = 3
 	v.CreatedAt = tm
 
-	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -782,13 +795,14 @@ func TestTransactionssBlock(t *testing.T) {
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
+	j := stream.NewJob("")
 	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsBlock).Exec()
 
-	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -803,7 +817,7 @@ func TestTransactionssBlock(t *testing.T) {
 	v.TxBlockID = "txb2"
 	v.CreatedAt = tm
 
-	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), j, v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
