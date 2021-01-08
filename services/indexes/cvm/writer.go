@@ -116,7 +116,7 @@ func (w *Writer) indexTransaction(
 		Block:        blockHeader.Number.String(),
 		CreatedAt:    ctx.Time(),
 	}
-	err := ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), ctx.Job(), cvmTransaction, cfg.PerformUpdates)
+	err := ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (w *Writer) insertAddress(
 		Nonce:         nonce,
 		CreatedAt:     ctx.Time(),
 	}
-	return ctx.Persist().InsertCvmAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), cvmAddress, cfg.PerformUpdates)
+	return ctx.Persist().InsertCvmAddresses(ctx.Ctx(), ctx.DB(), cvmAddress, cfg.PerformUpdates)
 }
 
 func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, blockHeader *types.Header) error {
