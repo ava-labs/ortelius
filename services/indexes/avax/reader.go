@@ -1078,7 +1078,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		addr.Assets = make(map[models.StringID]models.AssetInfo, 1)
 	}
 
-	// Load each Transactions Output for the tx, both inputs and outputs
+	// Load each Transaction Output for the tx, both inputs and outputs
 	var rows []*struct {
 		Address models.Address `json:"address"`
 		models.AssetInfo
