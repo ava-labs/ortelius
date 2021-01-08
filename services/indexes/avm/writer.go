@@ -186,7 +186,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 				VertexID:  vertex.ID().String(),
 				CreatedAt: cCtx.Time(),
 			}
-			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(),cCtx.Job(), transactionsEpoch, cfg.PerformUpdates)
+			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), cCtx.Job(), transactionsEpoch, cfg.PerformUpdates)
 			if err != nil {
 				return err
 			}
