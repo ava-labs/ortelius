@@ -158,7 +158,7 @@ func (w *Writer) InsertTransactionBase(
 		CreatedAt:              ctx.Time(),
 	}
 
-	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Job(), t, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionIns(
@@ -193,7 +193,7 @@ func (w *Writer) InsertTransactionIns(
 		CreatedAt:              ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), ctx.Job(), outputsRedeeming, cfg.PerformUpdates)
+	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
 	if err != nil {
 		return 0, err
 	}
@@ -273,7 +273,7 @@ func (w *Writer) InsertOutput(
 		CreatedAt:     ctx.Time(),
 	}
 
-	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), ctx.Job(), output, cfg.PerformUpdates)
+	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
 	}
-	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), addresses, cfg.PerformUpdates)
+	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertOutputAddress(
@@ -313,7 +313,7 @@ func (w *Writer) InsertOutputAddress(
 		ChainID:   w.chainID,
 		CreatedAt: ctx.Time(),
 	}
-	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), ctx.Job(), addressChain, cfg.PerformUpdates)
+	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -324,7 +324,7 @@ func (w *Writer) InsertOutputAddress(
 		RedeemingSignature: sig,
 		CreatedAt:          ctx.Time(),
 	}
-	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), outputAddresses, cfg.PerformUpdates)
+	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (w *Writer) InsertOutputAddress(
 		return nil
 	}
 
-	return ctx.Persist().UpdateOutputAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), outputAddresses)
+	return ctx.Persist().UpdateOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses)
 }
 
 func (w *Writer) ProcessStateOut(

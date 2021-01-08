@@ -186,7 +186,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 				VertexID:  vertex.ID().String(),
 				CreatedAt: cCtx.Time(),
 			}
-			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), cCtx.Job(), transactionsEpoch, cfg.PerformUpdates)
+			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
 			if err != nil {
 				return err
 			}
@@ -400,7 +400,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		CreatedAt:     ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), ctx.Job(), asset, cfg.PerformUpdates)
+	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), asset, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
