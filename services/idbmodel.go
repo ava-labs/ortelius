@@ -21,6 +21,7 @@ const TableOutputAddresses = "avm_output_addresses"
 const TableTransactionsEpochs = "transactions_epoch"
 const TableCvmAddresses = "cvm_addresses"
 const TableCvmTransactions = "cvm_transactions"
+const TablePvmBlocks = "pvm_blocks"
 
 type Persist interface {
 	InsertTransaction(
@@ -156,6 +157,19 @@ type Persist interface {
 		ctx context.Context,
 		sess dbr.SessionRunner,
 		v *CvmTransactions,
+		upd bool,
+	) error
+
+	QueryPvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*PvmBlocks,
+	) (*PvmBlocks, error)
+
+	InsertPvmBlocks(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *PvmBlocks,
 		upd bool,
 	) error
 }
@@ -821,5 +835,69 @@ func (p *persist) InsertCvmTransactions(
 			return stacktrace.Propagate(err, TableCvmTransactions+".update")
 		}
 	}
+	return nil
+}
+
+type PvmBlocks struct {
+	ID            string
+	ChainID       string
+	Type          models.BlockType
+	ParentID      string
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryPvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *PvmBlocks,
+) (*PvmBlocks, error) {
+	v := &PvmBlocks{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"type",
+		"parent_id",
+		"serialization",
+		"created_at",
+	).From(TablePvmBlocks).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertPvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *PvmBlocks,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TablePvmBlocks).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("type", v.Type).
+		Pair("parent_id", v.ParentID).
+		Pair("created_at", v.CreatedAt).
+		Pair("serialization", v.Serialization).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TablePvmBlocks+".insert")
+	}
+	if upd {
+		_, err = sess.
+			Update(TablePvmBlocks).
+			Set("chain_id", v.ChainID).
+			Set("type", v.Type).
+			Set("parent_id", v.ParentID).
+			Set("serialization", v.Serialization).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TablePvmBlocks+".insert")
+		}
+	}
+
 	return nil
 }

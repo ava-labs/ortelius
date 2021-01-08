@@ -204,30 +204,17 @@ func (w *Writer) indexCommonBlock(
 		blockBytes = []byte("")
 	}
 
-	_, err := ctx.DB().
-		InsertInto("pvm_blocks").
-		Pair("id", blkID.String()).
-		Pair("chain_id", w.chainID).
-		Pair("type", blkType).
-		Pair("parent_id", blk.ParentID().String()).
-		Pair("created_at", ctx.Time()).
-		Pair("serialization", blockBytes).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("pvm_blocks.insert", err)
+	pvmBlocks := &services.PvmBlocks{
+		ID:            blkID.String(),
+		ChainID:       w.chainID,
+		Type:          blkType,
+		ParentID:      blk.ParentID().String(),
+		Serialization: blockBytes,
+		CreatedAt:     ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("pvm_blocks").
-			Set("chain_id", w.chainID).
-			Set("type", blkType).
-			Set("parent_id", blk.ParentID().String()).
-			Set("serialization", blockBytes).
-			Where("id = ?", blkID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("pvm_blocks.update", err)
-		}
+	err := ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), pvmBlocks, cfg.PerformUpdates)
+	if err != nil {
+		return ctx.Job().EventErr("InsertTransaction", err)
 	}
 
 	return nil

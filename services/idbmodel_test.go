@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -590,7 +588,6 @@ func TestCvmTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
-	fmt.Fprintf(os.Stderr, "%v\n%v\n", v, fv)
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
@@ -609,6 +606,60 @@ func TestCvmTransactions(t *testing.T) {
 		t.Fatal("query fail", err)
 	}
 	if fv.Block != "2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestPvmBlocks(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &PvmBlocks{}
+	v.ID = "id1"
+	v.ChainID = "cid1"
+	v.Type = models.BlockTypeAbort
+	v.ParentID = "pid1"
+	v.Serialization = []byte("ser1")
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TablePvmBlocks).Exec()
+
+	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryPvmBlocks(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.ChainID = "cid2"
+	v.Type = models.BlockTypeCommit
+	v.ParentID = "pid2"
+	v.Serialization = []byte("ser2")
+	v.CreatedAt = tm
+
+	err = p.InsertPvmBlocks(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryPvmBlocks(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if string(fv.Serialization) != "ser2" {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
