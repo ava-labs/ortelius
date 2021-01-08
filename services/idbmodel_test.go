@@ -500,3 +500,115 @@ func TestTransactionsEpoch(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestCvmAddresses(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmAddresses{}
+	v.ID = "id1"
+	v.Type = models.CChainIn
+	v.Idx = 1
+	v.TransactionID = "tid1"
+	v.Address = "addr1"
+	v.AssetID = "assid1"
+	v.Amount = 2
+	v.Nonce = 3
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+
+	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmAddresses(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Type = models.CchainOut
+	v.Idx = 2
+	v.TransactionID = "tid2"
+	v.Address = "addr2"
+	v.AssetID = "assid2"
+	v.Amount = 3
+	v.Nonce = 4
+	v.CreatedAt = tm
+
+	err = p.InsertCvmAddresses(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmAddresses(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Idx != 2 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestCvmTransactions(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmTransactions{}
+	v.ID = "id1"
+	v.Type = models.CChainIn
+	v.BlockchainID = "bid1"
+	v.Block = "1"
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressChain).Exec()
+
+	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmTransactions(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Type = models.CchainOut
+	v.BlockchainID = "bid2"
+	v.Block = "2"
+	v.CreatedAt = tm
+
+	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmTransactions(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Block != "2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

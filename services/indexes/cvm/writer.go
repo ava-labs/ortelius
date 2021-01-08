@@ -16,14 +16,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ava-labs/coreth/plugin/evm"
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/coreth/plugin/evm"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 )
@@ -111,21 +109,16 @@ func (w *Writer) indexTransaction(
 	txFee uint64,
 	unsignedBytes []byte,
 ) error {
-	_, err := ctx.DB().
-		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+blockHeader.Number.String()+")",
-			id.String(), typ, blockChainID.String(), ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("cvm_transaction.insert", err)
+	cvmTransaction := &services.CvmTransactions{
+		ID:           id.String(),
+		Type:         typ,
+		BlockchainID: blockChainID.String(),
+		Block:        blockHeader.Number.String(),
+		CreatedAt:    ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			UpdateBySql("update cvm_transactions set type=?,blockchain_id=?,block="+blockHeader.Number.String()+" where id=?",
-				typ, blockChainID.String(), id.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("cvm_transaction.update", err)
-		}
+	err := ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
+	if err != nil {
+		return ctx.Job().EventErr("InsertCvmTransactions", err)
 	}
 
 	avmTxtype := ""
@@ -159,37 +152,23 @@ func (w *Writer) insertAddress(
 	nonce uint64,
 ) error {
 	idprefix := id.Prefix(idx)
-	_, err := ctx.DB().
-		InsertInto("cvm_addresses").
-		Pair("id", idprefix.String()).
-		Pair("type", typ).
-		Pair("idx", idx).
-		Pair("transaction_id", id.String()).
-		Pair("address", address.String()).
-		Pair("asset_id", assetID.String()).
-		Pair("amount", amount).
-		Pair("nonce", nonce).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("cvm_addresses.insert", err)
+
+	cvmAddress := &services.CvmAddresses{
+		ID:            idprefix.String(),
+		Type:          typ,
+		Idx:           idx,
+		TransactionID: id.String(),
+		Address:       address.String(),
+		AssetID:       assetID.String(),
+		Amount:        amount,
+		Nonce:         nonce,
+		CreatedAt:     ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			Update("cvm_addresses").
-			Set("type", typ).
-			Set("idx", idx).
-			Set("transaction_id", id.String()).
-			Set("address", address.String()).
-			Set("asset_id", assetID.String()).
-			Set("amount", amount).
-			Set("nonce", nonce).
-			Where("id = ?", idprefix.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("cvm_addresses.update", err)
-		}
+	err := ctx.Persist().InsertCvmAddresses(ctx.Ctx(), ctx.DB(), cvmAddress, cfg.PerformUpdates)
+	if err != nil {
+		return ctx.Job().EventErr("InsertCvmAddresses", err)
 	}
+
 	return nil
 }
 

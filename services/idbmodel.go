@@ -21,6 +21,8 @@ const TableAddresses = "addresses"
 const TableAddressChain = "address_chain"
 const TableOutputAddresses = "avm_output_addresses"
 const TableTransactionsEpochs = "transactions_epoch"
+const TableCvmAddresses = "cvm_addresses"
+const TableCvmTransactions = "cvm_transactions"
 
 type Persist interface {
 	InsertTransaction(
@@ -130,6 +132,32 @@ type Persist interface {
 		ctx context.Context,
 		sess dbr.SessionRunner,
 		v *TransactionsEpoch,
+		upd bool,
+	) error
+
+	QueryCvmAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmAddresses,
+	) (*CvmAddresses, error)
+
+	InsertCvmAddresses(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *CvmAddresses,
+		upd bool,
+	) error
+
+	QueryCvmTransactions(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactions,
+	) (*CvmTransactions, error)
+
+	InsertCvmTransactions(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *CvmTransactions,
 		upd bool,
 	) error
 }
@@ -531,7 +559,7 @@ func (p *persist) InsertAddressChain(
 	_ bool,
 ) error {
 	_, err := sess.
-		InsertInto("address_chain").
+		InsertInto(TableAddressChain).
 		Pair("address", v.Address).
 		Pair("chain_id", v.ChainID).
 		Pair("created_at", v.CreatedAt).
@@ -668,5 +696,132 @@ func (p *persist) InsertTransactionsEpoch(
 		}
 	}
 
+	return nil
+}
+
+type CvmAddresses struct {
+	ID            string
+	Type          models.CChainType
+	Idx           uint64
+	TransactionID string
+	Address       string
+	AssetID       string
+	Amount        uint64
+	Nonce         uint64
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmAddresses,
+) (*CvmAddresses, error) {
+	v := &CvmAddresses{}
+	err := sess.Select(
+		"id",
+		"type",
+		"idx",
+		"transaction_id",
+		"address",
+		"asset_id",
+		"amount",
+		"nonce",
+		"created_at",
+	).From(TableCvmAddresses).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmAddresses,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableCvmAddresses).
+		Pair("id", v.ID).
+		Pair("type", v.Type).
+		Pair("idx", v.Idx).
+		Pair("transaction_id", v.TransactionID).
+		Pair("address", v.Address).
+		Pair("asset_id", v.AssetID).
+		Pair("amount", v.Amount).
+		Pair("nonce", v.Nonce).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableCvmAddresses+".insert")
+	}
+	if upd {
+		_, err = sess.
+			Update(TableCvmAddresses).
+			Set("type", v.Type).
+			Set("idx", v.Idx).
+			Set("transaction_id", v.TransactionID).
+			Set("address", v.Address).
+			Set("asset_id", v.AssetID).
+			Set("amount", v.Amount).
+			Set("nonce", v.Nonce).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableCvmAddresses+".update")
+		}
+	}
+	return nil
+}
+
+type CvmTransactions struct {
+	ID           string
+	Type         models.CChainType
+	BlockchainID string
+	Block        string
+	CreatedAt    time.Time
+}
+
+func (p *persist) QueryCvmTransactions(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactions,
+) (*CvmTransactions, error) {
+	v := &CvmTransactions{}
+	err := sess.Select(
+		"id",
+		"type",
+		"blockchain_id",
+		"cast(block as char)",
+		"created_at",
+	).From(TableCvmTransactions).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactions(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmTransactions,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into cvm_transactions (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+v.Block+")",
+			v.ID, v.Type, v.BlockchainID, v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableCvmTransactions+".insert")
+	}
+	if upd {
+		_, err := sess.
+			UpdateBySql("update cvm_transactions set type=?,blockchain_id=?,block="+v.Block+" where id=?",
+				v.Type, v.BlockchainID, v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableCvmTransactions+".update")
+		}
+	}
 	return nil
 }
