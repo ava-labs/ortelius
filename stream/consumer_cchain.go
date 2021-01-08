@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -137,7 +136,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
 	for {
-		err = c.persistConsume(nmsg, &block.Header)
+		err = c.persistConsume(nmsg, block)
 		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			break
 		}
@@ -152,10 +151,10 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 	return nil
 }
 
-func (c *ConsumerCChain) persistConsume(msg services.Consumable, header *types.Header) error {
+func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, msg, header, c.sc.Persist)
+	return c.consumer.Consume(ctx, msg, &block.Header, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {
