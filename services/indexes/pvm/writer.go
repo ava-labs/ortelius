@@ -210,7 +210,7 @@ func (w *Writer) indexCommonBlock(
 		Serialization: blockBytes,
 		CreatedAt:     ctx.Time(),
 	}
-	return ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), ctx.Job(), pvmBlocks, cfg.PerformUpdates)
+	return ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), pvmBlocks, cfg.PerformUpdates)
 }
 
 func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx platformvm.Tx, genesis bool) error {
@@ -309,7 +309,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			Shouldprefercommit: castTx.InitiallyPrefersCommit(nil),
 			CreatedAt:          ctx.Time(),
 		}
-		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), ctx.Job(), rewards, cfg.PerformUpdates)
+		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
 	}
 
 	return w.avax.InsertTransaction(
@@ -334,7 +334,7 @@ func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.I
 		End:       validator.End,
 		CreatedAt: ctx.Time(),
 	}
-	return ctx.Persist().InsertTransactionsValidator(ctx.Ctx(), ctx.DB(), ctx.Job(), transactionsValidator, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactionsValidator(ctx.Ctx(), ctx.DB(), transactionsValidator, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
@@ -343,5 +343,5 @@ func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, b
 		TxBlockID: blkTxID.String(),
 		CreatedAt: ctx.Time(),
 	}
-	return ctx.Persist().InsertTransactionsBlock(ctx.Ctx(), ctx.DB(), ctx.Job(), transactionsBlock, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactionsBlock(ctx.Ctx(), ctx.DB(), transactionsBlock, cfg.PerformUpdates)
 }
