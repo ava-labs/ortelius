@@ -31,7 +31,6 @@ import (
 	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
@@ -179,25 +178,15 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 		switch vtxTransition := vtx.Transition().(type) {
 		case *avm.UniqueTx:
 			txID := vtxTransition.ID()
-			_, err = cCtx.DB().
-				InsertInto("transactions_epoch").
-				Pair("id", txID.String()).
-				Pair("epoch", epoch).
-				Pair("vertex_id", vertex.ID().String()).
-				ExecContext(cCtx.Ctx())
-			if err != nil && !db.ErrIsDuplicateEntryError(err) {
-				return cCtx.Job().EventErr("avm_assets.insert", err)
+			transactionsEpoch := &services.TransactionsEpoch{
+				ID:        txID.String(),
+				Epoch:     epoch,
+				VertexID:  vertex.ID().String(),
+				CreatedAt: cCtx.Time(),
 			}
-			if cfg.PerformUpdates {
-				_, err = cCtx.DB().
-					Update("transactions_epoch").
-					Set("epoch", epoch).
-					Set("vertex_id", vertex.ID().String()).
-					Where("id = ?", txID.String()).
-					ExecContext(cCtx.Ctx())
-				if err != nil {
-					return cCtx.Job().EventErr("avm_assets.update", err)
-				}
+			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), cCtx.Job(), transactionsEpoch, cfg.PerformUpdates)
+			if err != nil {
+				return err
 			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(vtxTransition))
@@ -398,34 +387,20 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		}
 	}
 
-	_, err = ctx.DB().
-		InsertInto("avm_assets").
-		Pair("id", tx.ID().String()).
-		Pair("chain_Id", w.chainID).
-		Pair("name", tx.Name).
-		Pair("symbol", tx.Symbol).
-		Pair("denomination", tx.Denomination).
-		Pair("alias", alias).
-		Pair("current_supply", amount).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("avm_assets.insert", err)
+	asset := &services.Assets{
+		ID:            tx.ID().String(),
+		ChainID:       w.chainID,
+		Name:          tx.Name,
+		Symbol:        tx.Symbol,
+		Denomination:  tx.Denomination,
+		Alias:         alias,
+		CurrentSupply: amount,
+		CreatedAt:     ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("avm_assets").
-			Set("chain_Id", w.chainID).
-			Set("name", tx.Name).
-			Set("symbol", tx.Symbol).
-			Set("denomination", tx.Denomination).
-			Set("alias", alias).
-			Set("current_supply", amount).
-			Where("id = ?", tx.ID().String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("avm_assets.update", err)
-		}
+
+	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), ctx.Job(), asset, cfg.PerformUpdates)
+	if err != nil {
+		return err
 	}
 
 	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis)

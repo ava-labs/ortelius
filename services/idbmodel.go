@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gocraft/health"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -11,31 +13,46 @@ import (
 	"github.com/palantir/stacktrace"
 )
 
-const TableTransactions = "avm_transactions"
-const TableOutputsRedeeming = "avm_outputs_redeeming"
-const TableOutputs = "avm_outputs"
+const (
+	TableTransactions          = "avm_transactions"
+	TableOutputsRedeeming      = "avm_outputs_redeeming"
+	TableOutputs               = "avm_outputs"
+	TableAssets                = "avm_assets"
+	TableAddresses             = "addresses"
+	TableAddressChain          = "address_chain"
+	TableOutputAddresses       = "avm_output_addresses"
+	TableTransactionsEpochs    = "transactions_epoch"
+	TableCvmAddresses          = "cvm_addresses"
+	TableCvmTransactions       = "cvm_transactions"
+	TablePvmBlocks             = "pvm_blocks"
+	TableRewards               = "rewards"
+	TableTransactionsValidator = "transactions_validator"
+	TableTransactionsBlock     = "transactions_block"
+)
 
 type Persist interface {
+	QueryTransaction(
+		context.Context,
+		dbr.SessionRunner,
+		*Transaction,
+	) (*Transaction, error)
 	InsertTransaction(
 		context.Context,
 		dbr.SessionRunner,
+		*health.Job,
 		*Transaction,
 		bool,
 	) error
 
-	QueryTransaction(
-		context.Context,
-		dbr.SessionRunner,
-	) (*Transaction, error)
-
 	QueryOutputsRedeeming(
 		context.Context,
 		dbr.SessionRunner,
+		*OutputsRedeeming,
 	) (*OutputsRedeeming, error)
-
 	InsertOutputsRedeeming(
 		context.Context,
 		dbr.SessionRunner,
+		*health.Job,
 		*OutputsRedeeming,
 		bool,
 	) error
@@ -43,13 +60,167 @@ type Persist interface {
 	QueryOutputs(
 		context.Context,
 		dbr.SessionRunner,
+		*Outputs,
 	) (*Outputs, error)
-
 	InsertOutputs(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *Outputs,
-		upd bool,
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*Outputs,
+		bool,
+	) error
+
+	QueryAssets(
+		context.Context,
+		dbr.SessionRunner,
+		*Assets,
+	) (*Assets, error)
+	InsertAssets(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*Assets,
+		bool,
+	) error
+
+	QueryAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*Addresses,
+	) (*Addresses, error)
+	InsertAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*Addresses,
+		bool,
+	) error
+
+	QueryAddressChain(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressChain,
+	) (*AddressChain, error)
+
+	InsertAddressChain(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*AddressChain,
+		bool,
+	) error
+
+	QueryOutputAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputAddresses,
+	) (*OutputAddresses, error)
+
+	InsertOutputAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*OutputAddresses,
+		bool,
+	) error
+	UpdateOutputAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*OutputAddresses,
+	) error
+
+	QueryTransactionsEpoch(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsEpoch,
+	) (*TransactionsEpoch, error)
+
+	InsertTransactionsEpoch(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*TransactionsEpoch,
+		bool,
+	) error
+
+	QueryCvmAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmAddresses,
+	) (*CvmAddresses, error)
+	InsertCvmAddresses(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*CvmAddresses,
+		bool,
+	) error
+
+	QueryCvmTransactions(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactions,
+	) (*CvmTransactions, error)
+	InsertCvmTransactions(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*CvmTransactions,
+		bool,
+	) error
+
+	QueryPvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*PvmBlocks,
+	) (*PvmBlocks, error)
+	InsertPvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*PvmBlocks,
+		bool,
+	) error
+
+	QueryRewards(
+		context.Context,
+		dbr.SessionRunner,
+		*Rewards,
+	) (*Rewards, error)
+	InsertRewards(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*Rewards,
+		bool,
+	) error
+
+	QueryTransactionsValidator(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsValidator,
+	) (*TransactionsValidator, error)
+	InsertTransactionsValidator(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*TransactionsValidator,
+		bool,
+	) error
+
+	QueryTransactionsBlock(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsBlock,
+	) (*TransactionsBlock, error)
+
+	InsertTransactionsBlock(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+		*TransactionsBlock,
+		bool,
 	) error
 }
 
@@ -58,6 +229,10 @@ type persist struct {
 
 func NewPersist() Persist {
 	return &persist{}
+}
+
+func EventErr(j *health.Job, t string, err error) error {
+	return j.EventErr(t, stacktrace.Propagate(err, TableTransactions))
 }
 
 type Transaction struct {
@@ -74,6 +249,7 @@ type Transaction struct {
 func (p *persist) QueryTransaction(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *Transaction,
 ) (*Transaction, error) {
 	v := &Transaction{}
 	err := sess.Select(
@@ -85,17 +261,21 @@ func (p *persist) QueryTransaction(
 		"canonical_serialization",
 		"txfee",
 		"genesis",
-	).From(TableTransactions).LoadOneContext(ctx, v)
+	).From(TableTransactions).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
 func (p *persist) InsertTransaction(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Transaction,
 	upd bool,
 ) error {
-	_, err := sess.
+	var err error
+	_, err = sess.
 		InsertInto(TableTransactions).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
@@ -107,7 +287,7 @@ func (p *persist) InsertTransaction(
 		Pair("genesis", v.Genesis).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactions+".insert")
+		return EventErr(j, TableTransactionsBlock, err)
 	}
 	if upd {
 		_, err = sess.
@@ -121,7 +301,7 @@ func (p *persist) InsertTransaction(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableTransactions+".update")
+			return EventErr(j, TableTransactionsBlock, err)
 		}
 	}
 	return nil
@@ -142,6 +322,7 @@ type OutputsRedeeming struct {
 func (p *persist) QueryOutputsRedeeming(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *OutputsRedeeming,
 ) (*OutputsRedeeming, error) {
 	v := &OutputsRedeeming{}
 	err := sess.Select(
@@ -154,13 +335,16 @@ func (p *persist) QueryOutputsRedeeming(
 		"asset_id",
 		"chain_id",
 		"created_at",
-	).From(TableOutputsRedeeming).LoadOneContext(ctx, v)
+	).From(TableOutputsRedeeming).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
 func (p *persist) InsertOutputsRedeeming(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *OutputsRedeeming,
 	upd bool,
 ) error {
@@ -178,7 +362,7 @@ func (p *persist) InsertOutputsRedeeming(
 		Pair("chain_id", v.ChainID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableOutputsRedeeming+".insert")
+		return EventErr(j, TableOutputsRedeeming, err)
 	}
 	if upd {
 		_, err = sess.
@@ -192,7 +376,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputsRedeeming+".update")
+			return EventErr(j, TableOutputsRedeeming, err)
 		}
 	}
 	return nil
@@ -219,6 +403,7 @@ type Outputs struct {
 func (p *persist) QueryOutputs(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	q *Outputs,
 ) (*Outputs, error) {
 	v := &Outputs{}
 	err := sess.Select(
@@ -237,13 +422,16 @@ func (p *persist) QueryOutputs(
 		"stake",
 		"frozen",
 		"created_at",
-	).From(TableOutputs).LoadOneContext(ctx, v)
+	).From(TableOutputs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
 	return v, err
 }
 
 func (p *persist) InsertOutputs(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Outputs,
 	upd bool,
 ) error {
@@ -267,7 +455,7 @@ func (p *persist) InsertOutputs(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableOutputs+".insert")
+		return EventErr(j, TableOutputs, err)
 	}
 	if upd {
 		_, err = sess.
@@ -288,7 +476,673 @@ func (p *persist) InsertOutputs(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputs+".update")
+			return EventErr(j, TableOutputs, err)
+		}
+	}
+	return nil
+}
+
+type Assets struct {
+	ID            string
+	ChainID       string
+	Name          string
+	Symbol        string
+	Denomination  byte
+	Alias         string
+	CurrentSupply uint64
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryAssets(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Assets,
+) (*Assets, error) {
+	v := &Assets{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"name",
+		"symbol",
+		"denomination",
+		"alias",
+		"current_supply",
+		"created_at",
+	).From(TableAssets).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAssets(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *Assets,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAssets).
+		Pair("id", v.ID).
+		Pair("chain_Id", v.ChainID).
+		Pair("name", v.Name).
+		Pair("symbol", v.Symbol).
+		Pair("denomination", v.Denomination).
+		Pair("alias", v.Alias).
+		Pair("current_supply", v.CurrentSupply).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableAssets, err)
+	}
+	if upd {
+		_, err = sess.
+			Update("avm_assets").
+			Set("chain_Id", v.ChainID).
+			Set("name", v.Name).
+			Set("symbol", v.Symbol).
+			Set("denomination", v.Denomination).
+			Set("alias", v.Alias).
+			Set("current_supply", v.CurrentSupply).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableAssets, err)
+		}
+	}
+	return nil
+}
+
+type Addresses struct {
+	Address   string
+	PublicKey []byte
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Addresses,
+) (*Addresses, error) {
+	v := &Addresses{}
+	err := sess.Select(
+		"address",
+		"public_key",
+		"created_at",
+	).From(TableAddresses).
+		Where("address=?", q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *Addresses,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAddresses).
+		Pair("address", v.Address).
+		Pair("public_key", v.PublicKey).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableAddresses, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddresses).
+			Set("public_key", v.PublicKey).
+			Where("address = ?", v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableAddresses, err)
+		}
+	}
+
+	return nil
+}
+
+type AddressChain struct {
+	Address   string
+	ChainID   string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryAddressChain(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *AddressChain,
+) (*AddressChain, error) {
+	v := &AddressChain{}
+	err := sess.Select(
+		"address",
+		"chain_id",
+		"created_at",
+	).From(TableAddressChain).
+		Where("address=? and chain_id=?", q.Address, q.ChainID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddressChain(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *AddressChain,
+	_ bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAddressChain).
+		Pair("address", v.Address).
+		Pair("chain_id", v.ChainID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableAddressChain, err)
+	}
+	return nil
+}
+
+type OutputAddresses struct {
+	OutputID           string
+	Address            string
+	RedeemingSignature []byte
+	CreatedAt          time.Time
+}
+
+func (p *persist) QueryOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputAddresses,
+) (*OutputAddresses, error) {
+	v := &OutputAddresses{}
+	err := sess.Select(
+		"output_id",
+		"address",
+		"redeeming_signature",
+		"created_at",
+	).From(TableOutputAddresses).
+		Where("output_id=? and address=?", q.OutputID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *OutputAddresses,
+	upd bool,
+) error {
+	var err error
+	stmt := sess.
+		InsertInto(TableOutputAddresses).
+		Pair("output_id", v.OutputID).
+		Pair("address", v.Address).
+		Pair("created_at", v.CreatedAt)
+	if v.RedeemingSignature != nil {
+		stmt = stmt.Pair("redeeming_signature", v.RedeemingSignature)
+	}
+	_, err = stmt.ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableOutputAddresses, err)
+	}
+	if v.RedeemingSignature != nil && upd {
+		_, err = sess.
+			Update(TableOutputAddresses).
+			Set("redeeming_signature", v.RedeemingSignature).
+			Where("output_id = ? and address=?", v.OutputID, v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableOutputAddresses, err)
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateOutputAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *OutputAddresses,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableOutputAddresses).
+		Set("redeeming_signature", v.RedeemingSignature).
+		Where("output_id = ? and address=?", v.OutputID, v.Address).
+		ExecContext(ctx)
+	if err != nil {
+		return EventErr(j, TableOutputAddresses, err)
+	}
+	return nil
+}
+
+type TransactionsEpoch struct {
+	ID        string
+	Epoch     uint32
+	VertexID  string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsEpoch(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsEpoch,
+) (*TransactionsEpoch, error) {
+	v := &TransactionsEpoch{}
+	err := sess.Select(
+		"id",
+		"epoch",
+		"vertex_id",
+		"created_at",
+	).From(TableTransactionsEpochs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsEpoch(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *TransactionsEpoch,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsEpochs).
+		Pair("id", v.ID).
+		Pair("epoch", v.Epoch).
+		Pair("vertex_id", v.VertexID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableTransactionsEpochs, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsEpochs).
+			Set("epoch", v.Epoch).
+			Set("vertex_id", v.VertexID).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableTransactionsEpochs, err)
+		}
+	}
+
+	return nil
+}
+
+type CvmAddresses struct {
+	ID            string
+	Type          models.CChainType
+	Idx           uint64
+	TransactionID string
+	Address       string
+	AssetID       string
+	Amount        uint64
+	Nonce         uint64
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmAddresses,
+) (*CvmAddresses, error) {
+	v := &CvmAddresses{}
+	err := sess.Select(
+		"id",
+		"type",
+		"idx",
+		"transaction_id",
+		"address",
+		"asset_id",
+		"amount",
+		"nonce",
+		"created_at",
+	).From(TableCvmAddresses).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmAddresses(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *CvmAddresses,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableCvmAddresses).
+		Pair("id", v.ID).
+		Pair("type", v.Type).
+		Pair("idx", v.Idx).
+		Pair("transaction_id", v.TransactionID).
+		Pair("address", v.Address).
+		Pair("asset_id", v.AssetID).
+		Pair("amount", v.Amount).
+		Pair("nonce", v.Nonce).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableCvmAddresses, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableCvmAddresses).
+			Set("type", v.Type).
+			Set("idx", v.Idx).
+			Set("transaction_id", v.TransactionID).
+			Set("address", v.Address).
+			Set("asset_id", v.AssetID).
+			Set("amount", v.Amount).
+			Set("nonce", v.Nonce).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableCvmAddresses, err)
+		}
+	}
+	return nil
+}
+
+type CvmTransactions struct {
+	ID           string
+	Type         models.CChainType
+	BlockchainID string
+	Block        string
+	CreatedAt    time.Time
+}
+
+func (p *persist) QueryCvmTransactions(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactions,
+) (*CvmTransactions, error) {
+	v := &CvmTransactions{}
+	err := sess.Select(
+		"id",
+		"type",
+		"blockchain_id",
+		"cast(block as char) as block",
+		"created_at",
+	).From(TableCvmTransactions).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactions(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *CvmTransactions,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmTransactions+" (id,type,blockchain_id,created_at,block) values(?,?,?,?,"+v.Block+")",
+			v.ID, v.Type, v.BlockchainID, v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableCvmTransactions, err)
+	}
+	if upd {
+		_, err = sess.
+			UpdateBySql("update "+TableCvmTransactions+" set type=?,blockchain_id=?,block="+v.Block+" where id=?",
+				v.Type, v.BlockchainID, v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableCvmTransactions, err)
+		}
+	}
+	return nil
+}
+
+type PvmBlocks struct {
+	ID            string
+	ChainID       string
+	Type          models.BlockType
+	ParentID      string
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryPvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *PvmBlocks,
+) (*PvmBlocks, error) {
+	v := &PvmBlocks{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"type",
+		"parent_id",
+		"serialization",
+		"created_at",
+	).From(TablePvmBlocks).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertPvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *PvmBlocks,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TablePvmBlocks).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("type", v.Type).
+		Pair("parent_id", v.ParentID).
+		Pair("created_at", v.CreatedAt).
+		Pair("serialization", v.Serialization).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TablePvmBlocks, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TablePvmBlocks).
+			Set("chain_id", v.ChainID).
+			Set("type", v.Type).
+			Set("parent_id", v.ParentID).
+			Set("serialization", v.Serialization).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TablePvmBlocks, err)
+		}
+	}
+
+	return nil
+}
+
+type Rewards struct {
+	ID                 string
+	BlockID            string
+	Txid               string
+	Shouldprefercommit bool
+	CreatedAt          time.Time
+}
+
+func (p *persist) QueryRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Rewards,
+) (*Rewards, error) {
+	v := &Rewards{}
+	err := sess.Select(
+		"id",
+		"block_id",
+		"txid",
+		"shouldprefercommit",
+		"created_at",
+	).From(TableRewards).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *Rewards,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableRewards).
+		Pair("id", v.ID).
+		Pair("block_id", v.BlockID).
+		Pair("txid", v.Txid).
+		Pair("shouldprefercommit", v.Shouldprefercommit).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableRewards, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableRewards).
+			Set("block_id", v.BlockID).
+			Set("txid", v.Txid).
+			Set("shouldprefercommit", v.Shouldprefercommit).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableRewards, err)
+		}
+	}
+
+	return nil
+}
+
+type TransactionsValidator struct {
+	ID        string
+	NodeID    string
+	Start     uint64
+	End       uint64
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsValidator(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsValidator,
+) (*TransactionsValidator, error) {
+	v := &TransactionsValidator{}
+	err := sess.Select(
+		"id",
+		"node_id",
+		"start",
+		"end",
+		"created_at",
+	).From(TableTransactionsValidator).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsValidator(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *TransactionsValidator,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsValidator).
+		Pair("id", v.ID).
+		Pair("node_id", v.NodeID).
+		Pair("start", v.Start).
+		Pair("end", v.End).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableTransactionsValidator, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsValidator).
+			Set("node_id", v.NodeID).
+			Set("start", v.Start).
+			Set("end", v.End).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableTransactionsValidator, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsBlock struct {
+	ID        string
+	TxBlockID string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsBlock(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsBlock,
+) (*TransactionsBlock, error) {
+	v := &TransactionsBlock{}
+	err := sess.Select(
+		"id",
+		"tx_block_id",
+		"created_at",
+	).From(TableTransactionsBlock).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsBlock(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	j *health.Job,
+	v *TransactionsBlock,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsBlock).
+		Pair("id", v.ID).
+		Pair("tx_block_id", v.TxBlockID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(j, TableTransactionsBlock, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsBlock).
+			Set("tx_block_id", v.TxBlockID).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(j, TableTransactionsBlock, err)
 		}
 	}
 	return nil
