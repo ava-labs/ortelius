@@ -21,7 +21,6 @@ import (
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
@@ -159,11 +158,7 @@ func (w *Writer) InsertTransactionBase(
 		CreatedAt:              ctx.Time(),
 	}
 
-	err := ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
-	if err != nil {
-		return w.stream.EventErr("InsertTransaction", err)
-	}
-	return nil
+	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), ctx.Job(), t, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionIns(
@@ -186,7 +181,7 @@ func (w *Writer) InsertTransactionIns(
 
 	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
-	outputsRedeeming := services.OutputsRedeeming{
+	outputsRedeeming := &services.OutputsRedeeming{
 		ID:                     inputID.String(),
 		RedeemedAt:             ctx.Time(),
 		RedeemingTransactionID: txID.String(),
@@ -198,9 +193,9 @@ func (w *Writer) InsertTransactionIns(
 		CreatedAt:              ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), &outputsRedeeming, cfg.PerformUpdates)
+	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), ctx.Job(), outputsRedeeming, cfg.PerformUpdates)
 	if err != nil {
-		return 0, w.stream.EventErr("InsertOutputsRedeeming", err)
+		return 0, err
 	}
 
 	if idx < len(creds) {
@@ -256,6 +251,7 @@ func (w *Writer) InsertOutput(
 	stakeLocktime uint64,
 	chainID string,
 	stake bool,
+	frozen bool,
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
@@ -273,12 +269,13 @@ func (w *Writer) InsertOutput(
 		Payload:       payload,
 		StakeLocktime: stakeLocktime,
 		Stake:         stake,
+		Frozen:        frozen,
 		CreatedAt:     ctx.Time(),
 	}
 
-	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
+	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), ctx.Job(), output, cfg.PerformUpdates)
 	if err != nil {
-		return w.stream.EventErr("InsertOutputs", err)
+		return err
 	}
 
 	// Ingest each Output Address
@@ -297,16 +294,12 @@ func (w *Writer) InsertAddressFromPublicKey(
 	ctx services.ConsumerCtx,
 	publicKey crypto.PublicKey,
 ) error {
-	_, err := ctx.DB().
-		InsertInto("addresses").
-		Pair("address", publicKey.Address().String()).
-		Pair("public_key", publicKey.Bytes()).
-		ExecContext(ctx.Ctx())
-
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("addresses.insert", err)
+	addresses := &services.Addresses{
+		Address:   publicKey.Address().String(),
+		PublicKey: publicKey.Bytes(),
+		CreatedAt: ctx.Time(),
 	}
-	return nil
+	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), addresses, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertOutputAddress(
@@ -315,46 +308,32 @@ func (w *Writer) InsertOutputAddress(
 	address ids.ShortID,
 	sig []byte,
 ) error {
-	_, err := ctx.DB().
-		InsertInto("address_chain").
-		Pair("address", address.String()).
-		Pair("chain_id", w.chainID).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return w.stream.EventErr("address_chain.insert", err)
+	addressChain := &services.AddressChain{
+		Address:   address.String(),
+		ChainID:   w.chainID,
+		CreatedAt: ctx.Time(),
 	}
-
-	builder := ctx.DB().
-		InsertInto("avm_output_addresses").
-		Pair("output_id", outputID.String()).
-		Pair("address", address.String()).
-		Pair("created_at", ctx.Time())
-
-	if sig != nil {
-		builder = builder.Pair("redeeming_signature", sig)
-	}
-
-	_, err = builder.ExecContext(ctx.Ctx())
-	switch {
-	case err == nil:
-		return nil
-	case !db.ErrIsDuplicateEntryError(err):
-		return ctx.Job().EventErr("avm_output_addresses.insert", err)
-	case sig == nil:
-		return nil
-	}
-
-	_, err = ctx.DB().
-		Update("avm_output_addresses").
-		Set("redeeming_signature", sig).
-		Where("output_id = ? and address = ?", outputID.String(), address.String()).
-		ExecContext(ctx.Ctx())
+	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), ctx.Job(), addressChain, cfg.PerformUpdates)
 	if err != nil {
-		return ctx.Job().EventErr("avm_output_addresses.update", err)
+		return err
 	}
 
-	return nil
+	outputAddresses := &services.OutputAddresses{
+		OutputID:           outputID.String(),
+		Address:            address.String(),
+		RedeemingSignature: sig,
+		CreatedAt:          ctx.Time(),
+	}
+	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), outputAddresses, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	if sig == nil {
+		return nil
+	}
+
+	return ctx.Persist().UpdateOutputAddresses(ctx.Ctx(), ctx.DB(), ctx.Job(), outputAddresses)
 }
 
 func (w *Writer) ProcessStateOut(
@@ -402,6 +381,7 @@ func (w *Writer) ProcessStateOut(
 			typedOut.Locktime,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -419,6 +399,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -436,6 +417,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -453,6 +435,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -476,6 +459,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err

@@ -9,8 +9,6 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -204,33 +202,15 @@ func (w *Writer) indexCommonBlock(
 		blockBytes = []byte("")
 	}
 
-	_, err := ctx.DB().
-		InsertInto("pvm_blocks").
-		Pair("id", blkID.String()).
-		Pair("chain_id", w.chainID).
-		Pair("type", blkType).
-		Pair("parent_id", blk.ParentID().String()).
-		Pair("created_at", ctx.Time()).
-		Pair("serialization", blockBytes).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("pvm_blocks.insert", err)
+	pvmBlocks := &services.PvmBlocks{
+		ID:            blkID.String(),
+		ChainID:       w.chainID,
+		Type:          blkType,
+		ParentID:      blk.ParentID().String(),
+		Serialization: blockBytes,
+		CreatedAt:     ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err = ctx.DB().
-			Update("pvm_blocks").
-			Set("chain_id", w.chainID).
-			Set("type", blkType).
-			Set("parent_id", blk.ParentID().String()).
-			Set("serialization", blockBytes).
-			Where("id = ?", blkID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("pvm_blocks.update", err)
-		}
-	}
-
-	return nil
+	return ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), ctx.Job(), pvmBlocks, cfg.PerformUpdates)
 }
 
 func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx platformvm.Tx, genesis bool) error {
@@ -322,30 +302,14 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
-		_, err := ctx.DB().
-			InsertInto("rewards").
-			Pair("id", castTx.ID().String()).
-			Pair("block_id", blkID.String()).
-			Pair("txid", castTx.TxID.String()).
-			Pair("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
-			Pair("created_at", ctx.Time()).
-			ExecContext(ctx.Ctx())
-		if err != nil && !db.ErrIsDuplicateEntryError(err) {
-			return ctx.Job().EventErr("rewards.insert", err)
+		rewards := &services.Rewards{
+			ID:                 castTx.ID().String(),
+			BlockID:            blkID.String(),
+			Txid:               castTx.TxID.String(),
+			Shouldprefercommit: castTx.InitiallyPrefersCommit(nil),
+			CreatedAt:          ctx.Time(),
 		}
-		if cfg.PerformUpdates {
-			_, err := ctx.DB().
-				Update("rewards").
-				Set("block_id", blkID.String()).
-				Set("txid", castTx.TxID.String()).
-				Set("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
-				Where("id = ?", castTx.ID().String()).
-				ExecContext(ctx.Ctx())
-			if err != nil {
-				return ctx.Job().EventErr("rewards.update", err)
-			}
-		}
-		return nil
+		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), ctx.Job(), rewards, cfg.PerformUpdates)
 	}
 
 	return w.avax.InsertTransaction(
@@ -363,51 +327,21 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
-	_, err := ctx.DB().
-		InsertInto("transactions_validator").
-		Pair("id", txID.String()).
-		Pair("node_id", validator.NodeID.String()).
-		Pair("start", validator.Start).
-		Pair("end", validator.End).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transactions_validator.insert", err)
+	transactionsValidator := &services.TransactionsValidator{
+		ID:        txID.String(),
+		NodeID:    validator.NodeID.String(),
+		Start:     validator.Start,
+		End:       validator.End,
+		CreatedAt: ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			Update("transactions_validator").
-			Set("node_id", validator.NodeID.String()).
-			Set("start", validator.Start).
-			Set("end", validator.End).
-			Where("id = ?", txID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("transactions_validator.update", err)
-		}
-	}
-	return nil
+	return ctx.Persist().InsertTransactionsValidator(ctx.Ctx(), ctx.DB(), ctx.Job(), transactionsValidator, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
-	_, err := ctx.DB().
-		InsertInto("transactions_block").
-		Pair("id", txID.String()).
-		Pair("tx_block_id", blkTxID.String()).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transactions_block.insert", err)
+	transactionsBlock := &services.TransactionsBlock{
+		ID:        txID.String(),
+		TxBlockID: blkTxID.String(),
+		CreatedAt: ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			Update("transactions_block").
-			Set("tx_block_id", blkTxID.String()).
-			Where("id = ?", txID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("transactions_block.update", err)
-		}
-	}
-	return nil
+	return ctx.Persist().InsertTransactionsBlock(ctx.Ctx(), ctx.DB(), ctx.Job(), transactionsBlock, cfg.PerformUpdates)
 }

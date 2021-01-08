@@ -103,9 +103,11 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	avmReader := avm.NewReader(connections)
 	pvmReader := pvm.NewReader(connections)
 
+	ctx := Context{sc: sc}
+
 	// Build router
-	router := web.New(Context{sc: sc}).
-		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), connections, delayCache)).
+	router := web.New(ctx).
+		Middleware(newContextSetter(sc, conf.NetworkID, connections.Stream(), connections, delayCache)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
@@ -122,11 +124,11 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 			next(w, r)
 		})
 
-	AddV2Routes(router, "/v2", indexBytes, nil)
+	AddV2Routes(&ctx, router, "/v2", indexBytes, nil)
 
 	// Legacy routes.
-	AddV2Routes(router, "/x", legacyIndexResponse, &xChainID)
-	AddV2Routes(router, "/X", legacyIndexResponse, &xChainID)
+	AddV2Routes(&ctx, router, "/x", legacyIndexResponse, &xChainID)
+	AddV2Routes(&ctx, router, "/X", legacyIndexResponse, &xChainID)
 
 	return router, nil
 }
