@@ -139,7 +139,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 
 	nmsg := NewMessage(id.String(), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
-	msgprefix := fmt.Sprintf("consumer.Consume: %s %s %v", block.Header.Number.String(), id.String())
+	msgprefix := fmt.Sprintf("consumer.Consume: %s %s", block.Header.Number.String(), id.String())
 	return RetryDB(cfg.DatabaseRetries, func() error { return c.persistConsume(nmsg, block) }, c.sc.Log, msgprefix, collectors)
 }
 
