@@ -19,14 +19,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/indexes/avax"
 )
 
 var (
 	testXChainID = ids.ID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
 )
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -62,15 +61,14 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := avax.NewReader(conns)
-	return writer, reader, func() {
+	return writer, func() {
 		s.Close()
 		_ = conns.Close()
 	}
 }
 
 func TestInsertTxInternalExport(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -103,7 +101,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 }
 
 func TestInsertTxInternalImport(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
