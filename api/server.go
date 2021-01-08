@@ -107,7 +107,7 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 
 	// Build router
 	router := web.New(ctx).
-		Middleware(newContextSetter(conf.NetworkID, connections.Stream(), connections, delayCache)).
+		Middleware(newContextSetter(sc, conf.NetworkID, connections.Stream(), connections, delayCache)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
