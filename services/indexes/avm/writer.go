@@ -276,9 +276,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	var tx *avm.Tx
-	var err error
-	_, tx, err = parseTx(w.codec, txBytes)
+	_, tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}
