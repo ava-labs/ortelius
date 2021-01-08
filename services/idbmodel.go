@@ -263,7 +263,8 @@ func (p *persist) InsertTransaction(
 	v *Transaction,
 	upd bool,
 ) error {
-	_, err := sess.
+	var err error
+	_, err = sess.
 		InsertInto(TableTransactions).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
@@ -563,7 +564,8 @@ func (p *persist) InsertAddresses(
 	v *Addresses,
 	upd bool,
 ) error {
-	_, err := sess.
+	var err error
+	_, err = sess.
 		InsertInto(TableAddresses).
 		Pair("address", v.Address).
 		Pair("public_key", v.PublicKey).
@@ -614,7 +616,8 @@ func (p *persist) InsertAddressChain(
 	v *AddressChain,
 	_ bool,
 ) error {
-	_, err := sess.
+	var err error
+	_, err = sess.
 		InsertInto(TableAddressChain).
 		Pair("address", v.Address).
 		Pair("chain_id", v.ChainID).
@@ -871,7 +874,7 @@ func (p *persist) InsertCvmTransactions(
 		return stacktrace.Propagate(err, TableCvmTransactions+".insert")
 	}
 	if upd {
-		_, err := sess.
+		_, err = sess.
 			UpdateBySql("update "+TableCvmTransactions+" set type=?,blockchain_id=?,block="+v.Block+" where id=?",
 				v.Type, v.BlockchainID, v.ID).
 			ExecContext(ctx)
@@ -991,7 +994,7 @@ func (p *persist) InsertRewards(
 		return stacktrace.Propagate(err, TableRewards+".insert")
 	}
 	if upd {
-		_, err := sess.
+		_, err = sess.
 			Update(TableRewards).
 			Set("block_id", v.BlockID).
 			Set("txid", v.Txid).
@@ -1051,7 +1054,7 @@ func (p *persist) InsertTransactionsValidator(
 		return stacktrace.Propagate(err, TableTransactionsValidator+".insert")
 	}
 	if upd {
-		_, err := sess.
+		_, err = sess.
 			Update(TableTransactionsValidator).
 			Set("node_id", v.NodeID).
 			Set("start", v.Start).
@@ -1104,7 +1107,7 @@ func (p *persist) InsertTransactionsBlock(
 		return stacktrace.Propagate(err, TableTransactionsBlock+".insert")
 	}
 	if upd {
-		_, err := sess.
+		_, err = sess.
 			Update(TableTransactionsBlock).
 			Set("tx_block_id", v.TxBlockID).
 			Where("id = ?", v.ID).
