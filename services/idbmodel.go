@@ -738,7 +738,7 @@ func (p *persist) InsertTransactionsEpoch(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactionsEpochs+".update")
+		return stacktrace.Propagate(err, TableTransactionsEpochs+".insert")
 	}
 	if upd {
 		_, err = sess.
@@ -939,7 +939,7 @@ func (p *persist) InsertPvmBlocks(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TablePvmBlocks+".insert")
+			return stacktrace.Propagate(err, TablePvmBlocks+".update")
 		}
 	}
 
