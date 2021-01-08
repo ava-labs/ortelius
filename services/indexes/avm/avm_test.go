@@ -34,7 +34,7 @@ var (
 )
 
 func TestIndexBootstrap(t *testing.T) {
-	writer, reader, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 
 	persist := services.NewPersist()
@@ -119,7 +119,8 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+	networkID := uint32(5)
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -169,7 +170,7 @@ func newTestContext() context.Context {
 }
 
 func TestInsertTxInternal(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -225,7 +226,7 @@ func TestInsertTxInternal(t *testing.T) {
 }
 
 func TestInsertTxInternalCreateAsset(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -274,7 +275,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 }
 
 func TestInsertVertex(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
