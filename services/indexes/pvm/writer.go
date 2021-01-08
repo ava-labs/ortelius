@@ -9,8 +9,6 @@ import (
 
 	"github.com/ava-labs/ortelius/cfg"
 
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -338,51 +336,29 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
-	_, err := ctx.DB().
-		InsertInto("transactions_validator").
-		Pair("id", txID.String()).
-		Pair("node_id", validator.NodeID.String()).
-		Pair("start", validator.Start).
-		Pair("end", validator.End).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transactions_validator.insert", err)
+	transactionsValidator := &services.TransactionsValidator{
+		ID:        txID.String(),
+		NodeID:    validator.NodeID.String(),
+		Start:     validator.Start,
+		End:       validator.End,
+		CreatedAt: ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			Update("transactions_validator").
-			Set("node_id", validator.NodeID.String()).
-			Set("start", validator.Start).
-			Set("end", validator.End).
-			Where("id = ?", txID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("transactions_validator.update", err)
-		}
+	err := ctx.Persist().InsertTransactionsValidator(ctx.Ctx(), ctx.DB(), transactionsValidator, cfg.PerformUpdates)
+	if err != nil {
+		return ctx.Job().EventErr("InsertRewards", err)
 	}
 	return nil
 }
 
 func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
-	_, err := ctx.DB().
-		InsertInto("transactions_block").
-		Pair("id", txID.String()).
-		Pair("tx_block_id", blkTxID.String()).
-		Pair("created_at", ctx.Time()).
-		ExecContext(ctx.Ctx())
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return ctx.Job().EventErr("transactions_block.insert", err)
+	transactionsBlock := &services.TransactionsBlock{
+		ID:        txID.String(),
+		TxBlockID: blkTxID.String(),
+		CreatedAt: ctx.Time(),
 	}
-	if cfg.PerformUpdates {
-		_, err := ctx.DB().
-			Update("transactions_block").
-			Set("tx_block_id", blkTxID.String()).
-			Where("id = ?", txID.String()).
-			ExecContext(ctx.Ctx())
-		if err != nil {
-			return ctx.Job().EventErr("transactions_block.update", err)
-		}
+	err := ctx.Persist().InsertTransactionsBlock(ctx.Ctx(), ctx.DB(), transactionsBlock, cfg.PerformUpdates)
+	if err != nil {
+		return ctx.Job().EventErr("InsertTransactionsValidator", err)
 	}
 	return nil
 }

@@ -12,18 +12,20 @@ import (
 )
 
 const (
-	TableTransactions       = "avm_transactions"
-	TableOutputsRedeeming   = "avm_outputs_redeeming"
-	TableOutputs            = "avm_outputs"
-	TableAssets             = "avm_assets"
-	TableAddresses          = "addresses"
-	TableAddressChain       = "address_chain"
-	TableOutputAddresses    = "avm_output_addresses"
-	TableTransactionsEpochs = "transactions_epoch"
-	TableCvmAddresses       = "cvm_addresses"
-	TableCvmTransactions    = "cvm_transactions"
-	TablePvmBlocks          = "pvm_blocks"
-	TableRewards            = "rewards"
+	TableTransactions          = "avm_transactions"
+	TableOutputsRedeeming      = "avm_outputs_redeeming"
+	TableOutputs               = "avm_outputs"
+	TableAssets                = "avm_assets"
+	TableAddresses             = "addresses"
+	TableAddressChain          = "address_chain"
+	TableOutputAddresses       = "avm_output_addresses"
+	TableTransactionsEpochs    = "transactions_epoch"
+	TableCvmAddresses          = "cvm_addresses"
+	TableCvmTransactions       = "cvm_transactions"
+	TablePvmBlocks             = "pvm_blocks"
+	TableRewards               = "rewards"
+	TableTransactionsValidator = "transactions_validator"
+	TableTransactionsBlock     = "transactions_block"
 )
 
 type Persist interface {
@@ -186,6 +188,32 @@ type Persist interface {
 		ctx context.Context,
 		sess dbr.SessionRunner,
 		v *Rewards,
+		upd bool,
+	) error
+
+	QueryTransactionsValidator(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsValidator,
+	) (*TransactionsValidator, error)
+
+	InsertTransactionsValidator(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *TransactionsValidator,
+		upd bool,
+	) error
+
+	QueryTransactionsBlock(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsBlock,
+	) (*TransactionsBlock, error)
+
+	InsertTransactionsBlock(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *TransactionsBlock,
 		upd bool,
 	) error
 }
@@ -975,5 +1003,115 @@ func (p *persist) InsertRewards(
 		}
 	}
 
+	return nil
+}
+
+type TransactionsValidator struct {
+	ID        string
+	NodeID    string
+	Start     uint64
+	End       uint64
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsValidator(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsValidator,
+) (*TransactionsValidator, error) {
+	v := &TransactionsValidator{}
+	err := sess.Select(
+		"id",
+		"node_id",
+		"start",
+		"end",
+		"created_at",
+	).From(TableTransactionsValidator).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsValidator(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsValidator,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsValidator).
+		Pair("id", v.ID).
+		Pair("node_id", v.NodeID).
+		Pair("start", v.Start).
+		Pair("end", v.End).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableTransactionsValidator+".insert")
+	}
+	if upd {
+		_, err := sess.
+			Update(TableTransactionsValidator).
+			Set("node_id", v.NodeID).
+			Set("start", v.Start).
+			Set("end", v.End).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableTransactionsValidator+".update")
+		}
+	}
+	return nil
+}
+
+type TransactionsBlock struct {
+	ID        string
+	TxBlockID string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsBlock(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsBlock,
+) (*TransactionsBlock, error) {
+	v := &TransactionsBlock{}
+	err := sess.Select(
+		"id",
+		"tx_block_id",
+		"created_at",
+	).From(TableTransactionsBlock).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsBlock(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsBlock,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsBlock).
+		Pair("id", v.ID).
+		Pair("tx_block_id", v.TxBlockID).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableTransactionsBlock+".insert")
+	}
+	if upd {
+		_, err := sess.
+			Update(TableTransactionsBlock).
+			Set("tx_block_id", v.TxBlockID).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableTransactionsBlock+".update")
+		}
+	}
 	return nil
 }

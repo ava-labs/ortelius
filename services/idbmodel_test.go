@@ -718,3 +718,103 @@ func TestRewards(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestTransactionsValidator(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &TransactionsValidator{}
+	v.ID = "id1"
+	v.NodeID = "nid1"
+	v.Start = 1
+	v.End = 2
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsValidator).Exec()
+
+	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsValidator(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.NodeID = "nid2"
+	v.Start = 2
+	v.End = 3
+	v.CreatedAt = tm
+
+	err = p.InsertTransactionsValidator(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryTransactionsValidator(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.NodeID != "nid2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestTransactionssBlock(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &TransactionsBlock{}
+	v.ID = "id1"
+	v.TxBlockID = "txb1"
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsBlock).Exec()
+
+	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsBlock(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.TxBlockID = "txb2"
+	v.CreatedAt = tm
+
+	err = p.InsertTransactionsBlock(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryTransactionsBlock(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.TxBlockID != "txb2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
