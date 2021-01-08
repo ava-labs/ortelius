@@ -303,7 +303,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 	}
 	err := ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 	if err != nil {
-		return ctx.Job().EventErr("InsertOutputs", err)
+		return ctx.Job().EventErr("InsertAddresses", err)
 	}
 	return nil
 }
