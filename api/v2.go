@@ -24,8 +24,9 @@ type V2Context struct {
 // indexBytes at the root. If chainID is not nil the handlers run in v1
 // compatible mode where the `version` param is set to "1" and requests to
 // default to filtering by the given chainID.
-func AddV2Routes(router *web.Router, path string, indexBytes []byte, chainID *ids.ID) {
-	router.Subrouter(V2Context{}, path).
+func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byte, chainID *ids.ID) {
+	v2ctx := V2Context{Context: ctx}
+	router.Subrouter(v2ctx, path).
 		Get("/", func(c *V2Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
 				c.err = err
