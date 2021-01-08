@@ -314,7 +314,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			Shouldprefercommit: castTx.InitiallyPrefersCommit(nil),
 			CreatedAt:          ctx.Time(),
 		}
-		err := ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
+		err = ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
 		if err != nil {
 			return ctx.Job().EventErr("InsertRewards", err)
 		}

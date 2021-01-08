@@ -188,7 +188,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 			}
 			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
 			if err != nil {
-				return cCtx.Job().EventErr("InsertOutputAddresses", err)
+				return cCtx.Job().EventErr("InsertTransactionsEpoch", err)
 			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
