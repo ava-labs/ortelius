@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
+
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 
 	"github.com/ava-labs/avalanchego/vms/avm"
@@ -179,6 +182,16 @@ func TestInsertTxInternal(t *testing.T) {
 	transferableIn.In = &secp256k1fx.TransferInput{}
 	baseTx.Ins = []*avalancheGoAvax.TransferableInput{transferableIn}
 
+	f := crypto.FactorySECP256K1R{}
+	pk, _ := f.NewPrivateKey()
+	sb, _ := pk.Sign(baseTx.UnsignedBytes())
+	cred := &secp256k1fx.Credential{}
+	cred.Sigs = make([][crypto.SECP256K1RSigLen]byte, 0, 1)
+	sig := [crypto.SECP256K1RSigLen]byte{}
+	copy(sig[:], sb)
+	cred.Sigs = append(cred.Sigs, sig)
+	tx.Creds = []verify.Verifiable{cred}
+
 	tx.UnsignedTx = baseTx
 
 	persist := services.NewPersistMock()
@@ -190,13 +203,21 @@ func TestInsertTxInternal(t *testing.T) {
 		t.Fatal("insert failed", err)
 	}
 	if len(persist.Transactions) != 1 {
-		t.Fatal("insert failed", err)
+		t.Fatal("insert failed")
 	}
 	if len(persist.Outputs) != 1 {
-		t.Fatal("insert failed", err)
+		t.Fatal("insert failed")
 	}
 	if len(persist.OutputsRedeeming) != 1 {
-		t.Fatal("insert failed", err)
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
 	}
 }
-

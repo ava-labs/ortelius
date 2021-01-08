@@ -17,6 +17,9 @@ type MockPersist struct {
 	TransactionsValidator map[string]*TransactionsValidator
 	TransactionsBlock     map[string]*TransactionsBlock
 	Rewards               map[string]*Rewards
+	Addresses             map[string]*Addresses
+	AddressChain          map[string]*AddressChain
+	OutputAddresses       map[string]*OutputAddresses
 }
 
 func NewPersistMock() *MockPersist {
@@ -29,6 +32,9 @@ func NewPersistMock() *MockPersist {
 		TransactionsValidator: make(map[string]*TransactionsValidator),
 		TransactionsBlock:     make(map[string]*TransactionsBlock),
 		Rewards:               make(map[string]*Rewards),
+		Addresses:             make(map[string]*Addresses),
+		AddressChain:          make(map[string]*AddressChain),
+		OutputAddresses:       make(map[string]*OutputAddresses),
 	}
 }
 
@@ -94,32 +100,67 @@ func (m *MockPersist) InsertAssets(ctx context.Context, runner dbr.SessionRunner
 	panic("implement me")
 }
 
-func (m *MockPersist) QueryAddresses(ctx context.Context, runner dbr.SessionRunner, addresses *Addresses) (*Addresses, error) {
-	panic("implement me")
+func (m *MockPersist) QueryAddresses(ctx context.Context, runner dbr.SessionRunner, v *Addresses) (*Addresses, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.Addresses[v.Address]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertAddresses(ctx context.Context, runner dbr.SessionRunner, addresses *Addresses, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertAddresses(ctx context.Context, runner dbr.SessionRunner, v *Addresses, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &Addresses{}
+	*nv = *v
+	m.Addresses[v.Address] = nv
+	return nil
 }
 
-func (m *MockPersist) QueryAddressChain(ctx context.Context, runner dbr.SessionRunner, chain *AddressChain) (*AddressChain, error) {
-	panic("implement me")
+func (m *MockPersist) QueryAddressChain(ctx context.Context, runner dbr.SessionRunner, v *AddressChain) (*AddressChain, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.AddressChain[v.Address+":"+v.ChainID]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertAddressChain(ctx context.Context, runner dbr.SessionRunner, chain *AddressChain, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertAddressChain(ctx context.Context, runner dbr.SessionRunner, v *AddressChain, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &AddressChain{}
+	*nv = *v
+	m.AddressChain[v.Address+":"+v.ChainID] = nv
+	return nil
 }
 
-func (m *MockPersist) QueryOutputAddresses(ctx context.Context, runner dbr.SessionRunner, addresses *OutputAddresses) (*OutputAddresses, error) {
-	panic("implement me")
+func (m *MockPersist) QueryOutputAddresses(ctx context.Context, runner dbr.SessionRunner, v *OutputAddresses) (*OutputAddresses, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.OutputAddresses[v.OutputID+":"+v.Address]; present {
+		return v, nil
+	}
+	return nil, nil
 }
 
-func (m *MockPersist) InsertOutputAddresses(ctx context.Context, runner dbr.SessionRunner, addresses *OutputAddresses, b bool) error {
-	panic("implement me")
+func (m *MockPersist) InsertOutputAddresses(ctx context.Context, runner dbr.SessionRunner, v *OutputAddresses, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &OutputAddresses{}
+	*nv = *v
+	m.OutputAddresses[v.OutputID+":"+v.Address] = nv
+	return nil
 }
 
-func (m *MockPersist) UpdateOutputAddresses(ctx context.Context, runner dbr.SessionRunner, addresses *OutputAddresses) error {
-	panic("implement me")
+func (m *MockPersist) UpdateOutputAddresses(ctx context.Context, runner dbr.SessionRunner, v *OutputAddresses) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if fv, present := m.OutputAddresses[v.OutputID+":"+v.Address]; present {
+		fv.RedeemingSignature = v.RedeemingSignature
+	}
+	return nil
 }
 
 func (m *MockPersist) QueryTransactionsEpoch(ctx context.Context, runner dbr.SessionRunner, epoch *TransactionsEpoch) (*TransactionsEpoch, error) {

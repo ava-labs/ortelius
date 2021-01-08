@@ -142,4 +142,3 @@ func TestInsertTxInternalRewards(t *testing.T) {
 		t.Fatal("insert failed")
 	}
 }
-

@@ -207,7 +207,6 @@ func (w *Writer) InsertTransactionIns(
 				if err != nil {
 					return 0, err
 				}
-
 				err = w.InsertAddressFromPublicKey(ctx, publicKey)
 				if err != nil {
 					return 0, err
