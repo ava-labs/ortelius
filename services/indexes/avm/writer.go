@@ -186,9 +186,9 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 				VertexID:  vertex.ID().String(),
 				CreatedAt: cCtx.Time(),
 			}
-			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
+			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(),cCtx.Job(), transactionsEpoch, cfg.PerformUpdates)
 			if err != nil {
-				return cCtx.Job().EventErr("InsertTransactionsEpoch", err)
+				return err
 			}
 		default:
 			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
@@ -400,9 +400,9 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		CreatedAt:     ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), asset, cfg.PerformUpdates)
+	err = ctx.Persist().InsertAssets(ctx.Ctx(), ctx.DB(), ctx.Job(), asset, cfg.PerformUpdates)
 	if err != nil {
-		return ctx.Job().EventErr("InsertAssets", err)
+		return err
 	}
 
 	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis)

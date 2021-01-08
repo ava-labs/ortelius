@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/gocraft/health"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -29,28 +30,29 @@ const (
 )
 
 type Persist interface {
-	InsertTransaction(
-		context.Context,
-		dbr.SessionRunner,
-		*Transaction,
-		bool,
-	) error
-
 	QueryTransaction(
 		context.Context,
 		dbr.SessionRunner,
 		*Transaction,
 	) (*Transaction, error)
+	InsertTransaction(
+		context.Context,
+		dbr.SessionRunner,
+		*health.Job,
+	*Transaction,
+		bool,
+	) error
+
 
 	QueryOutputsRedeeming(
 		context.Context,
 		dbr.SessionRunner,
 		*OutputsRedeeming,
 	) (*OutputsRedeeming, error)
-
 	InsertOutputsRedeeming(
 		context.Context,
 		dbr.SessionRunner,
+		*health.Job,
 		*OutputsRedeeming,
 		bool,
 	) error
@@ -60,12 +62,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Outputs,
 	) (*Outputs, error)
-
 	InsertOutputs(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *Outputs,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *Outputs,
+		 bool,
 	) error
 
 	QueryAssets(
@@ -73,12 +75,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Assets,
 	) (*Assets, error)
-
 	InsertAssets(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *Assets,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *Assets,
+		 bool,
 	) error
 
 	QueryAddresses(
@@ -86,12 +88,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Addresses,
 	) (*Addresses, error)
-
 	InsertAddresses(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *Addresses,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *Addresses,
+		 bool,
 	) error
 
 	QueryAddressChain(
@@ -101,10 +103,11 @@ type Persist interface {
 	) (*AddressChain, error)
 
 	InsertAddressChain(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *AddressChain,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *AddressChain,
+		 bool,
 	) error
 
 	QueryOutputAddresses(
@@ -114,16 +117,17 @@ type Persist interface {
 	) (*OutputAddresses, error)
 
 	InsertOutputAddresses(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *OutputAddresses,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *OutputAddresses,
+		 bool,
 	) error
-
 	UpdateOutputAddresses(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *OutputAddresses,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *OutputAddresses,
 	) error
 
 	QueryTransactionsEpoch(
@@ -133,10 +137,11 @@ type Persist interface {
 	) (*TransactionsEpoch, error)
 
 	InsertTransactionsEpoch(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *TransactionsEpoch,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *TransactionsEpoch,
+		 bool,
 	) error
 
 	QueryCvmAddresses(
@@ -144,12 +149,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*CvmAddresses,
 	) (*CvmAddresses, error)
-
 	InsertCvmAddresses(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *CvmAddresses,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *CvmAddresses,
+		 bool,
 	) error
 
 	QueryCvmTransactions(
@@ -157,12 +162,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*CvmTransactions,
 	) (*CvmTransactions, error)
-
 	InsertCvmTransactions(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *CvmTransactions,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *CvmTransactions,
+		 bool,
 	) error
 
 	QueryPvmBlocks(
@@ -170,12 +175,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*PvmBlocks,
 	) (*PvmBlocks, error)
-
 	InsertPvmBlocks(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *PvmBlocks,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *PvmBlocks,
+		 bool,
 	) error
 
 	QueryRewards(
@@ -183,12 +188,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Rewards,
 	) (*Rewards, error)
-
 	InsertRewards(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *Rewards,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *Rewards,
+		 bool,
 	) error
 
 	QueryTransactionsValidator(
@@ -196,12 +201,12 @@ type Persist interface {
 		dbr.SessionRunner,
 		*TransactionsValidator,
 	) (*TransactionsValidator, error)
-
 	InsertTransactionsValidator(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *TransactionsValidator,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *TransactionsValidator,
+		 bool,
 	) error
 
 	QueryTransactionsBlock(
@@ -211,10 +216,11 @@ type Persist interface {
 	) (*TransactionsBlock, error)
 
 	InsertTransactionsBlock(
-		ctx context.Context,
-		sess dbr.SessionRunner,
-		v *TransactionsBlock,
-		upd bool,
+		 context.Context,
+		 dbr.SessionRunner,
+		*health.Job,
+		 *TransactionsBlock,
+		 bool,
 	) error
 }
 
@@ -223,6 +229,10 @@ type persist struct {
 
 func NewPersist() Persist {
 	return &persist{}
+}
+
+func EventErr( j *health.Job, t string, err error ) error {
+	return j.EventErr(t,stacktrace.Propagate(err, TableTransactions))
 }
 
 type Transaction struct {
@@ -260,6 +270,7 @@ func (p *persist) QueryTransaction(
 func (p *persist) InsertTransaction(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Transaction,
 	upd bool,
 ) error {
@@ -276,7 +287,7 @@ func (p *persist) InsertTransaction(
 		Pair("genesis", v.Genesis).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactions+".insert")
+		return EventErr(j, TableTransactionsBlock, err)
 	}
 	if upd {
 		_, err = sess.
@@ -290,7 +301,7 @@ func (p *persist) InsertTransaction(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableTransactions+".update")
+			return EventErr(j, TableTransactionsBlock, err)
 		}
 	}
 	return nil
@@ -333,6 +344,7 @@ func (p *persist) QueryOutputsRedeeming(
 func (p *persist) InsertOutputsRedeeming(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *OutputsRedeeming,
 	upd bool,
 ) error {
@@ -350,7 +362,7 @@ func (p *persist) InsertOutputsRedeeming(
 		Pair("chain_id", v.ChainID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableOutputsRedeeming+".insert")
+		return EventErr(j, TableOutputsRedeeming, err)
 	}
 	if upd {
 		_, err = sess.
@@ -364,7 +376,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputsRedeeming+".update")
+			return EventErr(j, TableOutputsRedeeming, err)
 		}
 	}
 	return nil
@@ -417,6 +429,7 @@ func (p *persist) QueryOutputs(
 func (p *persist) InsertOutputs(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Outputs,
 	upd bool,
 ) error {
@@ -439,7 +452,7 @@ func (p *persist) InsertOutputs(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableOutputs+".insert")
+		return EventErr(j, TableOutputs, err)
 	}
 	if upd {
 		_, err = sess.
@@ -459,7 +472,7 @@ func (p *persist) InsertOutputs(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputs+".update")
+			return EventErr(j, TableOutputs, err)
 		}
 	}
 	return nil
@@ -500,6 +513,7 @@ func (p *persist) QueryAssets(
 func (p *persist) InsertAssets(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Assets,
 	upd bool,
 ) error {
@@ -516,7 +530,7 @@ func (p *persist) InsertAssets(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableAssets+".insert")
+		return EventErr(j, TableAssets, err)
 	}
 	if upd {
 		_, err = sess.
@@ -530,7 +544,7 @@ func (p *persist) InsertAssets(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableAssets+".update")
+			return EventErr(j, TableAssets, err)
 		}
 	}
 	return nil
@@ -561,6 +575,7 @@ func (p *persist) QueryAddresses(
 func (p *persist) InsertAddresses(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Addresses,
 	upd bool,
 ) error {
@@ -572,7 +587,7 @@ func (p *persist) InsertAddresses(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableAddresses+".insert")
+		return EventErr(j, TableAddresses, err)
 	}
 	if upd {
 		_, err = sess.
@@ -581,7 +596,7 @@ func (p *persist) InsertAddresses(
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableAddresses+".update")
+			return EventErr(j, TableAddresses, err)
 		}
 	}
 
@@ -613,6 +628,7 @@ func (p *persist) QueryAddressChain(
 func (p *persist) InsertAddressChain(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *AddressChain,
 	_ bool,
 ) error {
@@ -624,7 +640,7 @@ func (p *persist) InsertAddressChain(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableAddressChain+".insert")
+		return EventErr(j, TableAddressChain, err)
 	}
 	return nil
 }
@@ -656,6 +672,7 @@ func (p *persist) QueryOutputAddresses(
 func (p *persist) InsertOutputAddresses(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *OutputAddresses,
 	upd bool,
 ) error {
@@ -670,7 +687,7 @@ func (p *persist) InsertOutputAddresses(
 	}
 	_, err = stmt.ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableOutputAddresses+".insert")
+		return EventErr(j, TableOutputAddresses, err)
 	}
 	if v.RedeemingSignature != nil && upd {
 		_, err = sess.
@@ -679,7 +696,7 @@ func (p *persist) InsertOutputAddresses(
 			Where("output_id = ? and address=?", v.OutputID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputAddresses+".update")
+			return EventErr(j, TableOutputAddresses, err)
 		}
 	}
 	return nil
@@ -688,6 +705,7 @@ func (p *persist) InsertOutputAddresses(
 func (p *persist) UpdateOutputAddresses(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *OutputAddresses,
 ) error {
 	var err error
@@ -697,7 +715,7 @@ func (p *persist) UpdateOutputAddresses(
 		Where("output_id = ? and address=?", v.OutputID, v.Address).
 		ExecContext(ctx)
 	if err != nil {
-		return stacktrace.Propagate(err, TableOutputAddresses+".update")
+		return EventErr(j, TableOutputAddresses, err)
 	}
 	return nil
 }
@@ -729,6 +747,7 @@ func (p *persist) QueryTransactionsEpoch(
 func (p *persist) InsertTransactionsEpoch(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *TransactionsEpoch,
 	upd bool,
 ) error {
@@ -741,7 +760,7 @@ func (p *persist) InsertTransactionsEpoch(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactionsEpochs+".insert")
+		return EventErr(j, TableTransactionsEpochs, err)
 	}
 	if upd {
 		_, err = sess.
@@ -751,7 +770,7 @@ func (p *persist) InsertTransactionsEpoch(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableOutputAddresses+".update")
+			return EventErr(j, TableTransactionsEpochs, err)
 		}
 	}
 
@@ -795,6 +814,7 @@ func (p *persist) QueryCvmAddresses(
 func (p *persist) InsertCvmAddresses(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *CvmAddresses,
 	upd bool,
 ) error {
@@ -812,7 +832,7 @@ func (p *persist) InsertCvmAddresses(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableCvmAddresses+".insert")
+		return EventErr(j, TableCvmAddresses, err)
 	}
 	if upd {
 		_, err = sess.
@@ -827,7 +847,7 @@ func (p *persist) InsertCvmAddresses(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableCvmAddresses+".update")
+			return EventErr(j, TableCvmAddresses, err)
 		}
 	}
 	return nil
@@ -862,6 +882,7 @@ func (p *persist) QueryCvmTransactions(
 func (p *persist) InsertCvmTransactions(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *CvmTransactions,
 	upd bool,
 ) error {
@@ -871,7 +892,7 @@ func (p *persist) InsertCvmTransactions(
 			v.ID, v.Type, v.BlockchainID, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableCvmTransactions+".insert")
+		return EventErr(j, TableCvmTransactions, err)
 	}
 	if upd {
 		_, err = sess.
@@ -879,7 +900,7 @@ func (p *persist) InsertCvmTransactions(
 				v.Type, v.BlockchainID, v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableCvmTransactions+".update")
+			return EventErr(j, TableCvmTransactions, err)
 		}
 	}
 	return nil
@@ -916,6 +937,7 @@ func (p *persist) QueryPvmBlocks(
 func (p *persist) InsertPvmBlocks(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *PvmBlocks,
 	upd bool,
 ) error {
@@ -930,7 +952,7 @@ func (p *persist) InsertPvmBlocks(
 		Pair("serialization", v.Serialization).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TablePvmBlocks+".insert")
+		return EventErr(j, TablePvmBlocks, err)
 	}
 	if upd {
 		_, err = sess.
@@ -942,7 +964,7 @@ func (p *persist) InsertPvmBlocks(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TablePvmBlocks+".update")
+			return EventErr(j, TablePvmBlocks, err)
 		}
 	}
 
@@ -978,6 +1000,7 @@ func (p *persist) QueryRewards(
 func (p *persist) InsertRewards(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *Rewards,
 	upd bool,
 ) error {
@@ -991,7 +1014,7 @@ func (p *persist) InsertRewards(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableRewards+".insert")
+		return EventErr(j, TableRewards, err)
 	}
 	if upd {
 		_, err = sess.
@@ -1002,7 +1025,7 @@ func (p *persist) InsertRewards(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableRewards+".update")
+			return EventErr(j, TableRewards, err)
 		}
 	}
 
@@ -1038,6 +1061,7 @@ func (p *persist) QueryTransactionsValidator(
 func (p *persist) InsertTransactionsValidator(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *TransactionsValidator,
 	upd bool,
 ) error {
@@ -1051,7 +1075,7 @@ func (p *persist) InsertTransactionsValidator(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactionsValidator+".insert")
+		return EventErr(j, TableTransactionsValidator, err)
 	}
 	if upd {
 		_, err = sess.
@@ -1062,7 +1086,7 @@ func (p *persist) InsertTransactionsValidator(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableTransactionsValidator+".update")
+			return EventErr(j, TableTransactionsValidator, err)
 		}
 	}
 	return nil
@@ -1093,6 +1117,7 @@ func (p *persist) QueryTransactionsBlock(
 func (p *persist) InsertTransactionsBlock(
 	ctx context.Context,
 	sess dbr.SessionRunner,
+	j *health.Job,
 	v *TransactionsBlock,
 	upd bool,
 ) error {
@@ -1104,7 +1129,7 @@ func (p *persist) InsertTransactionsBlock(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return stacktrace.Propagate(err, TableTransactionsBlock+".insert")
+		return EventErr(j, TableTransactionsBlock, err)
 	}
 	if upd {
 		_, err = sess.
@@ -1113,7 +1138,7 @@ func (p *persist) InsertTransactionsBlock(
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return stacktrace.Propagate(err, TableTransactionsBlock+".update")
+			return EventErr(j, TableTransactionsBlock, err)
 		}
 	}
 	return nil
