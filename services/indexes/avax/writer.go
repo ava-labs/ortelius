@@ -256,6 +256,7 @@ func (w *Writer) InsertOutput(
 	stakeLocktime uint64,
 	chainID string,
 	stake bool,
+	frozen bool,
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
@@ -273,6 +274,7 @@ func (w *Writer) InsertOutput(
 		Payload:       payload,
 		StakeLocktime: stakeLocktime,
 		Stake:         stake,
+		Frozen:        frozen,
 		CreatedAt:     ctx.Time(),
 	}
 
@@ -402,6 +404,7 @@ func (w *Writer) ProcessStateOut(
 			typedOut.Locktime,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -419,6 +422,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -436,6 +440,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -453,6 +458,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -476,6 +482,7 @@ func (w *Writer) ProcessStateOut(
 			0,
 			chainID,
 			stake,
+			false,
 		)
 		if err != nil {
 			return 0, 0, err

@@ -150,6 +150,7 @@ func TestOutputs(t *testing.T) {
 	v.Payload = []byte("payload")
 	v.StakeLocktime = 6
 	v.Stake = true
+	v.Frozen = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -183,6 +184,7 @@ func TestOutputs(t *testing.T) {
 	v.Payload = []byte("payload2")
 	v.StakeLocktime = 7
 	v.Stake = false
+	v.Frozen = false
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

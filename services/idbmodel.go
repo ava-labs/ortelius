@@ -212,6 +212,7 @@ type Outputs struct {
 	Payload       []byte
 	StakeLocktime uint64
 	Stake         bool
+	Frozen        bool
 	CreatedAt     time.Time
 }
 
@@ -234,6 +235,7 @@ func (p *persist) QueryOutputs(
 		"payload",
 		"stake_locktime",
 		"stake",
+		"frozen",
 		"created_at",
 	).From(TableOutputs).LoadOneContext(ctx, v)
 	return v, err
@@ -261,6 +263,7 @@ func (p *persist) InsertOutputs(
 		Pair("payload", v.Payload).
 		Pair("stake_locktime", v.StakeLocktime).
 		Pair("stake", v.Stake).
+		Pair("frozen", v.Frozen).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -281,6 +284,7 @@ func (p *persist) InsertOutputs(
 			Set("payload", v.Payload).
 			Set("stake_locktime", v.StakeLocktime).
 			Set("stake", v.Stake).
+			Set("frozen", v.Frozen).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {

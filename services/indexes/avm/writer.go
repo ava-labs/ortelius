@@ -178,7 +178,6 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 	for _, vtx := range vertexTxs {
 		switch txt := vtx.(type) {
 		case *avm.UniqueTx:
-
 			txID := txt.Tx.ID()
 			_, err = cCtx.DB().
 				InsertInto("transactions_epoch").
