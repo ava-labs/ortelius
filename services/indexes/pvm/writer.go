@@ -214,7 +214,7 @@ func (w *Writer) indexCommonBlock(
 	}
 	err := ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), pvmBlocks, cfg.PerformUpdates)
 	if err != nil {
-		return ctx.Job().EventErr("InsertTransaction", err)
+		return ctx.Job().EventErr("InsertPvmBlocks", err)
 	}
 
 	return nil
@@ -309,28 +309,16 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
-		_, err := ctx.DB().
-			InsertInto("rewards").
-			Pair("id", castTx.ID().String()).
-			Pair("block_id", blkID.String()).
-			Pair("txid", castTx.TxID.String()).
-			Pair("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
-			Pair("created_at", ctx.Time()).
-			ExecContext(ctx.Ctx())
-		if err != nil && !db.ErrIsDuplicateEntryError(err) {
-			return ctx.Job().EventErr("rewards.insert", err)
+		rewards := &services.Rewards{
+			ID:                 castTx.ID().String(),
+			BlockID:            blkID.String(),
+			Txid:               castTx.TxID.String(),
+			Shouldprefercommit: castTx.InitiallyPrefersCommit(nil),
+			CreatedAt:          ctx.Time(),
 		}
-		if cfg.PerformUpdates {
-			_, err := ctx.DB().
-				Update("rewards").
-				Set("block_id", blkID.String()).
-				Set("txid", castTx.TxID.String()).
-				Set("shouldprefercommit", castTx.InitiallyPrefersCommit(nil)).
-				Where("id = ?", castTx.ID().String()).
-				ExecContext(ctx.Ctx())
-			if err != nil {
-				return ctx.Job().EventErr("rewards.update", err)
-			}
+		err := ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
+		if err != nil {
+			return ctx.Job().EventErr("InsertRewards", err)
 		}
 		return nil
 	}

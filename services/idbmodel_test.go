@@ -666,3 +666,55 @@ func TestPvmBlocks(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestRewards(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &Rewards{}
+	v.ID = "id1"
+	v.BlockID = "bid1"
+	v.Txid = "txid1"
+	v.Shouldprefercommit = true
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableRewards).Exec()
+
+	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryRewards(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.BlockID = "bid2"
+	v.Txid = "txid2"
+	v.Shouldprefercommit = false
+	v.CreatedAt = tm
+
+	err = p.InsertRewards(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryRewards(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.Txid != "txid2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

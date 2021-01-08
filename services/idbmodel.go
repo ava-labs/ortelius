@@ -11,17 +11,20 @@ import (
 	"github.com/palantir/stacktrace"
 )
 
-const TableTransactions = "avm_transactions"
-const TableOutputsRedeeming = "avm_outputs_redeeming"
-const TableOutputs = "avm_outputs"
-const TableAssets = "avm_assets"
-const TableAddresses = "addresses"
-const TableAddressChain = "address_chain"
-const TableOutputAddresses = "avm_output_addresses"
-const TableTransactionsEpochs = "transactions_epoch"
-const TableCvmAddresses = "cvm_addresses"
-const TableCvmTransactions = "cvm_transactions"
-const TablePvmBlocks = "pvm_blocks"
+const (
+	TableTransactions       = "avm_transactions"
+	TableOutputsRedeeming   = "avm_outputs_redeeming"
+	TableOutputs            = "avm_outputs"
+	TableAssets             = "avm_assets"
+	TableAddresses          = "addresses"
+	TableAddressChain       = "address_chain"
+	TableOutputAddresses    = "avm_output_addresses"
+	TableTransactionsEpochs = "transactions_epoch"
+	TableCvmAddresses       = "cvm_addresses"
+	TableCvmTransactions    = "cvm_transactions"
+	TablePvmBlocks          = "pvm_blocks"
+	TableRewards            = "rewards"
+)
 
 type Persist interface {
 	InsertTransaction(
@@ -170,6 +173,19 @@ type Persist interface {
 		ctx context.Context,
 		sess dbr.SessionRunner,
 		v *PvmBlocks,
+		upd bool,
+	) error
+
+	QueryRewards(
+		context.Context,
+		dbr.SessionRunner,
+		*Rewards,
+	) (*Rewards, error)
+
+	InsertRewards(
+		ctx context.Context,
+		sess dbr.SessionRunner,
+		v *Rewards,
 		upd bool,
 	) error
 }
@@ -460,7 +476,7 @@ func (p *persist) InsertAssets(
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto("avm_assets").
+		InsertInto(TableAssets).
 		Pair("id", v.ID).
 		Pair("chain_Id", v.ChainID).
 		Pair("name", v.Name).
@@ -896,6 +912,66 @@ func (p *persist) InsertPvmBlocks(
 			ExecContext(ctx)
 		if err != nil {
 			return stacktrace.Propagate(err, TablePvmBlocks+".insert")
+		}
+	}
+
+	return nil
+}
+
+type Rewards struct {
+	ID                 string
+	BlockID            string
+	Txid               string
+	Shouldprefercommit bool
+	CreatedAt          time.Time
+}
+
+func (p *persist) QueryRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *Rewards,
+) (*Rewards, error) {
+	v := &Rewards{}
+	err := sess.Select(
+		"id",
+		"block_id",
+		"txid",
+		"shouldprefercommit",
+		"created_at",
+	).From(TableRewards).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *Rewards,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableRewards).
+		Pair("id", v.ID).
+		Pair("block_id", v.BlockID).
+		Pair("txid", v.Txid).
+		Pair("shouldprefercommit", v.Shouldprefercommit).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return stacktrace.Propagate(err, TableRewards+".insert")
+	}
+	if upd {
+		_, err := sess.
+			Update(TableRewards).
+			Set("block_id", v.BlockID).
+			Set("txid", v.Txid).
+			Set("shouldprefercommit", v.Shouldprefercommit).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return stacktrace.Propagate(err, TableRewards+".update")
 		}
 	}
 
