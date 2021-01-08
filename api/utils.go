@@ -6,7 +6,12 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/gocraft/web"
 )
 
 // ErrorResponse represents an API error to return to the caller
@@ -44,4 +49,43 @@ func WriteErr(w http.ResponseWriter, code int, msg string) {
 
 	w.WriteHeader(code)
 	_, _ = w.Write(errBytes)
+}
+
+func ParseGet(r *web.Request, n int64) (url.Values, error) {
+	if r == nil {
+		return r.URL.Query(), nil
+	}
+	pf := r.Body
+	if pf == nil {
+		return r.URL.Query(), nil
+	}
+	buf := new(strings.Builder)
+	_, err := io.CopyN(buf, pf, n)
+	switch err {
+	case io.EOF:
+	case nil:
+	default:
+		return r.URL.Query(), err
+	}
+	if buf.Len() > 0 {
+		getq, err := url.ParseQuery(buf.String())
+		switch err {
+		case nil:
+			return mergeValues(getq, r.URL.Query()), nil
+		default:
+			return r.URL.Query(), err
+		}
+	}
+	return r.URL.Query(), nil
+}
+
+func mergeValues(a url.Values, b url.Values) url.Values {
+	for k, v := range b {
+		if _, present := a[k]; present {
+			a[k] = append(a[k], v...)
+		} else {
+			a[k] = append([]string{}, v...)
+		}
+	}
+	return a
 }

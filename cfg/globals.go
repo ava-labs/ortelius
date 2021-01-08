@@ -12,6 +12,8 @@ const (
 	DefaultConsumeProcessWriteTimeout = 10 * time.Second
 
 	DatabaseRetries = 60
+
+	RequestGetMaxSize = int64(10 * 1024 * 1024)
 )
 
 // PerformUpdates controls for performing sql update operations.  Disabled by normal operation.

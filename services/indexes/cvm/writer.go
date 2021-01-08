@@ -58,7 +58,7 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 
 func (*Writer) Name() string { return "cvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader *types.Header) error {
+func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
 	job := w.conns.Stream().NewJob("index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
@@ -69,7 +69,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp()), c.Body(), blockHeader)
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist), c.Body(), blockHeader)
 	if err != nil {
 		return err
 	}
