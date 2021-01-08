@@ -50,10 +50,10 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	if !txList.Transactions[0].Genesis {
-		t.Fatal("Transactions is not genesis")
+		t.Fatal("Transaction is not genesis")
 	}
 	if txList.Transactions[0].Txfee != 0 {
-		t.Fatal("Transactions fee is not 0")
+		t.Fatal("Transaction fee is not 0")
 	}
 
 	// inject a txfee for testing
@@ -71,7 +71,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}, ids.Empty)
 
 	if txList.Transactions[0].Txfee != 101 {
-		t.Fatal("Transactions fee is not 101")
+		t.Fatal("Transaction fee is not 101")
 	}
 
 	addr, _ := ids.ToShortID([]byte("addr"))
@@ -199,3 +199,4 @@ func TestInsertTxInternal(t *testing.T) {
 		t.Fatal("insert failed", err)
 	}
 }
+
