@@ -214,7 +214,7 @@ func NewPersist() Persist {
 }
 
 func EventErr(t string, err error) error {
-	return fmt.Errorf("%w; %s", err, t)
+	return fmt.Errorf("%w (%s)", err, t)
 }
 
 type Transaction struct {
