@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	"github.com/ava-labs/avalanchego/vms/avm"
+
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -16,6 +20,8 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+
+	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 )
 
 var (
@@ -44,35 +50,40 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	if !txList.Transactions[0].Genesis {
-		t.Fatal("Transaction is not genesis")
+		t.Fatal("Transactions is not genesis")
 	}
 	if txList.Transactions[0].Txfee != 0 {
-		t.Fatal("Transaction fee is not 0")
+		t.Fatal("Transactions fee is not 0")
 	}
 
 	// inject a txfee for testing
 	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	_, _ = session.Update("avm_transactions").
-		Set("txfee", 101).
-		Where("id = ?", txList.Transactions[0].ID).
-		ExecContext(context.Background())
+
+	transaction := &services.Transactions{
+		ID: string(txList.Transactions[0].ID),
+	}
+	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
+	transaction.Txfee = 101
+	_ = persist.InsertTransaction(context.Background(), session, transaction, true)
 
 	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
 	}, ids.Empty)
 
 	if txList.Transactions[0].Txfee != 101 {
-		t.Fatal("Transaction fee is not 101")
+		t.Fatal("Transactions fee is not 101")
 	}
 
 	addr, _ := ids.ToShortID([]byte("addr"))
 
 	sess, _ := writer.conns.DB().NewSession("address_chain", cfg.RequestTimeout)
-	_, _ = sess.InsertInto("address_chain").
-		Pair("address", addr.String()).
-		Pair("chain_id", "ch1").
-		Pair("created_at", time.Now()).
-		ExecContext(context.Background())
+
+	addressChain := &services.AddressChain{
+		Address:   addr.String(),
+		ChainID:   "ch1",
+		CreatedAt: time.Now(),
+	}
+	_ = persist.InsertAddressChain(context.Background(), sess, addressChain, false)
 
 	addressChains, err := reader.AddressChains(context.Background(), &params.AddressChainsParams{
 		Addresses: []ids.ShortID{addr},
@@ -150,4 +161,41 @@ func newTestContext() context.Context {
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	time.AfterFunc(5*time.Second, cancelFn)
 	return ctx
+}
+
+func TestInsertTxInternal(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.BaseTx{}
+
+	transferableOut := &avalancheGoAvax.TransferableOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	baseTx.Outs = []*avalancheGoAvax.TransferableOutput{transferableOut}
+
+	transferableIn := &avalancheGoAvax.TransferableInput{}
+	transferableIn.In = &secp256k1fx.TransferInput{}
+	baseTx.Ins = []*avalancheGoAvax.TransferableInput{transferableIn}
+
+	tx.UnsignedTx = baseTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 1 {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Outputs) != 1 {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed", err)
+	}
 }

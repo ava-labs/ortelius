@@ -1,11 +1,18 @@
-package pvm
+// (c) 2020, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package cvm
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm"
+	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/coreth/plugin/evm"
 
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -13,33 +20,11 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
 var (
 	testXChainID = ids.ID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
 )
-
-func TestBootstrap(t *testing.T) {
-	w, r, closeFn := newTestIndex(t, 12345, ChainID)
-	defer closeFn()
-
-	persist := services.NewPersist()
-	if err := w.Bootstrap(context.Background(), persist); err != nil {
-		t.Fatal(err)
-	}
-
-	txList, err := r.ListTransactions(context.Background(), &params.ListTransactionsParams{
-		ChainIDs: []string{ChainID.String()},
-	}, ids.Empty)
-	if err != nil {
-		t.Fatal("Failed to list transactions:", err.Error())
-	}
-
-	if txList == nil || *txList.Count != 7 {
-		t.Fatal("Incorrect number of transactions:", txList.Count)
-	}
-}
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
 	// Start test redis
@@ -84,61 +69,71 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 	}
 }
 
-func TestInsertTxInternal(t *testing.T) {
+func TestInsertTxInternalExport(t *testing.T) {
 	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
-	tx := platformvm.Tx{}
-	validatorTx := &platformvm.UnsignedAddValidatorTx{}
-	tx.UnsignedTx = validatorTx
+	tx := &evm.Tx{}
+
+	extx := &evm.UnsignedExportTx{}
+	extxIn := evm.EVMInput{}
+	extx.Ins = []evm.EVMInput{extxIn}
+	transferableOut := &avalancheGoAvax.TransferableOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	extx.ExportedOutputs = []*avalancheGoAvax.TransferableOutput{transferableOut}
+
+	tx.UnsignedTx = extx
+	header := &types.Header{}
 
 	persist := services.NewPersistMock()
 	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := writer.conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), header)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
-	if len(persist.Transactions) != 1 {
+	if len(persist.CvmTransactions) != 1 {
 		t.Fatal("insert failed")
 	}
-	if len(persist.TransactionsBlock) != 1 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.TransactionsValidator) != 1 {
+	if len(persist.Outputs) != 1 {
 		t.Fatal("insert failed")
 	}
 }
 
-func TestInsertTxInternalRewards(t *testing.T) {
+func TestInsertTxInternalImport(t *testing.T) {
 	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
-	tx := platformvm.Tx{}
-	validatorTx := &platformvm.UnsignedRewardValidatorTx{}
-	tx.UnsignedTx = validatorTx
+	tx := &evm.Tx{}
+
+	extx := &evm.UnsignedImportTx{}
+	evtxOut := evm.EVMOutput{}
+	extx.Outs = []evm.EVMOutput{evtxOut}
+	transferableIn := &avalancheGoAvax.TransferableInput{}
+	transferableIn.In = &secp256k1fx.TransferInput{}
+	extx.ImportedInputs = []*avalancheGoAvax.TransferableInput{transferableIn}
+
+	tx.UnsignedTx = extx
+	header := &types.Header{}
 
 	persist := services.NewPersistMock()
 	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := writer.conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), header)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
-	if len(persist.Transactions) != 0 {
+	if len(persist.CvmTransactions) != 1 {
 		t.Fatal("insert failed")
 	}
-	if len(persist.TransactionsBlock) != 0 {
+	if len(persist.CvmAddresses) != 1 {
 		t.Fatal("insert failed")
 	}
-	if len(persist.TransactionsValidator) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.Rewards) != 1 {
+	if len(persist.OutputsRedeeming) != 1 {
 		t.Fatal("insert failed")
 	}
 }

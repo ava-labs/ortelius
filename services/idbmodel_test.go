@@ -20,7 +20,7 @@ func TestTransaction(t *testing.T) {
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
-	v := &Transaction{}
+	v := &Transactions{}
 	v.ID = "id"
 	v.ChainID = "cid1"
 	v.Type = "txtype"
@@ -42,7 +42,7 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err := p.QueryTransaction(ctx, rawDBConn.NewSession(stream), v)
+	fv, err := p.QueryTransactions(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
@@ -61,7 +61,7 @@ func TestTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err = p.QueryTransaction(ctx, rawDBConn.NewSession(stream), v)
+	fv, err = p.QueryTransactions(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}

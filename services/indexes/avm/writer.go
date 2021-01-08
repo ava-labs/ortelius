@@ -271,7 +271,10 @@ func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
 	if err != nil {
 		return err
 	}
+	return w.insertTxInternal(ctx, tx, txBytes)
+}
 
+func (w *Writer) insertTxInternal(ctx services.ConsumerCtx, tx *avm.Tx, txBytes []byte) error {
 	// Finish processing with a type-specific ingestion routine
 	switch castTx := tx.UnsignedTx.(type) {
 	case *avm.CreateAssetTx:

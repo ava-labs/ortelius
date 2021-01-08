@@ -147,7 +147,7 @@ func (w *Writer) InsertTransactionBase(
 		memo = nil
 	}
 
-	t := &services.Transaction{
+	t := &services.Transactions{
 		ID:                     txID.String(),
 		ChainID:                chainID,
 		Type:                   txType,
