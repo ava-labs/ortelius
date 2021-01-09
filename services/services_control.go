@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/ortelius/utils"
 	"net"
 	"sync"
 	"time"
@@ -24,8 +23,8 @@ const (
 	MetricConsumeSuccessCountKey         = "consume_records_success"
 	MetricConsumeFailureCountKey         = "consume_records_failure"
 
-	TopicCheckInteval = 10*time.Second
-	TopicOffsetTimeout = 10*time.Second
+	TopicCheckInteval  = 10 * time.Second
+	TopicOffsetTimeout = 10 * time.Second
 )
 
 type TopicGroup struct {
@@ -46,8 +45,8 @@ type Control struct {
 	connectionsRO *Connections
 	Persist       Persist
 	topicLock     sync.RWMutex
-	topicOnce	sync.Once
-	topicGroups map[string]TopicGroup
+	topicOnce     sync.Once
+	topicGroups   map[string]TopicGroup
 }
 
 func (s *Control) TopicMonitor(tg TopicGroup) {
@@ -75,8 +74,8 @@ func (s *Control) TopicMonitor(tg TopicGroup) {
 					s.Log.Error("connect broker %s %v", s.Kafka.Brokers[0], err)
 					return
 				}
-				for _,topicGroup := range topicGroups {
-					topicUtil := utils.NewTopicUtil(addr, time.Duration(0), topicGroup.Topic)
+				for _, topicGroup := range topicGroups {
+					topicUtil := NewTopicUtil(addr, time.Duration(0), topicGroup.Topic)
 					ctx, cancelFn := context.WithTimeout(context.Background(), TopicOffsetTimeout)
 					defer cancelFn()
 					resp, err := topicUtil.CommittedOffets(ctx, topicGroup.Group)

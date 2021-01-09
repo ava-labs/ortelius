@@ -79,7 +79,7 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic:topicName, Group: conf.Consumer.GroupName})
+		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: conf.Consumer.GroupName})
 
 		return c
 	}

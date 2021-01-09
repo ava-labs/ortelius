@@ -5,6 +5,7 @@ package avax
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services"
 	"testing"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 

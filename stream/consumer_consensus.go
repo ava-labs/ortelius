@@ -92,7 +92,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic:topicName, Group: groupName})
+		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: groupName})
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {

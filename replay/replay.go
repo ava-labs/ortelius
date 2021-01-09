@@ -344,7 +344,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 
 func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer *cvm.Writer, uidkey string) error {
 	tn := fmt.Sprintf("%d-%s-cchain", replay.config.NetworkID, chain)
-	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+	tu := services.NewTopicUtil(addr, time.Duration(0), tn)
 
 	parts, err := tu.Partitions(context.Background())
 	if err != nil {
@@ -442,7 +442,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 
 func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
-	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+	tu := services.NewTopicUtil(addr, time.Duration(0), tn)
 
 	parts, err := tu.Partitions(context.Background())
 	if err != nil {
@@ -528,7 +528,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 
 func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, writer services.Consumer, uidkey string) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
-	tu := utils.NewTopicUtil(addr, time.Duration(0), tn)
+	tu := services.NewTopicUtil(addr, time.Duration(0), tn)
 
 	parts, err := tu.Partitions(context.Background())
 	if err != nil {
