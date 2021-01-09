@@ -34,62 +34,68 @@ func TestCollectInsAndOuts(t *testing.T) {
 	txID := "tx1"
 	intxID := "tx0"
 	address := "addr1"
-	idx := 0
+	idx := uint32(0)
 	assetID := "assid1"
 	outputType := models.OutputTypesSECP2556K1Transfer
-	amount := 1
-	locktime := 0
-	thresholD := 0
-	groupID := 0
+	amount := uint64(1)
+	locktime := uint64(0)
+	thresholD := uint32(0)
+	groupID := uint32(0)
 	payload := []byte("")
 	stakeLocktime := uint64(99991)
 	time := time.Now().Truncate(1 * time.Hour)
 
 	inputIDUnmatched := "inu"
 
-	_, _ = session.InsertInto("avm_outputs").
-		Pair("id", outputID).
-		Pair("chain_id", chainID).
-		Pair("transaction_id", txID).
-		Pair("output_index", idx).
-		Pair("asset_id", assetID).
-		Pair("output_type", outputType).
-		Pair("amount", amount).
-		Pair("locktime", locktime).
-		Pair("threshold", thresholD).
-		Pair("group_id", groupID).
-		Pair("payload", payload).
-		Pair("stake_locktime", stakeLocktime).
-		Pair("created_at", time).
-		ExecContext(ctx)
+	persist := services.NewPersist()
 
-	_, _ = session.InsertInto("avm_output_addresses").
-		Pair("output_id", outputID).
-		Pair("address", address).
-		Pair("created_at", time).
-		Exec()
+	outputs := &services.Outputs{
+		ID:            outputID,
+		ChainID:       chainID,
+		TransactionID: txID,
+		OutputIndex:   idx,
+		AssetID:       assetID,
+		OutputType:    outputType,
+		Amount:        amount,
+		Locktime:      locktime,
+		Threshold:     thresholD,
+		GroupID:       groupID,
+		Payload:       payload,
+		StakeLocktime: stakeLocktime,
+		CreatedAt:     time,
+	}
+	_ = persist.InsertOutputs(ctx, session, outputs, false)
 
-	_, _ = session.InsertInto("avm_outputs_redeeming").
-		Pair("id", inputID).
-		Pair("redeemed_at", time).
-		Pair("redeeming_transaction_id", txID).
-		Pair("amount", amount).
-		Pair("output_index", idx).
-		Pair("intx", intxID).
-		Pair("asset_id", assetID).
-		Pair("created_at", time).
-		ExecContext(ctx)
+	outputAddresses := &services.OutputAddresses{
+		OutputID:  outputID,
+		Address:   address,
+		CreatedAt: time,
+	}
+	_ = persist.InsertOutputAddresses(ctx, session, outputAddresses, false)
 
-	_, _ = session.InsertInto("avm_outputs_redeeming").
-		Pair("id", inputIDUnmatched).
-		Pair("redeemed_at", time).
-		Pair("redeeming_transaction_id", txID).
-		Pair("amount", amount).
-		Pair("output_index", idx).
-		Pair("intx", intxID).
-		Pair("asset_id", assetID).
-		Pair("created_at", time).
-		ExecContext(ctx)
+	outputsRedeeming := &services.OutputsRedeeming{
+		ID:                     inputID,
+		RedeemedAt:             time,
+		RedeemingTransactionID: txID,
+		Amount:                 amount,
+		OutputIndex:            idx,
+		Intx:                   intxID,
+		AssetID:                assetID,
+		CreatedAt:              time,
+	}
+	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
+
+	outputsRedeeming = &services.OutputsRedeeming{
+		ID:                     inputIDUnmatched,
+		RedeemedAt:             time,
+		RedeemingTransactionID: txID,
+		Amount:                 amount,
+		OutputIndex:            idx,
+		Intx:                   intxID,
+		AssetID:                assetID,
+		CreatedAt:              time,
+	}
+	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
 	records, _ := reader.collectInsAndOuts(ctx, session, []models.StringID{models.StringID(txID)})
 
@@ -122,26 +128,30 @@ func TestAggregateTxfee(t *testing.T) {
 
 	ctx := newTestContext()
 
+	persist := services.NewPersist()
+
 	sess, _ := reader.conns.DB().NewSession("test_aggregate_tx_fee", cfg.RequestTimeout)
 	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
 
 	tnow := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
 
-	_, _ = sess.InsertInto("avm_transactions").
-		Pair("id", "id1").
-		Pair("chain_id", "cid").
-		Pair("type", "type").
-		Pair("created_at", tnow).
-		Pair("txfee", 10).
-		ExecContext(ctx)
+	transaction := &services.Transactions{
+		ID:        "id1",
+		ChainID:   "cid",
+		Type:      "type",
+		Txfee:     10,
+		CreatedAt: tnow,
+	}
+	_ = persist.InsertTransaction(ctx, sess, transaction, false)
 
-	_, _ = sess.InsertInto("avm_transactions").
-		Pair("id", "id2").
-		Pair("chain_id", "cid").
-		Pair("type", "type").
-		Pair("created_at", tnow.Add(-1*time.Hour)).
-		Pair("txfee", 15).
-		ExecContext(ctx)
+	transaction = &services.Transactions{
+		ID:        "id2",
+		ChainID:   "cid",
+		Type:      "type",
+		Txfee:     15,
+		CreatedAt: tnow.Add(-1 * time.Hour),
+	}
+	_ = persist.InsertTransaction(ctx, sess, transaction, false)
 
 	starttime := tnow.Add(-2 * time.Hour)
 	endtime := tnow.Add(1 * time.Second)

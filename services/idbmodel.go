@@ -29,15 +29,15 @@ const (
 )
 
 type Persist interface {
-	QueryTransaction(
+	QueryTransactions(
 		context.Context,
 		dbr.SessionRunner,
-		*Transaction,
-	) (*Transaction, error)
+		*Transactions,
+	) (*Transactions, error)
 	InsertTransaction(
 		context.Context,
 		dbr.SessionRunner,
-		*Transaction,
+		*Transactions,
 		bool,
 	) error
 
@@ -107,7 +107,6 @@ type Persist interface {
 		dbr.SessionRunner,
 		*OutputAddresses,
 	) (*OutputAddresses, error)
-
 	InsertOutputAddresses(
 		context.Context,
 		dbr.SessionRunner,
@@ -217,7 +216,7 @@ func EventErr(t string, err error) error {
 	return fmt.Errorf("%w (%s)", err, t)
 }
 
-type Transaction struct {
+type Transactions struct {
 	ID                     string
 	ChainID                string
 	Type                   string
@@ -228,12 +227,12 @@ type Transaction struct {
 	CreatedAt              time.Time
 }
 
-func (p *persist) QueryTransaction(
+func (p *persist) QueryTransactions(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *Transaction,
-) (*Transaction, error) {
-	v := &Transaction{}
+	q *Transactions,
+) (*Transactions, error) {
+	v := &Transactions{}
 	err := sess.Select(
 		"id",
 		"chain_id",
@@ -252,7 +251,7 @@ func (p *persist) QueryTransaction(
 func (p *persist) InsertTransaction(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *Transaction,
+	v *Transactions,
 	upd bool,
 ) error {
 	var err error
@@ -516,7 +515,7 @@ func (p *persist) InsertAssets(
 	}
 	if upd {
 		_, err = sess.
-			Update("avm_assets").
+			Update(TableAssets).
 			Set("chain_Id", v.ChainID).
 			Set("name", v.Name).
 			Set("symbol", v.Symbol).
