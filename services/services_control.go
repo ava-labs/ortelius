@@ -68,11 +68,22 @@ type Control struct {
 	topicGroupParts    map[string]*Offsets
 }
 
-func (s *Control) TopicMonitor(tg TopicGroup) {
+func (s *Control) Init() {
 	s.topicLock.Lock()
 	if s.topicGroups == nil {
 		s.topicGroups = make(map[string]TopicGroup)
 	}
+	s.topicLock.Unlock()
+
+	s.topicGroupPartLock.Lock()
+	if s.topicGroupParts == nil {
+		s.topicGroupParts = make(map[string]*Offsets)
+	}
+	s.topicGroupPartLock.Unlock()
+}
+
+func (s *Control) TopicMonitor(tg TopicGroup) {
+	s.topicLock.Lock()
 	s.topicGroups[tg.String()] = tg
 	s.topicLock.Unlock()
 
@@ -106,7 +117,7 @@ func (s *Control) TopicMonitor(tg TopicGroup) {
 
 func (s *Control) TgC() {
 	s.topicGroupPartLock.RLock()
-	defer s.topicGroupPartLock.Unlock()
+	defer s.topicGroupPartLock.RUnlock()
 	for k, v := range s.topicGroupParts {
 		off := atomic.LoadInt64(v.Offset)
 		coff := atomic.LoadInt64(v.CommitOffset)
@@ -218,6 +229,7 @@ func (s *Control) UpdOff(tgp *TopicGroupPart, offset int64) {
 		CommitOffset: new(int64),
 	}
 	atomic.StoreInt64(offsets.Offset, offset)
+	atomic.StoreInt64(offsets.CommitOffset, offset)
 	s.topicGroupParts[tpgs] = offsets
 }
 
@@ -244,6 +256,7 @@ func (s *Control) UpdCom(tgp *TopicGroupPart, commitoffset int64) {
 		Offset:       new(int64),
 		CommitOffset: new(int64),
 	}
+	atomic.StoreInt64(offsets.Offset, commitoffset)
 	atomic.StoreInt64(offsets.CommitOffset, commitoffset)
 	s.topicGroupParts[tpgs] = offsets
 }

@@ -130,7 +130,6 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 		return err
 	}
-	c.sc.TopicMessage(c.groupName, msg.kafkaMessage)
 
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
@@ -197,6 +196,7 @@ func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error
 	if err != nil {
 		return nil, err
 	}
+	c.sc.TopicMessage(c.groupName, &msg)
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)

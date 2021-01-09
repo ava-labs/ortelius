@@ -115,7 +115,6 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		}
 		return err
 	}
-	c.sc.TopicMessage(c.groupName, msg.kafkaMessage)
 
 	return c.Consume(msg, c.sc.Persist)
 }
@@ -188,6 +187,7 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.sc.TopicMessage(c.groupName, &msg)
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
