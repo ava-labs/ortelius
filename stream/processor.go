@@ -6,10 +6,11 @@ package stream
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/ortelius/services"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/ortelius/services"
 
 	"github.com/segmentio/kafka-go"
 

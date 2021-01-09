@@ -35,6 +35,8 @@ type consumerconsensus struct {
 	metricFailureCountKey         string
 	metricProcessMillisCounterKey string
 	metricSuccessCountKey         string
+
+	groupName string
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
@@ -75,12 +77,12 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		}
 
 		// Setup config
-		groupName := conf.Consumer.GroupName
-		if groupName == "" {
-			groupName = c.consumer.Name()
+		c.groupName = conf.Consumer.GroupName
+		if c.groupName == "" {
+			c.groupName = c.consumer.Name()
 		}
 		if !conf.Consumer.StartTime.IsZero() {
-			groupName = ""
+			c.groupName = ""
 		}
 
 		topicName := GetTopicName(conf.NetworkID, chainID, EventTypeConsensus)
@@ -88,11 +90,11 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
 			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
-			GroupID:     groupName,
+			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: groupName})
+		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: c.groupName})
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {
@@ -128,6 +130,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 		return err
 	}
+	c.sc.TopicMessage(c.groupName, msg.kafkaMessage)
 
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),

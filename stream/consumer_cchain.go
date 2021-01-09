@@ -49,6 +49,8 @@ type ConsumerCChain struct {
 	quitCh   chan struct{}
 	doneCh   chan struct{}
 	consumer *cvm.Writer
+
+	groupName string
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
@@ -71,15 +73,24 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 		sc.InitConsumeMetrics()
 
+		// Setup config
+		c.groupName = conf.Consumer.GroupName
+		if c.groupName == "" {
+			c.groupName = c.consumer.Name()
+		}
+		if !conf.Consumer.StartTime.IsZero() {
+			c.groupName = ""
+		}
+
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
 			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
-			GroupID:     conf.Consumer.GroupName,
+			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: conf.Consumer.GroupName})
+		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: c.groupName})
 
 		return c
 	}
@@ -104,6 +115,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		}
 		return err
 	}
+	c.sc.TopicMessage(c.groupName, msg.kafkaMessage)
 
 	return c.Consume(msg, c.sc.Persist)
 }
