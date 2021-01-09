@@ -60,7 +60,7 @@ func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable, pers
 }
 
 func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist services.Persist) error {
-	job := w.conns.Stream().NewJob("index")
+	job := w.conns.Stream().NewJob("pvm-index")
 	sess := w.conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()

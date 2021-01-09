@@ -216,7 +216,7 @@ func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []snowstorm.T
 func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
-		job  = w.conns.Stream().NewJob("index")
+		job  = w.conns.Stream().NewJob("avm-index")
 		sess = w.conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", i.ID())
