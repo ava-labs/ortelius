@@ -18,6 +18,7 @@ var (
 )
 
 type TopicUtil interface {
+	CommittedOffets(ctx context.Context, group string) (*kafka.OffsetFetchResponse, error)
 	Partitions(ctx context.Context) (map[int]kafka.PartitionOffsets, error)
 	Consume(brokers []string, offset int64, maxBytes int, readTimeout time.Duration, accept func(kafka.Message) error, partitions []int) error
 	Close()
@@ -42,6 +43,24 @@ func NewTopicUtil(addr net.Addr, timeout time.Duration, topicName string) TopicU
 func (tu *topicUtil) init() {
 	tu.running.SetValue(true)
 	tu.kafkaClient = kafka.Client{Addr: tu.addr, Timeout: time.Duration(0)}
+}
+
+func (tu *topicUtil) CommittedOffets(ctx context.Context, group string) (*kafka.OffsetFetchResponse, error) {
+	part, err := tu.Partitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	topics := make(map[string][]int)
+	topics[tu.topicName] = []int{}
+	for pt := range part {
+		topics[tu.topicName] = append(topics[tu.topicName], pt)
+	}
+	req := &kafka.OffsetFetchRequest{
+		GroupID: group,
+		Topics:  topics,
+	}
+	return tu.kafkaClient.OffsetFetch(ctx, req)
 }
 
 func (tu *topicUtil) Partitions(ctx context.Context) (map[int]kafka.PartitionOffsets, error) {
