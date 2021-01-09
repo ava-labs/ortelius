@@ -90,7 +90,6 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: c.groupName})
 
 		return c
 	}
@@ -187,7 +186,6 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.sc.TopicMessage(c.groupName, &msg)
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)

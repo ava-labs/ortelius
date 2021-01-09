@@ -107,7 +107,6 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
-		sc.TopicMonitor(services.TopicGroup{Topic: topicName, Group: c.groupName})
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {
@@ -209,7 +208,6 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.sc.TopicMessage(c.groupName, &msg)
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
