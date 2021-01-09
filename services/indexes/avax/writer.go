@@ -147,7 +147,7 @@ func (w *Writer) InsertTransactionBase(
 		memo = nil
 	}
 
-	t := &services.Transaction{
+	t := &services.Transactions{
 		ID:                     txID.String(),
 		ChainID:                chainID,
 		Type:                   txType,
@@ -207,7 +207,6 @@ func (w *Writer) InsertTransactionIns(
 				if err != nil {
 					return 0, err
 				}
-
 				err = w.InsertAddressFromPublicKey(ctx, publicKey)
 				if err != nil {
 					return 0, err

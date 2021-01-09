@@ -8,6 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+
+	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
+
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	"github.com/ava-labs/avalanchego/vms/avm"
+
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -16,6 +25,8 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+
+	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 )
 
 var (
@@ -23,7 +34,7 @@ var (
 )
 
 func TestIndexBootstrap(t *testing.T) {
-	writer, reader, closeFn := newTestIndex(t, 5, testXChainID)
+	writer, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 
 	persist := services.NewPersist()
@@ -52,10 +63,13 @@ func TestIndexBootstrap(t *testing.T) {
 
 	// inject a txfee for testing
 	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	_, _ = session.Update("avm_transactions").
-		Set("txfee", 101).
-		Where("id = ?", txList.Transactions[0].ID).
-		ExecContext(context.Background())
+
+	transaction := &services.Transactions{
+		ID: string(txList.Transactions[0].ID),
+	}
+	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
+	transaction.Txfee = 101
+	_ = persist.InsertTransaction(context.Background(), session, transaction, true)
 
 	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
@@ -68,11 +82,13 @@ func TestIndexBootstrap(t *testing.T) {
 	addr, _ := ids.ToShortID([]byte("addr"))
 
 	sess, _ := writer.conns.DB().NewSession("address_chain", cfg.RequestTimeout)
-	_, _ = sess.InsertInto("address_chain").
-		Pair("address", addr.String()).
-		Pair("chain_id", "ch1").
-		Pair("created_at", time.Now()).
-		ExecContext(context.Background())
+
+	addressChain := &services.AddressChain{
+		Address:   addr.String(),
+		ChainID:   "ch1",
+		CreatedAt: time.Now(),
+	}
+	_ = persist.InsertAddressChain(context.Background(), sess, addressChain, false)
 
 	addressChains, err := reader.AddressChains(context.Background(), &params.AddressChainsParams{
 		Addresses: []ids.ShortID{addr},
@@ -103,7 +119,8 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+	networkID := uint32(5)
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -150,4 +167,156 @@ func newTestContext() context.Context {
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	time.AfterFunc(5*time.Second, cancelFn)
 	return ctx
+}
+
+func TestInsertTxInternal(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.BaseTx{}
+
+	transferableOut := &avalancheGoAvax.TransferableOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	baseTx.Outs = []*avalancheGoAvax.TransferableOutput{transferableOut}
+
+	transferableIn := &avalancheGoAvax.TransferableInput{}
+	transferableIn.In = &secp256k1fx.TransferInput{}
+	baseTx.Ins = []*avalancheGoAvax.TransferableInput{transferableIn}
+
+	f := crypto.FactorySECP256K1R{}
+	pk, _ := f.NewPrivateKey()
+	sb, _ := pk.Sign(baseTx.UnsignedBytes())
+	cred := &secp256k1fx.Credential{}
+	cred.Sigs = make([][crypto.SECP256K1RSigLen]byte, 0, 1)
+	sig := [crypto.SECP256K1RSigLen]byte{}
+	copy(sig[:], sb)
+	cred.Sigs = append(cred.Sigs, sig)
+	tx.Creds = []verify.Verifiable{cred}
+
+	tx.UnsignedTx = baseTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Outputs) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestInsertTxInternalCreateAsset(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.CreateAssetTx{}
+
+	transferableOut := &avalancheGoAvax.TransferableOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	baseTx.Outs = []*avalancheGoAvax.TransferableOutput{transferableOut}
+
+	transferableIn := &avalancheGoAvax.TransferableInput{}
+	transferableIn.In = &secp256k1fx.TransferInput{}
+	baseTx.Ins = []*avalancheGoAvax.TransferableInput{transferableIn}
+
+	tx.UnsignedTx = baseTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Outputs) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Assets) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestInsertVertex(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := &avm.Tx{}
+	baseTx := &avm.BaseTx{}
+
+	tx.UnsignedTx = baseTx
+
+	utx := &avm.UniqueTx{TxState: &avm.TxState{}}
+	utx.Tx = tx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.insertVertex(cCtx, []snowstorm.Tx{utx}, tx.ID(), 0)
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Outputs) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Addresses) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.AddressChain) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputsRedeeming) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Assets) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsEpoch) != 1 {
+		t.Fatal("insert failed")
+	}
 }

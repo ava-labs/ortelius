@@ -3,6 +3,13 @@ package pvm
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/ava-labs/avalanchego/vms/components/core"
+
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 
 	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -11,6 +18,10 @@ import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+)
+
+var (
+	testXChainID = ids.ID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
 )
 
 func TestBootstrap(t *testing.T) {
@@ -74,5 +85,85 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 	return writer, reader, func() {
 		s.Close()
 		_ = conns.Close()
+	}
+}
+
+func TestInsertTxInternal(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := platformvm.Tx{}
+	validatorTx := &platformvm.UnsignedAddValidatorTx{}
+	tx.UnsignedTx = validatorTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsBlock) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsValidator) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestInsertTxInternalRewards(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := platformvm.Tx{}
+	validatorTx := &platformvm.UnsignedRewardValidatorTx{}
+	tx.UnsignedTx = validatorTx
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.Transactions) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsBlock) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.TransactionsValidator) != 0 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.Rewards) != 1 {
+		t.Fatal("insert failed")
+	}
+}
+
+func TestCommonBlock(t *testing.T) {
+	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	tx := platformvm.CommonBlock{Block: &core.Block{}}
+	blkid := ids.ID{}
+
+	persist := services.NewPersistMock()
+	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := writer.conns.Stream().NewJob("")
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	err := writer.indexCommonBlock(cCtx, blkid, models.BlockTypeCommit, tx, []byte(""))
+	if err != nil {
+		t.Fatal("insert failed", err)
+	}
+	if len(persist.PvmBlocks) != 1 {
+		t.Fatal("insert failed")
 	}
 }
