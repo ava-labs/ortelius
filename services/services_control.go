@@ -145,7 +145,6 @@ func (s *Control) tc(tu TopicUtil, topicGroup TopicGroup) {
 				s.Log.Error("resp offset %s %s %s %v", s.Kafka.Brokers[0], topicGroup, topic, offsetPart.Error)
 				continue
 			}
-			s.Log.Info("topic: %s %s %d %d %s", topicGroup, topic, offsetPart.Partition, offsetPart.CommittedOffset, offsetPart.Metadata)
 
 			tgp := TopicGroupPart{TopicGroup: topicGroup, Partition: offsetPart.Partition}
 			s.UpdCom(&tgp, offsetPart.CommittedOffset)
