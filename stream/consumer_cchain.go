@@ -72,8 +72,6 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		sc.InitConsumeMetrics()
 
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
-
-		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
 			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
@@ -81,6 +79,7 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
+		sc.TopicMonitor(services.TopicGroup{Topic:topicName, Group: conf.Consumer.GroupName})
 
 		return c
 	}

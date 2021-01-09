@@ -96,14 +96,16 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			groupName = ""
 		}
 
+		topicName :=  GetTopicName(conf.NetworkID, chainID, EventTypeDecisions)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeDecisions),
+			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
+		sc.TopicMonitor(services.TopicGroup{Topic:topicName, Group: groupName})
 
 		// If the start time is set then seek to the correct offset
 		if !conf.Consumer.StartTime.IsZero() {
