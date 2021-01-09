@@ -98,7 +98,6 @@ func execute() error {
 				serviceControl.Init()
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
-				serviceControl.Kafka = c.Kafka
 				serviceControl.Persist = services.NewPersist()
 
 				*config = *c

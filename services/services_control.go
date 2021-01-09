@@ -21,14 +21,8 @@ const (
 	MetricConsumeFailureCountKey         = "consume_records_failure"
 )
 
-type Offsets struct {
-	Offset       *int64
-	CommitOffset *int64
-}
-
 type Control struct {
 	Services      cfg.Services
-	Kafka         cfg.Kafka
 	Log           logging.Logger `json:"log"`
 	dbLock        sync.Mutex
 	connections   *Connections
