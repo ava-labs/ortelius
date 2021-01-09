@@ -1,10 +1,6 @@
 package services
 
 import (
-	"context"
-	"fmt"
-	"github.com/ava-labs/ortelius/utils"
-	"net"
 	"sync"
 	"time"
 
@@ -23,84 +19,15 @@ const (
 	MetricConsumeProcessMillisCounterKey = "consume_records_process_millis"
 	MetricConsumeSuccessCountKey         = "consume_records_success"
 	MetricConsumeFailureCountKey         = "consume_records_failure"
-
-	TopicCheckInteval = 10*time.Second
-	TopicOffsetTimeout = 10*time.Second
 )
-
-type TopicGroup struct {
-	Topic string
-	Group string
-}
-
-func (tg *TopicGroup) String() string {
-	return fmt.Sprintf("%s:%s", tg.Topic, tg.Group)
-}
 
 type Control struct {
 	Services      cfg.Services
-	Kafka         cfg.Kafka
 	Log           logging.Logger `json:"log"`
-	dbLock        sync.Mutex
+	lock          sync.Mutex
 	connections   *Connections
 	connectionsRO *Connections
 	Persist       Persist
-	topicLock     sync.RWMutex
-	topicOnce	sync.Once
-	topicGroups map[string]TopicGroup
-}
-
-func (s *Control) TopicMonitor(tg TopicGroup) {
-	s.topicLock.Lock()
-	if s.topicGroups == nil {
-		s.topicGroups = make(map[string]TopicGroup)
-	}
-	s.topicGroups[tg.String()] = tg
-	s.topicLock.Unlock()
-
-	s.topicOnce.Do(func() {
-		go func() {
-			tick := time.NewTicker(TopicCheckInteval)
-
-			for range tick.C {
-				topicGroups := []TopicGroup{}
-				s.topicLock.RLock()
-				for _, topicGroup := range s.topicGroups {
-					topicGroups = append(topicGroups, topicGroup)
-				}
-				s.topicLock.RUnlock()
-
-				addr, err := net.ResolveTCPAddr("tcp", s.Kafka.Brokers[0])
-				if err != nil {
-					s.Log.Error("connect broker %s %v", s.Kafka.Brokers[0], err)
-					return
-				}
-				for _,topicGroup := range topicGroups {
-					topicUtil := utils.NewTopicUtil(addr, time.Duration(0), topicGroup.Topic)
-					ctx, cancelFn := context.WithTimeout(context.Background(), TopicOffsetTimeout)
-					defer cancelFn()
-					resp, err := topicUtil.CommittedOffets(ctx, topicGroup.Group)
-					if err != nil {
-						s.Log.Error("req offset %s %s %v", s.Kafka.Brokers[0], topicGroup, err)
-						continue
-					}
-					if resp.Error != nil {
-						s.Log.Error("resp offset %s %s %v", s.Kafka.Brokers[0], topicGroup, resp.Error)
-						continue
-					}
-					for topic, offsetParts := range resp.Topics {
-						for _, offsetPart := range offsetParts {
-							if offsetPart.Error != nil {
-								s.Log.Error("resp offset %s %s %s %v", s.Kafka.Brokers[0], topicGroup, topic, offsetPart.Error)
-								continue
-							}
-							s.Log.Info("topic: %s %s %d %d %s", topicGroup, topic, offsetPart.Partition, offsetPart.CommittedOffset, offsetPart.Metadata)
-						}
-					}
-				}
-			}
-		}()
-	})
 }
 
 func (s *Control) InitProduceMetrics() {
@@ -117,8 +44,8 @@ func (s *Control) InitConsumeMetrics() {
 }
 
 func (s *Control) Database() (*Connections, error) {
-	s.dbLock.Lock()
-	defer s.dbLock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	if s.connections != nil {
 		return s.connections, nil
 	}
@@ -134,8 +61,8 @@ func (s *Control) Database() (*Connections, error) {
 }
 
 func (s *Control) DatabaseRO() (*Connections, error) {
-	s.dbLock.Lock()
-	defer s.dbLock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	if s.connectionsRO != nil {
 		return s.connectionsRO, nil
 	}
