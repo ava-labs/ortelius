@@ -84,7 +84,10 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHe
 	if err != nil {
 		return err
 	}
+	return w.indexBlockInternal(ctx, atomicTX, blockBytes, blockHeader)
+}
 
+func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, blockHeader *types.Header) error {
 	txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
 	if err != nil {
 		return err
