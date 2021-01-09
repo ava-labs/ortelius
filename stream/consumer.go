@@ -165,7 +165,8 @@ func (c *consumer) ProcessNextMessage() error {
 		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
-	return nil
+
+	return c.commitMessage(msg)
 }
 
 func (c *consumer) persistConsume(msg *Message) error {
@@ -191,10 +192,16 @@ func (c *consumer) Success() {
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
+func (c *consumer) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -206,9 +213,10 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	}
 
 	return &Message{
-		chainID:   c.chainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
+		chainID:      c.chainID,
+		body:         msg.Value,
+		id:           id.String(),
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
 	}, nil
 }

@@ -148,7 +148,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 		return err
 	}
 
-	return nil
+	return c.commitMessage(nmsg)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
@@ -164,10 +164,16 @@ func (c *ConsumerCChain) nextMessage() (*Message, error) {
 	return c.getNextMessage(ctx)
 }
 
+func (c *ConsumerCChain) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -179,10 +185,11 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	}
 
 	return &Message{
-		chainID:   c.conf.CchainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
+		chainID:      c.conf.CchainID,
+		body:         msg.Value,
+		id:           id.String(),
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
 	}, nil
 }
 

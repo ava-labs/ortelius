@@ -152,7 +152,8 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		c.sc.Log.Error("consumer.ConsumeConsensus: %s", err)
 		return err
 	}
-	return nil
+
+	return c.commitMessage(msg)
 }
 
 func (c *consumerconsensus) persistConsume(msg *Message) error {
@@ -178,10 +179,16 @@ func (c *consumerconsensus) Success() {
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
+func (c *consumerconsensus) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -193,9 +200,10 @@ func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error
 	}
 
 	return &Message{
-		chainID:   c.chainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
+		chainID:      c.chainID,
+		body:         msg.Value,
+		id:           id.String(),
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
 	}, nil
 }
