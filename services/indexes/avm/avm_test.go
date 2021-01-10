@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
 
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
@@ -279,6 +279,8 @@ func TestInsertVertex(t *testing.T) {
 	defer closeFn()
 	ctx := context.Background()
 
+	conflicttx := &conflicts.TestTx{}
+
 	tx := &avm.Tx{}
 	baseTx := &avm.BaseTx{}
 
@@ -287,11 +289,13 @@ func TestInsertVertex(t *testing.T) {
 	utx := &avm.UniqueTx{TxState: &avm.TxState{}}
 	utx.Tx = tx
 
+	conflicttx.TransitionV = utx
+
 	persist := services.NewPersistMock()
 	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := writer.conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.insertVertex(cCtx, []snowstorm.Tx{utx}, tx.ID(), 0)
+	err := writer.insertVertex(cCtx, []conflicts.Tx{conflicttx}, tx.ID(), 0)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
