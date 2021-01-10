@@ -209,17 +209,19 @@ func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 		return nil, err
 	}
 
+	m := &Message{
+		chainID:      c.chainID,
+		body:         msg.Value,
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
+	}
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
-		return nil, err
+		m.id = string(msg.Key)
+	} else {
+		m.id = id.String()
 	}
 
-	return &Message{
-		chainID:      c.chainID,
-		body:         msg.Value,
-		id:           id.String(),
-		timestamp:    msg.Time.UTC().Unix(),
-		kafkaMessage: &msg,
-	}, nil
+	return m, nil
 }
