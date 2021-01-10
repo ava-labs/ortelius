@@ -7,9 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
 	"reflect"
-
-	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
 
 	"github.com/gocraft/health"
 
@@ -188,7 +187,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 	return nil
 }
 
-func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []snowstorm.Tx, vertexID ids.ID, epoch uint32) error {
+func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []conflicts.Tx, vertexID ids.ID, epoch uint32) error {
 	var err error
 	for _, vtx := range vertexTxs {
 		switch vtxTransition := vtx.Transition().(type) {
