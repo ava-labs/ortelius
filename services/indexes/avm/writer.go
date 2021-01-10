@@ -7,8 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
 	"reflect"
+
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
 
 	"github.com/gocraft/health"
 
