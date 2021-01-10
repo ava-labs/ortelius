@@ -145,14 +145,11 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			err = backend.ProcessNextMessage()
-			if err == nil {
+			switch backend.ProcessNextMessage() {
+			case nil:
 				successes++
 				backend.Success()
 				return nil
-			}
-
-			switch err {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -166,17 +163,18 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 
 			// These are always errors
 			case kafka.RequestTimedOut:
+				failures++
 				c.sc.Log.Debug("kafka timeout")
+				return err
 			case io.EOF:
 				c.sc.Log.Error("EOF")
 				return io.EOF
 			default:
+				failures++
 				backend.Failure()
 				c.sc.Log.Error("Unknown error: %s", err.Error())
+				return err
 			}
-
-			failures++
-			return nil
 		}
 	)
 
@@ -197,7 +195,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	// Process messages until asked to stop
 	for !c.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF && !c.isStopping() {
+		if err != nil {
 			return err
 		}
 	}
