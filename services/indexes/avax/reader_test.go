@@ -5,9 +5,10 @@ package avax
 
 import (
 	"context"
-	"github.com/ava-labs/ortelius/services"
 	"testing"
 	"time"
+
+	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
