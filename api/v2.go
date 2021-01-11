@@ -15,6 +15,8 @@ import (
 	"github.com/gocraft/web"
 )
 
+const DefaultOffsetLimit = 10000
+
 type V2Context struct {
 	*Context
 	version uint8
@@ -124,7 +126,7 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	if p.ListParams.Offset > 10000 {
+	if p.ListParams.Offset > DefaultOffsetLimit {
 		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
 		return
 	}
@@ -152,7 +154,7 @@ func (c *V2Context) ListTransactionsPost(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	if p.ListParams.Offset > 10000 {
+	if p.ListParams.Offset > DefaultOffsetLimit {
 		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
 		return
 	}
