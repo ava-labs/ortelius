@@ -285,7 +285,7 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	if dosq && dosqRedeem {
 		uq := dbr.Union(subquery, subqueryRedeem).As("union_q")
 		b.Where("avm_transactions.id in ?",
-			dbr.Select("union_q.transaction_id").Distinct().From(uq),
+			dbr.Select("union_q.transaction_id").From(uq),
 		)
 	} else if dosq {
 		b.Where("avm_transactions.id in ?", subquery)
