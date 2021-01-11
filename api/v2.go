@@ -52,6 +52,7 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 
 		// List and Get routes
 		Get("/transactions", (*V2Context).ListTransactions).
+		Post("/transactions", (*V2Context).ListTransactionsPost).
 		Get("/transactions/:id", (*V2Context).GetTransaction).
 		Get("/addresses", (*V2Context).ListAddresses).
 		Get("/addresses/:id", (*V2Context).GetAddress).
@@ -117,6 +118,34 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListTransactionsParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+
+	if p.ListParams.Offset > 10000 {
+		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("list_transactions", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.ListTransactions(ctx, p, c.avaxAssetID)
+		},
+	})
+}
+
+func (c *V2Context) ListTransactionsPost(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListTransactionsParams{}
+	q, err := ParseGetJson(r, cfg.RequestGetMaxSize)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	if err := p.ForValues(c.version, q); err != nil {
 		c.WriteErr(w, 400, err)
 		return
 	}
