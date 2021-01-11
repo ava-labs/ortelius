@@ -48,6 +48,7 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/txfeeAggregates", (*V2Context).TxfeeAggregate).
 		Get("/transactions/aggregates", (*V2Context).Aggregate).
 		Get("/addressChains", (*V2Context).AddressChains).
+		Post("/addressChains", (*V2Context).AddressChainsPost).
 
 		// List and Get routes
 		Get("/transactions", (*V2Context).ListTransactions).
@@ -198,7 +199,23 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
-	q, err := ParseGet(r, cfg.RequestGetMaxSize)
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("address_chains", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.AddressChains(ctx, p)
+		},
+	})
+}
+
+func (c *V2Context) AddressChainsPost(w web.ResponseWriter, r *web.Request) {
+	p := &params.AddressChainsParams{}
+	q, err := ParseGetJson(r, cfg.RequestGetMaxSize)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
