@@ -121,6 +121,16 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
+	if c.version == 1 &&
+		p.ListParams.Offset == 0 &&
+		p.ListParams.Limit == 25 &&
+		!p.ListParams.DisableCounting &&
+		!p.DisableGenesis &&
+		p.Sort == params.TransactionSortTimestampDesc &&
+		p.ListParams.Query == "" {
+		p.ListParams.DisableCounting = true
+	}
+
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
