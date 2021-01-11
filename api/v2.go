@@ -15,6 +15,8 @@ import (
 	"github.com/gocraft/web"
 )
 
+const DefaultOffsetLimit = 10000
+
 type V2Context struct {
 	*Context
 	version uint8
@@ -48,9 +50,11 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/txfeeAggregates", (*V2Context).TxfeeAggregate).
 		Get("/transactions/aggregates", (*V2Context).Aggregate).
 		Get("/addressChains", (*V2Context).AddressChains).
+		Post("/addressChains", (*V2Context).AddressChainsPost).
 
 		// List and Get routes
 		Get("/transactions", (*V2Context).ListTransactions).
+		Post("/transactions", (*V2Context).ListTransactionsPost).
 		Get("/transactions/:id", (*V2Context).GetTransaction).
 		Get("/addresses", (*V2Context).ListAddresses).
 		Get("/addresses/:id", (*V2Context).GetAddress).
@@ -122,7 +126,35 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
-	if p.ListParams.Offset > 10000 {
+	if p.ListParams.Offset > DefaultOffsetLimit {
+		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("list_transactions", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.ListTransactions(ctx, p, c.avaxAssetID)
+		},
+	})
+}
+
+func (c *V2Context) ListTransactionsPost(w web.ResponseWriter, r *web.Request) {
+	p := &params.ListTransactionsParams{}
+	q, err := ParseGetJSON(r, cfg.RequestGetMaxSize)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	if err := p.ForValues(c.version, q); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+
+	if p.ListParams.Offset > DefaultOffsetLimit {
 		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
 		return
 	}
@@ -198,7 +230,23 @@ func (c *V2Context) GetAddress(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
-	q, err := ParseGet(r, cfg.RequestGetMaxSize)
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("address_chains", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.AddressChains(ctx, p)
+		},
+	})
+}
+
+func (c *V2Context) AddressChainsPost(w web.ResponseWriter, r *web.Request) {
+	p := &params.AddressChainsParams{}
+	q, err := ParseGetJSON(r, cfg.RequestGetMaxSize)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
