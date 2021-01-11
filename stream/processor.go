@@ -145,7 +145,8 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			switch backend.ProcessNextMessage() {
+			err := backend.ProcessNextMessage()
+			switch err {
 			case nil:
 				successes++
 				backend.Success()
