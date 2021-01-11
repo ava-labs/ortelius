@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -121,6 +122,11 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
 
+	if p.ListParams.Offset > 10000 {
+		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
+		return
+	}
+
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_transactions", p),
@@ -154,6 +160,7 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 	}
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+	p.ListParams.DisableCounting = true
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,

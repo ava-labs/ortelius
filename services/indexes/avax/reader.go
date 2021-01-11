@@ -129,39 +129,37 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 
 	var builder *dbr.SelectStmt
 
-	{
-		columns := []string{
-			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
-		}
+	columns := []string{
+		"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
+	}
 
-		if requestedIntervalCount > 0 {
-			columns = append(columns, fmt.Sprintf(
-				"FLOOR((UNIX_TIMESTAMP(avm_transactions.created_at)-%d) / %d) AS idx",
-				params.ListParams.StartTime.Unix(),
-				intervalSeconds))
-		}
+	if requestedIntervalCount > 0 {
+		columns = append(columns, fmt.Sprintf(
+			"FLOOR((UNIX_TIMESTAMP(avm_transactions.created_at)-%d) / %d) AS idx",
+			params.ListParams.StartTime.Unix(),
+			intervalSeconds))
+	}
 
-		builder = dbRunner.
-			Select(columns...).
-			From("avm_transactions").
-			Where("avm_transactions.created_at >= ?", params.ListParams.StartTime).
-			Where("avm_transactions.created_at < ?", params.ListParams.EndTime)
+	builder = dbRunner.
+		Select(columns...).
+		From("avm_transactions").
+		Where("avm_transactions.created_at >= ?", params.ListParams.StartTime).
+		Where("avm_transactions.created_at < ?", params.ListParams.EndTime)
 
-		if requestedIntervalCount > 0 {
-			builder.
-				GroupBy("idx").
-				OrderAsc("idx").
-				Limit(uint64(requestedIntervalCount))
-		}
+	if requestedIntervalCount > 0 {
+		builder.
+			GroupBy("idx").
+			OrderAsc("idx").
+			Limit(uint64(requestedIntervalCount))
+	}
 
-		if len(params.ChainIDs) != 0 {
-			builder.Where("avm_transactions.chain_id IN ?", params.ChainIDs)
-		}
+	if len(params.ChainIDs) != 0 {
+		builder.Where("avm_transactions.chain_id IN ?", params.ChainIDs)
+	}
 
-		_, err = builder.LoadContext(ctx, &intervals)
-		if err != nil {
-			return nil, err
-		}
+	_, err = builder.LoadContext(ctx, &intervals)
+	if err != nil {
+		return nil, err
 	}
 
 	// If no intervals were requested then the total aggregate is equal to the
