@@ -129,39 +129,37 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 
 	var builder *dbr.SelectStmt
 
-	{
-		columns := []string{
-			"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
-		}
+	columns := []string{
+		"CAST(COALESCE(SUM(avm_transactions.txfee), 0) AS CHAR) AS txfee",
+	}
 
-		if requestedIntervalCount > 0 {
-			columns = append(columns, fmt.Sprintf(
-				"FLOOR((UNIX_TIMESTAMP(avm_transactions.created_at)-%d) / %d) AS idx",
-				params.ListParams.StartTime.Unix(),
-				intervalSeconds))
-		}
+	if requestedIntervalCount > 0 {
+		columns = append(columns, fmt.Sprintf(
+			"FLOOR((UNIX_TIMESTAMP(avm_transactions.created_at)-%d) / %d) AS idx",
+			params.ListParams.StartTime.Unix(),
+			intervalSeconds))
+	}
 
-		builder = dbRunner.
-			Select(columns...).
-			From("avm_transactions").
-			Where("avm_transactions.created_at >= ?", params.ListParams.StartTime).
-			Where("avm_transactions.created_at < ?", params.ListParams.EndTime)
+	builder = dbRunner.
+		Select(columns...).
+		From("avm_transactions").
+		Where("avm_transactions.created_at >= ?", params.ListParams.StartTime).
+		Where("avm_transactions.created_at < ?", params.ListParams.EndTime)
 
-		if requestedIntervalCount > 0 {
-			builder.
-				GroupBy("idx").
-				OrderAsc("idx").
-				Limit(uint64(requestedIntervalCount))
-		}
+	if requestedIntervalCount > 0 {
+		builder.
+			GroupBy("idx").
+			OrderAsc("idx").
+			Limit(uint64(requestedIntervalCount))
+	}
 
-		if len(params.ChainIDs) != 0 {
-			builder.Where("avm_transactions.chain_id IN ?", params.ChainIDs)
-		}
+	if len(params.ChainIDs) != 0 {
+		builder.Where("avm_transactions.chain_id IN ?", params.ChainIDs)
+	}
 
-		_, err = builder.LoadContext(ctx, &intervals)
-		if err != nil {
-			return nil, err
-		}
+	_, err = builder.LoadContext(ctx, &intervals)
+	if err != nil {
+		return nil, err
 	}
 
 	// If no intervals were requested then the total aggregate is equal to the
@@ -419,32 +417,9 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	p.ListParams.ObserveTimeProvided = true
-	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
-
-	var applySort2 func(sort params.TransactionSort)
-	applySort2 = func(sort params.TransactionSort) {
-		if p.ListParams.Query != "" {
-			return
-		}
-		switch sort {
-		case params.TransactionSortTimestampAsc:
-			if len(p.ChainIDs) > 0 {
-				subquery.OrderAsc("avm_transactions.chain_id")
-			}
-			subquery.OrderAsc("avm_transactions.created_at")
-		case params.TransactionSortTimestampDesc:
-			if len(p.ChainIDs) > 0 {
-				subquery.OrderAsc("avm_transactions.chain_id")
-			}
-			subquery.OrderDesc("avm_transactions.created_at")
-		default:
-			applySort2(params.TransactionSortDefault)
-		}
-	}
-	applySort2(p.Sort)
 
 	var txs []*models.Transaction
-	builder := dbRunner.
+	builder := p.Apply(dbRunner.
 		Select(
 			"avm_transactions.id",
 			"avm_transactions.chain_id",
@@ -461,10 +436,9 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
 		).
 		From("avm_transactions").
-		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
 		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
 		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
-		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id"))
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
