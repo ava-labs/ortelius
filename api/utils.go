@@ -96,8 +96,9 @@ func ParseGetJson(r *web.Request, n int64) (url.Values, error) {
 		return r.URL.Query(), err
 	}
 	if buf.Len() > 0 {
+		s := buf.String()
 		qdata := make(map[string][]string)
-		err := json.Unmarshal([]byte(buf.String()), qdata)
+		err := json.Unmarshal([]byte(s), &qdata)
 		switch err {
 		case nil:
 			return mergeValues(qdata, r.URL.Query()), nil
