@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"sync"
 	"time"
 
@@ -84,7 +85,7 @@ func (c *ProcessorManager) Listen() error {
 				// If there was an error we want to log it, and iff we are not stopping
 				// we want to add a retry delay.
 				if err != nil {
-					c.sc.Log.Error("Error running worker: %s", err.Error())
+					c.sc.Log.Error("Error running worker: %v", err)
 				}
 				if c.isStopping() {
 					return
@@ -165,7 +166,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			// These are always errors
 			case kafka.RequestTimedOut:
 				failures++
-				c.sc.Log.Debug("kafka timeout")
+				c.sc.Log.Error("kafka timeout")
 				return err
 			case io.EOF:
 				c.sc.Log.Error("EOF")
@@ -173,7 +174,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			default:
 				failures++
 				backend.Failure()
-				c.sc.Log.Error("Unknown error: %s", err.Error())
+				c.sc.Log.Error("Unknown error: %s %v", reflect.TypeOf(err), err.Error())
 				return err
 			}
 		}
