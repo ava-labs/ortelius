@@ -160,6 +160,7 @@ func (c *V2Context) ListAddresses(w web.ResponseWriter, r *web.Request) {
 	}
 
 	p.ChainIDs = params.ForValueChainID(c.chainID, p.ChainIDs)
+	p.ListParams.DisableCounting = true
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
