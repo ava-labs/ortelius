@@ -79,7 +79,7 @@ func ParseGet(r *web.Request, n int64) (url.Values, error) {
 	return r.URL.Query(), nil
 }
 
-func ParseGetJson(r *web.Request, n int64) (url.Values, error) {
+func ParseGetJSON(r *web.Request, n int64) (url.Values, error) {
 	if r == nil {
 		return r.URL.Query(), nil
 	}

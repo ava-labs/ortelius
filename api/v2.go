@@ -142,7 +142,7 @@ func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListTransactionsPost(w web.ResponseWriter, r *web.Request) {
 	p := &params.ListTransactionsParams{}
-	q, err := ParseGetJson(r, cfg.RequestGetMaxSize)
+	q, err := ParseGetJSON(r, cfg.RequestGetMaxSize)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
@@ -246,7 +246,7 @@ func (c *V2Context) AddressChains(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) AddressChainsPost(w web.ResponseWriter, r *web.Request) {
 	p := &params.AddressChainsParams{}
-	q, err := ParseGetJson(r, cfg.RequestGetMaxSize)
+	q, err := ParseGetJSON(r, cfg.RequestGetMaxSize)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
