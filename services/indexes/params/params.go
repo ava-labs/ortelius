@@ -35,7 +35,6 @@ const (
 	KeyOutputGroupID    = "outputGroupId"
 
 	PaginationMaxLimit      = 5000
-	PaginationDefaultLimit  = 5000
 	PaginationDefaultOffset = 0
 
 	VersionDefault = 0
@@ -94,9 +93,12 @@ type ListParams struct {
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
-	p.Limit, err = GetQueryInt(q, KeyLimit, PaginationDefaultLimit)
+	p.Limit, err = GetQueryInt(q, KeyLimit, PaginationMaxLimit)
 	if err != nil {
 		return err
+	}
+	if p.Limit > PaginationMaxLimit {
+		p.Limit = PaginationMaxLimit
 	}
 	p.Offset, err = GetQueryInt(q, KeyOffset, PaginationDefaultOffset)
 	if err != nil {
@@ -158,9 +160,6 @@ func (p ListParams) Apply(listTable string, b *dbr.SelectBuilder) *dbr.SelectBui
 }
 
 func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey string) *dbr.SelectBuilder {
-	if p.Limit > PaginationMaxLimit {
-		p.Limit = PaginationMaxLimit
-	}
 	if p.Limit != 0 {
 		b.Limit(uint64(p.Limit))
 	}
