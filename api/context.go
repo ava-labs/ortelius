@@ -152,7 +152,6 @@ func (*Context) setHeaders(w web.ResponseWriter, r *web.Request, next web.NextMi
 	h.Add("access-control-allow-origin", "*")
 
 	h.Add("Content-Type", "application/json")
-	h.Add("Cache-Control", "no-store")
 
 	next(w, r)
 }
