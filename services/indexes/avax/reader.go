@@ -417,9 +417,32 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	p.ListParams.ObserveTimeProvided = true
+	subquery := p.Apply(dbRunner.Select("id").From("avm_transactions"))
+
+	var applySort2 func(sort params.TransactionSort)
+	applySort2 = func(sort params.TransactionSort) {
+		if p.ListParams.Query != "" {
+			return
+		}
+		switch sort {
+		case params.TransactionSortTimestampAsc:
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
+			subquery.OrderAsc("avm_transactions.created_at")
+		case params.TransactionSortTimestampDesc:
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
+			subquery.OrderDesc("avm_transactions.created_at")
+		default:
+			applySort2(params.TransactionSortDefault)
+		}
+	}
+	applySort2(p.Sort)
 
 	var txs []*models.Transaction
-	builder := p.Apply(dbRunner.
+	builder := dbRunner.
 		Select(
 			"avm_transactions.id",
 			"avm_transactions.chain_id",
@@ -436,9 +459,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
 		).
 		From("avm_transactions").
+		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
 		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
 		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
-		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id"))
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
