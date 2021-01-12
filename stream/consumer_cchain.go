@@ -125,7 +125,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 	}
 
 	if len(block.BlockExtraData) == 0 {
-		return nil
+		return c.commitMessage(msg)
 	}
 
 	collectors := metrics.NewCollectors(
@@ -157,7 +157,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 		return err
 	}
 
-	return c.commitMessage(nmsg)
+	return c.commitMessage(msg)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
