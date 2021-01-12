@@ -951,6 +951,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		Join("avm_outputs", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
+	// if we get an input but have not yet seen the output.
 	s3 := selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
 			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
