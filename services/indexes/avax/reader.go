@@ -500,14 +500,20 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	var count *uint64
 	if !p.ListParams.DisableCounting {
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
-		if len(txs) >= p.ListParams.Limit {
-			p.ListParams = params.ListParams{}
-			selector := p.Apply(dbRunner.
-				Select("COUNT(avm_transactions.id)").
-				From("avm_transactions"))
+		if false {
+			if len(txs) >= p.ListParams.Limit {
+				p.ListParams = params.ListParams{}
+				selector := p.Apply(dbRunner.
+					Select("COUNT(avm_transactions.id)").
+					From("avm_transactions"))
 
-			if err := selector.LoadOneContext(ctx, &count); err != nil {
-				return nil, err
+				if err := selector.LoadOneContext(ctx, &count); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			if len(txs) >= p.ListParams.Limit {
+				count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)) + 1)
 			}
 		}
 	}
@@ -928,16 +934,29 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
 	var outputs []*compositeRecord
-	s1 := selectOutputs(dbRunner).
+
+	s1_0 := dbRunner.Select("avm_outputs.id").
+		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
-	s2 := selectOutputs(dbRunner).
+
+	s1_1 := dbRunner.Select("avm_outputs_redeeming.id").
+		From("avm_outputs_redeeming").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
+	s1 := selectOutputs(dbRunner).
+		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id")
+
+	s2 := dbRunner.Select("avm_outputs.id").
+		From("avm_outputs_redeeming").
+		Join("avm_outputs", "avm_outputs.id = avm_outputs_redeeming.id").
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
+
+	// if we get an input but have not yet seen the output.
 	s3 := selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
 			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
 
-	su := dbr.Union(s1, s2, s3).As("union_q")
+	su := dbr.Union(s1, s3).As("union_q")
 	_, err := dbRunner.Select("union_q.id",
 		"union_q.transaction_id",
 		"union_q.output_index",
