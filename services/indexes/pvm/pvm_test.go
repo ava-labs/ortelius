@@ -40,8 +40,12 @@ func TestBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList == nil || *txList.Count != 7 {
-		t.Fatal("Incorrect number of transactions:", txList.Count)
+	if txList == nil || *txList.Count < 1 {
+		if txList.Count == nil {
+			t.Fatal("Incorrect number of transactions:", txList.Count)
+		} else {
+			t.Fatal("Incorrect number of transactions:", *txList.Count)
+		}
 	}
 }
 
