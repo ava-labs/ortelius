@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/metrics"
+
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,11 +25,17 @@ type V2Context struct {
 	chainID *ids.ID
 }
 
+const MetricListTransactionsCount = "api_list_transactions_count"
+const MetricListTransactionsMillis = "api_list_transactions_millis"
+
 // AddV2Routes mounts a V2 API router at the given path, displaying the given
 // indexBytes at the root. If chainID is not nil the handlers run in v1
 // compatible mode where the `version` param is set to "1" and requests to
 // default to filtering by the given chainID.
 func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byte, chainID *ids.ID) {
+	metrics.Prometheus.CounterInit(MetricListTransactionsCount, MetricListTransactionsCount)
+	metrics.Prometheus.CounterInit(MetricListTransactionsMillis, MetricListTransactionsMillis)
+
 	v2ctx := V2Context{Context: ctx}
 	router.Subrouter(v2ctx, path).
 		Get("/", func(c *V2Context, resp web.ResponseWriter, _ *web.Request) {
@@ -118,6 +126,14 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricListTransactionsMillis),
+		metrics.NewCounterIncCollect(MetricListTransactionsCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	p := &params.ListTransactionsParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
