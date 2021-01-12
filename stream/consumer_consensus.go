@@ -35,6 +35,8 @@ type consumerconsensus struct {
 	metricFailureCountKey         string
 	metricProcessMillisCounterKey string
 	metricSuccessCountKey         string
+
+	groupName string
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
@@ -75,19 +77,20 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		}
 
 		// Setup config
-		groupName := conf.Consumer.GroupName
-		if groupName == "" {
-			groupName = c.consumer.Name()
+		c.groupName = conf.Consumer.GroupName
+		if c.groupName == "" {
+			c.groupName = c.consumer.Name()
 		}
 		if !conf.Consumer.StartTime.IsZero() {
-			groupName = ""
+			c.groupName = ""
 		}
 
+		topicName := GetTopicName(conf.NetworkID, chainID, EventTypeConsensus)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeConsensus),
+			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
-			GroupID:     groupName,
+			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
@@ -152,7 +155,8 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		c.sc.Log.Error("consumer.ConsumeConsensus: %s", err)
 		return err
 	}
-	return nil
+
+	return c.commitMessage(msg)
 }
 
 func (c *consumerconsensus) persistConsume(msg *Message) error {
@@ -178,24 +182,34 @@ func (c *consumerconsensus) Success() {
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
+func (c *consumerconsensus) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	m := &Message{
+		chainID:      c.chainID,
+		body:         msg.Value,
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
 	}
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
-		return nil, err
+		m.id = string(msg.Key)
+	} else {
+		m.id = id.String()
 	}
 
-	return &Message{
-		chainID:   c.chainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
-	}, nil
+	return m, nil
 }
