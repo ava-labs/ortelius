@@ -9,9 +9,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v2.3.0
         with:
           version: v1.35.2
+          args: --timeout 5m
   test-and-build:
     name: Test and build on Go ${{ matrix.go }}
     runs-on: ubuntu-18.04
