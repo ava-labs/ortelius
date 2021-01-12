@@ -934,8 +934,18 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
 	var outputs []*compositeRecord
-	s1 := selectOutputs(dbRunner).
+
+	s1_0 := dbRunner.Select("avm_outputs.id").
+		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
+
+	s1_1 := dbRunner.Select("avm_outputs_redeeming.id").
+		From("avm_outputs_redeeming").
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
+
+	s1 := selectOutputs(dbRunner).
+		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id")
+
 	s2 := selectOutputs(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
@@ -943,7 +953,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
 			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
 
-	su := dbr.Union(s1, s2, s3).As("union_q")
+	su := dbr.Union(s1, s3).As("union_q")
 	_, err := dbRunner.Select("union_q.id",
 		"union_q.transaction_id",
 		"union_q.output_index",
