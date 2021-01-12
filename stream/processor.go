@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"reflect"
 	"sync"
 	"time"
 
@@ -174,7 +173,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 			default:
 				failures++
 				backend.Failure()
-				c.sc.Log.Error("Unknown error: %s %v", reflect.TypeOf(err), err.Error())
+				c.sc.Log.Error("Unknown error: %v", err)
 				return err
 			}
 		}
