@@ -41,7 +41,11 @@ func TestBootstrap(t *testing.T) {
 	}
 
 	if txList == nil || *txList.Count < 1 {
-		t.Fatal("Incorrect number of transactions:", txList.Count)
+		if txList.Count == nil {
+			t.Fatal("Incorrect number of transactions:", txList.Count)
+		} else {
+			t.Fatal("Incorrect number of transactions:", *txList.Count)
+		}
 	}
 }
 

@@ -50,8 +50,12 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count == nil || *txList.Count < 1 {
-		t.Fatal("Incorrect number of transactions:", txList.Count)
+	if txList.Count == nil || *txList.Count != 1 {
+		if txList.Count == nil {
+			t.Fatal("Incorrect number of transactions:", txList.Count)
+		} else {
+			t.Fatal("Incorrect number of transactions:", *txList.Count)
+		}
 	}
 
 	if !txList.Transactions[0].Genesis {
@@ -115,7 +119,11 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	if txList.Count == nil || *txList.Count != 0 {
-		t.Fatal("Incorrect number of transactions:", txList.Count)
+		if txList.Count == nil {
+			t.Fatal("Incorrect number of transactions:", txList.Count)
+		} else {
+			t.Fatal("Incorrect number of transactions:", *txList.Count)
+		}
 	}
 }
 
