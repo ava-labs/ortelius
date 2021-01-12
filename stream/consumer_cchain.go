@@ -317,13 +317,13 @@ func (c *ConsumerCChain) runProcessor() error {
 		nomsg              int
 		processNextMessage = func() error {
 			err := c.ProcessNextMessage()
-			if err == nil {
+
+			switch err {
+			case nil:
 				successes++
 				c.Success()
 				return nil
-			}
 
-			switch err {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -338,14 +338,12 @@ func (c *ConsumerCChain) runProcessor() error {
 			case io.EOF:
 				c.sc.Log.Error("EOF")
 				return io.EOF
-
 			default:
+				failures++
 				c.Failure()
-				c.sc.Log.Error("Unknown error: %s", err.Error())
+				c.sc.Log.Error("Unknown error: %v", err)
+				return err
 			}
-
-			failures++
-			return nil
 		}
 	)
 
@@ -366,7 +364,7 @@ func (c *ConsumerCChain) runProcessor() error {
 	// Process messages until asked to stop
 	for !c.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF && !c.isStopping() {
+		if err != nil {
 			return err
 		}
 	}

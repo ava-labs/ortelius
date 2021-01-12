@@ -12,8 +12,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 
-	"github.com/segmentio/kafka-go"
-
 	"github.com/ava-labs/ortelius/cfg"
 )
 
@@ -151,6 +149,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 				successes++
 				backend.Success()
 				return nil
+
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -162,11 +161,6 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 				c.sc.Log.Debug("no message")
 				return nil
 
-			// These are always errors
-			case kafka.RequestTimedOut:
-				failures++
-				c.sc.Log.Error("kafka timeout")
-				return err
 			case io.EOF:
 				c.sc.Log.Error("EOF")
 				return io.EOF
