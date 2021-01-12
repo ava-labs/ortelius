@@ -16,7 +16,6 @@ func NewMemoryUniqueID() UniqueID {
 	return &uniqueID{m: make(map[string]int)}
 }
 
-//nolint:unparam
 func (uniqueId *uniqueID) Get(id string) (bool, error) {
 	uniqueId.lock.Lock()
 	defer uniqueId.lock.Unlock()
@@ -27,7 +26,6 @@ func (uniqueId *uniqueID) Get(id string) (bool, error) {
 	return false, nil
 }
 
-//nolint:unparam
 func (uniqueId *uniqueID) Put(id string) error {
 	uniqueId.lock.Lock()
 	defer uniqueId.lock.Unlock()
