@@ -25,6 +25,9 @@ type V2Context struct {
 	chainID *ids.ID
 }
 
+const MetricCount = "api_count"
+const MetricMillis = "api__millis"
+
 const MetricListTransactionsCount = "api_list_transactions_count"
 const MetricListTransactionsMillis = "api_list_transactions_millis"
 
@@ -33,6 +36,9 @@ const MetricListTransactionsMillis = "api_list_transactions_millis"
 // compatible mode where the `version` param is set to "1" and requests to
 // default to filtering by the given chainID.
 func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byte, chainID *ids.ID) {
+	metrics.Prometheus.CounterInit(MetricCount, MetricCount)
+	metrics.Prometheus.CounterInit(MetricMillis, MetricMillis)
+
 	metrics.Prometheus.CounterInit(MetricListTransactionsCount, MetricListTransactionsCount)
 	metrics.Prometheus.CounterInit(MetricListTransactionsMillis, MetricListTransactionsMillis)
 
@@ -127,6 +133,8 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 
 func (c *V2Context) ListTransactions(w web.ResponseWriter, r *web.Request) {
 	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
 		metrics.NewCounterObserveMillisCollect(MetricListTransactionsMillis),
 		metrics.NewCounterIncCollect(MetricListTransactionsCount),
 	)
