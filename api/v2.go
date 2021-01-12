@@ -103,6 +103,14 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 //
 
 func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	p := &params.SearchParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
@@ -118,6 +126,14 @@ func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) TxfeeAggregate(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	p := &params.TxfeeAggregateParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
@@ -380,6 +396,14 @@ func (c *V2Context) AddressChainsPost(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	p := &params.ListOutputsParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
@@ -398,6 +422,14 @@ func (c *V2Context) ListOutputs(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) GetOutput(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	id, err := ids.FromString(r.PathParams["id"])
 	if err != nil {
 		c.WriteErr(w, 400, err)
@@ -471,6 +503,14 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 // PVM
 //
 func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	p := &params.ListBlocksParams{}
 	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
 		c.WriteErr(w, 400, err)
@@ -487,6 +527,14 @@ func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
 }
 
 func (c *V2Context) GetBlock(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
 	id, err := ids.FromString(r.PathParams["id"])
 	if err != nil {
 		c.WriteErr(w, 400, err)
