@@ -50,7 +50,7 @@ func TestIndexBootstrap(t *testing.T) {
 		t.Fatal("Failed to list transactions:", err.Error())
 	}
 
-	if txList.Count == nil || *txList.Count != 1 {
+	if txList.Count == nil || *txList.Count < 1 {
 		t.Fatal("Incorrect number of transactions:", txList.Count)
 	}
 
