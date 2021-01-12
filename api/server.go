@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/avalanchego/genesis"
 	avmVM "github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/models"

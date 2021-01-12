@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/ava-labs/ortelius/services"
+	kafkaMessage "github.com/segmentio/kafka-go"
 )
 
 var (
@@ -28,16 +29,18 @@ type EventType string
 
 // Message is a message on the event stream
 type Message struct {
-	id        string
-	chainID   string
-	body      []byte
-	timestamp int64
+	id           string
+	chainID      string
+	body         []byte
+	timestamp    int64
+	kafkaMessage *kafkaMessage.Message
 }
 
-func (m *Message) ID() string       { return m.id }
-func (m *Message) ChainID() string  { return m.chainID }
-func (m *Message) Body() []byte     { return m.body }
-func (m *Message) Timestamp() int64 { return m.timestamp }
+func (m *Message) ID() string                          { return m.id }
+func (m *Message) ChainID() string                     { return m.chainID }
+func (m *Message) Body() []byte                        { return m.body }
+func (m *Message) Timestamp() int64                    { return m.timestamp }
+func (m *Message) KafkaMessage() *kafkaMessage.Message { return m.kafkaMessage }
 
 func NewMessage(id string,
 	chainID string,

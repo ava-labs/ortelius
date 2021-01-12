@@ -48,6 +48,8 @@ type consumer struct {
 	metricFailureCountKey         string
 	metricProcessMillisCounterKey string
 	metricSuccessCountKey         string
+
+	groupName string
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -88,19 +90,20 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		// Setup config
-		groupName := conf.Consumer.GroupName
-		if groupName == "" {
-			groupName = c.consumer.Name()
+		c.groupName = conf.Consumer.GroupName
+		if c.groupName == "" {
+			c.groupName = c.consumer.Name()
 		}
 		if !conf.Consumer.StartTime.IsZero() {
-			groupName = ""
+			c.groupName = ""
 		}
 
+		topicName := GetTopicName(conf.NetworkID, chainID, EventTypeDecisions)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       GetTopicName(conf.NetworkID, chainID, EventTypeDecisions),
+			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
-			GroupID:     groupName,
+			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
@@ -165,7 +168,8 @@ func (c *consumer) ProcessNextMessage() error {
 		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
-	return nil
+
+	return c.commitMessage(msg)
 }
 
 func (c *consumer) persistConsume(msg *Message) error {
@@ -191,24 +195,33 @@ func (c *consumer) Success() {
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
 
+func (c *consumer) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *consumer) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	m := &Message{
+		chainID:      c.chainID,
+		body:         msg.Value,
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
+	}
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
-		return nil, err
+		m.id = string(msg.Key)
+	} else {
+		m.id = id.String()
 	}
 
-	return &Message{
-		chainID:   c.chainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
-	}, nil
+	return m, nil
 }

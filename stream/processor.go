@@ -12,8 +12,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 
-	"github.com/segmentio/kafka-go"
-
 	"github.com/ava-labs/ortelius/cfg"
 )
 
@@ -84,7 +82,7 @@ func (c *ProcessorManager) Listen() error {
 				// If there was an error we want to log it, and iff we are not stopping
 				// we want to add a retry delay.
 				if err != nil {
-					c.sc.Log.Error("Error running worker: %s", err.Error())
+					c.sc.Log.Error("Error running worker: %v", err)
 				}
 				if c.isStopping() {
 					return
@@ -145,14 +143,13 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			err = backend.ProcessNextMessage()
-			if err == nil {
+			err := backend.ProcessNextMessage()
+			switch err {
+			case nil:
 				successes++
 				backend.Success()
 				return nil
-			}
 
-			switch err {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -164,19 +161,15 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 				c.sc.Log.Debug("no message")
 				return nil
 
-			// These are always errors
-			case kafka.RequestTimedOut:
-				c.sc.Log.Debug("kafka timeout")
 			case io.EOF:
 				c.sc.Log.Error("EOF")
 				return io.EOF
 			default:
+				failures++
 				backend.Failure()
-				c.sc.Log.Error("Unknown error: %s", err.Error())
+				c.sc.Log.Error("Unknown error: %v", err)
+				return err
 			}
-
-			failures++
-			return nil
 		}
 	)
 
@@ -197,7 +190,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	// Process messages until asked to stop
 	for !c.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF && !c.isStopping() {
+		if err != nil {
 			return err
 		}
 	}

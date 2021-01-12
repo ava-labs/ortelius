@@ -95,6 +95,7 @@ func execute() error {
 					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
 				}
 
+				serviceControl.Init()
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
 				serviceControl.Persist = services.NewPersist()
