@@ -500,14 +500,20 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	var count *uint64
 	if !p.ListParams.DisableCounting {
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)))
-		if len(txs) >= p.ListParams.Limit {
-			p.ListParams = params.ListParams{}
-			selector := p.Apply(dbRunner.
-				Select("COUNT(avm_transactions.id)").
-				From("avm_transactions"))
+		if false {
+			if len(txs) >= p.ListParams.Limit {
+				p.ListParams = params.ListParams{}
+				selector := p.Apply(dbRunner.
+					Select("COUNT(avm_transactions.id)").
+					From("avm_transactions"))
 
-			if err := selector.LoadOneContext(ctx, &count); err != nil {
-				return nil, err
+				if err := selector.LoadOneContext(ctx, &count); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			if len(txs) >= p.ListParams.Limit {
+				count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(txs)) + 1)
 			}
 		}
 	}
