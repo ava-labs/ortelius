@@ -26,7 +26,7 @@ type V2Context struct {
 }
 
 const MetricCount = "api_count"
-const MetricMillis = "api__millis"
+const MetricMillis = "api_millis"
 
 const MetricTransactionsCount = "api_transactions_count"
 const MetricTransactionsMillis = "api_transactions_millis"
