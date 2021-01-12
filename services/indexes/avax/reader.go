@@ -936,16 +936,14 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	var outputs []*compositeRecord
 	s1 := selectOutputs(dbRunner).
 		Where("avm_outputs.transaction_id IN ?", txIDs)
-
-	s2 := dbRunner.Select("avm_outputs_redeeming.id").
-		From("avm_outputs_redeeming").
+	s2 := selectOutputs(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	s3 := selectOutputsRedeeming(dbRunner).
-		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? or (avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?)",
-			txIDs, txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
+		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
+			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
 
-	su := dbr.Union(s1, s3).As("union_q")
+	su := dbr.Union(s1, s2, s3).As("union_q")
 	_, err := dbRunner.Select("union_q.id",
 		"union_q.transaction_id",
 		"union_q.output_index",
