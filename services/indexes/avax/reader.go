@@ -946,7 +946,9 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	s1 := selectOutputs(dbRunner).
 		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id")
 
-	s2 := selectOutputs(dbRunner).
+	s2 := dbRunner.Select("avm_outputs.id").
+		From("avm_outputs_redeeming").
+		Join("avm_outputs", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	s3 := selectOutputsRedeeming(dbRunner).
