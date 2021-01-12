@@ -937,7 +937,8 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	s1 := selectOutputs(dbRunner).
 		Where("avm_outputs.transaction_id IN ?", txIDs)
 
-	s2 := selectOutputs(dbRunner).
+	s2 := dbRunner.Select("avm_outputs_redeeming.id").
+		From("avm_outputs_redeeming").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	s3 := selectOutputsRedeeming(dbRunner).
