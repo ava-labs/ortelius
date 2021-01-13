@@ -553,13 +553,57 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 	}
 
+	next := r.transactionProcessNext(txs, listParamsOriginal, p)
+
 	return &models.TransactionList{ListMetadata: models.ListMetadata{
 		Count: count,
 	},
 		Transactions: txs,
 		StartTime:    listParamsOriginal.StartTime,
 		EndTime:      listParamsOriginal.EndTime,
+		Next:         next,
 	}, nil
+}
+
+func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
+	if len(txs) < listParams.Limit {
+		return nil
+	}
+	next := ""
+	switch transactionsParams.Sort {
+	case params.TransactionSortTimestampAsc:
+		firsttx := txs[0]
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, firsttx.CreatedAt.Unix())
+	case params.TransactionSortTimestampDesc:
+		lasttx := txs[len(txs)-1]
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttx.CreatedAt.Unix()+1)
+	}
+	for k, vs := range listParams.Values {
+		switch k {
+		case params.KeyLimit:
+			next = fmt.Sprintf("%s&%s=%d", next, params.KeyLimit, transactionsParams.ListParams.Limit)
+		case params.KeyStartTime:
+			if transactionsParams.Sort == params.TransactionSortTimestampDesc {
+				for _, v := range vs {
+					next = fmt.Sprintf("%s&%s=%s", next, params.KeyStartTime, v)
+				}
+			}
+		case params.KeyEndTime:
+			if transactionsParams.Sort == params.TransactionSortTimestampAsc {
+				for _, v := range vs {
+					next = fmt.Sprintf("%s&%s=%s", next, params.KeyEndTime, v)
+				}
+			}
+		case params.KeyOffset:
+		case params.KeySortBy:
+		default:
+			for _, v := range vs {
+				next = fmt.Sprintf("%s&%s=%s", next, k, v)
+			}
+		}
+	}
+	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
+	return &next
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
