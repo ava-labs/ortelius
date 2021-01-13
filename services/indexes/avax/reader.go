@@ -85,15 +85,6 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		if len(transactions.Transactions) >= p.ListParams.Limit {
 			return collateSearchResults(nil, transactions)
 		}
-
-		addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
-		if err != nil {
-			return nil, err
-		}
-		if len(addresses.Addresses) >= p.ListParams.Limit {
-			return collateSearchResults(addresses, transactions)
-		}
-		return collateSearchResults(addresses, transactions)
 	}
 
 	dbRunner, err := r.conns.DB().NewSession("search", cfg.RequestTimeout)
@@ -115,27 +106,18 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	}
 
 	var addressList *models.AddressList
+
+	/*
+		A regex search on address can't work..
+		And on output_id makes no sense...
+
+		Addresses are stored in the db in 20byte hex, and the query is by address 'fuji.....'
+		There is no way to convert a part of an address into a "few" bytes...
+
+		Future: store the address in the db in the address format 'fuji.....'
+		then a part query could work.
+	*/
 	if false {
-		var addresses []*models.AddressInfo
-		builder2 := r.addressQuery(dbRunner)
-		builder2 = builder2.
-			Where(dbr.Like("avm_output_addresses.address = ?", p.ListParams.Query))
-		_, err = builder2.
-			LoadContext(ctx, &addresses)
-		if err != nil {
-			return nil, err
-		}
-		if len(addresses) >= p.ListParams.Limit {
-			return collateSearchResults(&models.AddressList{
-				Addresses: addresses,
-			}, &models.TransactionList{
-				Transactions: txs,
-			})
-		}
-		addressList = &models.AddressList{
-			Addresses: addresses,
-		}
-	} else {
 		addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
 		if err != nil {
 			return nil, err

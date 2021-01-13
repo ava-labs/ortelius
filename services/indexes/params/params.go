@@ -156,10 +156,10 @@ func (p *ListParams) CacheKey() []string {
 }
 
 func (p ListParams) Apply(listTable string, b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ApplyPk(listTable, b, "id", "id")
+	return p.ApplyPk(listTable, b, "id")
 }
 
-func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey string, queryKey string) *dbr.SelectBuilder {
+func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey string) *dbr.SelectBuilder {
 	if p.Limit != 0 {
 		b.Limit(uint64(p.Limit))
 	}
@@ -172,7 +172,7 @@ func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey s
 	}
 
 	if p.Query != "" {
-		b.Where(dbr.Like(listTable+"."+queryKey, p.Query+"%"))
+		b.Where(dbr.Like(listTable+"."+primaryKey, p.Query+"%"))
 	}
 
 	return b
