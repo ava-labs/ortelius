@@ -122,6 +122,9 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 			Where(dbr.Like("avm_output_addresses.address = ?", p.ListParams.Query))
 		_, err = builder2.
 			LoadContext(ctx, &addresses)
+		if err != nil {
+			return nil, err
+		}
 		if len(addresses) >= p.ListParams.Limit {
 			return collateSearchResults(&models.AddressList{
 				Addresses: addresses,
@@ -1121,10 +1124,8 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 		} else if len(txs.Transactions) > 0 {
 			return collateSearchResults(nil, txs)
 		}
-
-		return &models.SearchResults{}, nil
 	}
-	return nil, fmt.Errorf("unreachable")
+	return &models.SearchResults{}, nil
 }
 
 func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
@@ -1140,7 +1141,9 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 			Where("avm_output_addresses.address = ?", id.String()).Limit(1)
 		_, err = builder.
 			LoadContext(ctx, &addresses)
-
+		if err != nil {
+			return &models.SearchResults{}, err
+		}
 		if len(addresses) > 0 {
 			return collateSearchResults(&models.AddressList{
 				Addresses: addresses,
