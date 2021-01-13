@@ -76,6 +76,25 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return r.searchByID(ctx, id, avaxAssetID)
 	}
 
+	var assets []*models.Asset
+	var txs []*models.Transaction
+	var addresses []*models.AddressInfo
+
+	lenSearchResults := func() int {
+		return len(assets) + len(txs) + len(addresses)
+	}
+
+	if r.listAssets != nil {
+		assetsResp, err := r.listAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
+		if err != nil {
+			return nil, err
+		}
+		assets = assetsResp.Assets
+		if lenSearchResults() >= p.ListParams.Limit {
+			return collateSearchResults(assets, addresses, txs)
+		}
+	}
+
 	if false {
 		// The query string was not an id/shortid so perform an ID prefix search
 		// against transactions and addresses.
@@ -83,8 +102,9 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		if err != nil {
 			return nil, err
 		}
-		if len(transactionsRes.Transactions) >= p.ListParams.Limit {
-			return collateSearchResults(nil, nil, transactionsRes.Transactions)
+		txs = transactionsRes.Transactions
+		if lenSearchResults() >= p.ListParams.Limit {
+			return collateSearchResults(assets, addresses, txs)
 		}
 	}
 
@@ -93,7 +113,6 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return nil, err
 	}
 
-	var txs []*models.Transaction
 	builder1 := r.transactionQuery(dbRunner).
 		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%")).
 		OrderDesc("avm_transactions.created_at").
@@ -101,11 +120,9 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	if _, err := builder1.LoadContext(ctx, &txs); err != nil {
 		return nil, err
 	}
-	if len(txs) >= p.ListParams.Limit {
-		return collateSearchResults(nil, nil, txs)
+	if lenSearchResults() >= p.ListParams.Limit {
+		return collateSearchResults(assets, addresses, txs)
 	}
-
-	var addresses []*models.AddressInfo
 
 	/*
 		A regex search on address can't work..
@@ -123,19 +140,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 			return nil, err
 		}
 		addresses = addressesRes.Addresses
-		if len(txs)+len(addresses) >= p.ListParams.Limit {
-			return collateSearchResults(nil, addresses, txs)
-		}
-	}
-
-	var assets []*models.Asset
-	if r.listAssets != nil {
-		assetsResp, err := r.listAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
-		if err != nil {
-			return nil, err
-		}
-		assets = assetsResp.Assets
-		if len(txs)+len(addresses)+len(assets) >= p.ListParams.Limit {
+		if lenSearchResults() >= p.ListParams.Limit {
 			return collateSearchResults(assets, addresses, txs)
 		}
 	}
