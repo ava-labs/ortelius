@@ -332,7 +332,20 @@ func (p *ListAssetsParams) CacheKey() []string {
 }
 
 func (p *ListAssetsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	// we don't want to apply the query on the primary key.
+	// clear out the Query for the Apply call.
+	querySave := p.ListParams.Query
+	p.ListParams.Query = ""
 	p.ListParams.Apply("avm_assets", b)
+	p.ListParams.Query = querySave
+
+	if p.ListParams.Query != "" {
+		b.Where(dbr.Or(
+			dbr.Like("avm_assets.alias", p.ListParams.Query+"%"),
+			dbr.Like("avm_assets.name", p.ListParams.Query+"%"),
+			dbr.Like("avm_assets.symbol", p.ListParams.Query+"%"),
+		))
+	}
 
 	if p.Alias != "" {
 		b.Where("avm_assets.alias = ?", p.Alias)
