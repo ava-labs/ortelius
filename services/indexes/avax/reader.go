@@ -442,27 +442,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	applySort2(p.Sort)
 
 	var txs []*models.Transaction
-	builder := dbRunner.
-		Select(
-			"avm_transactions.id",
-			"avm_transactions.chain_id",
-			"avm_transactions.type",
-			"avm_transactions.memo",
-			"avm_transactions.created_at",
-			"avm_transactions.txfee",
-			"avm_transactions.genesis",
-			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
-			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
-			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
-			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
-			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
-			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
-		).
-		From("avm_transactions").
-		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
-		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
-		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
-		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
+	builder := r.transactionQuery(dbRunner)
+
+	builder = builder.
+		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -1054,18 +1037,39 @@ func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
-		ListParams: params.ListParams{
-			DisableCounting: true,
-			ID:              &id,
-		},
-	}, avaxAssetID); err != nil {
+	dbRunner, err := r.conns.DB().NewSession("searchByID", cfg.RequestTimeout)
+	if err != nil {
 		return nil, err
-	} else if len(txs.Transactions) > 0 {
-		return collateSearchResults(nil, txs)
 	}
 
-	return &models.SearchResults{}, nil
+	var txs []*models.Transaction
+	builder := r.transactionQuery(dbRunner)
+
+	builder = builder.
+		Where("avm_transactions.id = ?", id.String()).Limit(1)
+
+	if _, err := builder.LoadContext(ctx, &txs); err != nil {
+		return nil, err
+	}
+	return collateSearchResults(nil, &models.TransactionList{
+		Transactions: txs,
+	})
+
+	if false {
+		if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
+			ListParams: params.ListParams{
+				DisableCounting: true,
+				ID:              &id,
+			},
+		}, avaxAssetID); err != nil {
+			return nil, err
+		} else if len(txs.Transactions) > 0 {
+			return collateSearchResults(nil, txs)
+		}
+
+		return &models.SearchResults{}, nil
+	}
+	return nil, fmt.Errorf("unreachable")
 }
 
 func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
@@ -1236,6 +1240,29 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
+	return dbRunner.
+		Select(
+			"avm_transactions.id",
+			"avm_transactions.chain_id",
+			"avm_transactions.type",
+			"avm_transactions.memo",
+			"avm_transactions.created_at",
+			"avm_transactions.txfee",
+			"avm_transactions.genesis",
+			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
+			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
+			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
+			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
+			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
+			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
+		).
+		From("avm_transactions").
+		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
+		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 }
 
 func uint64Ptr(u64 uint64) *uint64 {
