@@ -100,7 +100,7 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 
 	delayCache := NewDelayCache(cache)
 
-	avaxReader := avax.NewReader(connections)
+	avaxReader := avax.NewReader(connections, nil)
 	avmReader := avm.NewReader(connections)
 	pvmReader := pvm.NewReader(connections)
 

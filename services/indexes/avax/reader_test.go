@@ -206,7 +206,7 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
 
-	reader := NewReader(conns)
+	reader := NewReader(conns, nil)
 	return reader, func() {
 		s.Close()
 		_ = conns.Close()

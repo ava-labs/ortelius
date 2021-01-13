@@ -23,10 +23,11 @@ type Reader struct {
 }
 
 func NewReader(conns *services.Connections) *Reader {
-	return &Reader{
+	r := &Reader{
 		conns:      conns,
-		avaxReader: avax.NewReader(conns),
 	}
+	r.avaxReader = avax.NewReader(conns, r.ListAssets)
+	return r
 }
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {

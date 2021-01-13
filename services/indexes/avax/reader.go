@@ -49,13 +49,14 @@ var (
 )
 
 type Reader struct {
-	conns *services.Connections
+	conns      *services.Connections
+	listAssets func(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error)
 }
 
-func NewReader(conns *services.Connections) *Reader {
+func NewReader(conns *services.Connections, listAssets func(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error)) *Reader {
 	return &Reader{
-		conns: conns,
-		//chainIDs: chainIDs,
+		conns:      conns,
+		listAssets: listAssets,
 	}
 }
 
@@ -78,12 +79,12 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	if false {
 		// The query string was not an id/shortid so perform an ID prefix search
 		// against transactions and addresses.
-		transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: p.ListParams}, avaxAssetID)
+		transactionsRes, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: p.ListParams}, avaxAssetID)
 		if err != nil {
 			return nil, err
 		}
-		if len(transactions.Transactions) >= p.ListParams.Limit {
-			return collateSearchResults(nil, transactions)
+		if len(transactionsRes.Transactions) >= p.ListParams.Limit {
+			return collateSearchResults(nil, nil, transactionsRes.Transactions)
 		}
 	}
 
@@ -101,12 +102,10 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return nil, err
 	}
 	if len(txs) >= p.ListParams.Limit {
-		return collateSearchResults(nil, &models.TransactionList{
-			Transactions: txs,
-		})
+		return collateSearchResults(nil, nil, txs)
 	}
 
-	var addressList *models.AddressList
+	var addresses []*models.AddressInfo
 
 	/*
 		A regex search on address can't work..
@@ -119,21 +118,29 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		then a part query could work.
 	*/
 	if false {
-		addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
+		addressesRes, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
 		if err != nil {
 			return nil, err
 		}
-		if len(addresses.Addresses) >= p.ListParams.Limit {
-			return collateSearchResults(addresses, &models.TransactionList{
-				Transactions: txs,
-			})
+		addresses = addressesRes.Addresses
+		if len(txs)+len(addresses) >= p.ListParams.Limit {
+			return collateSearchResults(nil, addresses, txs)
 		}
-		addressList = addresses
 	}
 
-	return collateSearchResults(addressList, &models.TransactionList{
-		Transactions: txs,
-	})
+	var assets []*models.Asset
+	if r.listAssets != nil {
+		assetsResp, err := r.listAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
+		if err != nil {
+			return nil, err
+		}
+		assets = assetsResp.Assets
+		if len(txs)+len(addresses)+len(assets) >= p.ListParams.Limit {
+			return collateSearchResults(assets, addresses, txs)
+		}
+	}
+
+	return collateSearchResults(assets, addresses, txs)
 }
 
 func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggregateParams) (*models.TxfeeAggregatesHistogram, error) {
@@ -1088,9 +1095,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 	}
 
 	if len(txs) > 0 {
-		return collateSearchResults(nil, &models.TransactionList{
-			Transactions: txs,
-		})
+		return collateSearchResults(nil, nil, txs)
 	}
 
 	if false {
@@ -1102,7 +1107,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 		}, avaxAssetID); err != nil {
 			return nil, err
 		} else if len(txs.Transactions) > 0 {
-			return collateSearchResults(nil, txs)
+			return collateSearchResults(nil, nil, txs.Transactions)
 		}
 	}
 
@@ -1115,7 +1120,7 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 	if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
-		return collateSearchResults(addrs, nil)
+		return collateSearchResults(nil, addrs.Addresses, nil)
 	}
 
 	return &models.SearchResults{}, nil
@@ -1178,22 +1183,9 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func collateSearchResults(addressResults *models.AddressList, transactionResults *models.TransactionList) (*models.SearchResults, error) {
-	var (
-		addresses    []*models.AddressInfo
-		transactions []*models.Transaction
-	)
-
-	if addressResults != nil {
-		addresses = addressResults.Addresses
-	}
-
-	if transactionResults != nil {
-		transactions = transactionResults.Transactions
-	}
-
+func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInfo, transactions []*models.Transaction) (*models.SearchResults, error) {
 	// Build overall SearchResults object from our pieces
-	returnedResultCount := len(addresses) + len(transactions)
+	returnedResultCount := len(assets) + len(addresses) + len(transactions)
 	if returnedResultCount > params.PaginationMaxLimit {
 		returnedResultCount = params.PaginationMaxLimit
 	}
@@ -1215,6 +1207,12 @@ func collateSearchResults(addressResults *models.AddressList, transactionResults
 	for _, result := range transactions {
 		collatedResults.Results = append(collatedResults.Results, models.SearchResult{
 			SearchResultType: models.ResultTypeTransaction,
+			Data:             result,
+		})
+	}
+	for _, result := range assets {
+		collatedResults.Results = append(collatedResults.Results, models.SearchResult{
+			SearchResultType: models.ResultTypeAsset,
 			Data:             result,
 		})
 	}
