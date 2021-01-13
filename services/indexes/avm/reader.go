@@ -24,7 +24,7 @@ type Reader struct {
 
 func NewReader(conns *services.Connections) *Reader {
 	r := &Reader{
-		conns:      conns,
+		conns: conns,
 	}
 	r.avaxReader = avax.NewReader(conns, r.ListAssets)
 	return r
