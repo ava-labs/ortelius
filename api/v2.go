@@ -38,6 +38,8 @@ const MetricAggregateCount = "api_aggregate_count"
 const MetricAggregateMillis = "api_aggregate_millis"
 const MetricAssetCount = "api_asset_count"
 const MetricAssetMillis = "api_asset_millis"
+const MetricSearchCount = "api_search_count"
+const MetricSearchMillis = "api_search_millis"
 
 // AddV2Routes mounts a V2 API router at the given path, displaying the given
 // indexBytes at the root. If chainID is not nil the handlers run in v1
@@ -61,6 +63,9 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 
 	metrics.Prometheus.CounterInit(MetricAssetCount, MetricAssetCount)
 	metrics.Prometheus.CounterInit(MetricAssetMillis, MetricAssetMillis)
+
+	metrics.Prometheus.CounterInit(MetricSearchCount, MetricSearchCount)
+	metrics.Prometheus.CounterInit(MetricSearchMillis, MetricSearchMillis)
 
 	v2ctx := V2Context{Context: ctx}
 	router.Subrouter(v2ctx, path).
@@ -106,6 +111,8 @@ func (c *V2Context) Search(w web.ResponseWriter, r *web.Request) {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterObserveMillisCollect(MetricMillis),
 		metrics.NewCounterIncCollect(MetricCount),
+		metrics.NewCounterObserveMillisCollect(MetricSearchMillis),
+		metrics.NewCounterIncCollect(MetricSearchCount),
 	)
 	defer func() {
 		_ = collectors.Collect()
