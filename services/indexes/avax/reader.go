@@ -105,34 +105,47 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	builder1 := r.transactionQuery(dbRunner)
 	builder1 = builder1.
 		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
-
 	if _, err := builder1.LoadContext(ctx, &txs); err != nil {
 		return nil, err
 	}
-
 	if len(txs) >= p.ListParams.Limit {
 		return collateSearchResults(nil, &models.TransactionList{
 			Transactions: txs,
 		})
 	}
 
-	var addresses []*models.AddressInfo
-	builder2 := r.addressQuery(dbRunner)
-
-	builder2 = builder2.
-		Where(dbr.Like("avm_output_addresses.address = ?", p.ListParams.Query))
-	_, err = builder2.
-		LoadContext(ctx, &addresses)
-
-	if len(addresses) >= p.ListParams.Limit {
-		return collateSearchResults(&models.AddressList{
+	var addressList *models.AddressList
+	if false {
+		var addresses []*models.AddressInfo
+		builder2 := r.addressQuery(dbRunner)
+		builder2 = builder2.
+			Where(dbr.Like("avm_output_addresses.address = ?", p.ListParams.Query))
+		_, err = builder2.
+			LoadContext(ctx, &addresses)
+		if len(addresses) >= p.ListParams.Limit {
+			return collateSearchResults(&models.AddressList{
+				Addresses: addresses,
+			}, &models.TransactionList{
+				Transactions: txs,
+			})
+		}
+		addressList = &models.AddressList{
 			Addresses: addresses,
-		}, nil)
+		}
+	} else {
+		addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
+		if err != nil {
+			return nil, err
+		}
+		if len(addresses.Addresses) >= p.ListParams.Limit {
+			return collateSearchResults(addresses, &models.TransactionList{
+				Transactions: txs,
+			})
+		}
+		addressList = addresses
 	}
 
-	return collateSearchResults(&models.AddressList{
-		Addresses: addresses,
-	}, &models.TransactionList{
+	return collateSearchResults(addressList, &models.TransactionList{
 		Transactions: txs,
 	})
 }
@@ -1076,7 +1089,7 @@ func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	dbRunner, err := r.conns.DB().NewSession("searchByID", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("search_by_id", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1115,26 +1128,25 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 }
 
 func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_addresses", cfg.RequestTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	var addresses []*models.AddressInfo
-	builder := r.addressQuery(dbRunner)
-
-	builder = builder.
-		Where("avm_output_addresses.address = ?", id.String()).Limit(1)
-	_, err = builder.
-		LoadContext(ctx, &addresses)
-
-	if len(addresses) > 0 {
-		return collateSearchResults(&models.AddressList{
-			Addresses: addresses,
-		}, nil)
-	}
-
 	if false {
+		dbRunner, err := r.conns.DB().NewSession("search_by_short_id", cfg.RequestTimeout)
+		if err != nil {
+			return nil, err
+		}
+		var addresses []*models.AddressInfo
+		builder := r.addressQuery(dbRunner)
+
+		builder = builder.
+			Where("avm_output_addresses.address = ?", id.String()).Limit(1)
+		_, err = builder.
+			LoadContext(ctx, &addresses)
+
+		if len(addresses) > 0 {
+			return collateSearchResults(&models.AddressList{
+				Addresses: addresses,
+			}, nil)
+		}
+	} else {
 		listParams := params.ListParams{DisableCounting: true}
 
 		if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
