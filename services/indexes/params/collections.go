@@ -390,7 +390,7 @@ func (p *ListAddressesParams) CacheKey() []string {
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id")
+	b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id", "address")
 
 	if p.Address != nil {
 		b = b.
