@@ -93,9 +93,10 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 	}
 
 	var txs []*models.Transaction
-	builder1 := r.transactionQuery(dbRunner)
-	builder1 = builder1.
-		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
+	builder1 := r.transactionQuery(dbRunner).
+		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%")).
+		OrderDesc("avm_transactions.created_at").
+		Limit(uint64(p.ListParams.Limit))
 	if _, err := builder1.LoadContext(ctx, &txs); err != nil {
 		return nil, err
 	}
@@ -1080,11 +1081,8 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 	}
 
 	var txs []*models.Transaction
-	builder := r.transactionQuery(dbRunner)
-
-	builder = builder.
+	builder := r.transactionQuery(dbRunner).
 		Where("avm_transactions.id = ?", id.String()).Limit(1)
-
 	if _, err := builder.LoadContext(ctx, &txs); err != nil {
 		return nil, err
 	}
@@ -1107,38 +1105,17 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 			return collateSearchResults(nil, txs)
 		}
 	}
+
 	return &models.SearchResults{}, nil
 }
 
 func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.SearchResults, error) {
-	if false {
-		dbRunner, err := r.conns.DB().NewSession("search_by_short_id", cfg.RequestTimeout)
-		if err != nil {
-			return nil, err
-		}
-		var addresses []*models.AddressInfo
-		builder := r.addressQuery(dbRunner)
+	listParams := params.ListParams{DisableCounting: true}
 
-		builder = builder.
-			Where("avm_output_addresses.address = ?", id.String()).Limit(1)
-		_, err = builder.
-			LoadContext(ctx, &addresses)
-		if err != nil {
-			return &models.SearchResults{}, err
-		}
-		if len(addresses) > 0 {
-			return collateSearchResults(&models.AddressList{
-				Addresses: addresses,
-			}, nil)
-		}
-	} else {
-		listParams := params.ListParams{DisableCounting: true}
-
-		if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
-			return nil, err
-		} else if len(addrs.Addresses) > 0 {
-			return collateSearchResults(addrs, nil)
-		}
+	if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
+		return nil, err
+	} else if len(addrs.Addresses) > 0 {
+		return collateSearchResults(addrs, nil)
 	}
 
 	return &models.SearchResults{}, nil
