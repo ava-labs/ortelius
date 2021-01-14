@@ -280,7 +280,7 @@ func (c *ConsumerCChain) init() error {
 }
 
 func (c *ConsumerCChain) processorClose() error {
-	c.sc.Log.Info("close %s", c.id)
+	c.sc.Log.Info("processorClose %s", c.id)
 	errs := wrappers.Errs{}
 	if c.conns != nil {
 		errs.Add(c.conns.Close())
