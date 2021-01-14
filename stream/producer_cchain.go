@@ -386,13 +386,13 @@ func (p *ProducerCChain) runProcessor() error {
 		nomsg              int
 		processNextMessage = func() error {
 			err := p.ProcessNextMessage()
-			if err == nil {
+
+			switch err {
+			case nil:
 				successes++
 				p.Success()
 				return nil
-			}
 
-			switch err {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -422,12 +422,11 @@ func (p *ProducerCChain) runProcessor() error {
 					return nil
 				}
 
+				failures++
 				p.Failure()
-				p.sc.Log.Error("Unknown error: %w - %v", err, err)
+				p.sc.Log.Error("Unknown error: %v", err)
+				return err
 			}
-
-			failures++
-			return nil
 		}
 	)
 
@@ -448,7 +447,7 @@ func (p *ProducerCChain) runProcessor() error {
 	// Process messages until asked to stop
 	for !p.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF && !p.isStopping() {
+		if err != nil {
 			return err
 		}
 	}

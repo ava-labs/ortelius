@@ -79,6 +79,7 @@ func CacheKey(name string, val interface{}) string {
 // Global params
 //
 type ListParams struct {
+	Values    url.Values
 	ID        *ids.ID
 	Query     string
 	StartTime time.Time
@@ -93,6 +94,7 @@ type ListParams struct {
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
+	p.Values = q
 	p.Limit, err = GetQueryInt(q, KeyLimit, PaginationMaxLimit)
 	if err != nil {
 		return err

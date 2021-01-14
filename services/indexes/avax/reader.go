@@ -55,7 +55,6 @@ type Reader struct {
 func NewReader(conns *services.Connections) *Reader {
 	return &Reader{
 		conns: conns,
-		//chainIDs: chainIDs,
 	}
 }
 
@@ -75,25 +74,74 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return r.searchByID(ctx, id, avaxAssetID)
 	}
 
-	// The query string was not an id/shortid so perform an ID prefix search
-	// against transactions and addresses.
-	transactions, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: p.ListParams}, avaxAssetID)
+	var assets []*models.Asset
+	var txs []*models.Transaction
+	var addresses []*models.AddressInfo
+
+	lenSearchResults := func() int {
+		return len(assets) + len(txs) + len(addresses)
+	}
+
+	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
 	if err != nil {
 		return nil, err
 	}
-	if len(transactions.Transactions) >= p.ListParams.Limit {
-		return collateSearchResults(nil, transactions)
+	assets = assetsResp.Assets
+	if lenSearchResults() >= p.ListParams.Limit {
+		return collateSearchResults(assets, addresses, txs)
 	}
 
-	addresses, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
+	if false {
+		// The query string was not an id/shortid so perform an ID prefix search
+		// against transactions and addresses.
+		transactionsRes, err := r.ListTransactions(ctx, &params.ListTransactionsParams{ListParams: p.ListParams}, avaxAssetID)
+		if err != nil {
+			return nil, err
+		}
+		txs = transactionsRes.Transactions
+		if lenSearchResults() >= p.ListParams.Limit {
+			return collateSearchResults(assets, addresses, txs)
+		}
+	}
+
+	dbRunner, err := r.conns.DB().NewSession("search", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
-	if len(addresses.Addresses) >= p.ListParams.Limit {
-		return collateSearchResults(addresses, transactions)
+
+	builder1 := r.transactionQuery(dbRunner).
+		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%")).
+		OrderDesc("avm_transactions.created_at").
+		Limit(uint64(p.ListParams.Limit))
+	if _, err := builder1.LoadContext(ctx, &txs); err != nil {
+		return nil, err
+	}
+	if lenSearchResults() >= p.ListParams.Limit {
+		return collateSearchResults(assets, addresses, txs)
 	}
 
-	return collateSearchResults(addresses, transactions)
+	/*
+		A regex search on address can't work..
+		And on output_id makes no sense...
+
+		Addresses are stored in the db in 20byte hex, and the query is by address 'fuji.....'
+		There is no way to convert a part of an address into a "few" bytes...
+
+		Future: store the address in the db in the address format 'fuji.....'
+		then a part query could work.
+	*/
+	if false {
+		addressesRes, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: p.ListParams})
+		if err != nil {
+			return nil, err
+		}
+		addresses = addressesRes.Addresses
+		if lenSearchResults() >= p.ListParams.Limit {
+			return collateSearchResults(assets, addresses, txs)
+		}
+	}
+
+	return collateSearchResults(assets, addresses, txs)
 }
 
 func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggregateParams) (*models.TxfeeAggregatesHistogram, error) {
@@ -442,27 +490,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	applySort2(p.Sort)
 
 	var txs []*models.Transaction
-	builder := dbRunner.
-		Select(
-			"avm_transactions.id",
-			"avm_transactions.chain_id",
-			"avm_transactions.type",
-			"avm_transactions.memo",
-			"avm_transactions.created_at",
-			"avm_transactions.txfee",
-			"avm_transactions.genesis",
-			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
-			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
-			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
-			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
-			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
-			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
-		).
-		From("avm_transactions").
-		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id").
-		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
-		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
-		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
+	builder := r.transactionQuery(dbRunner)
+
+	builder = builder.
+		Join(subquery.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id")
 
 	var applySort func(sort params.TransactionSort)
 	applySort = func(sort params.TransactionSort) {
@@ -518,13 +549,57 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 	}
 
+	next := r.transactionProcessNext(txs, listParamsOriginal, p)
+
 	return &models.TransactionList{ListMetadata: models.ListMetadata{
 		Count: count,
 	},
 		Transactions: txs,
 		StartTime:    listParamsOriginal.StartTime,
 		EndTime:      listParamsOriginal.EndTime,
+		Next:         next,
 	}, nil
+}
+
+func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
+	if len(txs) < listParams.Limit {
+		return nil
+	}
+	next := ""
+	switch transactionsParams.Sort {
+	case params.TransactionSortTimestampAsc:
+		firsttx := txs[0]
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, firsttx.CreatedAt.Unix())
+	case params.TransactionSortTimestampDesc:
+		lasttx := txs[len(txs)-1]
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttx.CreatedAt.Unix()+1)
+	}
+	for k, vs := range listParams.Values {
+		switch k {
+		case params.KeyLimit:
+			next = fmt.Sprintf("%s&%s=%d", next, params.KeyLimit, transactionsParams.ListParams.Limit)
+		case params.KeyStartTime:
+			if transactionsParams.Sort == params.TransactionSortTimestampDesc {
+				for _, v := range vs {
+					next = fmt.Sprintf("%s&%s=%s", next, params.KeyStartTime, v)
+				}
+			}
+		case params.KeyEndTime:
+			if transactionsParams.Sort == params.TransactionSortTimestampAsc {
+				for _, v := range vs {
+					next = fmt.Sprintf("%s&%s=%s", next, params.KeyEndTime, v)
+				}
+			}
+		case params.KeyOffset:
+		case params.KeySortBy:
+		default:
+			for _, v := range vs {
+				next = fmt.Sprintf("%s&%s=%s", next, k, v)
+			}
+		}
+	}
+	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
+	return &next
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
@@ -534,10 +609,8 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	var addresses []*models.AddressInfo
-	_, err = p.Apply(dbRunner.
-		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
-		From("avm_output_addresses").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")).
+	builder := r.addressQuery(dbRunner)
+	_, err = p.Apply(builder).
 		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
@@ -1054,15 +1127,33 @@ func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
-	if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
-		ListParams: params.ListParams{
-			DisableCounting: true,
-			ID:              &id,
-		},
-	}, avaxAssetID); err != nil {
+	dbRunner, err := r.conns.DB().NewSession("search_by_id", cfg.RequestTimeout)
+	if err != nil {
 		return nil, err
-	} else if len(txs.Transactions) > 0 {
-		return collateSearchResults(nil, txs)
+	}
+
+	var txs []*models.Transaction
+	builder := r.transactionQuery(dbRunner).
+		Where("avm_transactions.id = ?", id.String()).Limit(1)
+	if _, err := builder.LoadContext(ctx, &txs); err != nil {
+		return nil, err
+	}
+
+	if len(txs) > 0 {
+		return collateSearchResults(nil, nil, txs)
+	}
+
+	if false {
+		if txs, err := r.ListTransactions(ctx, &params.ListTransactionsParams{
+			ListParams: params.ListParams{
+				DisableCounting: true,
+				ID:              &id,
+			},
+		}, avaxAssetID); err != nil {
+			return nil, err
+		} else if len(txs.Transactions) > 0 {
+			return collateSearchResults(nil, nil, txs.Transactions)
+		}
 	}
 
 	return &models.SearchResults{}, nil
@@ -1074,7 +1165,7 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 	if addrs, err := r.ListAddresses(ctx, &params.ListAddressesParams{ListParams: listParams, Address: &id}); err != nil {
 		return nil, err
 	} else if len(addrs.Addresses) > 0 {
-		return collateSearchResults(addrs, nil)
+		return collateSearchResults(nil, addrs.Addresses, nil)
 	}
 
 	return &models.SearchResults{}, nil
@@ -1137,22 +1228,9 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 	return nil
 }
 
-func collateSearchResults(addressResults *models.AddressList, transactionResults *models.TransactionList) (*models.SearchResults, error) {
-	var (
-		addresses    []*models.AddressInfo
-		transactions []*models.Transaction
-	)
-
-	if addressResults != nil {
-		addresses = addressResults.Addresses
-	}
-
-	if transactionResults != nil {
-		transactions = transactionResults.Transactions
-	}
-
+func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInfo, transactions []*models.Transaction) (*models.SearchResults, error) {
 	// Build overall SearchResults object from our pieces
-	returnedResultCount := len(addresses) + len(transactions)
+	returnedResultCount := len(assets) + len(addresses) + len(transactions)
 	if returnedResultCount > params.PaginationMaxLimit {
 		returnedResultCount = params.PaginationMaxLimit
 	}
@@ -1174,6 +1252,12 @@ func collateSearchResults(addressResults *models.AddressList, transactionResults
 	for _, result := range transactions {
 		collatedResults.Results = append(collatedResults.Results, models.SearchResult{
 			SearchResultType: models.ResultTypeTransaction,
+			Data:             result,
+		})
+	}
+	for _, result := range assets {
+		collatedResults.Results = append(collatedResults.Results, models.SearchResult{
+			SearchResultType: models.ResultTypeAsset,
 			Data:             result,
 		})
 	}
@@ -1236,6 +1320,36 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+func (r *Reader) addressQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
+	return dbRunner.
+		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
+		From("avm_output_addresses").
+		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
+}
+
+func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
+	return dbRunner.
+		Select(
+			"avm_transactions.id",
+			"avm_transactions.chain_id",
+			"avm_transactions.type",
+			"avm_transactions.memo",
+			"avm_transactions.created_at",
+			"avm_transactions.txfee",
+			"avm_transactions.genesis",
+			"case when transactions_epoch.epoch is null then 0 else transactions_epoch.epoch end as epoch",
+			"case when transactions_epoch.vertex_id is null then '' else transactions_epoch.vertex_id end as vertex_id",
+			"case when transactions_validator.node_id is null then '' else transactions_validator.node_id end as validator_node_id",
+			"case when transactions_validator.start is null then 0 else transactions_validator.start end as validator_start",
+			"case when transactions_validator.end is null then 0 else transactions_validator.end end as validator_end",
+			"case when transactions_block.tx_block_id is null then '' else transactions_block.tx_block_id end as tx_block_id",
+		).
+		From("avm_transactions").
+		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
+		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
+		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 }
 
 func uint64Ptr(u64 uint64) *uint64 {

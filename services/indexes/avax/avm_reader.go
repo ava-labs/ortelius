@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package avm
+package avax
 
 import (
 	"context"
@@ -10,24 +10,10 @@ import (
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
 )
-
-type Reader struct {
-	conns      *services.Connections
-	avaxReader *avax.Reader
-}
-
-func NewReader(conns *services.Connections) *Reader {
-	return &Reader{
-		conns:      conns,
-		avaxReader: avax.NewReader(conns),
-	}
-}
 
 func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
 	dbRunner, err := r.conns.DB().NewSession("list_assets", cfg.RequestTimeout)
@@ -117,7 +103,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				IntervalSize: params.IntervalNames[intervalName],
 				Version:      1,
 			}
-			hm, err := r.avaxReader.Aggregate(ctx, &aparams)
+			hm, err := r.Aggregate(ctx, &aparams)
 			if err != nil {
 				return err
 			}
@@ -169,8 +155,4 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	}
 
 	return nil
-}
-
-func uint64Ptr(u64 uint64) *uint64 {
-	return &u64
 }

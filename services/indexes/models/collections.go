@@ -23,6 +23,8 @@ type TransactionList struct {
 	// EndTime is the calculated end time rounded to the nearest
 	// TransactionRoundDuration.
 	EndTime time.Time `json:"endTime"`
+
+	Next *string `json:"next,omitempty"`
 }
 
 type AssetList struct {

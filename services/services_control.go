@@ -22,7 +22,6 @@ const (
 
 type Control struct {
 	Services cfg.Services
-	Kafka    cfg.Kafka
 	Log      logging.Logger
 	Persist  Persist
 }

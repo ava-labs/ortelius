@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package pvm
+package avax
 
 import (
 	"context"
@@ -10,18 +10,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
-
-type Reader struct {
-	conns *services.Connections
-}
-
-func NewReader(conns *services.Connections) *Reader {
-	return &Reader{conns: conns}
-}
 
 func (r *Reader) ListBlocks(ctx context.Context, params *params.ListBlocksParams) (*models.BlockList, error) {
 	dbRunner, err := r.conns.DB().NewSession("list_blocks", cfg.RequestTimeout)

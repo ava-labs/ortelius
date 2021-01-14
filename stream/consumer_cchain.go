@@ -49,6 +49,8 @@ type ConsumerCChain struct {
 	quitCh   chan struct{}
 	doneCh   chan struct{}
 	consumer *cvm.Writer
+
+	groupName string
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
@@ -71,13 +73,20 @@ func NewConsumerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 		sc.InitConsumeMetrics()
 
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
+		// Setup config
+		c.groupName = conf.Consumer.GroupName
+		if c.groupName == "" {
+			c.groupName = c.consumer.Name()
+		}
+		if !conf.Consumer.StartTime.IsZero() {
+			c.groupName = ""
+		}
 
-		// Create reader for the topic
+		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
 			Topic:       topicName,
 			Brokers:     conf.Kafka.Brokers,
-			GroupID:     conf.Consumer.GroupName,
+			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
 			MaxBytes:    ConsumerMaxBytesDefault,
 		})
@@ -116,7 +125,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 	}
 
 	if len(block.BlockExtraData) == 0 {
-		return nil
+		return c.commitMessage(msg)
 	}
 
 	collectors := metrics.NewCollectors(
@@ -148,7 +157,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 		return err
 	}
 
-	return nil
+	return c.commitMessage(msg)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
@@ -164,26 +173,36 @@ func (c *ConsumerCChain) nextMessage() (*Message, error) {
 	return c.getNextMessage(ctx)
 }
 
+func (c *ConsumerCChain) commitMessage(msg services.Consumable) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
+	defer cancelFn()
+	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
+}
+
 // getNextMessage gets the next Message from the Kafka Indexer
 func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 	// Get raw Message from Kafka
-	msg, err := c.reader.ReadMessage(ctx)
+	msg, err := c.reader.FetchMessage(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	m := &Message{
+		chainID:      c.conf.CchainID,
+		body:         msg.Value,
+		timestamp:    msg.Time.UTC().Unix(),
+		kafkaMessage: &msg,
 	}
 
 	// Extract Message ID from key
 	id, err := ids.ToID(msg.Key)
 	if err != nil {
-		return nil, err
+		m.id = string(msg.Key)
+	} else {
+		m.id = id.String()
 	}
 
-	return &Message{
-		chainID:   c.conf.CchainID,
-		body:      msg.Value,
-		id:        id.String(),
-		timestamp: msg.Time.UTC().Unix(),
-	}, nil
+	return m, nil
 }
 
 func (c *ConsumerCChain) Failure() {
@@ -298,13 +317,13 @@ func (c *ConsumerCChain) runProcessor() error {
 		nomsg              int
 		processNextMessage = func() error {
 			err := c.ProcessNextMessage()
-			if err == nil {
+
+			switch err {
+			case nil:
 				successes++
 				c.Success()
 				return nil
-			}
 
-			switch err {
 			// This error is expected when the upstream service isn't producing
 			case context.DeadlineExceeded:
 				nomsg++
@@ -319,14 +338,12 @@ func (c *ConsumerCChain) runProcessor() error {
 			case io.EOF:
 				c.sc.Log.Error("EOF")
 				return io.EOF
-
 			default:
+				failures++
 				c.Failure()
-				c.sc.Log.Error("Unknown error: %s", err.Error())
+				c.sc.Log.Error("Unknown error: %v", err)
+				return err
 			}
-
-			failures++
-			return nil
 		}
 	)
 
@@ -347,7 +364,7 @@ func (c *ConsumerCChain) runProcessor() error {
 	// Process messages until asked to stop
 	for !c.isStopping() {
 		err := processNextMessage()
-		if err == io.EOF && !c.isStopping() {
+		if err != nil {
 			return err
 		}
 	}

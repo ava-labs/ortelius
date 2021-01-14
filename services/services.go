@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	kafkaMessage "github.com/segmentio/kafka-go"
+
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
@@ -13,6 +15,7 @@ type Consumable interface {
 	ChainID() string
 	Body() []byte
 	Timestamp() int64
+	KafkaMessage() *kafkaMessage.Message
 }
 
 // Consumer takes in Consumables and adds them to the service's backend

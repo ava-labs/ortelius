@@ -8,14 +8,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/avalanchego/genesis"
 	avmVM "github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/gocraft/web"
 )
 
@@ -100,8 +99,6 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	delayCache := NewDelayCache(cache)
 
 	avaxReader := avax.NewReader(connections)
-	avmReader := avm.NewReader(connections)
-	pvmReader := pvm.NewReader(connections)
 
 	ctx := Context{sc: sc}
 
@@ -116,8 +113,6 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 		}).
 		NotFound((*Context).notFoundHandler).
 		Middleware(func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
-			c.avmReader = avmReader
-			c.pvmReader = pvmReader
 			c.avaxReader = avaxReader
 			c.avaxAssetID = avaxAssetID
 
