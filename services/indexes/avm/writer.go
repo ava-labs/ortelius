@@ -366,7 +366,7 @@ func (w *Writer) insertOperationTx(
 
 	addIns := &avax.AddInsContainer{}
 	for _, txOps := range tx.Ops {
-		for _, u := range tx.InputUTXOs() {
+		for _, u := range txOps.UTXOIDs {
 			ti := &avalancheGoAvax.TransferableInput{
 				Asset:  txOps.Asset,
 				UTXOID: *u,
