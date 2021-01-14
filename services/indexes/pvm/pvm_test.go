@@ -85,7 +85,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := avax.NewReader(conns, nil)
+	reader := avax.NewReader(conns)
 	return writer, reader, func() {
 		s.Close()
 		_ = conns.Close()
