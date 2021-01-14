@@ -128,8 +128,14 @@ func (c *consumer) ID() string {
 
 // Close closes the consumer
 func (c *consumer) Close() error {
+	c.sc.Log.Info("close %s", c.id)
 	errs := wrappers.Errs{}
-	errs.Add(c.conns.Close(), c.reader.Close())
+	if c.conns != nil {
+		errs.Add(c.conns.Close())
+	}
+	if c.reader != nil {
+		errs.Add(c.reader.Close())
+	}
 	return errs.Err
 }
 
