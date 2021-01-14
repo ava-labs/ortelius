@@ -49,14 +49,12 @@ var (
 )
 
 type Reader struct {
-	conns      *services.Connections
-	listAssets func(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error)
+	conns *services.Connections
 }
 
-func NewReader(conns *services.Connections, listAssets func(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error)) *Reader {
+func NewReader(conns *services.Connections) *Reader {
 	return &Reader{
-		conns:      conns,
-		listAssets: listAssets,
+		conns: conns,
 	}
 }
 
@@ -84,15 +82,13 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return len(assets) + len(txs) + len(addresses)
 	}
 
-	if r.listAssets != nil {
-		assetsResp, err := r.listAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
-		if err != nil {
-			return nil, err
-		}
-		assets = assetsResp.Assets
-		if lenSearchResults() >= p.ListParams.Limit {
-			return collateSearchResults(assets, addresses, txs)
-		}
+	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
+	if err != nil {
+		return nil, err
+	}
+	assets = assetsResp.Assets
+	if lenSearchResults() >= p.ListParams.Limit {
+		return collateSearchResults(assets, addresses, txs)
 	}
 
 	if false {

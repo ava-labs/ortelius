@@ -18,9 +18,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/gocraft/health"
 	"github.com/gocraft/web"
 )
@@ -50,8 +48,6 @@ type Context struct {
 
 	delayCache  *DelayCache
 	avaxReader  *avax.Reader
-	avmReader   *avm.Reader
-	pvmReader   *pvm.Reader
 	connections *services.Connections
 }
 

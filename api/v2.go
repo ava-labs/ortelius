@@ -474,7 +474,7 @@ func (c *V2Context) ListAssets(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("list_assets", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avmReader.ListAssets(ctx, p)
+			return c.avaxReader.ListAssets(ctx, p)
 		},
 	})
 }
@@ -501,7 +501,7 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("get_asset", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avmReader.GetAsset(ctx, p, id)
+			return c.avaxReader.GetAsset(ctx, p, id)
 		},
 	})
 }
@@ -528,7 +528,7 @@ func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
 		TTL: 5 * time.Second,
 		Key: c.cacheKeyForParams("list_blocks", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.pvmReader.ListBlocks(ctx, p)
+			return c.avaxReader.ListBlocks(ctx, p)
 		},
 	})
 }
@@ -551,7 +551,7 @@ func (c *V2Context) GetBlock(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForID("get_block", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.pvmReader.GetBlock(ctx, id)
+			return c.avaxReader.GetBlock(ctx, id)
 		},
 	})
 }
