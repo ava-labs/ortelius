@@ -744,6 +744,10 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 				collated[key] = addressInfo
 			}
 		}
+		addressList.Addresses = []*models.AddressInfo{}
+		for _, v := range collated {
+			addressList.Addresses = append(addressList.Addresses, v)
+		}
 	}
 	if len(addressList.Addresses) > 0 {
 		return addressList.Addresses[0], nil
