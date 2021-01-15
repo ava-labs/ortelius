@@ -737,7 +737,7 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	if len(addressList.Addresses) > 1 {
 		collated := make(map[string]*models.AddressInfo)
 		for _, a := range addressList.Addresses {
-			key := fmt.Sprintf("%s", a.Address)
+			key := string(a.Address)
 			if addressInfo, ok := collated[key]; ok {
 				addAssetInfoMap(addressInfo.Assets, a.Assets)
 			} else {
