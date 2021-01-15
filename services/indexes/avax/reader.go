@@ -754,7 +754,7 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 func addAssetInfoMap(assets map[models.StringID]models.AssetInfo, assets2 map[models.StringID]models.AssetInfo) {
 	for k, v := range assets2 {
 		if assetInfo, ok := assets[k]; ok {
-			addAssetInfo(&assetInfo, &v)
+			addAssetInfo(&assetInfo, v)
 		} else {
 			assets[k] = v
 		}
@@ -770,7 +770,7 @@ func addStringaAsInt(t string, f string) string {
 	return rbi.Add(tbi, fbi).String()
 }
 
-func addAssetInfo(t *models.AssetInfo, f *models.AssetInfo) {
+func addAssetInfo(t *models.AssetInfo, f models.AssetInfo) {
 	t.TransactionCount += f.TransactionCount
 	t.UTXOCount += t.UTXOCount
 	t.Balance = models.TokenAmount(addStringaAsInt(string(t.Balance), string(f.Balance)))
@@ -1368,13 +1368,6 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
-}
-
-func (r *Reader) addressQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
-	return dbRunner.
-		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
-		From("avm_output_addresses").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
 
