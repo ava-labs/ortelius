@@ -620,7 +620,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	).From(sq.As("avm_outputs_j")).
 		LeftJoin("addresses", "addresses.address = avm_outputs_j.address")
 
-	_, err = p.Apply(builder).
+	_, err = builder.
 		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
@@ -734,10 +734,48 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	if err != nil {
 		return nil, err
 	}
+	if len(addressList.Addresses) > 1 {
+		collated := make(map[string]*models.AddressInfo)
+		for _, a := range addressList.Addresses {
+			key := fmt.Sprintf("%s:%s", a.ChainID, a.Address)
+			if addressInfo, ok := collated[key]; ok {
+				addAssetInfoMap(addressInfo.Assets, a.Assets)
+			} else {
+				collated[key] = addressInfo
+			}
+		}
+	}
 	if len(addressList.Addresses) > 0 {
 		return addressList.Addresses[0], nil
 	}
 	return nil, err
+}
+
+func addAssetInfoMap(assets map[models.StringID]models.AssetInfo, assets2 map[models.StringID]models.AssetInfo) {
+	for k, v := range assets2 {
+		if assetInfo, ok := assets[k]; ok {
+			addAssetInfo(&assetInfo, &v)
+		} else {
+			assets[k] = v
+		}
+	}
+}
+
+func addStringaAsInt(t string, f string) string {
+	tbi := new(big.Int)
+	tbi.SetString(t, 10)
+	fbi := new(big.Int)
+	fbi.SetString(f, 10)
+	rbi := new(big.Int)
+	return rbi.Add(tbi, fbi).String()
+}
+
+func addAssetInfo(t *models.AssetInfo, f *models.AssetInfo) {
+	t.TransactionCount += f.TransactionCount
+	t.UTXOCount += t.UTXOCount
+	t.Balance = models.TokenAmount(addStringaAsInt(string(t.Balance), string(f.Balance)))
+	t.TotalReceived = models.TokenAmount(addStringaAsInt(string(t.TotalReceived), string(f.TotalReceived)))
+	t.TotalSent = models.TokenAmount(addStringaAsInt(string(t.TotalSent), string(f.TotalSent)))
 }
 
 func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
