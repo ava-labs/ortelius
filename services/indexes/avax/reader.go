@@ -739,7 +739,7 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 		for _, a := range addressList.Addresses {
 			key := string(a.Address)
 			if addressInfo, ok := collated[key]; ok {
-				addAssetInfoMap(addressInfo.Assets, a.Assets)
+				collated[key].Assets = addAssetInfoMap(addressInfo.Assets, a.Assets)
 			} else {
 				a.ChainID = ""
 				collated[key] = a
