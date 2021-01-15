@@ -405,8 +405,13 @@ func (p *ListAddressesParams) CacheKey() []string {
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id")
 
+	if len(p.ChainIDs) != 0 {
+		b.
+			Where("avm_outputs.chain_id IN ?", p.ChainIDs)
+	}
+
 	if p.Address != nil {
-		b = b.
+		b.
 			Where("avm_output_addresses.address = ?", p.Address.String()).
 			Limit(1)
 	}
