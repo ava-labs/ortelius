@@ -737,11 +737,12 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	if len(addressList.Addresses) > 1 {
 		collated := make(map[string]*models.AddressInfo)
 		for _, a := range addressList.Addresses {
-			key := fmt.Sprintf("%s:%s", a.ChainID, a.Address)
+			key := fmt.Sprintf("%s", a.Address)
 			if addressInfo, ok := collated[key]; ok {
 				addAssetInfoMap(addressInfo.Assets, a.Assets)
 			} else {
-				collated[key] = addressInfo
+				a.ChainID = ""
+				collated[key] = a
 			}
 		}
 		addressList.Addresses = []*models.AddressInfo{}
@@ -755,14 +756,15 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	return nil, err
 }
 
-func addAssetInfoMap(assets map[models.StringID]models.AssetInfo, assets2 map[models.StringID]models.AssetInfo) {
+func addAssetInfoMap(assets map[models.StringID]models.AssetInfo, assets2 map[models.StringID]models.AssetInfo) map[models.StringID]models.AssetInfo {
 	for k, v := range assets2 {
 		if assetInfo, ok := assets[k]; ok {
-			addAssetInfo(&assetInfo, v)
+			assets[k] = addAssetInfo(assetInfo, v)
 		} else {
 			assets[k] = v
 		}
 	}
+	return assets
 }
 
 func addStringaAsInt(t string, f string) string {
@@ -774,12 +776,13 @@ func addStringaAsInt(t string, f string) string {
 	return rbi.Add(tbi, fbi).String()
 }
 
-func addAssetInfo(t *models.AssetInfo, f models.AssetInfo) {
+func addAssetInfo(t models.AssetInfo, f models.AssetInfo) models.AssetInfo {
 	t.TransactionCount += f.TransactionCount
 	t.UTXOCount += t.UTXOCount
 	t.Balance = models.TokenAmount(addStringaAsInt(string(t.Balance), string(f.Balance)))
 	t.TotalReceived = models.TokenAmount(addStringaAsInt(string(t.TotalReceived), string(f.TotalReceived)))
 	t.TotalSent = models.TokenAmount(addStringaAsInt(string(t.TotalSent), string(f.TotalSent)))
+	return t
 }
 
 func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, error) {
