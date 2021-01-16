@@ -169,7 +169,7 @@ func processDataIn(sess *dbr.Session) (int, error) {
 	_, err := sess.SelectBySql("select output_id, address "+
 		"from output_addresses_accumulate "+
 		"where "+
-		"processed = 0 and out_avail = 1 and type = ? "+
+		"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
 		"limit 1 "+
 		" ", services.OutputAddressAccumulateTypeIn).
 		LoadContext(ctx, &rowdata)
@@ -192,7 +192,7 @@ func processDataIn(sess *dbr.Session) (int, error) {
 	_, err = dbTx.SelectBySql("select output_id, address "+
 		"from output_addresses_accumulate "+
 		"where "+
-		"processed = 0 and out_avail = 1 and type = ? "+
+		"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
 		"limit "+RowLimit+" "+
 		"for update ", services.OutputAddressAccumulateTypeIn).
 		LoadContext(ctx, &rowdata)
