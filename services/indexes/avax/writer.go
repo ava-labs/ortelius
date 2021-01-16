@@ -325,7 +325,7 @@ func (w *Writer) InsertOutput(
 			Type:     services.OutputAddressAccumulateTypeOut,
 			OutputID: outputID.String(),
 			Address:  addrid.String(),
-			Out:      1,
+			OutAvail: 1,
 		}
 		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 		if err != nil {

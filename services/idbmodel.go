@@ -1161,7 +1161,7 @@ type OutputAddressAccumulate struct {
 	OutputID  string
 	Address   string
 	Processed int
-	Out       int
+	OutAvail  int
 }
 
 func (p *persist) QueryOutputAddressAccumulate(
@@ -1175,7 +1175,7 @@ func (p *persist) QueryOutputAddressAccumulate(
 		"output_id",
 		"address",
 		"processed",
-		"out",
+		"out_avail",
 	).From(TableOutputAddressAccumulate).
 		Where("type=? and output_id=? and address=?", q.Type, q.OutputID, q.Address).
 		LoadOneContext(ctx, v)
@@ -1193,7 +1193,7 @@ func (p *persist) InsertOutputAddressAccumulate(
 		Pair("type", v.Type).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
-		Pair("out", v.Out).
+		Pair("out_avail", v.OutAvail).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)
@@ -1210,7 +1210,7 @@ func (p *persist) UpdateOutputAddressAccumulateOut(
 	var err error
 	_, err = sess.
 		Update(TableOutputAddressAccumulate).
-		Set("out", v.Out).
+		Set("out_avail", v.OutAvail).
 		Where("type=? and output_id=? and address=?", v.Type, v.OutputID, v.Address).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {

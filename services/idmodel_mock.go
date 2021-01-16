@@ -337,7 +337,7 @@ func (m *MockPersist) UpdateOutputAddressAccumulateOut(
 ) error {
 	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
 	if fv, present := m.OutputAddressAccumulate[key]; present {
-		fv.Out = v.Out
+		fv.OutAvail = v.OutAvail
 	}
 	return nil
 }
