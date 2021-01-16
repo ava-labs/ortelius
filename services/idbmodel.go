@@ -1206,7 +1206,7 @@ type AccumulateBalances struct {
 	UtxoCount        string
 }
 
-func (b AccumulateBalances) ComputeID() error {
+func (b *AccumulateBalances) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 	if err != nil {
