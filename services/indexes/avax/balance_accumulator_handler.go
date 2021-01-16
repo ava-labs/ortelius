@@ -171,7 +171,7 @@ func processDataIn(sess *dbr.Session) (int, error) {
 		"where "+
 		"processed = 0 and out_avail = 1 and type = ? "+
 		"limit 1 "+
-		" ", services.OutputAddressAccumulateTypeIn, services.OutputAddressAccumulateTypeOut).
+		" ", services.OutputAddressAccumulateTypeIn).
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
