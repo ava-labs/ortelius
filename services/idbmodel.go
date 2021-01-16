@@ -224,6 +224,11 @@ type Persist interface {
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
 	) error
+	UpdateOutputAddressAccumulateIn(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputAddressAccumulate,
+	) error
 
 	QueryAccumulateBalances(
 		context.Context,
@@ -1162,6 +1167,7 @@ type OutputAddressAccumulate struct {
 	Address   string
 	Processed int
 	OutAvail  int
+	InAvail   int
 }
 
 func (p *persist) QueryOutputAddressAccumulate(
@@ -1176,6 +1182,7 @@ func (p *persist) QueryOutputAddressAccumulate(
 		"address",
 		"processed",
 		"out_avail",
+		"in_avail",
 	).From(TableOutputAddressAccumulate).
 		Where("type=? and output_id=? and address=?", q.Type, q.OutputID, q.Address).
 		LoadOneContext(ctx, v)
@@ -1194,6 +1201,7 @@ func (p *persist) InsertOutputAddressAccumulate(
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
 		Pair("out_avail", v.OutAvail).
+		Pair("in_avail", v.InAvail).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)
@@ -1211,6 +1219,24 @@ func (p *persist) UpdateOutputAddressAccumulateOut(
 	_, err = sess.
 		Update(TableOutputAddressAccumulate).
 		Set("out_avail", v.OutAvail).
+		Where("type=? and output_id=? and address=?", v.Type, v.OutputID, v.Address).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputAddressAccumulate, false, err)
+	}
+
+	return nil
+}
+
+func (p *persist) UpdateOutputAddressAccumulateIn(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputAddressAccumulate,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableOutputAddressAccumulate).
+		Set("in_avail", v.InAvail).
 		Where("type=? and output_id=? and address=?", v.Type, v.OutputID, v.Address).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {

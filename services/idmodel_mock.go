@@ -342,6 +342,18 @@ func (m *MockPersist) UpdateOutputAddressAccumulateOut(
 	return nil
 }
 
+func (m *MockPersist) UpdateOutputAddressAccumulateIn(
+	ctx context.Context,
+	dbr dbr.SessionRunner,
+	v *OutputAddressAccumulate,
+) error {
+	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
+	if fv, present := m.OutputAddressAccumulate[key]; present {
+		fv.InAvail = v.InAvail
+	}
+	return nil
+}
+
 func (m *MockPersist) QueryAccumulateBalances(ctx context.Context, runner dbr.SessionRunner, v *AccumulateBalances) (*AccumulateBalances, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()

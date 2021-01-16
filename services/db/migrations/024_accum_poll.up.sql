@@ -18,6 +18,7 @@ create table output_addresses_accumulate
     type       smallint unsigned not null,
     processed  smallint unsigned not null default 0,
     out_avail  smallint unsigned not null default 0,
+    in_avail   smallint unsigned not null default 0,
     primary key (output_id, address, type)
 );
 
