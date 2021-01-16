@@ -17,6 +17,7 @@ create table output_addresses_accumulate
     address    varchar(50)    not null,
     type       smallint unsigned not null,
     processed  smallint unsigned not null default 0,
+    out        smallint unsigned not null default 0,
     primary key (output_id, address, type)
 );
 

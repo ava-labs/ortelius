@@ -325,11 +325,17 @@ func (w *Writer) InsertOutput(
 			Type:     services.OutputAddressAccumulateTypeOut,
 			OutputID: outputID.String(),
 			Address:  addrid.String(),
+			Out:      1,
 		}
 		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 		if err != nil {
 			return err
 		}
+		err = ctx.Persist().UpdateOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+		if err != nil {
+			return err
+		}
+
 		accumulateBalances := &services.AccumulateBalances{
 			ChainID: chainID,
 			AssetID: outputID.String(),

@@ -42,19 +42,34 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 
 func processDataOut(sess *dbr.Session) (int, error) {
 	ctx := context.Background()
-
-	var dbTx *dbr.Tx
-	dbTx, err := sess.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer dbTx.RollbackUnlessCommitted()
-
 	type Row struct {
 		OutputID string
 		Address  string
 	}
 	var rowdata []*Row
+
+	_, err := sess.SelectBySql("select output_id, address "+
+		"from output_addresses_accumulate "+
+		"where processed = 0 and type = ? "+
+		"limit 1 "+
+		" ", services.OutputAddressAccumulateTypeOut).
+		LoadContext(ctx, &rowdata)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(rowdata) == 0 {
+		return 0, nil
+	}
+
+	rowdata = nil
+
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer dbTx.RollbackUnlessCommitted()
 
 	_, err = dbTx.SelectBySql("select output_id, address "+
 		"from output_addresses_accumulate "+
@@ -145,27 +160,41 @@ func processDataOut(sess *dbr.Session) (int, error) {
 func processDataIn(sess *dbr.Session) (int, error) {
 	ctx := context.Background()
 
-	var dbTx *dbr.Tx
-	dbTx, err := sess.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer dbTx.RollbackUnlessCommitted()
-
 	type Row struct {
 		OutputID string
 		Address  string
 	}
 	var rowdata []*Row
 
-	_, err = dbTx.SelectBySql("select a.output_id, a.address "+
-		"from output_addresses_accumulate a "+
-		"join output_addresses_accumulate b on a.output_id = b.output_id and a.address = b.address "+
+	_, err := sess.SelectBySql("select output_id, address "+
+		"from output_addresses_accumulate "+
 		"where "+
-		"a.processed = 0 and a.type = ? "+
-		"and b.processed = 1 and b.type = ? "+
+		"processed = 0 and out = 1 and type = ? "+
+		"limit 1 "+
+		" ", services.OutputAddressAccumulateTypeIn, services.OutputAddressAccumulateTypeOut).
+		LoadContext(ctx, &rowdata)
+	if err != nil {
+		return 0, err
+	}
+	if len(rowdata) == 0 {
+		return 0, nil
+	}
+
+	rowdata = nil
+
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	_, err = dbTx.SelectBySql("select output_id, address "+
+		"from output_addresses_accumulate "+
+		"where "+
+		"processed = 0 and out = 1 and type = ? "+
 		"limit "+RowLimit+" "+
-		"for update ", services.OutputAddressAccumulateTypeIn, services.OutputAddressAccumulateTypeOut).
+		"for update ", services.OutputAddressAccumulateTypeIn).
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
