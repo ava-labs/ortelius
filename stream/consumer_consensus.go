@@ -148,7 +148,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
