@@ -12,20 +12,21 @@ import (
 )
 
 const (
-	TableTransactions          = "avm_transactions"
-	TableOutputsRedeeming      = "avm_outputs_redeeming"
-	TableOutputs               = "avm_outputs"
-	TableAssets                = "avm_assets"
-	TableAddresses             = "addresses"
-	TableAddressChain          = "address_chain"
-	TableOutputAddresses       = "avm_output_addresses"
-	TableTransactionsEpochs    = "transactions_epoch"
-	TableCvmAddresses          = "cvm_addresses"
-	TableCvmTransactions       = "cvm_transactions"
-	TablePvmBlocks             = "pvm_blocks"
-	TableRewards               = "rewards"
-	TableTransactionsValidator = "transactions_validator"
-	TableTransactionsBlock     = "transactions_block"
+	TableTransactions            = "avm_transactions"
+	TableOutputsRedeeming        = "avm_outputs_redeeming"
+	TableOutputs                 = "avm_outputs"
+	TableAssets                  = "avm_assets"
+	TableAddresses               = "addresses"
+	TableAddressChain            = "address_chain"
+	TableOutputAddresses         = "avm_output_addresses"
+	TableTransactionsEpochs      = "transactions_epoch"
+	TableCvmAddresses            = "cvm_addresses"
+	TableCvmTransactions         = "cvm_transactions"
+	TablePvmBlocks               = "pvm_blocks"
+	TableRewards                 = "rewards"
+	TableTransactionsValidator   = "transactions_validator"
+	TableTransactionsBlock       = "transactions_block"
+	TableOutputAddressAccumulate = "output_addresses_accumulate"
 )
 
 type Persist interface {
@@ -202,6 +203,17 @@ type Persist interface {
 		dbr.SessionRunner,
 		*TransactionsBlock,
 		bool,
+	) error
+
+	QueryOutputAddressAccumulate(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputAddressAccumulate,
+	) (*OutputAddressAccumulate, error)
+	InsertOutputAddressAccumulate(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputAddressAccumulate,
 	) error
 }
 
@@ -1115,5 +1127,54 @@ func (p *persist) InsertTransactionsBlock(
 			return EventErr(TableTransactionsBlock, true, err)
 		}
 	}
+	return nil
+}
+
+type OutputAddressAccumulateType uint32
+
+var OutputAddressAccumulateTypeBase OutputAddressAccumulateType = 0
+var OutputAddressAccumulateTypeIn OutputAddressAccumulateType = 1
+var OutputAddressAccumulateTypeOut OutputAddressAccumulateType = 2
+
+type OutputAddressAccumulate struct {
+	Type      OutputAddressAccumulateType
+	OutputID  string
+	Address   string
+	Processed int
+}
+
+func (p *persist) QueryOutputAddressAccumulate(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputAddressAccumulate,
+) (*OutputAddressAccumulate, error) {
+	v := &OutputAddressAccumulate{}
+	err := sess.Select(
+		"type",
+		"output_id",
+		"address",
+		"processed",
+	).From(TableOutputAddressAccumulate).
+		Where("type=? and output_id=? and address=?", q.Type, q.OutputID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputAddressAccumulate(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputAddressAccumulate,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableOutputAddressAccumulate).
+		Pair("type", v.Type).
+		Pair("output_id", v.OutputID).
+		Pair("address", v.Address).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputAddressAccumulate, false, err)
+	}
+
 	return nil
 }

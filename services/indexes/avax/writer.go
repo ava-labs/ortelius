@@ -198,6 +198,16 @@ func (w *Writer) InsertTransactionIns(
 		return 0, err
 	}
 
+	outputAddressAccumulate := &services.OutputAddressAccumulate{
+		Type:     services.OutputAddressAccumulateTypeBase,
+		OutputID: inputID.String(),
+		Address:  in.AssetID().String(),
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return 0, err
+	}
+
 	if idx < len(creds) {
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[idx].(*secp256k1fx.Credential)
@@ -212,6 +222,16 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+				if err != nil {
+					return 0, err
+				}
+
+				outputAddressAccumulate = &services.OutputAddressAccumulate{
+					Type:     services.OutputAddressAccumulateTypeIn,
+					OutputID: inputID.String(),
+					Address:  in.AssetID().String(),
+				}
+				err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 				if err != nil {
 					return 0, err
 				}
@@ -281,7 +301,18 @@ func (w *Writer) InsertOutput(
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		err = w.InsertOutputAddress(ctx, outputID, ids.ShortID(addrBytes), nil)
+		addrid := ids.ShortID(addrBytes)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil)
+		if err != nil {
+			return err
+		}
+
+		outputAddressAccumulate := &services.OutputAddressAccumulate{
+			Type:     services.OutputAddressAccumulateTypeOut,
+			OutputID: outputID.String(),
+			Address:  addrid.String(),
+		}
+		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 		if err != nil {
 			return err
 		}

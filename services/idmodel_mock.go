@@ -2,45 +2,48 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gocraft/dbr/v2"
 )
 
 type MockPersist struct {
-	lock                  sync.RWMutex
-	Transactions          map[string]*Transactions
-	Outputs               map[string]*Outputs
-	OutputsRedeeming      map[string]*OutputsRedeeming
-	CvmTransactions       map[string]*CvmTransactions
-	CvmAddresses          map[string]*CvmAddresses
-	TransactionsValidator map[string]*TransactionsValidator
-	TransactionsBlock     map[string]*TransactionsBlock
-	Rewards               map[string]*Rewards
-	Addresses             map[string]*Addresses
-	AddressChain          map[string]*AddressChain
-	OutputAddresses       map[string]*OutputAddresses
-	Assets                map[string]*Assets
-	TransactionsEpoch     map[string]*TransactionsEpoch
-	PvmBlocks             map[string]*PvmBlocks
+	lock                    sync.RWMutex
+	Transactions            map[string]*Transactions
+	Outputs                 map[string]*Outputs
+	OutputsRedeeming        map[string]*OutputsRedeeming
+	CvmTransactions         map[string]*CvmTransactions
+	CvmAddresses            map[string]*CvmAddresses
+	TransactionsValidator   map[string]*TransactionsValidator
+	TransactionsBlock       map[string]*TransactionsBlock
+	Rewards                 map[string]*Rewards
+	Addresses               map[string]*Addresses
+	AddressChain            map[string]*AddressChain
+	OutputAddresses         map[string]*OutputAddresses
+	Assets                  map[string]*Assets
+	TransactionsEpoch       map[string]*TransactionsEpoch
+	PvmBlocks               map[string]*PvmBlocks
+	OutputAddressAccumulate map[string]*OutputAddressAccumulate
 }
 
 func NewPersistMock() *MockPersist {
 	return &MockPersist{
-		Transactions:          make(map[string]*Transactions),
-		Outputs:               make(map[string]*Outputs),
-		OutputsRedeeming:      make(map[string]*OutputsRedeeming),
-		CvmTransactions:       make(map[string]*CvmTransactions),
-		CvmAddresses:          make(map[string]*CvmAddresses),
-		TransactionsValidator: make(map[string]*TransactionsValidator),
-		TransactionsBlock:     make(map[string]*TransactionsBlock),
-		Rewards:               make(map[string]*Rewards),
-		Addresses:             make(map[string]*Addresses),
-		AddressChain:          make(map[string]*AddressChain),
-		OutputAddresses:       make(map[string]*OutputAddresses),
-		Assets:                make(map[string]*Assets),
-		TransactionsEpoch:     make(map[string]*TransactionsEpoch),
-		PvmBlocks:             make(map[string]*PvmBlocks),
+		Transactions:            make(map[string]*Transactions),
+		Outputs:                 make(map[string]*Outputs),
+		OutputsRedeeming:        make(map[string]*OutputsRedeeming),
+		CvmTransactions:         make(map[string]*CvmTransactions),
+		CvmAddresses:            make(map[string]*CvmAddresses),
+		TransactionsValidator:   make(map[string]*TransactionsValidator),
+		TransactionsBlock:       make(map[string]*TransactionsBlock),
+		Rewards:                 make(map[string]*Rewards),
+		Addresses:               make(map[string]*Addresses),
+		AddressChain:            make(map[string]*AddressChain),
+		OutputAddresses:         make(map[string]*OutputAddresses),
+		Assets:                  make(map[string]*Assets),
+		TransactionsEpoch:       make(map[string]*TransactionsEpoch),
+		PvmBlocks:               make(map[string]*PvmBlocks),
+		OutputAddressAccumulate: make(map[string]*OutputAddressAccumulate),
 	}
 }
 
@@ -302,5 +305,25 @@ func (m *MockPersist) InsertTransactionsBlock(ctx context.Context, runner dbr.Se
 	nv := &TransactionsBlock{}
 	*nv = *v
 	m.TransactionsBlock[v.ID] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
+	if v, present := m.OutputAddressAccumulate[key]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &OutputAddressAccumulate{}
+	*nv = *v
+	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
+	m.OutputAddressAccumulate[key] = nv
 	return nil
 }
