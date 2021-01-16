@@ -13,11 +13,11 @@ create table accumulate_balances
 
 create table output_addresses_accumulate
 (
-    type       smallint unsigned not null,
     output_id  varchar(50)    not null,
     address    varchar(50)    not null,
+    type       smallint unsigned not null,
     processed  smallint unsigned not null default 0,
-    primary key (type, output_id, address)
+    primary key (output_id, address, type)
 );
 
 create index `output_addresses_accumulate_processed` on `output_addresses_accumulate` (processed);
