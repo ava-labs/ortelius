@@ -25,6 +25,7 @@ type MockPersist struct {
 	TransactionsEpoch       map[string]*TransactionsEpoch
 	PvmBlocks               map[string]*PvmBlocks
 	OutputAddressAccumulate map[string]*OutputAddressAccumulate
+	AccumulateBalances      map[string]*AccumulateBalances
 }
 
 func NewPersistMock() *MockPersist {
@@ -44,6 +45,7 @@ func NewPersistMock() *MockPersist {
 		TransactionsEpoch:       make(map[string]*TransactionsEpoch),
 		PvmBlocks:               make(map[string]*PvmBlocks),
 		OutputAddressAccumulate: make(map[string]*OutputAddressAccumulate),
+		AccumulateBalances:      make(map[string]*AccumulateBalances),
 	}
 }
 
@@ -325,5 +327,23 @@ func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner 
 	*nv = *v
 	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
 	m.OutputAddressAccumulate[key] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryAccumulateBalances(ctx context.Context, runner dbr.SessionRunner, v *AccumulateBalances) (*AccumulateBalances, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.AccumulateBalances[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertAccumulateBalances(ctx context.Context, runner dbr.SessionRunner, v *AccumulateBalances) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &AccumulateBalances{}
+	*nv = *v
+	m.AccumulateBalances[v.ID] = nv
 	return nil
 }

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -27,6 +30,7 @@ const (
 	TableTransactionsValidator   = "transactions_validator"
 	TableTransactionsBlock       = "transactions_block"
 	TableOutputAddressAccumulate = "output_addresses_accumulate"
+	TableAccumulateBalances      = "accumulate_balances"
 )
 
 type Persist interface {
@@ -214,6 +218,17 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+	) error
+
+	QueryAccumulateBalances(
+		context.Context,
+		dbr.SessionRunner,
+		*AccumulateBalances,
+	) (*AccumulateBalances, error)
+	InsertAccumulateBalances(
+		context.Context,
+		dbr.SessionRunner,
+		*AccumulateBalances,
 	) error
 }
 
@@ -1174,6 +1189,70 @@ func (p *persist) InsertOutputAddressAccumulate(
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)
+	}
+
+	return nil
+}
+
+type AccumulateBalances struct {
+	ID               string
+	ChainID          string
+	AssetID          string
+	Address          string
+	TransactionCount string
+	TotalReceived    string
+	TotalSent        string
+	Balance          string
+	UtxoCount        string
+}
+
+func (b AccumulateBalances) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
+}
+
+func (p *persist) QueryAccumulateBalances(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *AccumulateBalances,
+) (*AccumulateBalances, error) {
+	v := &AccumulateBalances{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"asset_id",
+		"address",
+		"cast(transaction_count as char) transaction_count",
+		"cast(total_received as char) transaction_count",
+		"cast(total_sent as char) transaction_count",
+		"cast(balance as char) transaction_count",
+		"cast(utxo_count as char) transaction_count",
+	).From(TableAccumulateBalances).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAccumulateBalances(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *AccumulateBalances,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAccumulateBalances).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("asset_id", v.AssetID).
+		Pair("address", v.Address).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableAccumulateBalances, false, err)
 	}
 
 	return nil

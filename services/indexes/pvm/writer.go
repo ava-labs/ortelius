@@ -74,7 +74,17 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist ser
 	if err != nil {
 		return err
 	}
-	return dbTx.Commit()
+	err = dbTx.Commit()
+	if err != nil {
+		return err
+	}
+
+	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
@@ -133,7 +143,16 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 		errs.Add(w.indexTransaction(cCtx, ChainID, *tx, true))
 	}
 
-	return errs.Err
+	if errs.Errored() {
+		return errs.Err
+	}
+
+	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {

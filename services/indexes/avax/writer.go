@@ -235,6 +235,20 @@ func (w *Writer) InsertTransactionIns(
 				if err != nil {
 					return 0, err
 				}
+
+				accumulateBalances := &services.AccumulateBalances{
+					ChainID: chainID,
+					AssetID: in.AssetID().String(),
+					Address: publicKey.Address().String(),
+				}
+				err = accumulateBalances.ComputeID()
+				if err != nil {
+					return 0, err
+				}
+				err = ctx.Persist().InsertAccumulateBalances(ctx.Ctx(), ctx.DB(), accumulateBalances)
+				if err != nil {
+					return 0, err
+				}
 			}
 		}
 	}
@@ -313,6 +327,19 @@ func (w *Writer) InsertOutput(
 			Address:  addrid.String(),
 		}
 		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+		if err != nil {
+			return err
+		}
+		accumulateBalances := &services.AccumulateBalances{
+			ChainID: chainID,
+			AssetID: outputID.String(),
+			Address: addrid.String(),
+		}
+		err = accumulateBalances.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = ctx.Persist().InsertAccumulateBalances(ctx.Ctx(), ctx.DB(), accumulateBalances)
 		if err != nil {
 			return err
 		}

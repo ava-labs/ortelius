@@ -71,7 +71,18 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader
 	if err != nil {
 		return err
 	}
-	return dbTx.Commit()
+
+	err = dbTx.Commit()
+	if err != nil {
+		return err
+	}
+
+	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return nil
+	}
+
+	return nil
 }
 
 func (w *Writer) Bootstrap(ctx context.Context) error {

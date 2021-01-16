@@ -128,7 +128,15 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 
 		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
-		return w.insertGenesis(cCtx, createChainTx.GenesisData)
+		err = w.insertGenesis(cCtx, createChainTx.GenesisData)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -186,6 +194,11 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 
 	if err = dbTx.Commit(); err != nil {
 		return stacktrace.Propagate(err, "Failed to commit database tx")
+	}
+
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -249,6 +262,11 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist ser
 
 	if err = dbTx.Commit(); err != nil {
 		return stacktrace.Propagate(err, "Failed to commit database tx")
+	}
+
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	if err != nil {
+		return err
 	}
 
 	return nil
