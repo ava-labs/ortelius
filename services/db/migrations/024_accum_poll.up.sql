@@ -17,9 +17,7 @@ create table output_addresses_accumulate
     address    varchar(50)    not null,
     type       smallint unsigned not null,
     processed  smallint unsigned not null default 0,
-    out_avail  smallint unsigned not null default 0,
-    in_avail   smallint unsigned not null default 0,
     primary key (output_id, address, type)
 );
 
-create index `output_addresses_accumulate_processed_type` on `output_addresses_accumulate` (type, processed, out_avail, in_avail);
+create index `output_addresses_accumulate_processed_type` on `output_addresses_accumulate` (type, processed);

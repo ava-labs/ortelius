@@ -3,8 +3,6 @@ package avax
 import (
 	"context"
 	"fmt"
-	"math/big"
-	"os"
 
 	"github.com/ava-labs/ortelius/services"
 	"github.com/gocraft/dbr/v2"
@@ -49,22 +47,6 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 	var rowdata []*Row
 
-	// _, err := sess.SelectBySql("select output_id, address "+
-	// 	"from output_addresses_accumulate "+
-	// 	"where processed = 0 and type = ? "+
-	// 	"limit 1 "+
-	// 	" ", services.OutputAddressAccumulateTypeOut).
-	// 	LoadContext(ctx, &rowdata)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	//
-	// if len(rowdata) == 0 {
-	// 	return 0, nil
-	// }
-	//
-	// rowdata = nil
-
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
 	if err != nil {
@@ -108,12 +90,6 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 			err = b.ComputeID()
 			if err != nil {
 				return 0, err
-			}
-
-			bi := new(big.Int)
-			bi.SetString(b.TransactionCount, 10)
-			if bi.Int64() > 1 {
-				fmt.Fprintf(os.Stderr, "here\n")
 			}
 			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
 
@@ -176,22 +152,6 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 	var rowdata []*Row
 
-	// _, err := sess.SelectBySql("select output_id, address "+
-	// 	"from output_addresses_accumulate "+
-	// 	"where "+
-	// 	"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
-	// 	"limit 1 "+
-	// 	" ", services.OutputAddressAccumulateTypeIn).
-	// 	LoadContext(ctx, &rowdata)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// if len(rowdata) == 0 {
-	// 	return 0, nil
-	// }
-	//
-	// rowdata = nil
-
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
 	if err != nil {
@@ -199,12 +159,13 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_id, address "+
-		"from output_addresses_accumulate "+
+	_, err = dbTx.SelectBySql("select a.output_id, a.address "+
+		"from output_addresses_accumulate a "+
+		"join output_addresses_accumulate b on a.output_id = b.output_id and a.address = b.address "+
 		"where "+
-		"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
+		"a.processed = 0 and a.type = ? and b.processed = 1 and b.type = ? "+
 		"limit "+RowLimit+" "+
-		"for update ", services.OutputAddressAccumulateTypeIn).
+		"for update ", services.OutputAddressAccumulateTypeIn, services.OutputAddressAccumulateTypeOut).
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
@@ -235,12 +196,6 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 			err = b.ComputeID()
 			if err != nil {
 				return 0, err
-			}
-
-			bi := new(big.Int)
-			bi.SetString(b.TransactionCount, 10)
-			if bi.Int64() > 1 {
-				fmt.Fprintf(os.Stderr, "here\n")
 			}
 			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
 
