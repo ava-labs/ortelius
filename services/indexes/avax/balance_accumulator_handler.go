@@ -80,8 +80,7 @@ func processDataOut(sess *dbr.Session) (int, error) {
 		return 0, err
 	}
 
-	lenrowdata := len(rowdata)
-	if lenrowdata == 0 {
+	if len(rowdata) == 0 {
 		return 0, nil
 	}
 
@@ -101,6 +100,8 @@ func processDataOut(sess *dbr.Session) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+
+		accumulateBalanceIds := []string{}
 		for _, b := range balances {
 			err = b.ComputeID()
 			if err != nil {
@@ -112,8 +113,20 @@ func processDataOut(sess *dbr.Session) (int, error) {
 			if bi.Int64() > 1 {
 				fmt.Fprintf(os.Stderr, "here\n")
 			}
-			// fmt.Fprintf(os.Stderr, "%v\n", b)
+			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
+		}
 
+		balancesLocked := []*services.AccumulateBalances{}
+		_, err = dbTx.SelectBySql("select id "+
+			"from accumulate_balances "+
+			"where id in ? "+
+			"for update", accumulateBalanceIds).
+			LoadContext(ctx, &balancesLocked)
+		if err != nil {
+			return 0, err
+		}
+
+		for _, b := range balances {
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count+1, "+
@@ -126,17 +139,6 @@ func processDataOut(sess *dbr.Session) (int, error) {
 			if err != nil {
 				return 0, err
 			}
-
-			/*
-						"avm_outputs.chain_id",
-				"avm_output_addresses.address",
-				"avm_outputs.asset_id",
-				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-			*/
 		}
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
@@ -153,7 +155,7 @@ func processDataOut(sess *dbr.Session) (int, error) {
 		return 0, err
 	}
 
-	return lenrowdata, nil
+	return len(rowdata), nil
 }
 
 func processDataIn(sess *dbr.Session) (int, error) {
@@ -199,8 +201,7 @@ func processDataIn(sess *dbr.Session) (int, error) {
 		return 0, err
 	}
 
-	lenrowdata := len(rowdata)
-	if lenrowdata == 0 {
+	if len(rowdata) == 0 {
 		return 0, nil
 	}
 
@@ -219,6 +220,8 @@ func processDataIn(sess *dbr.Session) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+
+		accumulateBalanceIds := []string{}
 		for _, b := range balances {
 			err = b.ComputeID()
 			if err != nil {
@@ -230,8 +233,20 @@ func processDataIn(sess *dbr.Session) (int, error) {
 			if bi.Int64() > 1 {
 				fmt.Fprintf(os.Stderr, "here\n")
 			}
-			// fmt.Fprintf(os.Stderr, "%v\n", b)
+			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
+		}
 
+		balancesLocked := []*services.AccumulateBalances{}
+		_, err = dbTx.SelectBySql("select id "+
+			"from accumulate_balances "+
+			"where id in ? "+
+			"for update", accumulateBalanceIds).
+			LoadContext(ctx, &balancesLocked)
+		if err != nil {
+			return 0, err
+		}
+
+		for _, b := range balances {
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count-1, "+
@@ -243,17 +258,6 @@ func processDataIn(sess *dbr.Session) (int, error) {
 			if err != nil {
 				return 0, err
 			}
-
-			/*
-						"avm_outputs.chain_id",
-				"avm_output_addresses.address",
-				"avm_outputs.asset_id",
-				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-			*/
 		}
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
@@ -270,5 +274,5 @@ func processDataIn(sess *dbr.Session) (int, error) {
 		return 0, err
 	}
 
-	return lenrowdata, nil
+	return len(rowdata), nil
 }
