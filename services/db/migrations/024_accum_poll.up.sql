@@ -22,4 +22,4 @@ create table output_addresses_accumulate
     primary key (output_id, address, type)
 );
 
-create index `output_addresses_accumulate_processed_type` on `output_addresses_accumulate` (type, processed);
+create index `output_addresses_accumulate_processed_type` on `output_addresses_accumulate` (type, processed, out_avail, in_avail);

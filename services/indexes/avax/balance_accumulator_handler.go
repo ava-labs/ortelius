@@ -13,12 +13,12 @@ import (
 var RowLintValue = 32
 var RowLimit = fmt.Sprintf("%d", RowLintValue)
 
-func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
+func BalanceAccumulatorHandlerAccumulate(conns *services.Connections, persist services.Persist) error {
 	job := conns.Stream().NewJob("accumulate")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	for {
-		cnt, err := processDataOut(sess)
+		cnt, err := processDataOut(sess, persist)
 		if err != nil {
 			return err
 		}
@@ -27,7 +27,7 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 		}
 	}
 	for {
-		cnt, err := processDataIn(sess)
+		cnt, err := processDataIn(sess, persist)
 		if err != nil {
 			return err
 		}
@@ -39,29 +39,31 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 	return nil
 }
 
-func processDataOut(sess *dbr.Session) (int, error) {
+func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 	ctx := context.Background()
+
+	var err error
 	type Row struct {
 		OutputID string
 		Address  string
 	}
 	var rowdata []*Row
 
-	_, err := sess.SelectBySql("select output_id, address "+
-		"from output_addresses_accumulate "+
-		"where processed = 0 and type = ? "+
-		"limit 1 "+
-		" ", services.OutputAddressAccumulateTypeOut).
-		LoadContext(ctx, &rowdata)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(rowdata) == 0 {
-		return 0, nil
-	}
-
-	rowdata = nil
+	// _, err := sess.SelectBySql("select output_id, address "+
+	// 	"from output_addresses_accumulate "+
+	// 	"where processed = 0 and type = ? "+
+	// 	"limit 1 "+
+	// 	" ", services.OutputAddressAccumulateTypeOut).
+	// 	LoadContext(ctx, &rowdata)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	//
+	// if len(rowdata) == 0 {
+	// 	return 0, nil
+	// }
+	//
+	// rowdata = nil
 
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
@@ -114,6 +116,11 @@ func processDataOut(sess *dbr.Session) (int, error) {
 				fmt.Fprintf(os.Stderr, "here\n")
 			}
 			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
+
+			err = persist.InsertAccumulateBalances(ctx, dbTx, b)
+			if err != nil {
+				return 0, err
+			}
 		}
 
 		balancesLocked := []*services.AccumulateBalances{}
@@ -158,8 +165,10 @@ func processDataOut(sess *dbr.Session) (int, error) {
 	return len(rowdata), nil
 }
 
-func processDataIn(sess *dbr.Session) (int, error) {
+func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 	ctx := context.Background()
+
+	var err error
 
 	type Row struct {
 		OutputID string
@@ -167,21 +176,21 @@ func processDataIn(sess *dbr.Session) (int, error) {
 	}
 	var rowdata []*Row
 
-	_, err := sess.SelectBySql("select output_id, address "+
-		"from output_addresses_accumulate "+
-		"where "+
-		"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
-		"limit 1 "+
-		" ", services.OutputAddressAccumulateTypeIn).
-		LoadContext(ctx, &rowdata)
-	if err != nil {
-		return 0, err
-	}
-	if len(rowdata) == 0 {
-		return 0, nil
-	}
-
-	rowdata = nil
+	// _, err := sess.SelectBySql("select output_id, address "+
+	// 	"from output_addresses_accumulate "+
+	// 	"where "+
+	// 	"processed = 0 and out_avail = 1 and in_avail = 1 and type = ? "+
+	// 	"limit 1 "+
+	// 	" ", services.OutputAddressAccumulateTypeIn).
+	// 	LoadContext(ctx, &rowdata)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// if len(rowdata) == 0 {
+	// 	return 0, nil
+	// }
+	//
+	// rowdata = nil
 
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
@@ -234,6 +243,11 @@ func processDataIn(sess *dbr.Session) (int, error) {
 				fmt.Fprintf(os.Stderr, "here\n")
 			}
 			accumulateBalanceIds = append(accumulateBalanceIds, b.ID)
+
+			err = persist.InsertAccumulateBalances(ctx, dbTx, b)
+			if err != nil {
+				return 0, err
+			}
 		}
 
 		balancesLocked := []*services.AccumulateBalances{}

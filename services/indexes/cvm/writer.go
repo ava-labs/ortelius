@@ -77,7 +77,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader
 		return err
 	}
 
-	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns)
+	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
 	if err != nil {
 		return nil
 	}

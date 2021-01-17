@@ -134,7 +134,7 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 		}
 	}
 
-	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 		return stacktrace.Propagate(err, "Failed to commit database tx")
 	}
 
-	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist ser
 		return stacktrace.Propagate(err, "Failed to commit database tx")
 	}
 
-	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns)
+	err = avax.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
 	if err != nil {
 		return err
 	}
