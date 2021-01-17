@@ -10,9 +10,8 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-var (
-	RowLimit = fmt.Sprintf("%d", 500)
-)
+var RowLintValue = 32
+var RowLimit = fmt.Sprintf("%d", RowLintValue)
 
 func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 	job := conns.Stream().NewJob("accumulate")
@@ -23,7 +22,7 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 		if err != nil {
 			return err
 		}
-		if cnt == 0 {
+		if cnt < RowLintValue {
 			break
 		}
 	}
@@ -32,7 +31,7 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections) error {
 		if err != nil {
 			return err
 		}
-		if cnt == 0 {
+		if cnt < RowLintValue {
 			break
 		}
 	}
