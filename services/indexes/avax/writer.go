@@ -198,16 +198,6 @@ func (w *Writer) InsertTransactionIns(
 		return 0, err
 	}
 
-	// outputAddressAccumulate := &services.OutputAddressAccumulate{
-	// 	Type:     services.OutputAddressAccumulateTypeBase,
-	// 	OutputID: inputID.String(),
-	// 	Address:  in.AssetID().String(),
-	// }
-	// err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
-	// if err != nil {
-	// 	return 0, err
-	// }
-
 	if idx < len(creds) {
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[idx].(*secp256k1fx.Credential)
