@@ -217,11 +217,10 @@ func (w *Writer) InsertTransactionIns(
 				}
 
 				outputAddressAccumulate := &services.OutputAddressAccumulate{
-					Type:     services.OutputAddressAccumulateTypeIn,
 					OutputID: inputID.String(),
 					Address:  publicKey.Address().String(),
 				}
-				err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+				err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 				if err != nil {
 					return 0, err
 				}
@@ -298,11 +297,10 @@ func (w *Writer) InsertOutput(
 		}
 
 		outputAddressAccumulate := &services.OutputAddressAccumulate{
-			Type:     services.OutputAddressAccumulateTypeOut,
 			OutputID: outputID.String(),
 			Address:  addrid.String(),
 		}
-		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+		err := ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 		if err != nil {
 			return err
 		}

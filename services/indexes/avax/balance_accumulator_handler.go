@@ -8,7 +8,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLintValue = 32
+var RowLintValue = 20
 var RowLimit = fmt.Sprintf("%d", RowLintValue)
 
 func BalanceAccumulatorHandlerAccumulate(conns *services.Connections, persist services.Persist) error {
@@ -55,10 +55,10 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 	defer dbTx.RollbackUnlessCommitted()
 
 	_, err = dbTx.SelectBySql("select output_id, address "+
-		"from output_addresses_accumulate "+
-		"where processed = 0 and type = ? "+
+		"from output_addresses_accumulate_out "+
+		"where processed = 0 "+
 		"limit "+RowLimit+" "+
-		"for update", services.OutputAddressAccumulateTypeOut).
+		"for update").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
@@ -124,10 +124,10 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 			}
 		}
 
-		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
+		_, err = dbTx.UpdateBySql("update output_addresses_accumulate_out "+
 			"set processed = 1 "+
-			"where type = ? and output_id=? and address=? "+
-			"", services.OutputAddressAccumulateTypeOut, row.OutputID, row.Address).
+			"where output_id=? and address=? "+
+			"", row.OutputID, row.Address).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
@@ -159,13 +159,15 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select a.output_id, a.address "+
-		"from output_addresses_accumulate a "+
-		"join output_addresses_accumulate b on a.output_id = b.output_id and a.address = b.address "+
+	_, err = dbTx.SelectBySql("select output_addresses_accumulate_in.output_id, output_addresses_accumulate_in.address "+
+		"from output_addresses_accumulate_in "+
+		"join output_addresses_accumulate_out on "+
+		"  output_addresses_accumulate_in.output_id = output_addresses_accumulate_out.output_id "+
+		"  and output_addresses_accumulate_in.address = output_addresses_accumulate_out.address  "+
 		"where "+
-		"a.processed = 0 and a.type = ? and b.processed = 1 and b.type = ? "+
+		"output_addresses_accumulate_in.processed = 0 "+
 		"limit "+RowLimit+" "+
-		"for update ", services.OutputAddressAccumulateTypeIn, services.OutputAddressAccumulateTypeOut).
+		"for update ").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
@@ -229,10 +231,10 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 			}
 		}
 
-		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
+		_, err = dbTx.UpdateBySql("update output_addresses_accumulate_in "+
 			"set processed = 1 "+
-			"where type = ? and output_id=? and address=? "+
-			"", services.OutputAddressAccumulateTypeIn, row.OutputID, row.Address).
+			"where output_id=? and address=? "+
+			"", row.OutputID, row.Address).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err

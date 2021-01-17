@@ -9,43 +9,45 @@ import (
 )
 
 type MockPersist struct {
-	lock                    sync.RWMutex
-	Transactions            map[string]*Transactions
-	Outputs                 map[string]*Outputs
-	OutputsRedeeming        map[string]*OutputsRedeeming
-	CvmTransactions         map[string]*CvmTransactions
-	CvmAddresses            map[string]*CvmAddresses
-	TransactionsValidator   map[string]*TransactionsValidator
-	TransactionsBlock       map[string]*TransactionsBlock
-	Rewards                 map[string]*Rewards
-	Addresses               map[string]*Addresses
-	AddressChain            map[string]*AddressChain
-	OutputAddresses         map[string]*OutputAddresses
-	Assets                  map[string]*Assets
-	TransactionsEpoch       map[string]*TransactionsEpoch
-	PvmBlocks               map[string]*PvmBlocks
-	OutputAddressAccumulate map[string]*OutputAddressAccumulate
-	AccumulateBalances      map[string]*AccumulateBalances
+	lock                       sync.RWMutex
+	Transactions               map[string]*Transactions
+	Outputs                    map[string]*Outputs
+	OutputsRedeeming           map[string]*OutputsRedeeming
+	CvmTransactions            map[string]*CvmTransactions
+	CvmAddresses               map[string]*CvmAddresses
+	TransactionsValidator      map[string]*TransactionsValidator
+	TransactionsBlock          map[string]*TransactionsBlock
+	Rewards                    map[string]*Rewards
+	Addresses                  map[string]*Addresses
+	AddressChain               map[string]*AddressChain
+	OutputAddresses            map[string]*OutputAddresses
+	Assets                     map[string]*Assets
+	TransactionsEpoch          map[string]*TransactionsEpoch
+	PvmBlocks                  map[string]*PvmBlocks
+	OutputAddressAccumulateOut map[string]*OutputAddressAccumulate
+	OutputAddressAccumulateIn  map[string]*OutputAddressAccumulate
+	AccumulateBalances         map[string]*AccumulateBalances
 }
 
 func NewPersistMock() *MockPersist {
 	return &MockPersist{
-		Transactions:            make(map[string]*Transactions),
-		Outputs:                 make(map[string]*Outputs),
-		OutputsRedeeming:        make(map[string]*OutputsRedeeming),
-		CvmTransactions:         make(map[string]*CvmTransactions),
-		CvmAddresses:            make(map[string]*CvmAddresses),
-		TransactionsValidator:   make(map[string]*TransactionsValidator),
-		TransactionsBlock:       make(map[string]*TransactionsBlock),
-		Rewards:                 make(map[string]*Rewards),
-		Addresses:               make(map[string]*Addresses),
-		AddressChain:            make(map[string]*AddressChain),
-		OutputAddresses:         make(map[string]*OutputAddresses),
-		Assets:                  make(map[string]*Assets),
-		TransactionsEpoch:       make(map[string]*TransactionsEpoch),
-		PvmBlocks:               make(map[string]*PvmBlocks),
-		OutputAddressAccumulate: make(map[string]*OutputAddressAccumulate),
-		AccumulateBalances:      make(map[string]*AccumulateBalances),
+		Transactions:               make(map[string]*Transactions),
+		Outputs:                    make(map[string]*Outputs),
+		OutputsRedeeming:           make(map[string]*OutputsRedeeming),
+		CvmTransactions:            make(map[string]*CvmTransactions),
+		CvmAddresses:               make(map[string]*CvmAddresses),
+		TransactionsValidator:      make(map[string]*TransactionsValidator),
+		TransactionsBlock:          make(map[string]*TransactionsBlock),
+		Rewards:                    make(map[string]*Rewards),
+		Addresses:                  make(map[string]*Addresses),
+		AddressChain:               make(map[string]*AddressChain),
+		OutputAddresses:            make(map[string]*OutputAddresses),
+		Assets:                     make(map[string]*Assets),
+		TransactionsEpoch:          make(map[string]*TransactionsEpoch),
+		PvmBlocks:                  make(map[string]*PvmBlocks),
+		OutputAddressAccumulateOut: make(map[string]*OutputAddressAccumulate),
+		OutputAddressAccumulateIn:  make(map[string]*OutputAddressAccumulate),
+		AccumulateBalances:         make(map[string]*AccumulateBalances),
 	}
 }
 
@@ -310,23 +312,43 @@ func (m *MockPersist) InsertTransactionsBlock(ctx context.Context, runner dbr.Se
 	return nil
 }
 
-func (m *MockPersist) QueryOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
+func (m *MockPersist) QueryOutputAddressAccumulateOut(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
-	if v, present := m.OutputAddressAccumulate[key]; present {
+	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
+	if v, present := m.OutputAddressAccumulateOut[key]; present {
 		return v, nil
 	}
 	return nil, nil
 }
 
-func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
+func (m *MockPersist) InsertOutputAddressAccumulateOut(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}
 	*nv = *v
-	key := fmt.Sprintf("%d:%s:%s", v.Type, v.OutputID, v.Address)
-	m.OutputAddressAccumulate[key] = nv
+	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
+	m.OutputAddressAccumulateOut[key] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryOutputAddressAccumulateIn(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
+	if v, present := m.OutputAddressAccumulateIn[key]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertOutputAddressAccumulateIn(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &OutputAddressAccumulate{}
+	*nv = *v
+	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
+	m.OutputAddressAccumulateIn[key] = nv
 	return nil
 }
 
