@@ -93,7 +93,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 
 	var err error
 	type Row struct {
-		OutputID string
+		ID      string
+		Address string
 	}
 	var rowdata []*Row
 
@@ -104,7 +105,7 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_id "+
+	_, err = dbTx.SelectBySql("select id,address "+
 		"from output_addresses_accumulate "+
 		"where processed_out = 0 "+
 		"limit "+RowLimit+" "+
@@ -128,7 +129,7 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 			"sum(avm_outputs.amount) as total_received",
 		).From("avm_outputs").
 			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-			Where("avm_outputs.id=? ", row.OutputID).
+			Where("avm_outputs.id=? and avm_output_addresses.address=? ", row.ID, row.Address).
 			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &balances)
 		if err != nil {
@@ -175,8 +176,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
 			"set processed_out = 1 "+
-			"where output_id=? "+
-			"", row.OutputID).
+			"where id=? and address=? "+
+			"", row.ID, row.Address).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
@@ -197,7 +198,8 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 	var err error
 
 	type Row struct {
-		OutputID string
+		ID      string
+		Address string
 	}
 	var rowdata []*Row
 
@@ -208,10 +210,10 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_addresses_accumulate.output_id "+
+	_, err = dbTx.SelectBySql("select output_addresses_accumulate.id,output_addresses_accumulate.address "+
 		"from output_addresses_accumulate "+
 		"join avm_outputs_redeeming on "+
-		"  output_addresses_accumulate.output_id = avm_outputs_redeeming.id "+
+		"  output_addresses_accumulate.id = avm_outputs_redeeming.id "+
 		"where "+
 		"output_addresses_accumulate.processed_in = 0 "+
 		"limit "+RowLimit+" "+
@@ -234,7 +236,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 			"sum(avm_outputs.amount) as total_sent",
 		).From("avm_outputs").
 			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-			Where("avm_outputs.id=?", row.OutputID).
+			Where("avm_outputs.id=? and avm_output_addresses.address=?", row.ID, row.Address).
 			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &balances)
 		if err != nil {
@@ -280,8 +282,8 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
 			"set processed_in = 1 "+
-			"where output_id=? "+
-			"", row.OutputID).
+			"where id=? and address=? "+
+			"", row.ID, row.Address).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err

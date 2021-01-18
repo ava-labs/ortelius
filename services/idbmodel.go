@@ -1146,7 +1146,8 @@ func (p *persist) InsertTransactionsBlock(
 }
 
 type OutputAddressAccumulate struct {
-	OutputID     string
+	ID           string
+	Address      string
 	ProcessedOut int
 	ProcessedIn  int
 }
@@ -1158,11 +1159,12 @@ func (p *persist) QueryOutputAddressAccumulate(
 ) (*OutputAddressAccumulate, error) {
 	v := &OutputAddressAccumulate{}
 	err := sess.Select(
-		"output_id",
+		"id",
+		"address",
 		"processed_out",
 		"processed_in",
 	).From(TableOutputAddressAccumulate).
-		Where("output_id=?", q.OutputID).
+		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
 	return v, err
 }
@@ -1175,7 +1177,8 @@ func (p *persist) InsertOutputAddressAccumulate(
 	var err error
 	_, err = sess.
 		InsertInto(TableOutputAddressAccumulate).
-		Pair("output_id", v.OutputID).
+		Pair("id", v.ID).
+		Pair("address", v.Address).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)

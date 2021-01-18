@@ -312,7 +312,7 @@ func (m *MockPersist) InsertTransactionsBlock(ctx context.Context, runner dbr.Se
 func (m *MockPersist) QueryOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.OutputAddressAccumulate[v.OutputID]; present {
+	if v, present := m.OutputAddressAccumulate[v.ID+" "+v.Address]; present {
 		return v, nil
 	}
 	return nil, nil
@@ -323,7 +323,7 @@ func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner 
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}
 	*nv = *v
-	m.OutputAddressAccumulate[v.OutputID] = nv
+	m.OutputAddressAccumulate[v.ID+" "+v.Address] = nv
 	return nil
 }
 
