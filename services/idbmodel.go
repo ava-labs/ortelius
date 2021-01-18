@@ -15,23 +15,22 @@ import (
 )
 
 const (
-	TableTransactions               = "avm_transactions"
-	TableOutputsRedeeming           = "avm_outputs_redeeming"
-	TableOutputs                    = "avm_outputs"
-	TableAssets                     = "avm_assets"
-	TableAddresses                  = "addresses"
-	TableAddressChain               = "address_chain"
-	TableOutputAddresses            = "avm_output_addresses"
-	TableTransactionsEpochs         = "transactions_epoch"
-	TableCvmAddresses               = "cvm_addresses"
-	TableCvmTransactions            = "cvm_transactions"
-	TablePvmBlocks                  = "pvm_blocks"
-	TableRewards                    = "rewards"
-	TableTransactionsValidator      = "transactions_validator"
-	TableTransactionsBlock          = "transactions_block"
-	TableOutputAddressAccumulateOut = "output_addresses_accumulate_out"
-	TableOutputAddressAccumulateIn  = "output_addresses_accumulate_in"
-	TableAccumulateBalances         = "accumulate_balances"
+	TableTransactions            = "avm_transactions"
+	TableOutputsRedeeming        = "avm_outputs_redeeming"
+	TableOutputs                 = "avm_outputs"
+	TableAssets                  = "avm_assets"
+	TableAddresses               = "addresses"
+	TableAddressChain            = "address_chain"
+	TableOutputAddresses         = "avm_output_addresses"
+	TableTransactionsEpochs      = "transactions_epoch"
+	TableCvmAddresses            = "cvm_addresses"
+	TableCvmTransactions         = "cvm_transactions"
+	TablePvmBlocks               = "pvm_blocks"
+	TableRewards                 = "rewards"
+	TableTransactionsValidator   = "transactions_validator"
+	TableTransactionsBlock       = "transactions_block"
+	TableOutputAddressAccumulate = "output_addresses_accumulate"
+	TableAccumulateBalances      = "accumulate_balances"
 )
 
 type Persist interface {
@@ -210,23 +209,12 @@ type Persist interface {
 		bool,
 	) error
 
-	QueryOutputAddressAccumulateOut(
+	QueryOutputAddressAccumulate(
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
 	) (*OutputAddressAccumulate, error)
-	InsertOutputAddressAccumulateOut(
-		context.Context,
-		dbr.SessionRunner,
-		*OutputAddressAccumulate,
-	) error
-
-	QueryOutputAddressAccumulateIn(
-		context.Context,
-		dbr.SessionRunner,
-		*OutputAddressAccumulate,
-	) (*OutputAddressAccumulate, error)
-	InsertOutputAddressAccumulateIn(
+	InsertOutputAddressAccumulate(
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
@@ -1158,12 +1146,13 @@ func (p *persist) InsertTransactionsBlock(
 }
 
 type OutputAddressAccumulate struct {
-	OutputID  string
-	Address   string
-	Processed int
+	OutputID     string
+	Address      string
+	ProcessedOut int
+	ProcessedIn  int
 }
 
-func (p *persist) QueryOutputAddressAccumulateOut(
+func (p *persist) QueryOutputAddressAccumulate(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	q *OutputAddressAccumulate,
@@ -1172,60 +1161,27 @@ func (p *persist) QueryOutputAddressAccumulateOut(
 	err := sess.Select(
 		"output_id",
 		"address",
-		"processed",
-	).From(TableOutputAddressAccumulateOut).
+		"processed_out",
+		"processed_in",
+	).From(TableOutputAddressAccumulate).
 		Where("output_id=? and address=?", q.OutputID, q.Address).
 		LoadOneContext(ctx, v)
 	return v, err
 }
 
-func (p *persist) InsertOutputAddressAccumulateOut(
+func (p *persist) InsertOutputAddressAccumulate(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto(TableOutputAddressAccumulateOut).
+		InsertInto(TableOutputAddressAccumulate).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableOutputAddressAccumulateOut, false, err)
-	}
-
-	return nil
-}
-
-func (p *persist) QueryOutputAddressAccumulateIn(
-	ctx context.Context,
-	sess dbr.SessionRunner,
-	q *OutputAddressAccumulate,
-) (*OutputAddressAccumulate, error) {
-	v := &OutputAddressAccumulate{}
-	err := sess.Select(
-		"output_id",
-		"address",
-		"processed",
-	).From(TableOutputAddressAccumulateIn).
-		Where("output_id=? and address=?", q.OutputID, q.Address).
-		LoadOneContext(ctx, v)
-	return v, err
-}
-
-func (p *persist) InsertOutputAddressAccumulateIn(
-	ctx context.Context,
-	sess dbr.SessionRunner,
-	v *OutputAddressAccumulate,
-) error {
-	var err error
-	_, err = sess.
-		InsertInto(TableOutputAddressAccumulateIn).
-		Pair("output_id", v.OutputID).
-		Pair("address", v.Address).
-		ExecContext(ctx)
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableOutputAddressAccumulateIn, false, err)
+		return EventErr(TableOutputAddressAccumulate, false, err)
 	}
 
 	return nil

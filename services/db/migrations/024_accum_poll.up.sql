@@ -11,22 +11,15 @@ create table accumulate_balances
     utxo_count        decimal(65) not null default 0
 );
 
-create table output_addresses_accumulate_out
+create table output_addresses_accumulate
 (
     output_id  varchar(50)    not null,
     address    varchar(50)    not null,
-    processed  smallint unsigned not null default 0,
+    processed_out  smallint unsigned not null default 0,
+    processed_in  smallint unsigned not null default 0,
     primary key (output_id, address)
 );
 
-create index `output_addresses_accumulate_out_processed_type` on `output_addresses_accumulate_out` (processed);
+create index `output_addresses_accumulate_processed_out` on `output_addresses_accumulate` (processed_out);
+create index `output_addresses_accumulate_processed_in` on `output_addresses_accumulate` (processed_in);
 
-create table output_addresses_accumulate_in
-(
-    output_id  varchar(50)    not null,
-    address    varchar(50)    not null,
-    processed  smallint unsigned not null default 0,
-    primary key (output_id, address)
-);
-
-create index `output_addresses_accumulate_in_processed_type` on `output_addresses_accumulate_in` (processed);

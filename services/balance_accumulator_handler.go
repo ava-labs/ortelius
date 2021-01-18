@@ -104,8 +104,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 	defer dbTx.RollbackUnlessCommitted()
 
 	_, err = dbTx.SelectBySql("select output_id, address "+
-		"from output_addresses_accumulate_out "+
-		"where processed = 0 "+
+		"from output_addresses_accumulate "+
+		"where processed_out = 0 "+
 		"limit "+RowLimit+" "+
 		"for update").
 		LoadContext(ctx, &rowdata)
@@ -173,8 +173,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 			}
 		}
 
-		_, err = dbTx.UpdateBySql("update output_addresses_accumulate_out "+
-			"set processed = 1 "+
+		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
+			"set processed_out = 1 "+
 			"where output_id=? and address=? "+
 			"", row.OutputID, row.Address).
 			ExecContext(ctx)
@@ -208,13 +208,12 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_addresses_accumulate_in.output_id, output_addresses_accumulate_in.address "+
-		"from output_addresses_accumulate_in "+
-		"join output_addresses_accumulate_out on "+
-		"  output_addresses_accumulate_in.output_id = output_addresses_accumulate_out.output_id "+
-		"  and output_addresses_accumulate_in.address = output_addresses_accumulate_out.address  "+
+	_, err = dbTx.SelectBySql("select output_addresses_accumulate.output_id, output_addresses_accumulate.address "+
+		"from output_addresses_accumulate "+
+		"join avm_outputs_redeeming on "+
+		"  output_addresses_accumulate.output_id = avm_outputs_redeeming.output_id "+
 		"where "+
-		"output_addresses_accumulate_in.processed = 0 "+
+		"output_addresses_accumulate.processed_in = 0 "+
 		"limit "+RowLimit+" "+
 		"for update ").
 		LoadContext(ctx, &rowdata)
@@ -280,8 +279,8 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 			}
 		}
 
-		_, err = dbTx.UpdateBySql("update output_addresses_accumulate_in "+
-			"set processed = 1 "+
+		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
+			"set processed_in = 1 "+
 			"where output_id=? and address=? "+
 			"", row.OutputID, row.Address).
 			ExecContext(ctx)
