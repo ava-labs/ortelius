@@ -295,6 +295,21 @@ func (w *Writer) InsertOutput(
 		if err != nil {
 			return err
 		}
+
+		outputTxsAccumulate := &services.OutputTxsAccumulate{
+			ChainID:       chainID,
+			AssetID:       assetID.String(),
+			Address:       addrid.String(),
+			TransactionID: txID.String(),
+		}
+		err = outputTxsAccumulate.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = ctx.Persist().InsertOutputTxsAccumulate(ctx.Ctx(), ctx.DB(), outputTxsAccumulate)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

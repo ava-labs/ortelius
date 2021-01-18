@@ -24,6 +24,7 @@ type MockPersist struct {
 	TransactionsEpoch       map[string]*TransactionsEpoch
 	PvmBlocks               map[string]*PvmBlocks
 	OutputAddressAccumulate map[string]*OutputAddressAccumulate
+	OutputTxsAccumulate     map[string]*OutputTxsAccumulate
 	AccumulateBalances      map[string]*AccumulateBalances
 }
 
@@ -44,6 +45,7 @@ func NewPersistMock() *MockPersist {
 		TransactionsEpoch:       make(map[string]*TransactionsEpoch),
 		PvmBlocks:               make(map[string]*PvmBlocks),
 		OutputAddressAccumulate: make(map[string]*OutputAddressAccumulate),
+		OutputTxsAccumulate:     make(map[string]*OutputTxsAccumulate),
 		AccumulateBalances:      make(map[string]*AccumulateBalances),
 	}
 }
@@ -324,6 +326,24 @@ func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner 
 	nv := &OutputAddressAccumulate{}
 	*nv = *v
 	m.OutputAddressAccumulate[v.ID+" "+v.Address] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryOutputTxsAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputTxsAccumulate) (*OutputTxsAccumulate, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.OutputTxsAccumulate[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertOutputTxsAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputTxsAccumulate) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &OutputTxsAccumulate{}
+	*nv = *v
+	m.OutputTxsAccumulate[v.ID] = nv
 	return nil
 }
 

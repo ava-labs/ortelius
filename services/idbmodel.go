@@ -30,6 +30,7 @@ const (
 	TableTransactionsValidator   = "transactions_validator"
 	TableTransactionsBlock       = "transactions_block"
 	TableOutputAddressAccumulate = "output_addresses_accumulate"
+	TableOutputTxsAccumulate     = "output_txs_accumulate"
 	TableAccumulateBalances      = "accumulate_balances"
 )
 
@@ -218,6 +219,17 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+	) error
+
+	QueryOutputTxsAccumulate(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputTxsAccumulate,
+	) (*OutputTxsAccumulate, error)
+	InsertOutputTxsAccumulate(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputTxsAccumulate,
 	) error
 
 	QueryAccumulateBalances(
@@ -1182,6 +1194,65 @@ func (p *persist) InsertOutputAddressAccumulate(
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)
+	}
+
+	return nil
+}
+
+type OutputTxsAccumulate struct {
+	ID            string
+	ChainID       string
+	AssetID       string
+	Address       string
+	TransactionID string
+	Processed     int
+}
+
+func (b *OutputTxsAccumulate) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s:%s:%s", b.ChainID, b.AssetID, b.Address, b.TransactionID)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
+}
+
+func (p *persist) QueryOutputTxsAccumulate(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputTxsAccumulate,
+) (*OutputTxsAccumulate, error) {
+	v := &OutputTxsAccumulate{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"asset_id",
+		"address",
+		"transaction_id",
+		"processed",
+	).From(TableOutputTxsAccumulate).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputTxsAccumulate(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputTxsAccumulate,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableOutputTxsAccumulate).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("asset_id", v.AssetID).
+		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputTxsAccumulate, false, err)
 	}
 
 	return nil

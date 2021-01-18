@@ -22,3 +22,15 @@ create table output_addresses_accumulate
 create index `output_addresses_accumulate_processed_out` on `output_addresses_accumulate` (processed_out);
 create index `output_addresses_accumulate_processed_in` on `output_addresses_accumulate` (processed_in);
 
+create table output_txs_accumulate
+(
+    id                varchar(50) not null primary key,
+    chain_id          varchar(50) not null,
+    asset_id          varchar(50) not null,
+    address           varchar(50) not null,
+    transaction_id    varchar(50) not null,
+    processed         smallint unsigned not null default 0,
+);
+
+create index `output_txs_accumulate_processed` on `output_txs_accumulate` (processed);
+
