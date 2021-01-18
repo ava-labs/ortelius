@@ -7,17 +7,15 @@ create table accumulate_balances
     transaction_count decimal(65) not null default 0,
     total_received    decimal(65) not null default 0,
     total_sent        decimal(65) not null default 0,
-    balance           decimal(65) not null default 0,
     utxo_count        decimal(65) not null default 0
 );
 
 create table output_addresses_accumulate
 (
     output_id  varchar(50)    not null,
-    address    varchar(50)    not null,
     processed_out  smallint unsigned not null default 0,
     processed_in  smallint unsigned not null default 0,
-    primary key (output_id, address)
+    primary key (output_id)
 );
 
 create index `output_addresses_accumulate_processed_out` on `output_addresses_accumulate` (processed_out);

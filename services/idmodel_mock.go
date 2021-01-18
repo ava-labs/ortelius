@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/gocraft/dbr/v2"
@@ -313,8 +312,7 @@ func (m *MockPersist) InsertTransactionsBlock(ctx context.Context, runner dbr.Se
 func (m *MockPersist) QueryOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
-	if v, present := m.OutputAddressAccumulate[key]; present {
+	if v, present := m.OutputAddressAccumulate[v.OutputID]; present {
 		return v, nil
 	}
 	return nil, nil
@@ -325,8 +323,7 @@ func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner 
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}
 	*nv = *v
-	key := fmt.Sprintf("%s:%s", v.OutputID, v.Address)
-	m.OutputAddressAccumulate[key] = nv
+	m.OutputAddressAccumulate[v.OutputID] = nv
 	return nil
 }
 

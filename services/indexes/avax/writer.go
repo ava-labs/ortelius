@@ -286,16 +286,16 @@ func (w *Writer) InsertOutput(
 		if err != nil {
 			return err
 		}
-
-		outputAddressAccumulate := &services.OutputAddressAccumulate{
-			OutputID: outputID.String(),
-			Address:  addrid.String(),
-		}
-		err := ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
-		if err != nil {
-			return err
-		}
 	}
+
+	outputAddressAccumulate := &services.OutputAddressAccumulate{
+		OutputID: outputID.String(),
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

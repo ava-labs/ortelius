@@ -92,7 +92,6 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 	var err error
 	type Row struct {
 		OutputID string
-		Address  string
 	}
 	var rowdata []*Row
 
@@ -103,7 +102,7 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_id, address "+
+	_, err = dbTx.SelectBySql("select output_id "+
 		"from output_addresses_accumulate "+
 		"where processed_out = 0 "+
 		"limit "+RowLimit+" "+
@@ -124,10 +123,10 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
 			"count(distinct(avm_outputs.transaction_id)) as transaction_count",
-			"sum(avm_outputs.amount) as balance",
+			"sum(avm_outputs.amount) as total_received",
 		).From("avm_outputs").
 			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-			Where("avm_outputs.id=? and avm_output_addresses.address=?", row.OutputID, row.Address).
+			Where("avm_outputs.id=? ", row.OutputID).
 			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &balances)
 		if err != nil {
@@ -162,8 +161,7 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count+1, "+
-				"balance = balance+"+b.Balance+", "+
-				"total_received = total_received+"+b.Balance+", "+
+				"total_received = total_received+"+b.TotalReceived+", "+
 				"transaction_count = transaction_count+"+b.TransactionCount+" "+
 				"where id=? "+
 				"", b.ID).
@@ -175,8 +173,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
 			"set processed_out = 1 "+
-			"where output_id=? and address=? "+
-			"", row.OutputID, row.Address).
+			"where output_id=? "+
+			"", row.OutputID).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
@@ -197,7 +195,6 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 
 	type Row struct {
 		OutputID string
-		Address  string
 	}
 	var rowdata []*Row
 
@@ -208,7 +205,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select output_addresses_accumulate.output_id, output_addresses_accumulate.address "+
+	_, err = dbTx.SelectBySql("select output_addresses_accumulate.output_id "+
 		"from output_addresses_accumulate "+
 		"join avm_outputs_redeeming on "+
 		"  output_addresses_accumulate.output_id = avm_outputs_redeeming.output_id "+
@@ -231,10 +228,10 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 		_, err = dbTx.Select("avm_outputs.chain_id",
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
-			"sum(avm_outputs.amount) as balance",
+			"sum(avm_outputs.amount) as total_ent",
 		).From("avm_outputs").
 			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-			Where("avm_outputs.id=? and avm_output_addresses.address=?", row.OutputID, row.Address).
+			Where("avm_outputs.id=?", row.OutputID).
 			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 			LoadContext(ctx, &balances)
 		if err != nil {
@@ -269,8 +266,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count-1, "+
-				"total_sent = total_sent+"+b.Balance+", "+
-				"balance = balance-"+b.Balance+" "+
+				"total_sent = total_sent+"+b.TotalSent+", "+
 				"where id=? "+
 				"", b.ID).
 				ExecContext(ctx)
@@ -281,8 +277,8 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 
 		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
 			"set processed_in = 1 "+
-			"where output_id=? and address=? "+
-			"", row.OutputID, row.Address).
+			"where output_id=? "+
+			"", row.OutputID).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
