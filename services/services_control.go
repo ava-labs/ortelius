@@ -21,9 +21,10 @@ const (
 )
 
 type Control struct {
-	Services cfg.Services
-	Log      logging.Logger
-	Persist  Persist
+	Services                  cfg.Services
+	Log                       logging.Logger
+	Persist                   Persist
+	BalancerAccumulateHandler BalancerAccumulateHandler
 }
 
 func (s *Control) Init() {

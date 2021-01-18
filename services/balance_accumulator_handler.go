@@ -1,22 +1,49 @@
-package avax
+package services
 
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
-	"github.com/ava-labs/ortelius/services"
 	"github.com/gocraft/dbr/v2"
 )
 
 var RowLintValue = 20
 var RowLimit = fmt.Sprintf("%d", RowLintValue)
 
-func BalanceAccumulatorHandlerAccumulate(conns *services.Connections, persist services.Persist) error {
+type BalancerAccumulateHandler struct {
+	running int64
+	lock    sync.Mutex
+}
+
+func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc *Control) {
+	if atomic.LoadInt64(&a.running) != 0 {
+		return
+	}
+
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if atomic.LoadInt64(&a.running) != 0 {
+		return
+	}
+
+	atomic.AddInt64(&a.running, 1)
+	go func() {
+		defer func() {
+			atomic.AddInt64(&a.running, -1)
+		}()
+		err := a.Accumulate(conns, persist)
+		sc.Log.Warn("Accumulate %v", err)
+	}()
+}
+
+func (a *BalancerAccumulateHandler) Accumulate(conns *Connections, persist Persist) error {
 	job := conns.Stream().NewJob("accumulate")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	for {
-		cnt, err := processDataOut(sess, persist)
+		cnt, err := a.processDataOut(sess, persist)
 		if err != nil {
 			return err
 		}
@@ -25,7 +52,7 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections, persist se
 		}
 	}
 	for {
-		cnt, err := processDataIn(sess, persist)
+		cnt, err := a.processDataIn(sess, persist)
 		if err != nil {
 			return err
 		}
@@ -37,7 +64,7 @@ func BalanceAccumulatorHandlerAccumulate(conns *services.Connections, persist se
 	return nil
 }
 
-func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
+func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Persist) (int, error) {
 	ctx := context.Background()
 
 	var err error
@@ -69,7 +96,7 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 
 	for _, row := range rowdata {
-		balances := []*services.AccumulateBalances{}
+		balances := []*AccumulateBalances{}
 
 		_, err = dbTx.Select("avm_outputs.chain_id",
 			"avm_output_addresses.address",
@@ -99,7 +126,7 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 			}
 		}
 
-		balancesLocked := []*services.AccumulateBalances{}
+		balancesLocked := []*AccumulateBalances{}
 		_, err = dbTx.SelectBySql("select id "+
 			"from accumulate_balances "+
 			"where id in ? "+
@@ -141,7 +168,7 @@ func processDataOut(sess *dbr.Session, persist services.Persist) (int, error) {
 	return len(rowdata), nil
 }
 
-func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
+func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Persist) (int, error) {
 	ctx := context.Background()
 
 	var err error
@@ -178,7 +205,7 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 	}
 
 	for _, row := range rowdata {
-		balances := []*services.AccumulateBalances{}
+		balances := []*AccumulateBalances{}
 
 		_, err = dbTx.Select("avm_outputs.chain_id",
 			"avm_output_addresses.address",
@@ -207,7 +234,7 @@ func processDataIn(sess *dbr.Session, persist services.Persist) (int, error) {
 			}
 		}
 
-		balancesLocked := []*services.AccumulateBalances{}
+		balancesLocked := []*AccumulateBalances{}
 		_, err = dbTx.SelectBySql("select id "+
 			"from accumulate_balances "+
 			"where id in ? "+

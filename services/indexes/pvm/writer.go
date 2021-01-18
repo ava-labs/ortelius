@@ -79,11 +79,6 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist ser
 		return err
 	}
 
-	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -145,11 +140,6 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 
 	if errs.Errored() {
 		return errs.Err
-	}
-
-	err = avaxIndexer.BalanceAccumulatorHandlerAccumulate(w.conns, persist)
-	if err != nil {
-		return err
 	}
 
 	return nil

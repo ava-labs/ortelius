@@ -156,6 +156,8 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		return err
 	}
 
+	c.sc.BalancerAccumulateHandler.Run(c.conns, c.sc.Persist, c.sc)
+
 	return c.commitMessage(msg)
 }
 
