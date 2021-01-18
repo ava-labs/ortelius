@@ -29,7 +29,7 @@ create table output_txs_accumulate
     asset_id          varchar(50) not null,
     address           varchar(50) not null,
     transaction_id    varchar(50) not null,
-    processed         smallint unsigned not null default 0,
+    processed         smallint unsigned not null default 0
 );
 
 create index `output_txs_accumulate_processed` on `output_txs_accumulate` (processed);
