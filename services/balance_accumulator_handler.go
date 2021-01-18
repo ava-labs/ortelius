@@ -3,13 +3,17 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLintValue = 20
+var RowLintValue = 100
 var RowLimit = fmt.Sprintf("%d", RowLintValue)
 
 type BalancerAccumulateHandler struct {
@@ -33,8 +37,17 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 		defer func() {
 			atomic.AddInt64(&a.running, -1)
 		}()
-		err := a.Accumulate(conns, persist)
-		sc.Log.Warn("Accumulate %v", err)
+		var err error
+		for {
+			err = a.Accumulate(conns, persist)
+			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+				break
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+		if err != nil {
+			sc.Log.Warn("Accumulate %v", err)
+		}
 	}()
 }
 
@@ -42,22 +55,31 @@ func (a *BalancerAccumulateHandler) Accumulate(conns *Connections, persist Persi
 	job := conns.Stream().NewJob("accumulate")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
-	for {
-		cnt, err := a.processDataOut(sess, persist)
-		if err != nil {
-			return err
+	icnt := 0
+	for ; icnt < 10; icnt++ {
+		for {
+			cnt, err := a.processDataOut(sess, persist)
+			if err != nil {
+				return err
+			}
+			if cnt > 0 {
+				icnt = 0
+			}
+			if cnt < RowLintValue {
+				break
+			}
 		}
-		if cnt < RowLintValue {
-			break
-		}
-	}
-	for {
-		cnt, err := a.processDataIn(sess, persist)
-		if err != nil {
-			return err
-		}
-		if cnt < RowLintValue {
-			break
+		for {
+			cnt, err := a.processDataIn(sess, persist)
+			if err != nil {
+				return err
+			}
+			if cnt > 0 {
+				icnt = 0
+			}
+			if cnt < RowLintValue {
+				break
+			}
 		}
 	}
 
