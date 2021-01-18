@@ -208,7 +208,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 	_, err = dbTx.SelectBySql("select output_addresses_accumulate.output_id "+
 		"from output_addresses_accumulate "+
 		"join avm_outputs_redeeming on "+
-		"  output_addresses_accumulate.output_id = avm_outputs_redeeming.output_id "+
+		"  output_addresses_accumulate.output_id = avm_outputs_redeeming.id "+
 		"where "+
 		"output_addresses_accumulate.processed_in = 0 "+
 		"limit "+RowLimit+" "+
@@ -228,7 +228,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 		_, err = dbTx.Select("avm_outputs.chain_id",
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
-			"sum(avm_outputs.amount) as total_ent",
+			"sum(avm_outputs.amount) as total_sent",
 		).From("avm_outputs").
 			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 			Where("avm_outputs.id=?", row.OutputID).
@@ -266,7 +266,7 @@ func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Per
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count-1, "+
-				"total_sent = total_sent+"+b.TotalSent+", "+
+				"total_sent = total_sent+"+b.TotalSent+" "+
 				"where id=? "+
 				"", b.ID).
 				ExecContext(ctx)
