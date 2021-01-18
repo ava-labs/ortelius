@@ -15,6 +15,7 @@ import (
 
 var RowLintValue = 100
 var RowLimit = fmt.Sprintf("%d", RowLintValue)
+var updTimeout = 10 * time.Second
 
 type BalancerAccumulateHandler struct {
 	running int64
@@ -87,7 +88,8 @@ func (a *BalancerAccumulateHandler) Accumulate(conns *Connections, persist Persi
 }
 
 func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Persist) (int, error) {
-	ctx := context.Background()
+	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
+	defer cancelCTX()
 
 	var err error
 	type Row struct {
@@ -189,7 +191,8 @@ func (a *BalancerAccumulateHandler) processDataOut(sess *dbr.Session, persist Pe
 }
 
 func (a *BalancerAccumulateHandler) processDataIn(sess *dbr.Session, persist Persist) (int, error) {
-	ctx := context.Background()
+	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
+	defer cancelCTX()
 
 	var err error
 
