@@ -211,6 +211,7 @@ func (w *Writer) InsertTransactionIns(
 				if err != nil {
 					return 0, err
 				}
+
 				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 				if err != nil {
 					return 0, err
@@ -287,15 +288,6 @@ func (w *Writer) InsertOutput(
 			return err
 		}
 
-		outputAddressAccumulate := &services.OutputAddressAccumulate{
-			ID:      outputID.String(),
-			Address: addrid.String(),
-		}
-		err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
-		if err != nil {
-			return err
-		}
-
 		outputTxsAccumulate := &services.OutputTxsAccumulate{
 			ChainID:       chainID,
 			AssetID:       assetID.String(),
@@ -339,6 +331,15 @@ func (w *Writer) InsertOutputAddress(
 		CreatedAt: ctx.Time(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	outputAddressAccumulate := &services.OutputAddressAccumulate{
+		ID:      outputID.String(),
+		Address: address.String(),
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 	if err != nil {
 		return err
 	}

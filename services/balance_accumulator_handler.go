@@ -120,9 +120,12 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 
 	switch typ {
 	case processTypeOut:
-		_, err = dbTx.SelectBySql("select id,address "+
+		_, err = dbTx.SelectBySql("select output_addresses_accumulate.id,output_addresses_accumulate.address "+
 			"from output_addresses_accumulate "+
-			"where processed_out = 0 "+
+			"join avm_outputs on "+
+			"  output_addresses_accumulate.id = avm_outputs.id "+
+			"where "+
+			"output_addresses_accumulate.processed_out = 0 "+
 			"limit "+RowLimit+" "+
 			"for update").
 			LoadContext(ctx, &rowdata)
@@ -196,7 +199,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 				_, err = dbTx.UpdateBySql("update accumulate_balances "+
 					"set "+
 					"utxo_count = utxo_count+1, "+
-					"total_received = total_received+"+b.TotalReceived+", "+
+					"total_received = total_received+"+b.TotalReceived+" "+
 					"where id=? "+
 					"", b.ID).
 					ExecContext(ctx)
