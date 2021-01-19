@@ -48,7 +48,7 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 		}()
 
 		// delay a bit..
-		time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Millisecond)
 
 		var err error
 		for {
@@ -56,7 +56,7 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 				break
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
