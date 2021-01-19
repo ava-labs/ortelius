@@ -46,13 +46,17 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 		defer func() {
 			atomic.AddInt64(&a.running, -1)
 		}()
+
+		// delay a bit..
+		time.Sleep(1 * time.Second)
+
 		var err error
 		for {
 			err = a.Accumulate(conns, persist)
 			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 				break
 			}
-			time.Sleep(1 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
