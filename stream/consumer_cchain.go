@@ -282,7 +282,11 @@ func (c *ConsumerCChain) init() error {
 }
 
 func (c *ConsumerCChain) processorClose() error {
+	c.sc.Log.Info("processorClose %s", c.id)
 	errs := wrappers.Errs{}
+	if c.reader != nil {
+		errs.Add(c.reader.Close())
+	}
 	if c.conns != nil {
 		errs.Add(c.conns.Close())
 	}
@@ -300,17 +304,16 @@ func (c *ConsumerCChain) runProcessor() error {
 	c.sc.Log.Info("Starting worker for cchain")
 	defer c.sc.Log.Info("Exiting worker for cchain")
 
-	err := c.init()
-	if err != nil {
-		return err
-	}
-
 	defer func() {
 		err := c.processorClose()
 		if err != nil {
 			c.sc.Log.Warn("Stopping worker for cchain %w", err)
 		}
 	}()
+	err := c.init()
+	if err != nil {
+		return err
+	}
 
 	// Create a closure that processes the next message from the backend
 	var (

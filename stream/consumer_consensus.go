@@ -115,8 +115,14 @@ func (c *consumerconsensus) ID() string {
 
 // Close closes the consumer
 func (c *consumerconsensus) Close() error {
+	c.sc.Log.Info("close %s", c.id)
 	errs := wrappers.Errs{}
-	errs.Add(c.conns.Close(), c.reader.Close())
+	if c.reader != nil {
+		errs.Add(c.reader.Close())
+	}
+	if c.conns != nil {
+		errs.Add(c.conns.Close())
+	}
 	return errs.Err
 }
 
