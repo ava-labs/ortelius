@@ -304,7 +304,7 @@ func (w *Writer) InsertOutput(
 		}
 
 		outputTxsAccumulate := &services.OutputTxsAccumulate{
-			ChainID:       chainID,
+			ChainID:       w.chainID,
 			AssetID:       assetID.String(),
 			Address:       addrid.String(),
 			TransactionID: txID.String(),
