@@ -65,46 +65,31 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 }
 
 func (a *BalancerAccumulateHandler) Accumulate(conns *Connections, persist Persist) error {
-	job := conns.Stream().NewJob("accumulate")
-	sess := conns.DB().NewSessionForEventReceiver(job)
-
 	icnt := 0
 	for ; icnt < 10; icnt++ {
-		for {
-			cnt, err := a.processOutputs(processTypeOut, sess, persist)
-			if err != nil {
-				return err
-			}
-			if cnt > 0 {
-				icnt = 0
-			}
-			if cnt < RowLintValue {
-				break
-			}
+		job := conns.Stream().NewJob("accumulate")
+		sess := conns.DB().NewSessionForEventReceiver(job)
+
+		cnt, err := a.processOutputs(processTypeOut, sess, persist)
+		if err != nil {
+			return err
 		}
-		for {
-			cnt, err := a.processOutputs(processTypeIn, sess, persist)
-			if err != nil {
-				return err
-			}
-			if cnt > 0 {
-				icnt = 0
-			}
-			if cnt < RowLintValue {
-				break
-			}
+		if cnt > 0 {
+			icnt = 0
 		}
-		for {
-			cnt, err := a.processTransactions(sess, persist)
-			if err != nil {
-				return err
-			}
-			if cnt > 0 {
-				icnt = 0
-			}
-			if cnt < RowLintValue {
-				break
-			}
+		cnt, err = a.processOutputs(processTypeIn, sess, persist)
+		if err != nil {
+			return err
+		}
+		if cnt > 0 {
+			icnt = 0
+		}
+		cnt, err = a.processTransactions(sess, persist)
+		if err != nil {
+			return err
+		}
+		if cnt > 0 {
+			icnt = 0
 		}
 	}
 
