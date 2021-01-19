@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/gocraft/dbr/v2"
@@ -25,6 +27,7 @@ var processTypeOut processType = 2
 type BalancerAccumulateHandler struct {
 	running int64
 	lock    sync.Mutex
+	Log     logging.Logger
 }
 
 func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc *Control) {
@@ -169,6 +172,11 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			LoadContext(ctx, &balances)
 		if err != nil {
 			return 0, err
+		}
+
+		if len(balances) == 0 {
+			a.Log.Info("invalid balance %s %s on %d", row.ID, row.Address, typ)
+			continue
 		}
 
 		accumulateBalanceIds := []string{}
