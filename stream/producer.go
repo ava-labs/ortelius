@@ -6,6 +6,8 @@ package stream
 import (
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+
 	"github.com/ava-labs/avalanchego/ipcs/socket"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
@@ -65,7 +67,15 @@ func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainV
 
 // Close shuts down the producer
 func (p *Producer) Close() error {
-	return p.writeBuffer.close()
+	p.sc.Log.Info("close %s", p.id)
+	errs := wrappers.Errs{}
+	if p.writeBuffer != nil {
+		errs.Add(p.writeBuffer.close())
+	}
+	if p.sock != nil {
+		errs.Add(p.sock.Close())
+	}
+	return errs.Err
 }
 
 func (p *Producer) ID() string {
