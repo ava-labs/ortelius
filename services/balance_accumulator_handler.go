@@ -135,6 +135,8 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 	case processTypeIn:
 		_, err = dbTx.SelectBySql("select output_addresses_accumulate.id,output_addresses_accumulate.address "+
 			"from output_addresses_accumulate "+
+			"join avm_outputs on "+
+			"  output_addresses_accumulate.id = avm_outputs.id "+
 			"join avm_outputs_redeeming on "+
 			"  output_addresses_accumulate.id = avm_outputs_redeeming.id "+
 			"where "+
