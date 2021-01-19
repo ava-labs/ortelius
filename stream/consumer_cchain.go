@@ -282,11 +282,11 @@ func (c *ConsumerCChain) init() error {
 func (c *ConsumerCChain) processorClose() error {
 	c.sc.Log.Info("processorClose %s", c.id)
 	errs := wrappers.Errs{}
-	if c.conns != nil {
-		errs.Add(c.conns.Close())
-	}
 	if c.reader != nil {
 		errs.Add(c.reader.Close())
+	}
+	if c.conns != nil {
+		errs.Add(c.conns.Close())
 	}
 	return errs.Err
 }
