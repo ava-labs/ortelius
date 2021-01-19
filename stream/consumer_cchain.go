@@ -354,10 +354,11 @@ func (c *ConsumerCChain) runProcessor() error {
 
 	id := c.ID()
 
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+
 	// Log run statistics periodically until asked to stop
 	go func() {
-		t := time.NewTicker(30 * time.Second)
-		defer t.Stop()
 		for range t.C {
 			c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
 			if c.isStopping() {
