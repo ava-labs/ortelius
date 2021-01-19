@@ -10,6 +10,8 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
+	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 
 	"github.com/gocraft/health"
 
@@ -359,7 +361,19 @@ func (w *Writer) insertOperationTx(
 		outputCount++
 	}
 
+	addIns := &avax.AddInsContainer{
+		ChainID: w.chainID,
+	}
 	for _, txOps := range tx.Ops {
+		for _, u := range txOps.UTXOIDs {
+			ti := &avalancheGoAvax.TransferableInput{
+				Asset:  txOps.Asset,
+				UTXOID: *u,
+				In:     &secp256k1fx.TransferInput{},
+			}
+			addIns.Ins = append(addIns.Ins, ti)
+		}
+
 		for _, out := range txOps.Op.Outs() {
 			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout, w.chainID, false)
 			if err != nil {
@@ -369,7 +383,7 @@ func (w *Writer) insertOperationTx(
 		}
 	}
 
-	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, nil, nil, totalout, genesis)
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, addIns, nil, totalout, genesis)
 }
 
 func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {

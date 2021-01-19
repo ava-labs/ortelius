@@ -347,6 +347,7 @@ func (p *ProducerCChain) init() error {
 }
 
 func (p *ProducerCChain) processorClose() error {
+	p.sc.Log.Info("close %s", p.id)
 	if p.rpcClient != nil {
 		p.rpcClient.Close()
 	}
@@ -368,16 +369,16 @@ func (p *ProducerCChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for cchain")
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
-	err := p.init()
-	if err != nil {
-		return err
-	}
 	defer func() {
 		err := p.processorClose()
 		if err != nil {
 			p.sc.Log.Warn("Stopping worker for cchain %w", err)
 		}
 	}()
+	err := p.init()
+	if err != nil {
+		return err
+	}
 
 	// Create a closure that processes the next message from the backend
 	var (
