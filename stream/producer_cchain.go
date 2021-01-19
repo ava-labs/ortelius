@@ -433,10 +433,11 @@ func (p *ProducerCChain) runProcessor() error {
 
 	id := p.ID()
 
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+
 	// Log run statistics periodically until asked to stop
 	go func() {
-		t := time.NewTicker(30 * time.Second)
-		defer t.Stop()
 		for range t.C {
 			p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
 			if p.isStopping() {
