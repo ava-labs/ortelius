@@ -270,28 +270,7 @@ func (w *Writer) InsertOutput(
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
-	output := &services.Outputs{
-		ID:            outputID.String(),
-		ChainID:       chainID,
-		TransactionID: txID.String(),
-		OutputIndex:   idx,
-		AssetID:       assetID.String(),
-		OutputType:    outputType,
-		Amount:        out.Amount(),
-		Locktime:      out.Locktime,
-		Threshold:     out.Threshold,
-		GroupID:       groupID,
-		Payload:       payload,
-		StakeLocktime: stakeLocktime,
-		Stake:         stake,
-		Frozen:        frozen,
-		CreatedAt:     ctx.Time(),
-	}
-
-	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
-	if err != nil {
-		return err
-	}
+	var err error
 
 	// Ingest each Output Address
 	for _, addr := range out.Addresses() {
@@ -319,7 +298,26 @@ func (w *Writer) InsertOutput(
 		}
 	}
 
-	return nil
+	output := &services.Outputs{
+		ID:            outputID.String(),
+		ChainID:       chainID,
+		TransactionID: txID.String(),
+		OutputIndex:   idx,
+		AssetID:       assetID.String(),
+		OutputType:    outputType,
+		Amount:        out.Amount(),
+		Locktime:      out.Locktime,
+		Threshold:     out.Threshold,
+		GroupID:       groupID,
+		Payload:       payload,
+		StakeLocktime: stakeLocktime,
+		Stake:         stake,
+		Frozen:        frozen,
+		CreatedAt:     ctx.Time(),
+	}
+
+	// ensure that addresses are created before the outputs
+	return ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertAddressFromPublicKey(
