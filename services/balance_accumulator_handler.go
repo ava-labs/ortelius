@@ -45,9 +45,6 @@ func (a *BalancerAccumulateHandler) Run(conns *Connections, persist Persist, sc 
 			atomic.AddInt64(&a.running, -1)
 		}()
 
-		// delay a bit..
-		time.Sleep(1 * time.Millisecond)
-
 		var err error
 		for {
 			err = a.Accumulate(conns, persist)
@@ -109,7 +106,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
-			Where("output_addresses_accumulate.processed_out", 0).
+			Where("output_addresses_accumulate.processed_out = ?", 0).
 			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
@@ -123,7 +120,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
-			Where("output_addresses_accumulate.processed_in", 0).
+			Where("output_addresses_accumulate.processed_in = ?", 0).
 			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
@@ -216,8 +213,8 @@ func (a *BalancerAccumulateHandler) doit(typ processType,
 	).From("avm_outputs").
 		Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		Join("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id").
-		Where("avm_outputs.id=? and avm_output_addresses.address=? ", row.ID, row.Address).
-		GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
+		Where("avm_outputs.id=? and avm_output_addresses.address=?", row.ID, row.Address).
+		GroupBy("chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &balances)
 	if err != nil {
 		return err
