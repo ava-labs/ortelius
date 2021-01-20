@@ -157,7 +157,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 		return err
 	}
 
-	c.sc.BalancerAccumulateHandler.Run(c.conns, c.sc.Persist, c.sc)
+	c.sc.BalancerAccumulateHandler.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }
