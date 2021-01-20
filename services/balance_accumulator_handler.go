@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,8 +14,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLintValue = 100
-var RowLimit = fmt.Sprintf("%d", RowLintValue)
+var RowLintValue = uint64(100)
 var updTimeout = 10 * time.Second
 
 type processType uint32
@@ -112,29 +110,28 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 
 	switch typ {
 	case processTypeOut:
-		_, err = dbTx.SelectBySql("select output_addresses_accumulate.id,output_addresses_accumulate.address "+
-			"from output_addresses_accumulate "+
-			"join avm_outputs on "+
-			"  output_addresses_accumulate.id = avm_outputs.id "+
-			"where "+
-			"output_addresses_accumulate.processed_out = 0 "+
-			"limit "+RowLimit+" "+
-			"for update").
+		_, err = dbTx.Select(
+			"output_addresses_accumulate.id",
+			"output_addresses_accumulate.address",
+		).
+			From("output_addresses_accumulate").
+			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
+			Where("output_addresses_accumulate.processed_out = 0").
+			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return 0, err
 		}
 	case processTypeIn:
-		_, err = dbTx.SelectBySql("select output_addresses_accumulate.id,output_addresses_accumulate.address "+
-			"from output_addresses_accumulate "+
-			"join avm_outputs on "+
-			"  output_addresses_accumulate.id = avm_outputs.id "+
-			"join avm_outputs_redeeming on "+
-			"  output_addresses_accumulate.id = avm_outputs_redeeming.id "+
-			"where "+
-			"output_addresses_accumulate.processed_in = 0 "+
-			"limit "+RowLimit+" "+
-			"for update ").
+		_, err = dbTx.Select(
+			"output_addresses_accumulate.id",
+			"output_addresses_accumulate.address",
+		).
+			From("output_addresses_accumulate").
+			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
+			Join("output_addresses_accumulate", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
+			Where("output_addresses_accumulate.processed_in = 0").
+			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return 0, err
@@ -146,6 +143,50 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 	}
 
 	for _, row := range rowdata {
+		var rowdataLock []*OutputAddressAccumulate
+
+		upd := ""
+		switch typ {
+		case processTypeOut:
+			upd = "processed_out"
+		case processTypeIn:
+			upd = "processed_in"
+		}
+		_, err := dbTx.Select(
+			"output_addresses_accumulate.id",
+			"output_addresses_accumulate.address",
+			"output_addresses_accumulate.processed_out",
+			"output_addresses_accumulate.processed_in",
+		).
+			From("output_addresses_accumulate").
+			Where("output_addresses_accumulate."+upd+" = ? "+
+				"and output_addresses_accumulate.id=? and output_addresses_accumulate.address=?", 0, row.ID, row.Address).
+			Suffix("for update").
+			LoadContext(ctx, &rowdataLock)
+		if err != nil {
+			return 0, err
+		}
+
+		// it was already processed
+		if len(rowdataLock) == 0 {
+			continue
+		}
+
+		// There should be only 1 record.
+		row := rowdataLock[0]
+
+		// This would be unexpected..
+		switch typ {
+		case processTypeOut:
+			if row.ProcessedOut != 0 {
+				continue
+			}
+		case processTypeIn:
+			if row.ProcessedIn != 0 {
+				continue
+			}
+		}
+
 		balances := []*AccumulateBalances{}
 
 		_, err = dbTx.Select("avm_outputs.chain_id",
@@ -183,10 +224,10 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 		}
 
 		balancesLocked := []*AccumulateBalances{}
-		_, err = dbTx.SelectBySql("select id "+
-			"from accumulate_balances "+
-			"where id in ? "+
-			"for update", accumulateBalanceIds).
+		_, err = dbTx.Select("id").
+			From("accumulate_balances").
+			Where("id in ?", accumulateBalanceIds).
+			Suffix("for update").
 			LoadContext(ctx, &balancesLocked)
 		if err != nil {
 			return 0, err
@@ -219,17 +260,9 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			}
 		}
 
-		upd := ""
-		switch typ {
-		case processTypeOut:
-			upd = "processed_out = 1 "
-		case processTypeIn:
-			upd = "processed_in = 1 "
-		}
-		_, err = dbTx.UpdateBySql("update output_addresses_accumulate "+
-			"set "+upd+" "+
-			"where id=? and address=? "+
-			"", row.ID, row.Address).
+		_, err = dbTx.Update("output_addresses_accumulate").
+			Set(upd, 1).
+			Where("id=? and address=?", row.ID, row.Address).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
@@ -257,11 +290,17 @@ func (a *BalancerAccumulateHandler) processTransactions(sess *dbr.Session, persi
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	_, err = dbTx.SelectBySql("select id,chain_id,asset_id,address,transaction_id "+
-		"from output_txs_accumulate "+
-		"where processed = 0 "+
-		"limit "+RowLimit+" "+
-		"for update").
+	_, err = dbTx.Select(
+		"id",
+		"chain_id",
+		"asset_id",
+		"address",
+		"transaction_id",
+	).
+		From("output_txs_accumulate").
+		Where("processed = 0").
+		Limit(RowLintValue).
+		Suffix("for update").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return 0, err
@@ -314,10 +353,9 @@ func (a *BalancerAccumulateHandler) processTransactions(sess *dbr.Session, persi
 	}
 
 	for _, row := range rowdata {
-		_, err = dbTx.UpdateBySql("update output_txs_accumulate "+
-			"set processed=1 "+
-			"where id=? "+
-			"", row.ID).
+		_, err = dbTx.Update("output_txs_accumulate").
+			Set("processed", 1).
+			Where("id=?", row.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return 0, err
