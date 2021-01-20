@@ -129,7 +129,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
-			Join("output_addresses_accumulate", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
+			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
 			Where("output_addresses_accumulate.processed_in = 0").
 			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
@@ -153,14 +153,14 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			upd = "processed_in"
 		}
 		_, err := dbTx.Select(
-			"output_addresses_accumulate.id",
-			"output_addresses_accumulate.address",
-			"output_addresses_accumulate.processed_out",
-			"output_addresses_accumulate.processed_in",
+			"id",
+			"address",
+			"processed_out",
+			"processed_in",
 		).
 			From("output_addresses_accumulate").
-			Where("output_addresses_accumulate."+upd+" = ? "+
-				"and output_addresses_accumulate.id=? and output_addresses_accumulate.address=?", 0, row.ID, row.Address).
+			Where(upd+" = ? "+
+				"and id=? and address=?", 0, row.ID, row.Address).
 			Suffix("for update").
 			LoadContext(ctx, &rowdataLock)
 		if err != nil {
