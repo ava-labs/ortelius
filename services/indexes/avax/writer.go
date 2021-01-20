@@ -218,7 +218,7 @@ func (w *Writer) InsertTransactionIns(
 				}
 
 				outputTxsAccumulate := &services.OutputTxsAccumulate{
-					ChainID:       chainID,
+					ChainID:       w.chainID,
 					AssetID:       in.AssetID().String(),
 					Address:       publicKey.Address().String(),
 					TransactionID: in.TxID.String(),
@@ -283,7 +283,7 @@ func (w *Writer) InsertOutput(
 		}
 
 		outputTxsAccumulate := &services.OutputTxsAccumulate{
-			ChainID:       chainID,
+			ChainID:       w.chainID,
 			AssetID:       assetID.String(),
 			Address:       addrid.String(),
 			TransactionID: txID.String(),
