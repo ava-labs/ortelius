@@ -101,36 +101,29 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 	var err error
 	var rowdata []*OutputAddressAccumulate
 
-	var dbTx *dbr.Tx
-	dbTx, err = sess.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer dbTx.RollbackUnlessCommitted()
-
 	switch typ {
 	case processTypeOut:
-		_, err = dbTx.Select(
+		_, err = sess.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
-			Where("output_addresses_accumulate.processed_out = 0").
+			Where("output_addresses_accumulate.processed_out", 0).
 			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return 0, err
 		}
 	case processTypeIn:
-		_, err = dbTx.Select(
+		_, err = sess.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
-			Where("output_addresses_accumulate.processed_in = 0").
+			Where("output_addresses_accumulate.processed_in", 0).
 			Limit(RowLintValue).
 			LoadContext(ctx, &rowdata)
 		if err != nil {
@@ -141,6 +134,13 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 	if len(rowdata) == 0 {
 		return 0, nil
 	}
+
+	var dbTx *dbr.Tx
+	dbTx, err = sess.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer dbTx.RollbackUnlessCommitted()
 
 	for _, row := range rowdata {
 		var rowdataLock []*OutputAddressAccumulate
@@ -159,8 +159,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			"processed_in",
 		).
 			From("output_addresses_accumulate").
-			Where(upd+" = ? "+
-				"and id=? and address=?", 0, row.ID, row.Address).
+			Where(upd+" = ? and id=? and address=?", 0, row.ID, row.Address).
 			Suffix("for update").
 			LoadContext(ctx, &rowdataLock)
 		if err != nil {
@@ -172,7 +171,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Se
 			continue
 		}
 
-		// There should be only 1 record.
+		// There will be only 1 record.
 		row := rowdataLock[0]
 
 		// This would be unexpected..
