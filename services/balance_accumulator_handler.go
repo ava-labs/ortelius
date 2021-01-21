@@ -468,7 +468,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(sess *dbr.Session, p
 
 	var rowdataLock []*OutputTxsAccumulate
 
-	_, err = sess.Select(
+	_, err = dbTx.Select(
 		"id",
 		"chain_id",
 		"asset_id",
