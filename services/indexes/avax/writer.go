@@ -193,11 +193,6 @@ func (w *Writer) InsertTransactionIns(
 		CreatedAt:              ctx.Time(),
 	}
 
-	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
-	if err != nil {
-		return 0, err
-	}
-
 	if idx < len(creds) {
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[idx].(*secp256k1fx.Credential)
@@ -212,29 +207,31 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 
-				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
-				if err != nil {
-					return 0, err
-				}
+				/*
+					err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+					if err != nil {
+						return 0, err
+					}
 
-				outputTxsAccumulate := &services.OutputTxsAccumulate{
-					ChainID:       chainID,
-					AssetID:       in.AssetID().String(),
-					Address:       publicKey.Address().String(),
-					TransactionID: in.TxID.String(),
-				}
-				err = outputTxsAccumulate.ComputeID()
-				if err != nil {
-					return 0, err
-				}
-				err = ctx.Persist().InsertOutputTxsAccumulate(ctx.Ctx(), ctx.DB(), outputTxsAccumulate)
-				if err != nil {
-					return 0, err
-				}
+					outputTxsAccumulate := &services.OutputTxsAccumulate{
+						ChainID:       chainID,
+						AssetID:       in.AssetID().String(),
+						Address:       publicKey.Address().String(),
+						TransactionID: in.TxID.String(),
+					}
+					err = outputTxsAccumulate.ComputeID()
+					if err != nil {
+						return 0, err
+					}
+					err = ctx.Persist().InsertOutputTxsAccumulate(ctx.Ctx(), ctx.DB(), outputTxsAccumulate)
+					if err != nil {
+						return 0, err
+					}
+				*/
 			}
 		}
 	}
-	return totalin, nil
+	return totalin, ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionOuts(

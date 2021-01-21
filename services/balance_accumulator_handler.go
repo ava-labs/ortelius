@@ -64,7 +64,7 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 				break
 			}
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
@@ -79,21 +79,21 @@ func (a *BalancerAccumulateHandler) Accumulate(conns *Connections, persist Persi
 		sess := conns.DB().NewSessionForEventReceiver(job)
 
 		cnt, err := a.processOutputs(processTypeOut, sess, persist)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			return err
 		}
 		if cnt > 0 {
 			icnt = 0
 		}
 		cnt, err = a.processOutputs(processTypeIn, sess, persist)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			return err
 		}
 		if cnt > 0 {
 			icnt = 0
 		}
 		cnt, err = a.processTransactions(sess, persist)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			return err
 		}
 		if cnt > 0 {
@@ -219,7 +219,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	var balances []*AccumulateBalances
 
 	_, err = dbTx.Select(
-		"avm_transactions.chain_id",
+		"avm_outputs.chain_id",
 		"avm_output_addresses.address",
 		"avm_outputs.asset_id",
 		"count(distinct(avm_outputs.transaction_id)) as transaction_count",
@@ -227,7 +227,6 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 		"sum(avm_outputs.amount) as total_sent",
 	).From("avm_outputs").
 		Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		Join("avm_transactions", "avm_outputs.transaction_id = avm_transactions.id").
 		Where("avm_outputs.id=? and avm_output_addresses.address=?", row.ID, row.Address).
 		GroupBy("chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &balances)
