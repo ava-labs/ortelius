@@ -99,7 +99,6 @@ func execute() error {
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
 				serviceControl.Persist = services.NewPersist()
-				serviceControl.BalancerAccumulateHandler.Log = alog
 
 				*config = *c
 
