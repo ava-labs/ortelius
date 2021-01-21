@@ -164,10 +164,7 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist, sc *Control) error {
 	icnt := 0
 	for ; icnt < 10; icnt++ {
-		job := conns.Stream().NewJob("accumulate")
-		sess := conns.DB().NewSessionForEventReceiver(job)
-
-		cnt, err := a.processOutputs(processTypeOut, sess, persist, sc)
+		cnt, err := a.processOutputs(processTypeOut, conns, persist, sc)
 		if err != nil {
 			return err
 		}
@@ -182,10 +179,7 @@ func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, per
 func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist, sc *Control) error {
 	icnt := 0
 	for ; icnt < 10; icnt++ {
-		job := conns.Stream().NewJob("accumulate")
-		sess := conns.DB().NewSessionForEventReceiver(job)
-
-		cnt, err := a.processOutputs(processTypeIn, sess, persist, sc)
+		cnt, err := a.processOutputs(processTypeIn, conns, persist, sc)
 		if err != nil {
 			return err
 		}
@@ -200,10 +194,7 @@ func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, pers
 func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, persist Persist) error {
 	icnt := 0
 	for ; icnt < 10; icnt++ {
-		job := conns.Stream().NewJob("accumulate")
-		sess := conns.DB().NewSessionForEventReceiver(job)
-
-		cnt, err := a.processTransactions(sess, persist)
+		cnt, err := a.processTransactions(conns, persist)
 		if err != nil {
 			return err
 		}
@@ -215,7 +206,10 @@ func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, pe
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(typ processType, sess *dbr.Session, persist Persist, sc *Control) (int, error) {
+func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist, sc *Control) (int, error) {
+	job := conns.Stream().NewJob("accumulate")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -417,7 +411,10 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return dbTx.Commit()
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(sess *dbr.Session, persist Persist) (int, error) {
+func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (int, error) {
+	job := conns.Stream().NewJob("accumulate")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
