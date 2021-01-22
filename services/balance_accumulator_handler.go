@@ -206,6 +206,11 @@ func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, pe
 	return nil
 }
 
+type OutputAddressAccumulateWithTrID struct {
+	OutputAddressAccumulate
+	TransactionID string
+}
+
 func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist, sc *Control) (int, error) {
 	job := conns.Stream().NewJob("accumulate")
 	sess := conns.DB().NewSessionForEventReceiver(job)
@@ -214,13 +219,14 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 	defer cancelCTX()
 
 	var err error
-	var rowdata []*OutputAddressAccumulate
+	var rowdata []*OutputAddressAccumulateWithTrID
 
 	switch typ {
 	case processTypeOut:
 		_, err = sess.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
+			"avm_outputs.transaction_id",
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
@@ -234,6 +240,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 		_, err = sess.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
+			"avm_outputs.transaction_id",
 		).
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
@@ -267,7 +274,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	typ processType,
 	sess *dbr.Session,
 	persist Persist,
-	rowq *OutputAddressAccumulate,
+	rowq *OutputAddressAccumulateWithTrID,
 	sc *Control,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
@@ -346,6 +353,22 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	}
 
 	for _, b := range balances {
+		// add any missing transaction rows.
+		outputsTxsAccumulate := &OutputTxsAccumulate{
+			ChainID:       b.ChainID,
+			AssetID:       b.AssetID,
+			Address:       b.Address,
+			TransactionID: rowq.TransactionID,
+		}
+		err = outputsTxsAccumulate.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = persist.InsertOutputTxsAccumulate(ctx, dbTx, outputsTxsAccumulate)
+		if err != nil {
+			return err
+		}
+
 		err = b.ComputeID()
 		if err != nil {
 			return err
