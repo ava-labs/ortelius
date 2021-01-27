@@ -55,6 +55,7 @@ type replay struct {
 	errs   *avlancheGoUtils.AtomicInterface
 	sc     *services.Control
 	config *cfg.Config
+	conns  *services.Connections
 
 	counterRead  *utils.CounterID
 	counterAdded *utils.CounterID
@@ -82,6 +83,8 @@ func (replay *replay) Start() error {
 		return err
 	}
 
+	replay.conns = conns
+
 	for _, chainID := range replay.config.Chains {
 		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker, conns)
 		if err != nil {
@@ -90,7 +93,7 @@ func (replay *replay) Start() error {
 		}
 	}
 
-	err = replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker, conns)
+	err = replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker)
 	if err != nil {
 		log.Fatalln("reader failed", replay.config.CchainID, ":", err.Error())
 		return err
@@ -184,8 +187,8 @@ type WorkerPacket struct {
 	block       *cblock.Block
 }
 
-func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, conns *services.Connections) error {
-	writer, err := cvm.NewWriter(conns, replay.config.NetworkID, chain)
+func (replay *replay) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
+	writer, err := cvm.NewWriter(replay.config.NetworkID, chain)
 	if err != nil {
 		return err
 	}
@@ -214,12 +217,12 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	var writer services.Consumer
 	switch chain.VMType {
 	case consumers.IndexerAVMName:
-		writer, err = avm.NewWriter(conns, replay.config.NetworkID, chain.ID)
+		writer, err = avm.NewWriter(replay.config.NetworkID, chain.ID)
 		if err != nil {
 			return err
 		}
 	case consumers.IndexerPVMName:
-		writer, err = pvm.NewWriter(conns, replay.config.NetworkID, chain.ID)
+		writer, err = pvm.NewWriter(replay.config.NetworkID, chain.ID)
 		if err != nil {
 			return err
 		}
@@ -239,7 +242,7 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
 		ctx := context.Background()
 		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
-		err := writer.Bootstrap(ctx, replay.persist)
+		err := writer.Bootstrap(conns, ctx, replay.persist)
 		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
 		if err != nil {
 			replay.errs.SetValue(err)
@@ -302,7 +305,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 			switch value.consumeType {
 			case CONSUME:
 				for {
-					consumererr = value.writer.Consume(context.Background(), value.message, replay.persist)
+					consumererr = value.writer.Consume(replay.conns, context.Background(), value.message, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -314,7 +317,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMECONSENSUS:
 				for {
-					consumererr = value.writer.ConsumeConsensus(context.Background(), value.message, replay.persist)
+					consumererr = value.writer.ConsumeConsensus(replay.conns, context.Background(), value.message, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -326,7 +329,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), value.message, &value.block.Header, replay.persist)
+					consumererr = value.cwriter.Consume(replay.conns, context.Background(), value.message, &value.block.Header, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}

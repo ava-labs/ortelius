@@ -25,11 +25,11 @@ var (
 )
 
 func TestBootstrap(t *testing.T) {
-	w, r, closeFn := newTestIndex(t, 12345, ChainID)
+	conns, w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
 	persist := services.NewPersist()
-	if err := w.Bootstrap(context.Background(), persist); err != nil {
+	if err := w.Bootstrap(conns, context.Background(), persist); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,7 +49,7 @@ func TestBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Connections, *Writer, *avax.Reader, func()) {
 	// Start test redis
 	s, err := miniredis.Run()
 	if err != nil {
@@ -80,20 +80,20 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*Writer, *ava
 	}
 
 	// Create index
-	writer, err := NewWriter(conns, networkID, chainID.String())
+	writer, err := NewWriter(networkID, chainID.String())
 	if err != nil {
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
 	reader := avax.NewReader(conns)
-	return writer, reader, func() {
+	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()
 	}
 }
 
 func TestInsertTxInternal(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -102,8 +102,8 @@ func TestInsertTxInternal(t *testing.T) {
 	tx.UnsignedTx = validatorTx
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
 	if err != nil {
@@ -121,7 +121,7 @@ func TestInsertTxInternal(t *testing.T) {
 }
 
 func TestInsertTxInternalRewards(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -130,8 +130,8 @@ func TestInsertTxInternalRewards(t *testing.T) {
 	tx.UnsignedTx = validatorTx
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
 	if err != nil {
@@ -152,7 +152,7 @@ func TestInsertTxInternalRewards(t *testing.T) {
 }
 
 func TestCommonBlock(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, 5, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -160,8 +160,8 @@ func TestCommonBlock(t *testing.T) {
 	blkid := ids.ID{}
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.indexCommonBlock(cCtx, blkid, models.BlockTypeCommit, tx, []byte(""))
 	if err != nil {
