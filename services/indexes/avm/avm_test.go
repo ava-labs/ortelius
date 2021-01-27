@@ -38,7 +38,7 @@ func TestIndexBootstrap(t *testing.T) {
 	defer closeFn()
 
 	persist := services.NewPersist()
-	err := writer.Bootstrap(conns, newTestContext(), persist)
+	err := writer.Bootstrap(newTestContext(), conns, persist)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}

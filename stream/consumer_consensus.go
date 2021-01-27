@@ -72,7 +72,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(c.conns, ctx, c.sc.Persist); err != nil {
+		if err = c.consumer.Bootstrap(ctx, c.conns, c.sc.Persist); err != nil {
 			return nil, err
 		}
 
@@ -168,7 +168,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 func (c *consumerconsensus) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.ConsumeConsensus(c.conns, ctx, msg, c.sc.Persist)
+	return c.consumer.ConsumeConsensus(ctx, c.conns, msg, c.sc.Persist)
 }
 
 func (c *consumerconsensus) nextMessage() (*Message, error) {

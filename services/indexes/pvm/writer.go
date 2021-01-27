@@ -53,11 +53,11 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) ConsumeConsensus(_ *services.Connections, _ context.Context, _ services.Consumable, _ services.Persist) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
 	return nil
 }
 
-func (w *Writer) Consume(conns *services.Connections, ctx context.Context, c services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	job := conns.Stream().NewJob("pvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -75,7 +75,7 @@ func (w *Writer) Consume(conns *services.Connections, ctx context.Context, c ser
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(conns *services.Connections, ctx context.Context, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
 	job := conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID)

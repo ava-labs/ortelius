@@ -21,9 +21,9 @@ type Consumable interface {
 // Consumer takes in Consumables and adds them to the service's backend
 type Consumer interface {
 	Name() string
-	Bootstrap(*Connections, context.Context, Persist) error
-	Consume(*Connections, context.Context, Consumable, Persist) error
-	ConsumeConsensus(*Connections, context.Context, Consumable, Persist) error
+	Bootstrap(context.Context, *Connections, Persist) error
+	Consume(context.Context, *Connections, Consumable, Persist) error
+	ConsumeConsensus(context.Context, *Connections, Consumable, Persist) error
 }
 
 // ConsumerCtx

@@ -81,7 +81,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "avm-index" }
 
-func (w *Writer) Bootstrap(conns *services.Connections, ctx context.Context, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -132,7 +132,7 @@ func (w *Writer) Bootstrap(conns *services.Connections, ctx context.Context, per
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(conns *services.Connections, ctx context.Context, c services.Consumable, persist services.Persist) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	noopdb := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -214,7 +214,7 @@ func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []snowstorm.T
 	return nil
 }
 
-func (w *Writer) Consume(conns *services.Connections, ctx context.Context, i services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
 		job  = conns.Stream().NewJob("avm-index")

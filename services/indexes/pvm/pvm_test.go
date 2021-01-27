@@ -29,7 +29,7 @@ func TestBootstrap(t *testing.T) {
 	defer closeFn()
 
 	persist := services.NewPersist()
-	if err := w.Bootstrap(conns, context.Background(), persist); err != nil {
+	if err := w.Bootstrap(context.Background(), conns, persist); err != nil {
 		t.Fatal(err)
 	}
 

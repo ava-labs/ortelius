@@ -56,19 +56,19 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	}
 
 	// Create index
-	writer, err := NewWriter( networkID, chainID.String())
+	writer, err := NewWriter(networkID, chainID.String())
 	if err != nil {
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	return conns,writer, func() {
+	return conns, writer, func() {
 		s.Close()
 		_ = conns.Close()
 	}
 }
 
 func TestInsertTxInternalExport(t *testing.T) {
-	conns,writer, closeFn := newTestIndex(t, 5, testXChainID)
+	conns, writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -101,7 +101,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 }
 
 func TestInsertTxInternalImport(t *testing.T) {
-	conns,writer, closeFn := newTestIndex(t, 5, testXChainID)
+	conns, writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 

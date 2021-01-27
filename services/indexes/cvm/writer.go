@@ -54,7 +54,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "cvm-index" }
 
-func (w *Writer) Consume(conns *services.Connections, ctx context.Context, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
 	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -72,7 +72,7 @@ func (w *Writer) Consume(conns *services.Connections, ctx context.Context, c ser
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(_ *services.Connections, _ context.Context) error {
+func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
 	return nil
 }
 
