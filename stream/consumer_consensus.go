@@ -72,7 +72,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx, c.conns, c.sc.Persist); err != nil {
+		if err = c.consumer.Bootstrap(ctx, c.conns, sc.Persist); err != nil {
 			return nil, err
 		}
 
