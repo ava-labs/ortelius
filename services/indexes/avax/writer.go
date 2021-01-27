@@ -18,8 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/gocraft/health"
-
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
@@ -36,11 +34,10 @@ var ecdsaRecoveryFactory = crypto.FactorySECP256K1R{}
 type Writer struct {
 	chainID     string
 	avaxAssetID ids.ID
-	stream      *health.Stream
 }
 
-func NewWriter(chainID string, avaxAssetID ids.ID, stream *health.Stream) *Writer {
-	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID, stream: stream}
+func NewWriter(chainID string, avaxAssetID ids.ID) *Writer {
+	return &Writer{chainID: chainID, avaxAssetID: avaxAssetID}
 }
 
 type AddInsContainer struct {

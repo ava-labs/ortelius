@@ -32,7 +32,7 @@ var (
 	consumerInitializeTimeout = 5 * time.Minute
 )
 
-type serviceConsumerFactory func(*services.Connections, uint32, string, string) (services.Consumer, error)
+type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
@@ -79,7 +79,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		sc.InitConsumeMetrics()
 
 		// Create consumer backend
-		c.consumer, err = factory(conns, conf.NetworkID, chainVM, chainID)
+		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +87,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		// Bootstrap our service
 		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
 		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx, sc.Persist); err != nil {
+		if err = c.consumer.Bootstrap(ctx, c.conns, sc.Persist); err != nil {
 			return nil, err
 		}
 
@@ -185,7 +185,7 @@ func (c *consumer) ProcessNextMessage() error {
 func (c *consumer) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, msg, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, c.sc.Persist)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {
