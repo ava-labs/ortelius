@@ -115,10 +115,10 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		return err
 	}
 
-	return c.Consume(msg, c.sc.Persist)
+	return c.Consume(msg)
 }
 
-func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persist) error {
+func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable, persist services.Persi
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, msg, &block.Header, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, &block.Header, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {
@@ -269,7 +269,7 @@ func (c *ConsumerCChain) init() error {
 
 	c.conns = conns
 
-	consumer, err := cvm.NewWriter(c.conns, c.conf.NetworkID, c.conf.CchainID)
+	consumer, err := cvm.NewWriter(c.conf.NetworkID, c.conf.CchainID)
 	if err != nil {
 		return err
 	}

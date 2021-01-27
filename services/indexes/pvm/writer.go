@@ -33,35 +33,33 @@ type Writer struct {
 	avaxAssetID ids.ID
 
 	codec codec.Manager
-	conns *services.Connections
 	avax  *avaxIndexer.Writer
 }
 
-func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
+func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	_, avaxAssetID, err := genesis.Genesis(networkID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Writer{
-		conns:       conns,
 		chainID:     chainID,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		codec:       platformvm.Codec,
-		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID, conns.Stream()),
+		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID),
 	}, nil
 }
 
 func (*Writer) Name() string { return "pvm-index" }
 
-func (w *Writer) ConsumeConsensus(_ context.Context, c services.Consumable, persist services.Persist) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist services.Persist) error {
-	job := w.conns.Stream().NewJob("pvm-index")
-	sess := w.conns.DB().NewSessionForEventReceiver(job)
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
+	job := conns.Stream().NewJob("pvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
 	if err != nil {
@@ -77,8 +75,8 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, persist ser
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
-	job := w.conns.Stream().NewJob("bootstrap")
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
+	job := conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID)
 	if err != nil {
@@ -95,7 +93,7 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 	}
 
 	var (
-		db   = w.conns.DB().NewSessionForEventReceiver(job)
+		db   = conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
 		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), persist)
 	)
