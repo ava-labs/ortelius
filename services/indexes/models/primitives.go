@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 )
 
-// bech32HRP is the human-readable part of bech32 addresses. It needs to be
+// Bech32HRP is the human-readable part of bech32 addresses. It needs to be
 // available to Address.MarshalJSON is there is no other way to give it this
 // data
 var Bech32HRP = constants.GetHRP(constants.EverestID)
