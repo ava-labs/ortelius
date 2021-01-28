@@ -38,7 +38,7 @@ func TestTransaction(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactions).Exec()
 
-	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -57,7 +57,7 @@ func TestTransaction(t *testing.T) {
 	v.CanonicalSerialization = []byte("cs1")
 	v.Txfee = 2
 	v.Genesis = false
-	err = p.InsertTransaction(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
