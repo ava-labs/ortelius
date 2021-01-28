@@ -19,6 +19,8 @@ const (
 	defaultBufferedWriterSize         = 256
 	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 5
 	defaultWriteTimeout               = 1 * time.Minute
+	defaultWriteRetry                 = 10
+	defaultWriteRetrySleep            = 1 * time.Second
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
@@ -112,7 +114,15 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 		}()
 
-		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
+		var err error
+		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+			err = wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...)
+			if err == nil {
+				break
+			}
+			time.Sleep(defaultWriteRetrySleep)
+		}
+		if err != nil {
 			collectors.Error()
 			wb.log.Error("Error writing to kafka:", err)
 		}
