@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/utils/formatting"
+
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -286,7 +288,7 @@ func (w *Writer) InsertOutput(
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		err = w.InsertOutputAddress(ctx, outputID, ids.ShortID(addrBytes), nil)
+		err = w.InsertOutputAddress(ctx, outputID, addrBytes, nil)
 		if err != nil {
 			return err
 		}
@@ -318,6 +320,20 @@ func (w *Writer) InsertOutputAddress(
 		CreatedAt: ctx.Time(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	bech32Addr, err := formatting.FormatBech32(models.Bech32HRP, address.Bytes())
+	if err != nil {
+		return err
+	}
+
+	addressBech32 := &services.AddressBech32{
+		Address:       address.String(),
+		Bech32Address: bech32Addr,
+	}
+	err = ctx.Persist().InsertAddressBech32(ctx.Ctx(), ctx.DB(), addressBech32, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}

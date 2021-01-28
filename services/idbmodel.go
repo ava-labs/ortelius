@@ -26,6 +26,7 @@ const (
 	TableRewards               = "rewards"
 	TableTransactionsValidator = "transactions_validator"
 	TableTransactionsBlock     = "transactions_block"
+	TableAddressBech32         = "addresses_bech32"
 )
 
 type Persist interface {
@@ -201,6 +202,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*TransactionsBlock,
+		bool,
+	) error
+
+	QueryAddressBech32(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressBech32,
+	) (*AddressBech32, error)
+	InsertAddressBech32(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressBech32,
 		bool,
 	) error
 }
@@ -1125,6 +1138,54 @@ func (p *persist) InsertTransactionsBlock(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableTransactionsBlock, true, err)
+		}
+	}
+	return nil
+}
+
+type AddressBech32 struct {
+	Address       string
+	Bech32Address string
+}
+
+func (p *persist) QueryAddressBech32(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *AddressBech32,
+) (*AddressBech32, error) {
+	v := &AddressBech32{}
+	err := sess.Select(
+		"address",
+		"bech32_address",
+	).From(TableAddressBech32).
+		Where("address=?", q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddressBech32(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *AddressBech32,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAddressBech32).
+		Pair("address", v.Address).
+		Pair("bech32_address", v.Bech32Address).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableAddressBech32, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddressBech32).
+			Set("bech32_address", v.Bech32Address).
+			Where("address = ?", v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
 		}
 	}
 	return nil
