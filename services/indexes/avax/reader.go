@@ -609,8 +609,18 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 
 	var addresses []*models.AddressInfo
-	builder := r.addressQuery(dbRunner)
-	_, err = p.Apply(builder).
+
+	sq := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
+	builder := dbRunner.Select(
+		"avm_outputs_j.chain_id",
+		"avm_outputs_j.address",
+		"addresses.public_key",
+	).From(sq.As("avm_outputs_j")).
+		LeftJoin("addresses", "addresses.address = avm_outputs_j.address")
+
+	_, err = builder.
 		LoadContext(ctx, &addresses)
 	if err != nil {
 		return nil, err
@@ -621,9 +631,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			err = p.Apply(dbRunner.
-				Select("COUNT(DISTINCT(avm_output_addresses.address))").
-				From("avm_output_addresses")).
+			err = sq.
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
@@ -725,6 +733,22 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	addressList, err := r.ListAddresses(ctx, p)
 	if err != nil {
 		return nil, err
+	}
+	if len(addressList.Addresses) > 1 {
+		collated := make(map[string]*models.AddressInfo)
+		for _, a := range addressList.Addresses {
+			key := string(a.Address)
+			if addressInfo, ok := collated[key]; ok {
+				collated[key].Assets = addAssetInfoMap(addressInfo.Assets, a.Assets)
+			} else {
+				a.ChainID = ""
+				collated[key] = a
+			}
+		}
+		addressList.Addresses = []*models.AddressInfo{}
+		for _, v := range collated {
+			addressList.Addresses = append(addressList.Addresses, v)
+		}
 	}
 	if len(addressList.Addresses) > 0 {
 		return addressList.Addresses[0], nil
@@ -1178,22 +1202,22 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	// Create a list of ids for querying, and a map for accumulating results later
 	addrIDs := make([]models.Address, len(addrs))
-	addrsByID := make(map[models.Address]*models.AddressInfo, len(addrs))
+	addrsByID := make(map[string]*models.AddressInfo, len(addrs))
 	for i, addr := range addrs {
 		addrIDs[i] = addr.Address
-		addrsByID[addr.Address] = addr
-
-		addr.Assets = make(map[models.StringID]models.AssetInfo, 1)
+		addrsByID[fmt.Sprintf("%s:%s", addr.ChainID, addr.Address)] = addr
 	}
 
 	// Load each Transaction Output for the tx, both inputs and outputs
 	var rows []*struct {
-		Address models.Address `json:"address"`
+		ChainID models.StringID `json:"chainID"`
+		Address models.Address  `json:"address"`
 		models.AssetInfo
 	}
 
 	builder := dbRunner.
 		Select(
+			"avm_outputs.chain_id",
 			"avm_output_addresses.address",
 			"avm_outputs.asset_id",
 			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
@@ -1206,7 +1230,7 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
 		Where("avm_output_addresses.address IN ?", addrIDs).
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id")
+		GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id")
 
 	if len(chainIDs) > 0 {
 		builder.Where("avm_outputs.chain_id IN ?", chainIDs)
@@ -1218,9 +1242,12 @@ func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner,
 
 	// Accumulate rows into addresses
 	for _, row := range rows {
-		addr, ok := addrsByID[row.Address]
+		addr, ok := addrsByID[fmt.Sprintf("%s:%s", row.ChainID, row.Address)]
 		if !ok {
 			continue
+		}
+		if addr.Assets == nil {
+			addr.Assets = make(map[models.StringID]models.AssetInfo)
 		}
 		addr.Assets[row.AssetID] = row.AssetInfo
 	}
@@ -1319,13 +1346,6 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
-}
-
-func (r *Reader) addressQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
-	return dbRunner.
-		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
-		From("avm_output_addresses").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
 
