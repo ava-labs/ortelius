@@ -227,6 +227,7 @@ type Transactions struct {
 	Memo                   []byte
 	CanonicalSerialization []byte
 	Txfee                  uint64
+	NetworkID              uint32
 	Genesis                bool
 	CreatedAt              time.Time
 }
@@ -246,6 +247,7 @@ func (p *persist) QueryTransactions(
 		"canonical_serialization",
 		"txfee",
 		"genesis",
+		"network_id",
 	).From(TableTransactions).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -269,9 +271,10 @@ func (p *persist) InsertTransactions(
 		Pair("canonical_serialization", v.CanonicalSerialization).
 		Pair("txfee", v.Txfee).
 		Pair("genesis", v.Genesis).
+		Pair("network_id", v.NetworkID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableTransactionsBlock, false, err)
+		return EventErr(TableTransactions, false, err)
 	}
 	if upd {
 		_, err = sess.
@@ -282,10 +285,11 @@ func (p *persist) InsertTransactions(
 			Set("canonical_serialization", v.CanonicalSerialization).
 			Set("txfee", v.Txfee).
 			Set("genesis", v.Genesis).
+			Set("network_id", v.NetworkID).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return EventErr(TableTransactionsBlock, true, err)
+			return EventErr(TableTransactions, true, err)
 		}
 	}
 	return nil
@@ -380,6 +384,8 @@ type Outputs struct {
 	StakeLocktime uint64
 	Stake         bool
 	Frozen        bool
+	Stakeableout  bool
+	Genesisutxo       bool
 	CreatedAt     time.Time
 }
 
@@ -404,6 +410,8 @@ func (p *persist) QueryOutputs(
 		"stake_locktime",
 		"stake",
 		"frozen",
+		"stakeableout",
+		"genesisutxo",
 		"created_at",
 	).From(TableOutputs).
 		Where("id=?", q.ID).
@@ -434,6 +442,8 @@ func (p *persist) InsertOutputs(
 		Pair("stake_locktime", v.StakeLocktime).
 		Pair("stake", v.Stake).
 		Pair("frozen", v.Frozen).
+		Pair("stakeableout", v.Stakeableout).
+		Pair("genesisutxo", v.Genesisutxo).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -455,6 +465,8 @@ func (p *persist) InsertOutputs(
 			Set("stake_locktime", v.StakeLocktime).
 			Set("stake", v.Stake).
 			Set("frozen", v.Frozen).
+			Set("stakeableout", v.Stakeableout).
+			Set("genesisutxo", v.Genesisutxo).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {

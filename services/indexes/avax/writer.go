@@ -90,7 +90,7 @@ func (w *Writer) InsertTransaction(
 
 	var idx uint32
 	for _, out := range baseTx.Outs {
-		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), w.chainID, false)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), w.chainID, false, false)
 		if err != nil {
 			return err
 		}
@@ -99,7 +99,7 @@ func (w *Writer) InsertTransaction(
 
 	if addOuts != nil {
 		for _, out := range addOuts.Outs {
-			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), addOuts.ChainID, addOuts.Stake)
+			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), addOuts.ChainID, addOuts.Stake, false)
 			if err != nil {
 				return err
 			}
@@ -124,6 +124,7 @@ func (w *Writer) InsertTransaction(
 		txBytes,
 		txfee,
 		genesis,
+		baseTx.NetworkID,
 	)
 }
 
@@ -136,6 +137,7 @@ func (w *Writer) InsertTransactionBase(
 	txBytes []byte,
 	txfee uint64,
 	genesis bool,
+	networkID uint32,
 ) error {
 	if len(txBytes) > MaxSerializationLen {
 		txBytes = []byte("")
@@ -153,6 +155,7 @@ func (w *Writer) InsertTransactionBase(
 		Txfee:                  txfee,
 		Genesis:                genesis,
 		CreatedAt:              ctx.Time(),
+		NetworkID:              networkID,
 	}
 
 	return ctx.Persist().InsertTransactions(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
@@ -226,9 +229,10 @@ func (w *Writer) InsertTransactionOuts(
 	txID ids.ID,
 	chainID string,
 	stake bool,
+	genesisutxo bool,
 ) (uint64, error) {
 	var err error
-	_, totalout, err = w.ProcessStateOut(ctx, out.Out, txID, idx, out.AssetID(), 0, totalout, chainID, stake)
+	_, totalout, err = w.ProcessStateOut(ctx, out.Out, txID, idx, out.AssetID(), 0, totalout, chainID, stake, genesisutxo)
 	if err != nil {
 		return 0, err
 	}
@@ -248,6 +252,8 @@ func (w *Writer) InsertOutput(
 	chainID string,
 	stake bool,
 	frozen bool,
+	stakeableout bool,
+	genesisutxo bool,
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
@@ -266,6 +272,8 @@ func (w *Writer) InsertOutput(
 		StakeLocktime: stakeLocktime,
 		Stake:         stake,
 		Frozen:        frozen,
+		Stakeableout:  stakeableout,
+		Genesisutxo:   genesisutxo,
 		CreatedAt:     ctx.Time(),
 	}
 
@@ -342,6 +350,7 @@ func (w *Writer) ProcessStateOut(
 	totalout uint64,
 	chainID string,
 	stake bool,
+	genesisutxo bool,
 ) (uint64, uint64, error) {
 	xOut := func(oo secp256k1fx.OutputOwners) *secp256k1fx.TransferOutput {
 		return &secp256k1fx.TransferOutput{OutputOwners: oo}
@@ -362,9 +371,6 @@ func (w *Writer) ProcessStateOut(
 			}
 		}
 
-		// these would be from genesis, and they are stake..
-		stake = true
-
 		err = w.InsertOutput(
 			ctx,
 			txID,
@@ -378,6 +384,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			false,
+			true,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -396,6 +404,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			false,
+			false,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -414,6 +424,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			false,
+			false,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -432,6 +444,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			false,
+			false,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -456,6 +470,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			false,
+			false,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err

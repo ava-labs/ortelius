@@ -29,6 +29,7 @@ func TestTransaction(t *testing.T) {
 	v.Txfee = 1
 	v.Genesis = true
 	v.CreatedAt = tm
+	v.NetworkID = 1
 
 	stream := health.NewStream()
 
@@ -57,6 +58,7 @@ func TestTransaction(t *testing.T) {
 	v.CanonicalSerialization = []byte("cs1")
 	v.Txfee = 2
 	v.Genesis = false
+	v.NetworkID = 2
 	err = p.InsertTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
@@ -66,6 +68,9 @@ func TestTransaction(t *testing.T) {
 		t.Fatal("query fail", err)
 	}
 
+	if fv.NetworkID != 2 {
+		t.Fatal("compare fail")
+	}
 	if fv.Txfee != 2 {
 		t.Fatal("compare fail")
 	}
@@ -153,6 +158,8 @@ func TestOutputs(t *testing.T) {
 	v.StakeLocktime = 6
 	v.Stake = true
 	v.Frozen = true
+	v.Stakeableout = true
+	v.Genesis = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -188,6 +195,8 @@ func TestOutputs(t *testing.T) {
 	v.StakeLocktime = 7
 	v.Stake = false
 	v.Frozen = false
+	v.Stakeableout = false
+	v.Genesis = false
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

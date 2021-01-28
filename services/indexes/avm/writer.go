@@ -355,7 +355,7 @@ func (w *Writer) insertOperationTx(
 	// before working on the Ops
 	// the outs get processed again in InsertTransaction
 	for _, out := range tx.Outs {
-		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID, false)
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID, false, false)
 		if err != nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func (w *Writer) insertOperationTx(
 		}
 
 		for _, out := range txOps.Op.Outs() {
-			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout, w.chainID, false)
+			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, txOps.AssetID(), amount, totalout, w.chainID, false, false)
 			if err != nil {
 				return err
 			}
@@ -399,7 +399,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 	// before working on the states
 	// the outs get processed again in InsertTransaction
 	for _, out := range tx.Outs {
-		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID, false)
+		_, err = w.avax.InsertTransactionOuts(outputCount, ctx, 0, out, tx.ID(), w.chainID, false, false)
 		if err != nil {
 			return err
 		}
@@ -408,7 +408,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 
 	for _, state := range tx.States {
 		for _, out := range state.Outs {
-			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount, totalout, w.chainID, false)
+			amount, totalout, err = w.avax.ProcessStateOut(ctx, out, tx.ID(), outputCount, tx.ID(), amount, totalout, w.chainID, false, false)
 			if err != nil {
 				return err
 			}
