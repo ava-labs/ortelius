@@ -155,7 +155,7 @@ func (w *Writer) InsertTransactionBase(
 		CreatedAt:              ctx.Time(),
 	}
 
-	return ctx.Persist().InsertTransaction(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactions(ctx.Ctx(), ctx.DB(), t, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionIns(

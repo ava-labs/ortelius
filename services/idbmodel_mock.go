@@ -59,7 +59,7 @@ func (m *MockPersist) QueryTransactions(ctx context.Context, runner dbr.SessionR
 	return nil, nil
 }
 
-func (m *MockPersist) InsertTransaction(ctx context.Context, runner dbr.SessionRunner, v *Transactions, b bool) error {
+func (m *MockPersist) InsertTransactions(ctx context.Context, runner dbr.SessionRunner, v *Transactions, b bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &Transactions{}
