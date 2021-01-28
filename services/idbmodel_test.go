@@ -159,7 +159,7 @@ func TestOutputs(t *testing.T) {
 	v.Stake = true
 	v.Frozen = true
 	v.Stakeableout = true
-	v.Genesis = true
+	v.Genesisutxo = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -196,7 +196,7 @@ func TestOutputs(t *testing.T) {
 	v.Stake = false
 	v.Frozen = false
 	v.Stakeableout = false
-	v.Genesis = false
+	v.Genesisutxo = false
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

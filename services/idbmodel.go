@@ -385,7 +385,7 @@ type Outputs struct {
 	Stake         bool
 	Frozen        bool
 	Stakeableout  bool
-	Genesisutxo       bool
+	Genesisutxo   bool
 	CreatedAt     time.Time
 }
 
