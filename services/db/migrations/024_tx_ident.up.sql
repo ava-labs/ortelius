@@ -8,4 +8,4 @@ create table addresses_bech32
     bech32_address varchar(100)
 );
 
-create index addresses_bech32_bech32address ON addresses_bech32 (bech32_address);
+create index addresses_bech32_bech32_address ON addresses_bech32 (bech32_address);
