@@ -50,13 +50,12 @@ type Writer struct {
 
 	codec codec.Manager
 	avax  *avax.Writer
-	conns *services.Connections
 	vm    *avm.VM
 	ctx   *snow.Context
 	db    database.Database
 }
 
-func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
+func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	vm, ctx, avmCodec, db, err := newAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
@@ -68,7 +67,6 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 	}
 
 	return &Writer{
-		conns:       conns,
 		chainID:     chainID,
 		db:          db,
 		vm:          vm,
@@ -76,17 +74,17 @@ func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
-		avax:        avax.NewWriter(chainID, avaxAssetID, conns.Stream()),
+		avax:        avax.NewWriter(chainID, avaxAssetID),
 	}, nil
 }
 
 func (*Writer) Name() string { return "avm-index" }
 
-func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = w.conns.Stream().NewJob("bootstrap")
+		job                  = conns.Stream().NewJob("bootstrap")
 	)
 	job.KeyValue("chain_id", w.chainID)
 
@@ -125,7 +123,7 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 			continue
 		}
 
-		dbSess := w.conns.DB().NewSessionForEventReceiver(job)
+		dbSess := conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
@@ -133,7 +131,7 @@ func (w *Writer) Bootstrap(ctx context.Context, persist services.Persist) error 
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, persist services.Persist) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	noopdb := &utils.NoopDatabase{}
 
 	serializer := &state.Serializer{}
@@ -155,8 +153,8 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, c services.Consumable, pe
 	}
 
 	var (
-		job  = w.conns.Stream().NewJob("index-consensus")
-		sess = w.conns.DB().NewSessionForEventReceiver(job)
+		job  = conns.Stream().NewJob("index-consensus")
+		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", c.ID())
 	job.KeyValue("chain_id", c.ChainID())
@@ -213,11 +211,11 @@ func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []conflicts.T
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, i services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
-		job  = w.conns.Stream().NewJob("avm-index")
-		sess = w.conns.DB().NewSessionForEventReceiver(job)
+		job  = conns.Stream().NewJob("avm-index")
+		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", i.ID())
 	job.KeyValue("chain_id", i.ChainID())

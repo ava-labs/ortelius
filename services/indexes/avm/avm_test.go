@@ -34,11 +34,11 @@ var (
 )
 
 func TestIndexBootstrap(t *testing.T) {
-	writer, reader, closeFn := newTestIndex(t, testXChainID)
+	conns, writer, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 
 	persist := services.NewPersist()
-	err := writer.Bootstrap(newTestContext(), persist)
+	err := writer.Bootstrap(newTestContext(), conns, persist)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
@@ -66,14 +66,14 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 
 	// inject a txfee for testing
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 
 	transaction := &services.Transactions{
 		ID: string(txList.Transactions[0].ID),
 	}
 	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
 	transaction.Txfee = 101
-	_ = persist.InsertTransaction(context.Background(), session, transaction, true)
+	_ = persist.InsertTransactions(context.Background(), session, transaction, true)
 
 	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
@@ -85,7 +85,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	addr, _ := ids.ToShortID([]byte("addr"))
 
-	sess, _ := writer.conns.DB().NewSession("address_chain", cfg.RequestTimeout)
+	sess, _ := conns.DB().NewSession("address_chain", cfg.RequestTimeout)
 
 	addressChain := &services.AddressChain{
 		Address:   addr.String(),
@@ -127,7 +127,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, chainID ids.ID) (*Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer, *avax.Reader, func()) {
 	networkID := uint32(5)
 	// Start test redis
 	s, err := miniredis.Run()
@@ -159,13 +159,13 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*Writer, *avax.Reader, func()) 
 	}
 
 	// Create index
-	writer, err := NewWriter(conns, networkID, chainID.String())
+	writer, err := NewWriter(networkID, chainID.String())
 	if err != nil {
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
 	reader := avax.NewReader(conns)
-	return writer, reader, func() {
+	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()
 	}
@@ -178,7 +178,7 @@ func newTestContext() context.Context {
 }
 
 func TestInsertTxInternal(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -206,8 +206,8 @@ func TestInsertTxInternal(t *testing.T) {
 	tx.UnsignedTx = baseTx
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
@@ -234,7 +234,7 @@ func TestInsertTxInternal(t *testing.T) {
 }
 
 func TestInsertTxInternalCreateAsset(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -252,8 +252,8 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 	tx.UnsignedTx = baseTx
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
@@ -283,7 +283,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 }
 
 func TestInsertVertex(t *testing.T) {
-	writer, _, closeFn := newTestIndex(t, testXChainID)
+	conns, writer, _, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
 
@@ -300,8 +300,8 @@ func TestInsertVertex(t *testing.T) {
 	conflicttx.TransitionV = utx
 
 	persist := services.NewPersistMock()
-	session, _ := writer.conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := writer.conns.Stream().NewJob("")
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
 	err := writer.insertVertex(cCtx, []conflicts.Tx{conflicttx}, tx.ID(), 0)
 	if err != nil {

@@ -35,30 +35,28 @@ type Writer struct {
 	avaxAssetID ids.ID
 
 	codec codec.Manager
-	conns *services.Connections
 	avax  *avaxIndexer.Writer
 }
 
-func NewWriter(conns *services.Connections, networkID uint32, chainID string) (*Writer, error) {
+func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	_, avaxAssetID, err := genesis.Genesis(networkID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Writer{
-		conns:       conns,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		codec:       evm.Codec,
-		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID, conns.Stream()),
+		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID),
 	}, nil
 }
 
 func (*Writer) Name() string { return "cvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
-	job := w.conns.Stream().NewJob("cvm-index")
-	sess := w.conns.DB().NewSessionForEventReceiver(job)
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
+	job := conns.Stream().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
 	if err != nil {
@@ -74,7 +72,7 @@ func (w *Writer) Consume(ctx context.Context, c services.Consumable, blockHeader
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context) error {
+func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
 	return nil
 }
 

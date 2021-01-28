@@ -34,7 +34,7 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Transactions,
 	) (*Transactions, error)
-	InsertTransaction(
+	InsertTransactions(
 		context.Context,
 		dbr.SessionRunner,
 		*Transactions,
@@ -252,7 +252,7 @@ func (p *persist) QueryTransactions(
 	return v, err
 }
 
-func (p *persist) InsertTransaction(
+func (p *persist) InsertTransactions(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *Transactions,
