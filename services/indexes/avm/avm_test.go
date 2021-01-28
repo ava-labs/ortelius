@@ -73,7 +73,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
 	transaction.Txfee = 101
-	_ = persist.InsertTransaction(context.Background(), session, transaction, true)
+	_ = persist.InsertTransactions(context.Background(), session, transaction, true)
 
 	txList, _ = reader.ListTransactions(context.Background(), &params.ListTransactionsParams{
 		ChainIDs: []string{string(txList.Transactions[0].ChainID)},
