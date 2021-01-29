@@ -608,12 +608,81 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		return nil, err
 	}
 
-	var addresses []*models.AddressInfo
-	builder := r.addressQuery(dbRunner)
-	_, err = p.Apply(builder).
-		LoadContext(ctx, &addresses)
+	var rows []*struct {
+		ChainID models.StringID `json:"chainID"`
+		Address models.Address  `json:"address"`
+		models.AssetInfo
+		PublicKey []byte `json:"publicKey"`
+	}
+
+	ua := dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+		Distinct().
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		OrderAsc("avm_outputs.chain_id").
+		OrderAsc("avm_output_addresses.address")
+
+	baseq := dbRunner.
+		Select(
+			"avm_outputs.chain_id",
+			"avm_output_addresses.address",
+			"avm_outputs.asset_id",
+			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+		).
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		Where("avm_output_addresses.address in ?", dbRunner.Select(
+			"avm_outputs_ua.address",
+		).From(p.Apply(ua).As("avm_outputs_ua"))).
+		GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
+		OrderAsc("avm_outputs.chain_id").
+		OrderAsc("avm_output_addresses.address").
+		OrderAsc("avm_outputs.asset_id")
+
+	builder := dbRunner.Select(
+		"avm_outputs_j.chain_id",
+		"avm_outputs_j.address",
+		"avm_outputs_j.asset_id",
+		"avm_outputs_j.transaction_count",
+		"avm_outputs_j.total_received",
+		"avm_outputs_j.total_sent",
+		"avm_outputs_j.balance",
+		"avm_outputs_j.utxo_count",
+		"addresses.public_key",
+	).From(baseq.As("avm_outputs_j")).
+		LeftJoin("addresses", "addresses.address = avm_outputs_j.address")
+
+	_, err = builder.
+		LoadContext(ctx, &rows)
 	if err != nil {
 		return nil, err
+	}
+
+	addresses := make([]*models.AddressInfo, 0, len(rows))
+
+	addrsByID := make(map[string]*models.AddressInfo)
+
+	for _, row := range rows {
+		k := fmt.Sprintf("%s:%s", row.ChainID, row.Address)
+		addr, ok := addrsByID[k]
+		if !ok {
+			addr = &models.AddressInfo{
+				ChainID:   row.ChainID,
+				Address:   row.Address,
+				PublicKey: row.PublicKey,
+				Assets:    make(map[models.StringID]models.AssetInfo),
+			}
+			addrsByID[k] = addr
+		}
+		addr.Assets[row.AssetID] = row.AssetInfo
+	}
+	for _, addr := range addrsByID {
+		addresses = append(addresses, addr)
 	}
 
 	var count *uint64
@@ -621,19 +690,16 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			err = p.Apply(dbRunner.
-				Select("COUNT(DISTINCT(avm_output_addresses.address))").
-				From("avm_output_addresses")).
+			sqc := p.Apply(ua)
+			buildercnt := dbRunner.Select(
+				"count(*)",
+			).From(sqc.As("avm_outputs_j"))
+			err = buildercnt.
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
 			}
 		}
-	}
-
-	// Add all the addition information we might want
-	if err = r.dressAddresses(ctx, dbRunner, addresses, p.Version, p.ChainIDs); err != nil {
-		return nil, err
 	}
 
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
@@ -725,6 +791,25 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 	addressList, err := r.ListAddresses(ctx, p)
 	if err != nil {
 		return nil, err
+	}
+	if len(addressList.Addresses) > 1 {
+		collated := make(map[string]*models.AddressInfo)
+		for _, a := range addressList.Addresses {
+			key := string(a.Address)
+			if addressInfo, ok := collated[key]; ok {
+				if addressInfo.Assets == nil {
+					addressInfo.Assets = make(map[models.StringID]models.AssetInfo)
+				}
+				collated[key].ChainID = ""
+				collated[key].Assets = addAssetInfoMap(addressInfo.Assets, a.Assets)
+			} else {
+				collated[key] = a
+			}
+		}
+		addressList.Addresses = []*models.AddressInfo{}
+		for _, v := range collated {
+			addressList.Addresses = append(addressList.Addresses, v)
+		}
 	}
 	if len(addressList.Addresses) > 0 {
 		return addressList.Addresses[0], nil
@@ -1171,63 +1256,6 @@ func (r *Reader) searchByShortID(ctx context.Context, id ids.ShortID) (*models.S
 	return &models.SearchResults{}, nil
 }
 
-func (r *Reader) dressAddresses(ctx context.Context, dbRunner dbr.SessionRunner, addrs []*models.AddressInfo, _ int, chainIDs []string) error {
-	if len(addrs) == 0 {
-		return nil
-	}
-
-	// Create a list of ids for querying, and a map for accumulating results later
-	addrIDs := make([]models.Address, len(addrs))
-	addrsByID := make(map[models.Address]*models.AddressInfo, len(addrs))
-	for i, addr := range addrs {
-		addrIDs[i] = addr.Address
-		addrsByID[addr.Address] = addr
-
-		addr.Assets = make(map[models.StringID]models.AssetInfo, 1)
-	}
-
-	// Load each Transaction Output for the tx, both inputs and outputs
-	var rows []*struct {
-		Address models.Address `json:"address"`
-		models.AssetInfo
-	}
-
-	builder := dbRunner.
-		Select(
-			"avm_output_addresses.address",
-			"avm_outputs.asset_id",
-			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-		).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		Where("avm_output_addresses.address IN ?", addrIDs).
-		GroupBy("avm_output_addresses.address", "avm_outputs.asset_id")
-
-	if len(chainIDs) > 0 {
-		builder.Where("avm_outputs.chain_id IN ?", chainIDs)
-	}
-
-	if _, err := builder.LoadContext(ctx, &rows); err != nil {
-		return err
-	}
-
-	// Accumulate rows into addresses
-	for _, row := range rows {
-		addr, ok := addrsByID[row.Address]
-		if !ok {
-			continue
-		}
-		addr.Assets[row.AssetID] = row.AssetInfo
-	}
-
-	return nil
-}
-
 func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInfo, transactions []*models.Transaction) (*models.SearchResults, error) {
 	// Build overall SearchResults object from our pieces
 	returnedResultCount := len(assets) + len(addresses) + len(transactions)
@@ -1319,13 +1347,6 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		From("avm_outputs_redeeming").
 		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
-}
-
-func (r *Reader) addressQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
-	return dbRunner.
-		Select("DISTINCT(avm_output_addresses.address)", "addresses.public_key").
-		From("avm_output_addresses").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
 

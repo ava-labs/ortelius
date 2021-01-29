@@ -116,8 +116,9 @@ type AssetInfo struct {
 }
 
 type AddressInfo struct {
-	Address   Address `json:"address"`
-	PublicKey []byte  `json:"publicKey"`
+	ChainID   StringID `json:"chainID"`
+	Address   Address  `json:"address"`
+	PublicKey []byte   `json:"publicKey"`
 
 	Assets map[StringID]AssetInfo `json:"assets"`
 
