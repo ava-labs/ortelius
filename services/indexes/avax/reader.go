@@ -654,26 +654,6 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		return nil, err
 	}
 
-	var count *uint64
-	if !p.ListParams.DisableCounting {
-		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(rows)))
-		if len(rows) >= p.ListParams.Limit {
-			p.ListParams = params.ListParams{}
-			sqc := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
-				Distinct().
-				From("avm_outputs").
-				LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
-			buildercnt := dbRunner.Select(
-				"count(*)",
-			).From(sqc.As("avm_outputs_j"))
-			err = buildercnt.
-				LoadOneContext(ctx, &count)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
 	addresses := make([]*models.AddressInfo, 0, len(rows))
 
 	addrsByID := make(map[string]*models.AddressInfo)
@@ -694,6 +674,26 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	}
 	for _, addr := range addrsByID {
 		addresses = append(addresses, addr)
+	}
+
+	var count *uint64
+	if !p.ListParams.DisableCounting {
+		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
+		if len(addresses) >= p.ListParams.Limit {
+			p.ListParams = params.ListParams{}
+			sqc := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+				Distinct().
+				From("avm_outputs").
+				LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
+			buildercnt := dbRunner.Select(
+				"count(*)",
+			).From(sqc.As("avm_outputs_j"))
+			err = buildercnt.
+				LoadOneContext(ctx, &count)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &models.AddressList{ListMetadata: models.ListMetadata{Count: count}, Addresses: addresses}, nil
