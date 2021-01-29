@@ -615,6 +615,13 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		PublicKey []byte `json:"publicKey"`
 	}
 
+	ua := dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+		Distinct().
+		From("avm_outputs").
+		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+		OrderAsc("avm_outputs.chain_id").
+		OrderAsc("avm_output_addresses.address")
+
 	baseq := dbRunner.
 		Select(
 			"avm_outputs.chain_id",
@@ -629,12 +636,14 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
 		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+		Where("avm_output_addresses.address in ?", dbRunner.Select(
+			"avm_outputs_ua.address",
+		).From(p.Apply(ua).As("avm_outputs_ua"))).
 		GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 		OrderAsc("avm_outputs.chain_id").
 		OrderAsc("avm_output_addresses.address").
 		OrderAsc("avm_outputs.asset_id")
 
-	sq := p.Apply(baseq)
 	builder := dbRunner.Select(
 		"avm_outputs_j.chain_id",
 		"avm_outputs_j.address",
@@ -645,7 +654,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		"avm_outputs_j.balance",
 		"avm_outputs_j.utxo_count",
 		"addresses.public_key",
-	).From(sq.As("avm_outputs_j")).
+	).From(baseq.As("avm_outputs_j")).
 		LeftJoin("addresses", "addresses.address = avm_outputs_j.address")
 
 	_, err = builder.
@@ -681,10 +690,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			sqc := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
-				Distinct().
-				From("avm_outputs").
-				LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
+			sqc := p.Apply(ua)
 			buildercnt := dbRunner.Select(
 				"count(*)",
 			).From(sqc.As("avm_outputs_j"))
