@@ -631,7 +631,13 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			err = sq.
+			sqc := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+				From("avm_outputs").
+				LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
+			buildercnt := dbRunner.Select(
+				"count(*)",
+			).From(sqc.As("avm_outputs_j"))
+			err = buildercnt.
 				LoadOneContext(ctx, &count)
 			if err != nil {
 				return nil, err
