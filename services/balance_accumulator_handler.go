@@ -22,6 +22,16 @@ type processType uint32
 var processTypeIn processType = 1
 var processTypeOut processType = 2
 
+type BalanceAccumulatorManager struct {
+	handlers []*BalancerAccumulateHandler
+}
+
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+	for _, h := range a.handlers {
+		h.Run(persist, sc)
+	}
+}
+
 type BalancerAccumulateHandler struct {
 	runningOutputOuts   int64
 	runningOutputIns    int64

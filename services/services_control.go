@@ -21,13 +21,17 @@ const (
 )
 
 type Control struct {
-	Services cfg.Services
-	Log      logging.Logger
-	Persist  Persist
+	Services                  cfg.Services
+	Log                       logging.Logger
+	Persist                   Persist
+	BalanceAccumulatorManager BalanceAccumulatorManager
 }
 
 func (s *Control) Init() {
-
+	s.BalanceAccumulatorManager.handlers =
+		append(s.BalanceAccumulatorManager.handlers, &BalancerAccumulateHandler{})
+	s.BalanceAccumulatorManager.handlers =
+		append(s.BalanceAccumulatorManager.handlers, &BalancerAccumulateHandler{})
 }
 
 func (s *Control) InitProduceMetrics() {

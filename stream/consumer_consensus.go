@@ -37,8 +37,6 @@ type consumerconsensus struct {
 	metricSuccessCountKey         string
 
 	groupName string
-
-	BalancerAccumulateHandler services.BalancerAccumulateHandler
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
@@ -164,7 +162,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		return err
 	}
 
-	c.BalancerAccumulateHandler.Run(c.sc.Persist, c.sc)
+	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }

@@ -51,8 +51,6 @@ type ConsumerCChain struct {
 	consumer *cvm.Writer
 
 	groupName string
-
-	BalancerAccumulateHandler services.BalancerAccumulateHandler
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
@@ -141,7 +139,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		return err
 	}
 
-	c.BalancerAccumulateHandler.Run(c.sc.Persist, c.sc)
+	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }
