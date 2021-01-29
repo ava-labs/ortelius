@@ -420,6 +420,8 @@ func (w *Writer) ProcessStateOut(
 			chainID,
 			stake,
 			typedOut.IsFrozen,
+			false,
+			genesisutxo,
 		)
 		if err != nil {
 			return 0, 0, err
