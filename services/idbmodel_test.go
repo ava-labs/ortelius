@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ func TestTransaction(t *testing.T) {
 	v.Txfee = 1
 	v.Genesis = true
 	v.CreatedAt = tm
+	v.NetworkID = 1
 
 	stream := health.NewStream()
 
@@ -57,6 +60,7 @@ func TestTransaction(t *testing.T) {
 	v.CanonicalSerialization = []byte("cs1")
 	v.Txfee = 2
 	v.Genesis = false
+	v.NetworkID = 2
 	err = p.InsertTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
@@ -66,6 +70,9 @@ func TestTransaction(t *testing.T) {
 		t.Fatal("query fail", err)
 	}
 
+	if fv.NetworkID != 2 {
+		t.Fatal("compare fail")
+	}
 	if fv.Txfee != 2 {
 		t.Fatal("compare fail")
 	}
@@ -153,6 +160,8 @@ func TestOutputs(t *testing.T) {
 	v.StakeLocktime = 6
 	v.Stake = true
 	v.Frozen = true
+	v.Stakeableout = true
+	v.Genesisutxo = true
 	v.CreatedAt = tm
 
 	stream := health.NewStream()
@@ -188,6 +197,8 @@ func TestOutputs(t *testing.T) {
 	v.StakeLocktime = 7
 	v.Stake = false
 	v.Frozen = false
+	v.Stakeableout = false
+	v.Genesisutxo = false
 
 	err = p.InsertOutputs(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -786,7 +797,7 @@ func TestTransactionsValidator(t *testing.T) {
 	}
 }
 
-func TestTransactionssBlock(t *testing.T) {
+func TestTransactionsBlock(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
@@ -828,6 +839,53 @@ func TestTransactionssBlock(t *testing.T) {
 		t.Fatal("query fail", err)
 	}
 	if v.TxBlockID != "txb2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestAddressBech32(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &AddressBech32{}
+	v.Address = "adr1"
+	v.Bech32Address = "badr1"
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAddressBech32).Exec()
+
+	err = p.InsertAddressBech32(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryAddressBech32(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	fmt.Fprintf(os.Stderr, "%v %v\n", *v, *fv)
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Bech32Address = "badr2"
+
+	err = p.InsertAddressBech32(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryAddressBech32(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.Bech32Address != "badr2" {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
