@@ -9,18 +9,15 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
+	"github.com/ava-labs/avalanchego/utils/hashing"
+
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-
-	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
 
 	"github.com/gocraft/health"
 
 	"github.com/ava-labs/avalanchego/database"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/avalanchego/snow/engine/avalanche/state"
 
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/ortelius/cfg"
@@ -133,32 +130,14 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 }
 
 func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
-	noopdb := &utils.NoopDatabase{}
-
-	serializer := &state.Serializer{}
-	serializer.Initialize(w.ctx, w.vm, noopdb)
-
-	vertex, err := serializer.Parse(c.Body())
-	if err != nil {
-		return err
-	}
-
-	epoch, err := vertex.Epoch()
-	if err != nil {
-		return err
-	}
-
-	vertexTxs, err := vertex.Txs()
-	if err != nil {
-		return err
-	}
-
 	var (
 		job  = conns.Stream().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", c.ID())
 	job.KeyValue("chain_id", c.ChainID())
+
+	var err error
 
 	defer func() {
 		if err != nil {
@@ -167,6 +146,13 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 		}
 		job.Complete(health.Success)
 	}()
+
+	var vert vertex.StatelessVertex
+	vert, err = vertex.Parse(c.Body())
+	if err != nil {
+		return err
+	}
+	txs := vert.Txs()
 
 	var dbTx *dbr.Tx
 	dbTx, err = sess.Begin()
@@ -177,41 +163,25 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
 
-	err = w.insertVertex(cCtx, vertexTxs, vertex.ID(), epoch)
-	if err != nil {
-		return err
-	}
+	for _, tx := range txs {
+		var txID ids.ID
+		txID, err = ids.ToID(hashing.ComputeHash256(tx))
+		if err != nil {
+			return err
+		}
 
-	if err = dbTx.Commit(); err != nil {
-		return stacktrace.Propagate(err, "Failed to commit database tx")
-	}
-
-	return nil
-}
-
-func (w *Writer) insertVertex(cCtx services.ConsumerCtx, vertexTxs []snowstorm.Tx, vertexID ids.ID, epoch uint32) error {
-	var err error
-	for _, vtx := range vertexTxs {
-		switch txt := vtx.(type) {
-		case *avm.UniqueTx:
-
-			txID := txt.Tx.ID()
-
-			transactionsEpoch := &services.TransactionsEpoch{
-				ID:        txID.String(),
-				Epoch:     epoch,
-				VertexID:  vertexID.String(),
-				CreatedAt: cCtx.Time(),
-			}
-			err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
-			if err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unable to determine vertex transaction %s", reflect.TypeOf(txt))
+		transactionsEpoch := &services.TransactionsEpoch{
+			ID:        txID.String(),
+			Epoch:     vert.Epoch(),
+			VertexID:  c.ID(),
+			CreatedAt: cCtx.Time(),
+		}
+		err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
+		if err != nil {
+			return err
 		}
 	}
-	return nil
+	return dbTx.Commit()
 }
 
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
