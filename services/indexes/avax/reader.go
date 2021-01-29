@@ -611,6 +611,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 	var addresses []*models.AddressInfo
 
 	sq := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+		Distinct().
 		From("avm_outputs").
 		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
 	builder := dbRunner.Select(
@@ -632,6 +633,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
 			sqc := p.Apply(dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+				Distinct().
 				From("avm_outputs").
 				LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id"))
 			buildercnt := dbRunner.Select(
@@ -748,9 +750,9 @@ func (r *Reader) GetAddress(ctx context.Context, p *params.ListAddressesParams) 
 				if addressInfo.Assets == nil {
 					addressInfo.Assets = make(map[models.StringID]models.AssetInfo)
 				}
+				collated[key].ChainID = ""
 				collated[key].Assets = addAssetInfoMap(addressInfo.Assets, a.Assets)
 			} else {
-				a.ChainID = ""
 				collated[key] = a
 			}
 		}
