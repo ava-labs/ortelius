@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/ortelius/services/indexes/models"
+
 	"github.com/ava-labs/ortelius/services"
 
 	"github.com/gorilla/rpc/v2"
@@ -94,6 +96,8 @@ func execute() error {
 				if err != nil {
 					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
 				}
+
+				models.SetBech32HRP(c.NetworkID)
 
 				serviceControl.Init()
 				serviceControl.Log = alog

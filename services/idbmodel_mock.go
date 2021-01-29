@@ -23,6 +23,7 @@ type MockPersist struct {
 	Assets                  map[string]*Assets
 	TransactionsEpoch       map[string]*TransactionsEpoch
 	PvmBlocks               map[string]*PvmBlocks
+	AddressBech32           map[string]*AddressBech32
 	OutputAddressAccumulate map[string]*OutputAddressAccumulate
 	OutputTxsAccumulate     map[string]*OutputTxsAccumulate
 	AccumulateBalances      map[string]*AccumulateBalances
@@ -44,6 +45,7 @@ func NewPersistMock() *MockPersist {
 		Assets:                  make(map[string]*Assets),
 		TransactionsEpoch:       make(map[string]*TransactionsEpoch),
 		PvmBlocks:               make(map[string]*PvmBlocks),
+		AddressBech32:           make(map[string]*AddressBech32),
 		OutputAddressAccumulate: make(map[string]*OutputAddressAccumulate),
 		OutputTxsAccumulate:     make(map[string]*OutputTxsAccumulate),
 		AccumulateBalances:      make(map[string]*AccumulateBalances),
@@ -308,6 +310,24 @@ func (m *MockPersist) InsertTransactionsBlock(ctx context.Context, runner dbr.Se
 	nv := &TransactionsBlock{}
 	*nv = *v
 	m.TransactionsBlock[v.ID] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryAddressBech32(ctx context.Context, runner dbr.SessionRunner, v *AddressBech32) (*AddressBech32, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.AddressBech32[v.Address]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertAddressBech32(ctx context.Context, runner dbr.SessionRunner, v *AddressBech32, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &AddressBech32{}
+	*nv = *v
+	m.AddressBech32[v.Address] = nv
 	return nil
 }
 

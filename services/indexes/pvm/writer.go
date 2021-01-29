@@ -120,6 +120,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 			0,
 			w.chainID,
 			false,
+			true,
 		)
 		if err != nil {
 			return err

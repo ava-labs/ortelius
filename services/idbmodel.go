@@ -29,6 +29,7 @@ const (
 	TableRewards                 = "rewards"
 	TableTransactionsValidator   = "transactions_validator"
 	TableTransactionsBlock       = "transactions_block"
+	TableAddressBech32           = "addresses_bech32"
 	TableOutputAddressAccumulate = "output_addresses_accumulate"
 	TableOutputTxsAccumulate     = "output_txs_accumulate"
 	TableAccumulateBalances      = "accumulate_balances"
@@ -210,6 +211,18 @@ type Persist interface {
 		bool,
 	) error
 
+	QueryAddressBech32(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressBech32,
+	) (*AddressBech32, error)
+	InsertAddressBech32(
+		context.Context,
+		dbr.SessionRunner,
+		*AddressBech32,
+		bool,
+	) error
+
 	QueryOutputAddressAccumulate(
 		context.Context,
 		dbr.SessionRunner,
@@ -266,6 +279,7 @@ type Transactions struct {
 	Memo                   []byte
 	CanonicalSerialization []byte
 	Txfee                  uint64
+	NetworkID              uint32
 	Genesis                bool
 	CreatedAt              time.Time
 }
@@ -285,6 +299,7 @@ func (p *persist) QueryTransactions(
 		"canonical_serialization",
 		"txfee",
 		"genesis",
+		"network_id",
 	).From(TableTransactions).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -308,9 +323,10 @@ func (p *persist) InsertTransactions(
 		Pair("canonical_serialization", v.CanonicalSerialization).
 		Pair("txfee", v.Txfee).
 		Pair("genesis", v.Genesis).
+		Pair("network_id", v.NetworkID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableTransactionsBlock, false, err)
+		return EventErr(TableTransactions, false, err)
 	}
 	if upd {
 		_, err = sess.
@@ -321,10 +337,11 @@ func (p *persist) InsertTransactions(
 			Set("canonical_serialization", v.CanonicalSerialization).
 			Set("txfee", v.Txfee).
 			Set("genesis", v.Genesis).
+			Set("network_id", v.NetworkID).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return EventErr(TableTransactionsBlock, true, err)
+			return EventErr(TableTransactions, true, err)
 		}
 	}
 	return nil
@@ -419,6 +436,8 @@ type Outputs struct {
 	StakeLocktime uint64
 	Stake         bool
 	Frozen        bool
+	Stakeableout  bool
+	Genesisutxo   bool
 	CreatedAt     time.Time
 }
 
@@ -443,6 +462,8 @@ func (p *persist) QueryOutputs(
 		"stake_locktime",
 		"stake",
 		"frozen",
+		"stakeableout",
+		"genesisutxo",
 		"created_at",
 	).From(TableOutputs).
 		Where("id=?", q.ID).
@@ -473,6 +494,8 @@ func (p *persist) InsertOutputs(
 		Pair("stake_locktime", v.StakeLocktime).
 		Pair("stake", v.Stake).
 		Pair("frozen", v.Frozen).
+		Pair("stakeableout", v.Stakeableout).
+		Pair("genesisutxo", v.Genesisutxo).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -494,6 +517,8 @@ func (p *persist) InsertOutputs(
 			Set("stake_locktime", v.StakeLocktime).
 			Set("stake", v.Stake).
 			Set("frozen", v.Frozen).
+			Set("stakeableout", v.Stakeableout).
+			Set("genesisutxo", v.Genesisutxo).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1152,6 +1177,54 @@ func (p *persist) InsertTransactionsBlock(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableTransactionsBlock, true, err)
+		}
+	}
+	return nil
+}
+
+type AddressBech32 struct {
+	Address       string
+	Bech32Address string
+}
+
+func (p *persist) QueryAddressBech32(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *AddressBech32,
+) (*AddressBech32, error) {
+	v := &AddressBech32{}
+	err := sess.Select(
+		"address",
+		"bech32_address",
+	).From(TableAddressBech32).
+		Where("address=?", q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertAddressBech32(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *AddressBech32,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableAddressBech32).
+		Pair("address", v.Address).
+		Pair("bech32_address", v.Bech32Address).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableAddressBech32, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddressBech32).
+			Set("bech32_address", v.Bech32Address).
+			Where("address = ?", v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
 		}
 	}
 	return nil

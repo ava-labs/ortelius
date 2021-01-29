@@ -12,14 +12,14 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 )
 
-// bech32HRP is the human-readable part of bech32 addresses. It needs to be
+// Bech32HRP is the human-readable part of bech32 addresses. It needs to be
 // available to Address.MarshalJSON is there is no other way to give it this
 // data
-var bech32HRP = constants.GetHRP(constants.EverestID)
+var Bech32HRP = constants.GetHRP(constants.EverestID)
 
 // SetBech32HRP sets the package-wide beck32HRP to use for Address marshaling.
 func SetBech32HRP(networkID uint32) {
-	bech32HRP = constants.GetHRP(networkID)
+	Bech32HRP = constants.GetHRP(networkID)
 }
 
 // StringID represents a 256bit hash encoded as a base58 string.
@@ -65,7 +65,7 @@ func (addr Address) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	bech32Addr, err := formatting.FormatBech32(bech32HRP, id.Bytes())
+	bech32Addr, err := formatting.FormatBech32(Bech32HRP, id.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (addr Address) MarshalString() ([]byte, error) {
 		return nil, err
 	}
 
-	bech32Addr, err := formatting.FormatBech32(bech32HRP, id.Bytes())
+	bech32Addr, err := formatting.FormatBech32(Bech32HRP, id.Bytes())
 	if err != nil {
 		return nil, err
 	}
