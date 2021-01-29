@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm/conflicts"
-
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 
@@ -278,57 +276,6 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 		t.Fatal("insert failed")
 	}
 	if len(persist.Assets) != 1 {
-		t.Fatal("insert failed")
-	}
-}
-
-func TestInsertVertex(t *testing.T) {
-	conns, writer, _, closeFn := newTestIndex(t, testXChainID)
-	defer closeFn()
-	ctx := context.Background()
-
-	conflicttx := &conflicts.TestTx{}
-
-	tx := &avm.Tx{}
-	baseTx := &avm.BaseTx{}
-
-	tx.UnsignedTx = baseTx
-
-	utx := &avm.UniqueTx{TxState: &avm.TxState{}}
-	utx.Tx = tx
-
-	conflicttx.TransitionV = utx
-
-	persist := services.NewPersistMock()
-	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.insertVertex(cCtx, []conflicts.Tx{conflicttx}, tx.ID(), 0)
-	if err != nil {
-		t.Fatal("insert failed", err)
-	}
-	if len(persist.Transactions) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.Outputs) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.OutputsRedeeming) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.Addresses) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.AddressChain) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.OutputsRedeeming) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.Assets) != 0 {
-		t.Fatal("insert failed")
-	}
-	if len(persist.TransactionsEpoch) != 1 {
 		t.Fatal("insert failed")
 	}
 }
