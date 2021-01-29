@@ -56,6 +56,8 @@ type Output struct {
 	AssetID                StringID    `json:"assetID"`
 	Stake                  bool        `json:"stake"`
 	Frozen                 bool        `json:"frozen"`
+	Stakeableout           bool        `json:"stakeableout"`
+	Genesisutxo            bool        `json:"genesisutxo"`
 	OutputType             OutputType  `json:"outputType"`
 	Amount                 TokenAmount `json:"amount"`
 	Locktime               uint64      `json:"locktime"`

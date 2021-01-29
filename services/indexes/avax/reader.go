@@ -1134,6 +1134,8 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.chain_id",
 		"union_q.payload",
 		"union_q.stake",
+		"union_q.stakeableout",
+		"union_q.genesisutxo",
 		"union_q.frozen",
 	).
 		From(su).
@@ -1313,6 +1315,8 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
 		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
+		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
+		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
 		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs").
@@ -1342,6 +1346,8 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs_redeeming.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
 		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
+		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
+		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
 		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs_redeeming").
