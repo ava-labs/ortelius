@@ -243,7 +243,8 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Where("output_addresses_accumulate.processed_out = ?", 0).
-			OrderAsc("created_at").
+			OrderAsc("output_addresses_accumulate.processed_out").
+			OrderAsc("output_addresses_accumulate.created_at").
 			Limit(RowLimitValue).
 			Suffix("for update").
 			LoadContext(ctx, &rowdata)
@@ -260,7 +261,8 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
 			Where("output_addresses_accumulate.processed_in = ?", 0).
-			OrderAsc("created_at").
+			OrderAsc("output_addresses_accumulate.processed_in").
+			OrderAsc("output_addresses_accumulate.created_at").
 			Limit(RowLimitValue).
 			Suffix("for update").
 			LoadContext(ctx, &rowdata)

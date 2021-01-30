@@ -16,12 +16,12 @@ create table output_addresses_accumulate
     address        varchar(50) not null,
     processed_out  smallint unsigned not null default 0,
     processed_in   smallint unsigned not null default 0,
-    created_at timestamp(3)       not null default current_timestamp,
+    created_at timestamp(6)       not null default current_timestamp(6),
     primary key (id,address)
 );
 
-create index `output_addresses_accumulate_processed_out` on `output_addresses_accumulate` (processed_out, created_at);
-create index `output_addresses_accumulate_processed_in` on `output_addresses_accumulate` (processed_in, created_at);
+create index `output_addresses_accumulate_processed_out` on `output_addresses_accumulate` (processed_out asc, created_at asc);
+create index `output_addresses_accumulate_processed_in` on `output_addresses_accumulate` (processed_in asc, created_at asc);
 
 create table output_txs_accumulate
 (
@@ -31,8 +31,8 @@ create table output_txs_accumulate
     address           varchar(50) not null,
     transaction_id    varchar(50) not null,
     processed         smallint unsigned not null default 0,
-    created_at timestamp(3)       not null default current_timestamp,
+    created_at timestamp(6)       not null default current_timestamp(6)
 );
 
-create index `output_txs_accumulate_processed` on `output_txs_accumulate` (processed, created_at);
+create index `output_txs_accumulate_processed` on `output_txs_accumulate` (processed asc, created_at asc);
 
