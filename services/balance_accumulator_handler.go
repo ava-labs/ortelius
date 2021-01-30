@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,7 +74,7 @@ func (a *BalancerAccumulateHandler) runOutputsOuts(persist Persist, sc *Control)
 
 		for {
 			err = a.accumulateOutputOuts(conns, persist, sc)
-			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			if !db.ErrIsLockError(err) {
 				break
 			}
 			time.Sleep(1 * time.Millisecond)
@@ -117,7 +116,7 @@ func (a *BalancerAccumulateHandler) runOutputsIns(persist Persist, sc *Control) 
 
 		for {
 			err = a.accumulateOutputIns(conns, persist, sc)
-			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			if !db.ErrIsLockError(err) {
 				break
 			}
 			time.Sleep(1 * time.Millisecond)
@@ -159,7 +158,7 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 
 		for {
 			err = a.accumulateTranactions(conns, persist)
-			if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			if !db.ErrIsLockError(err) {
 				break
 			}
 			time.Sleep(1 * time.Millisecond)
@@ -274,7 +273,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 
 	for _, row := range rowdata {
 		err := a.processOutputsBase(ctx, typ, dbTx, persist, row, sc)
-		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+		if !db.ErrIsLockError(err) {
 			return 0, err
 		}
 	}
@@ -445,7 +444,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 
 	for _, row := range rowdata {
 		err := a.processTransactionsBase(ctx, dbTx, persist, row)
-		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+		if !db.ErrIsLockError(err) {
 			return 0, err
 		}
 	}
