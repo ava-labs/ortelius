@@ -1232,10 +1232,21 @@ func (p *persist) InsertAddressBech32(
 
 type OutputAddressAccumulate struct {
 	ID           string
+	OutputID     string
 	Address      string
 	ProcessedOut int
 	ProcessedIn  int
 	CreatedAt    time.Time
+}
+
+func (b *OutputAddressAccumulate) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s", b.OutputID, b.Address)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
 }
 
 func (p *persist) QueryOutputAddressAccumulate(
@@ -1246,6 +1257,7 @@ func (p *persist) QueryOutputAddressAccumulate(
 	v := &OutputAddressAccumulate{}
 	err := sess.Select(
 		"id",
+		"output_id",
 		"address",
 		"processed_out",
 		"processed_in",
@@ -1265,6 +1277,7 @@ func (p *persist) InsertOutputAddressAccumulate(
 	_, err = sess.
 		InsertInto(TableOutputAddressAccumulate).
 		Pair("id", v.ID).
+		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)

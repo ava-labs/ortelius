@@ -334,7 +334,7 @@ func (m *MockPersist) InsertAddressBech32(ctx context.Context, runner dbr.Sessio
 func (m *MockPersist) QueryOutputAddressAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) (*OutputAddressAccumulate, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.OutputAddressAccumulate[v.ID+" "+v.Address]; present {
+	if v, present := m.OutputAddressAccumulate[v.ID]; present {
 		return v, nil
 	}
 	return nil, nil
@@ -345,7 +345,7 @@ func (m *MockPersist) InsertOutputAddressAccumulate(ctx context.Context, runner 
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}
 	*nv = *v
-	m.OutputAddressAccumulate[v.ID+" "+v.Address] = nv
+	m.OutputAddressAccumulate[v.ID] = nv
 	return nil
 }
 

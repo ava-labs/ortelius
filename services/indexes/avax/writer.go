@@ -353,9 +353,13 @@ func (w *Writer) InsertOutputAddress(
 	}
 
 	outputAddressAccumulate := &services.OutputAddressAccumulate{
-		ID:        outputID.String(),
+		OutputID:  outputID.String(),
 		Address:   address.String(),
 		CreatedAt: time.Now(),
+	}
+	err = outputAddressAccumulate.ComputeID()
+	if err != nil {
+		return err
 	}
 	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 	if err != nil {
