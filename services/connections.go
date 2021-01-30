@@ -75,6 +75,31 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 	return NewConnections(stream, dbConn, redisClient), nil
 }
 
+func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
+	// Always create a stream and log
+	stream := NewStream()
+
+	// Create db and redis connections if configured
+	var (
+		dbConn *db.Conn
+		err    error
+	)
+
+	if conf.DB != nil || conf.DB.Driver == db.DriverNone {
+		kvs := health.Kvs{}
+		// Create connection
+		dbConn, err = db.New(stream, *conf.DB, ro)
+		if err != nil {
+			return nil, stream.EventErrKv("connect.db", err, kvs)
+		}
+		stream.EventKv("connect.db", kvs)
+	} else {
+		stream.Event("connect.db.skip")
+	}
+
+	return NewConnections(stream, dbConn, nil), nil
+}
+
 func NewConnections(s *health.Stream, db *db.Conn, r *redis.Client) *Connections {
 	var c *cache.Cache
 	if r != nil {

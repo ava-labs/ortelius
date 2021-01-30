@@ -24,10 +24,11 @@ type Control struct {
 	Services                  cfg.Services
 	Log                       logging.Logger
 	Persist                   Persist
-	BalanceAccumulatorManager BalanceAccumulatorManager
+	BalanceAccumulatorManager *BalanceAccumulatorManager
 }
 
 func (s *Control) Init() {
+	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 	s.BalanceAccumulatorManager.handlers =
 		append(s.BalanceAccumulatorManager.handlers, &BalancerAccumulateHandler{})
 	s.BalanceAccumulatorManager.handlers =
@@ -45,6 +46,17 @@ func (s *Control) InitConsumeMetrics() {
 	metrics.Prometheus.CounterInit(MetricConsumeProcessMillisCounterKey, "records processed millis")
 	metrics.Prometheus.CounterInit(MetricConsumeSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(MetricConsumeFailureCountKey, "records failure")
+}
+
+func (s *Control) DatabaseOnly() (*Connections, error) {
+	c, err := NewDBFromConfig(s.Services, false)
+	if err != nil {
+		return nil, err
+	}
+	c.DB().SetMaxIdleConns(32)
+	c.DB().SetConnMaxIdleTime(5 * time.Minute)
+	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	return c, err
 }
 
 func (s *Control) Database() (*Connections, error) {

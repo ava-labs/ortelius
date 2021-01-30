@@ -139,7 +139,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		return err
 	}
 
-	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
+	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc, c.conns)
 
 	return c.commitMessage(msg)
 }
@@ -246,7 +246,7 @@ func (c *ConsumerCChain) isStopping() bool {
 }
 
 func (c *ConsumerCChain) init() error {
-	conns, err := c.sc.Database()
+	conns, err := c.sc.DatabaseOnly()
 	if err != nil {
 		return err
 	}

@@ -42,7 +42,7 @@ type consumerconsensus struct {
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
 func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactory {
 	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		conns, err := sc.Database()
+		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +162,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		return err
 	}
 
-	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
+	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc, c.conns)
 
 	return c.commitMessage(msg)
 }

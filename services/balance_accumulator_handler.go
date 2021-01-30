@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,9 +12,9 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLimitValueBase = 500
+var RowLimitValueBase = 5
 var RowLimitValue = uint64(RowLimitValueBase)
-var updTimeout = 10 * time.Second
+var updTimeout = 10 * time.Minute
 
 type processType uint32
 
@@ -26,7 +25,7 @@ type BalanceAccumulatorManager struct {
 	handlers []*BalancerAccumulateHandler
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Connections) {
 	for _, h := range a.handlers {
 		h.Run(persist, sc)
 	}
@@ -62,7 +61,7 @@ func (a *BalancerAccumulateHandler) runOutputsOuts(persist Persist, sc *Control)
 			atomic.AddInt64(&a.runningOutputOuts, -1)
 		}()
 
-		conns, err := sc.Database()
+		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			sc.Log.Warn("Accumulate conns create %v", err)
 			return
@@ -104,7 +103,7 @@ func (a *BalancerAccumulateHandler) runOutputsIns(persist Persist, sc *Control) 
 			atomic.AddInt64(&a.runningOutputIns, -1)
 		}()
 
-		conns, err := sc.Database()
+		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			sc.Log.Warn("Accumulate conns create %v", err)
 			return
@@ -146,7 +145,7 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 			atomic.AddInt64(&a.runningTransactions, -1)
 		}()
 
-		conns, err := sc.Database()
+		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			sc.Log.Warn("Accumulate conns create %v", err)
 			return
@@ -172,14 +171,13 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 }
 
 func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist, sc *Control) error {
-	icnt := 0
-	for ; icnt < 10; icnt++ {
+	for {
 		cnt, err := a.processOutputs(processTypeOut, conns, persist, sc)
 		if err != nil {
 			return err
 		}
-		if cnt > 0 {
-			icnt = 0
+		if cnt == 0 {
+			break
 		}
 	}
 
@@ -187,14 +185,13 @@ func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, per
 }
 
 func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist, sc *Control) error {
-	icnt := 0
-	for ; icnt < 10; icnt++ {
+	for {
 		cnt, err := a.processOutputs(processTypeIn, conns, persist, sc)
 		if err != nil {
 			return err
 		}
-		if cnt > 0 {
-			icnt = 0
+		if cnt == 0 {
+			break
 		}
 	}
 
@@ -202,14 +199,13 @@ func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, pers
 }
 
 func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, persist Persist) error {
-	icnt := 0
-	for ; icnt < 10; icnt++ {
+	for {
 		cnt, err := a.processTransactions(conns, persist)
 		if err != nil {
 			return err
 		}
-		if cnt > 0 {
-			icnt = 0
+		if cnt == 0 {
+			break
 		}
 	}
 
@@ -223,17 +219,24 @@ type OutputAddressAccumulateWithTrID struct {
 
 func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist, sc *Control) (int, error) {
 	job := conns.Stream().NewJob("accumulate")
-	sess := conns.DB().NewSessionForEventReceiver(job)
+	session := conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
 	var err error
+	var dbTx *dbr.Tx
+	dbTx, err = session.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
 	var rowdata []*OutputAddressAccumulateWithTrID
 
 	switch typ {
 	case processTypeOut:
-		_, err = sess.Select(
+		_, err = dbTx.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
 			"avm_outputs.transaction_id",
@@ -242,12 +245,13 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Where("output_addresses_accumulate.processed_out = ?", 0).
 			Limit(RowLimitValue).
+			Suffix("for update").
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return 0, err
 		}
 	case processTypeIn:
-		_, err = sess.Select(
+		_, err = dbTx.Select(
 			"output_addresses_accumulate.id",
 			"output_addresses_accumulate.address",
 			"avm_outputs.transaction_id",
@@ -257,6 +261,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
 			Where("output_addresses_accumulate.processed_in = ?", 0).
 			Limit(RowLimitValue).
+			Suffix("for update").
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return 0, err
@@ -267,38 +272,25 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 		return 0, nil
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
-
 	for _, row := range rowdata {
-		err := a.processOutputsBase(typ, sess, persist, row, sc)
+		err := a.processOutputsBase(ctx, typ, dbTx, persist, row, sc)
 		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
 			return 0, err
 		}
 	}
 
-	return len(rowdata), nil
+	return len(rowdata), dbTx.Commit()
 }
 
 func (a *BalancerAccumulateHandler) processOutputsBase(
+	ctx context.Context,
 	typ processType,
-	sess *dbr.Session,
+	dbTx *dbr.Tx,
 	persist Persist,
-	rowq *OutputAddressAccumulateWithTrID,
+	row *OutputAddressAccumulateWithTrID,
 	sc *Control,
 ) error {
-	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
-	defer cancelCTX()
-
 	var err error
-	var dbTx *dbr.Tx
-	dbTx, err = sess.Begin()
-	if err != nil {
-		return err
-	}
-	defer dbTx.RollbackUnlessCommitted()
-
-	var rowdataLock []*OutputAddressAccumulate
 
 	upd := ""
 	switch typ {
@@ -307,36 +299,13 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	case processTypeIn:
 		upd = "processed_in"
 	}
-	_, err = dbTx.Select(
-		"id",
-		"address",
-		"processed_out",
-		"processed_in",
-	).
-		From("output_addresses_accumulate").
-		Where(upd+" = ? and id=? and address=?", 0, rowq.ID, rowq.Address).
-		Suffix("for update").
-		LoadContext(ctx, &rowdataLock)
+
+	_, err = dbTx.Update("output_addresses_accumulate").
+		Set(upd, 1).
+		Where("id=? and address=?", row.ID, row.Address).
+		ExecContext(ctx)
 	if err != nil {
 		return err
-	}
-
-	// it was already processed
-	if len(rowdataLock) == 0 {
-		return nil
-	}
-
-	// There will be only 1 record.
-	row := rowdataLock[0]
-	switch typ {
-	case processTypeOut:
-		if row.ProcessedOut != 0 {
-			return nil
-		}
-	case processTypeIn:
-		if row.ProcessedIn != 0 {
-			return nil
-		}
 	}
 
 	var balances []*AccumulateBalances
@@ -368,7 +337,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			ChainID:       b.ChainID,
 			AssetID:       b.AssetID,
 			Address:       b.Address,
-			TransactionID: rowq.TransactionID,
+			TransactionID: row.TransactionID,
 		}
 		err = outputsTxsAccumulate.ComputeID()
 		if err != nil {
@@ -433,73 +402,25 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 		}
 	}
 
-	_, err = dbTx.Update("output_addresses_accumulate").
-		Set(upd, 1).
-		Where("id=? and address=?", row.ID, row.Address).
-		ExecContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return dbTx.Commit()
+	return nil
 }
 
 func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (int, error) {
 	job := conns.Stream().NewJob("accumulate")
-	sess := conns.DB().NewSessionForEventReceiver(job)
+	session := conns.DB().NewSessionForEventReceiver(job)
 
-	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
-	defer cancelCTX()
-
-	var err error
-	var rowdata []*OutputTxsAccumulate
-
-	_, err = sess.Select(
-		"id",
-		"chain_id",
-		"asset_id",
-		"address",
-		"transaction_id",
-		"processed",
-	).
-		From("output_txs_accumulate").
-		Where("processed = ?", 0).
-		Limit(RowLimitValue).
-		LoadContext(ctx, &rowdata)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(rowdata) == 0 {
-		return 0, nil
-	}
-
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
-
-	for _, row := range rowdata {
-		err := a.processTransactionsBase(sess, persist, row)
-		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
-			return 0, err
-		}
-	}
-
-	return len(rowdata), nil
-}
-
-func (a *BalancerAccumulateHandler) processTransactionsBase(sess *dbr.Session, persist Persist, rowq *OutputTxsAccumulate) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
 	var err error
 	var dbTx *dbr.Tx
-	dbTx, err = sess.Begin()
+	dbTx, err = session.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdataLock []*OutputTxsAccumulate
+	var rowdata []*OutputTxsAccumulate
 
 	_, err = dbTx.Select(
 		"id",
@@ -510,28 +431,48 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(sess *dbr.Session, p
 		"processed",
 	).
 		From("output_txs_accumulate").
-		Where("processed = ? and id=?", 0, rowq.ID).
+		Where("processed = ?", 0).
+		Limit(RowLimitValue).
 		Suffix("for update").
-		LoadContext(ctx, &rowdataLock)
+		LoadContext(ctx, &rowdata)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(rowdata) == 0 {
+		return 0, nil
+	}
+
+	for _, row := range rowdata {
+		err := a.processTransactionsBase(ctx, dbTx, persist, row)
+		if err != nil && !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+			return 0, err
+		}
+	}
+
+	return len(rowdata), dbTx.Commit()
+}
+
+func (a *BalancerAccumulateHandler) processTransactionsBase(
+	ctx context.Context,
+	dbTx *dbr.Tx,
+	persist Persist,
+	row *OutputTxsAccumulate,
+) error {
+	var err error
+
+	_, err = dbTx.Update("output_txs_accumulate").
+		Set("processed", 1).
+		Where("id = ?", row.ID).
+		ExecContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	// it was already processed
-	if len(rowdataLock) == 0 {
-		return nil
-	}
-
-	// There will be only 1 record.
-	row := rowdataLock[0]
-	if row.Processed != 0 {
-		return nil
-	}
-
 	b := &AccumulateBalances{
-		ChainID: rowq.ChainID,
-		AssetID: rowq.AssetID,
-		Address: rowq.Address,
+		ChainID: row.ChainID,
+		AssetID: row.AssetID,
+		Address: row.Address,
 	}
 	err = b.ComputeID()
 	if err != nil {
@@ -571,13 +512,5 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(sess *dbr.Session, p
 		return err
 	}
 
-	_, err = dbTx.Update("output_txs_accumulate").
-		Set("processed", 1).
-		Where("id = ?", row.ID).
-		ExecContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return dbTx.Commit()
+	return nil
 }
