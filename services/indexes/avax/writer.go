@@ -6,6 +6,7 @@ package avax
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/utils/formatting"
 
@@ -273,6 +274,7 @@ func (w *Writer) InsertOutput(
 			AssetID:       assetID.String(),
 			Address:       addrid.String(),
 			TransactionID: txID.String(),
+			CreatedAt:     time.Now(),
 		}
 		err = outputTxsAccumulate.ComputeID()
 		if err != nil {
@@ -351,8 +353,9 @@ func (w *Writer) InsertOutputAddress(
 	}
 
 	outputAddressAccumulate := &services.OutputAddressAccumulate{
-		ID:      outputID.String(),
-		Address: address.String(),
+		ID:        outputID.String(),
+		Address:   address.String(),
+		CreatedAt: time.Now(),
 	}
 	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 	if err != nil {

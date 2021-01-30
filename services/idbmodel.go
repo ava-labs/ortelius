@@ -1235,6 +1235,7 @@ type OutputAddressAccumulate struct {
 	Address      string
 	ProcessedOut int
 	ProcessedIn  int
+	CreatedAt    time.Time
 }
 
 func (p *persist) QueryOutputAddressAccumulate(
@@ -1248,6 +1249,7 @@ func (p *persist) QueryOutputAddressAccumulate(
 		"address",
 		"processed_out",
 		"processed_in",
+		"created_at",
 	).From(TableOutputAddressAccumulate).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1264,6 +1266,7 @@ func (p *persist) InsertOutputAddressAccumulate(
 		InsertInto(TableOutputAddressAccumulate).
 		Pair("id", v.ID).
 		Pair("address", v.Address).
+		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulate, false, err)
@@ -1279,6 +1282,7 @@ type OutputTxsAccumulate struct {
 	Address       string
 	TransactionID string
 	Processed     int
+	CreatedAt     time.Time
 }
 
 func (b *OutputTxsAccumulate) ComputeID() error {
@@ -1304,6 +1308,7 @@ func (p *persist) QueryOutputTxsAccumulate(
 		"address",
 		"transaction_id",
 		"processed",
+		"created_at",
 	).From(TableOutputTxsAccumulate).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1323,6 +1328,7 @@ func (p *persist) InsertOutputTxsAccumulate(
 		Pair("asset_id", v.AssetID).
 		Pair("address", v.Address).
 		Pair("transaction_id", v.TransactionID).
+		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputTxsAccumulate, false, err)

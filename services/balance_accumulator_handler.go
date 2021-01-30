@@ -243,6 +243,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			From("output_addresses_accumulate").
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Where("output_addresses_accumulate.processed_out = ?", 0).
+			OrderAsc("created_at").
 			Limit(RowLimitValue).
 			Suffix("for update").
 			LoadContext(ctx, &rowdata)
@@ -259,6 +260,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id").
 			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
 			Where("output_addresses_accumulate.processed_in = ?", 0).
+			OrderAsc("created_at").
 			Limit(RowLimitValue).
 			Suffix("for update").
 			LoadContext(ctx, &rowdata)
@@ -337,6 +339,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			AssetID:       b.AssetID,
 			Address:       b.Address,
 			TransactionID: row.TransactionID,
+			CreatedAt:     time.Now(),
 		}
 		err = outputsTxsAccumulate.ComputeID()
 		if err != nil {
@@ -431,6 +434,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 	).
 		From("output_txs_accumulate").
 		Where("processed = ?", 0).
+		OrderAsc("created_at").
 		Limit(RowLimitValue).
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
