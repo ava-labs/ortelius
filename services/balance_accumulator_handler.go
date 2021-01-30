@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -320,15 +321,15 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	var rowdata []*OutputAddressAccumulateWithTrID
 
 	b := dbTx.Select(
-		"output_addresses_accumulate.id",
+		"id",
 	).
 		From("output_addresses_accumulate")
 
 	switch typ {
 	case processTypeOut:
-		b = b.Where("output_addresses_accumulate.processed_out = ? and output_addresses_accumulate.id in ?", 0, workRowsID)
+		b = b.Where("processed_out = ? and id in ?", 0, workRowsID)
 	case processTypeIn:
-		b = b.Where("output_addresses_accumulate.processed_in = ? and output_addresses_accumulate.id in ?", 0, workRowsID)
+		b = b.Where("processed_in = ? and id in ?", 0, workRowsID)
 	}
 
 	_, err = b.
@@ -397,8 +398,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	}
 
 	if len(balances) == 0 {
-		sc.Log.Info("invalid balance %s %s on %d", row.ID, row.Address, typ)
-		return nil
+		return fmt.Errorf("invalid balance")
 	}
 
 	for _, b := range balances {
@@ -440,11 +440,11 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 		}
 		// we didn't lock the row
 		if len(balancesLocked) == 0 {
-			return nil
+			return fmt.Errorf("balancesLocked failed")
 		}
 		brow := balancesLocked[0]
 		if brow.ID != b.ID {
-			return nil
+			return fmt.Errorf("balancesLocked failed")
 		}
 
 		switch typ {
@@ -565,16 +565,9 @@ func (a *BalancerAccumulateHandler) processTransactionsPost(
 
 	_, err = dbTx.Select(
 		"id",
-		"chain_id",
-		"asset_id",
-		"address",
-		"transaction_id",
-		"processed",
 	).
 		From("output_txs_accumulate").
 		Where("processed = ? and id in ?", 0, workRowsID).
-		OrderAsc("processed").
-		OrderAsc("created_at").
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
@@ -637,11 +630,11 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 
 	// we didn't lock the row
 	if len(balancesLocked) == 0 {
-		return nil
+		return fmt.Errorf("balancesLocked failed")
 	}
 	brow := balancesLocked[0]
 	if brow.ID != b.ID {
-		return nil
+		return fmt.Errorf("balancesLocked failed")
 	}
 
 	_, err = dbTx.UpdateBySql("update accumulate_balances "+
