@@ -233,7 +233,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		"avm_outputs.transaction_id",
 	).
 		From("output_addresses_accumulate").
-		Join("avm_outputs", "output_addresses_accumulate.id = avm_outputs.id")
+		Join("avm_outputs", "output_addresses_accumulate.output_id = avm_outputs.id")
 
 	switch typ {
 	case processTypeOut:
