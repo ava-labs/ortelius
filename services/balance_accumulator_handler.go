@@ -273,7 +273,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 
 	for _, row := range rowdata {
 		err := a.processOutputsBase(ctx, typ, dbTx, persist, row, sc)
-		if !db.ErrIsLockError(err) {
+		if err != nil {
 			return 0, err
 		}
 	}
@@ -444,7 +444,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 
 	for _, row := range rowdata {
 		err := a.processTransactionsBase(ctx, dbTx, persist, row)
-		if !db.ErrIsLockError(err) {
+		if err != nil {
 			return 0, err
 		}
 	}
