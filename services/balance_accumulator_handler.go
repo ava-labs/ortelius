@@ -27,7 +27,7 @@ type BalanceAccumulatorManager struct {
 	handlers []*BalancerAccumulateHandler
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Connections) {
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, _ *Connections) {
 	for _, h := range a.handlers {
 		h.Run(persist, sc)
 	}
@@ -76,7 +76,7 @@ func (a *BalancerAccumulateHandler) runOutputsOuts(persist Persist, sc *Control)
 		}()
 
 		for {
-			err = a.accumulateOutputOuts(conns, persist, sc)
+			err = a.accumulateOutputOuts(conns, persist)
 			if !db.ErrIsLockError(err) {
 				break
 			}
@@ -118,7 +118,7 @@ func (a *BalancerAccumulateHandler) runOutputsIns(persist Persist, sc *Control) 
 		}()
 
 		for {
-			err = a.accumulateOutputIns(conns, persist, sc)
+			err = a.accumulateOutputIns(conns, persist)
 			if !db.ErrIsLockError(err) {
 				break
 			}
@@ -172,9 +172,9 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 	}()
 }
 
-func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist, sc *Control) error {
+func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist) error {
 	for {
-		cnt, err := a.processOutputs(processTypeOut, conns, persist, sc)
+		cnt, err := a.processOutputs(processTypeOut, conns, persist)
 		if err != nil {
 			return err
 		}
@@ -186,9 +186,9 @@ func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, per
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist, sc *Control) error {
+func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist) error {
 	for {
-		cnt, err := a.processOutputs(processTypeIn, conns, persist, sc)
+		cnt, err := a.processOutputs(processTypeIn, conns, persist)
 		if err != nil {
 			return err
 		}
@@ -261,7 +261,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist, sc *Control) (int, error) {
+func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist) (int, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
@@ -279,7 +279,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
 			if len(trowsID) > 5 {
-				err = a.processOutputsPost(trows, trowsID, typ, session, persist, sc)
+				err = a.processOutputsPost(trows, trowsID, typ, session, persist)
 				if err != nil {
 					return 0, err
 				}
@@ -289,7 +289,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 		}
 
 		if len(trowsID) > 0 {
-			err = a.processOutputsPost(trows, trowsID, typ, session, persist, sc)
+			err = a.processOutputsPost(trows, trowsID, typ, session, persist)
 			if err != nil {
 				return 0, err
 			}
@@ -305,7 +305,6 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	typ processType,
 	session *dbr.Session,
 	persist Persist,
-	sc *Control,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -344,7 +343,7 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	}
 
 	for _, row := range rowdata {
-		err := a.processOutputsBase(ctx, typ, dbTx, persist, workRows[row.ID], sc)
+		err := a.processOutputsBase(ctx, typ, dbTx, persist, workRows[row.ID])
 		if err != nil {
 			return err
 		}
@@ -359,7 +358,6 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	dbTx *dbr.Tx,
 	persist Persist,
 	row *OutputAddressAccumulateWithTrID,
-	sc *Control,
 ) error {
 	var err error
 
