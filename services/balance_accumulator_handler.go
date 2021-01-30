@@ -242,7 +242,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 			OrderAsc("output_addresses_accumulate.processed_out")
 	case processTypeIn:
 		b = b.
-			Join("avm_outputs_redeeming", "output_addresses_accumulate.id = avm_outputs_redeeming.id ").
+			Join("avm_outputs_redeeming", "output_addresses_accumulate.output_id = avm_outputs_redeeming.id ").
 			Where("output_addresses_accumulate.processed_in = ?", 0).
 			OrderAsc("output_addresses_accumulate.processed_in")
 	}
@@ -388,7 +388,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 		"sum(avm_outputs.amount) as total_sent",
 	).From("avm_outputs").
 		Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		Where("avm_outputs.id=? and avm_output_addresses.address=?", row.ID, row.Address).
+		Where("avm_outputs.id=? and avm_output_addresses.address=?", row.OutputID, row.Address).
 		GroupBy("chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
 		LoadContext(ctx, &balances)
 	if err != nil {
