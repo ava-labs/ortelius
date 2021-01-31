@@ -434,6 +434,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 					chain,
 					block.BlockExtraData,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMEC})
@@ -520,6 +521,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 					chain.ID,
 					msg.Value,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUMECONSENSUS})
@@ -606,6 +608,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 					chain.ID,
 					msg.Value,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUME})

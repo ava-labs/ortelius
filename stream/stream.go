@@ -47,8 +47,10 @@ func (m *Message) KafkaMessage() *kafkaMessage.Message { return m.kafkaMessage }
 func NewMessage(id string,
 	chainID string,
 	body []byte,
-	timestamp int64) services.Consumable {
-	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp}
+	timestamp int64,
+	nanosecond int64,
+) services.Consumable {
+	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond}
 }
 
 func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
