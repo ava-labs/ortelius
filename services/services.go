@@ -32,7 +32,6 @@ type Consumer interface {
 
 type ConsumerCChain interface {
 	Name() string
-	Bootstrap(context.Context, *Connections) error
 	Consume(context.Context, *Connections, Consumable, *cblock.Block, Persist) error
 	ParseJSON([]byte) ([]byte, error)
 }

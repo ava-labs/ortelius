@@ -28,10 +28,6 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 )
 
-var (
-	consumerInitializeTimeout = 5 * time.Minute
-)
-
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 // consumer takes events from Kafka and sends them to a service consumer
@@ -79,13 +75,6 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		// Create consumer backend
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
-			return nil, err
-		}
-
-		// Bootstrap our service
-		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
-		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx, c.conns, sc.Persist); err != nil {
 			return nil, err
 		}
 
