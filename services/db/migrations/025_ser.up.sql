@@ -3,6 +3,7 @@ ALTER TABLE `pvm_blocks` MODIFY `serialization` MEDIUMBLOB;
 ALTER TABLE `avm_transactions` MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
 alter table `avm_outputs`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
 alter table `avm_outputs_redeeming`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
+alter table `avm_outputs_redeeming`  MODIFY `redeemed_at` timestamp(6) not null default current_timestamp(6);
 alter table `pvm_blocks`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
 alter table `avm_assets`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
 alter table `cvm_transactions`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
