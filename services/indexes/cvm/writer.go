@@ -5,13 +5,14 @@ package cvm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	cblock "github.com/ava-labs/ortelius/models"
 
-	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ethereum/go-ethereum/common"
@@ -54,7 +55,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "cvm-index" }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, blockHeader *types.Header, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
 	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -65,7 +66,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist), c.Body(), blockHeader)
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist), c.Body(), block)
 	if err != nil {
 		return err
 	}
@@ -76,16 +77,16 @@ func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
 	return nil
 }
 
-func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, blockHeader *types.Header) error {
+func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
 	atomicTX := new(evm.Tx)
 	_, err := w.codec.Unmarshal(blockBytes, atomicTX)
 	if err != nil {
 		return err
 	}
-	return w.indexBlockInternal(ctx, atomicTX, blockBytes, blockHeader)
+	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block)
 }
 
-func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, blockHeader *types.Header) error {
+func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block) error {
 	txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
 	if err != nil {
 		return err
@@ -93,9 +94,9 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 
 	switch atx := atomicTX.UnsignedTx.(type) {
 	case *evm.UnsignedExportTx:
-		return w.indexExportTx(ctx, txID, atx, blockBytes, blockHeader)
+		return w.indexExportTx(ctx, txID, atx, blockBytes, block)
 	case *evm.UnsignedImportTx:
-		return w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, blockHeader)
+		return w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, block)
 	default:
 		return ctx.Job().EventErr(fmt.Sprintf("unknown atomic tx %s", reflect.TypeOf(atx)), ErrUnknownBlockType)
 	}
@@ -106,18 +107,23 @@ func (w *Writer) indexTransaction(
 	id ids.ID,
 	typ models.CChainType,
 	blockChainID ids.ID,
-	blockHeader *types.Header,
+	block *cblock.Block,
 	txFee uint64,
 	unsignedBytes []byte,
 ) error {
-	cvmTransaction := &services.CvmTransactions{
-		ID:           id.String(),
-		Type:         typ,
-		BlockchainID: blockChainID.String(),
-		Block:        blockHeader.Number.String(),
-		CreatedAt:    ctx.Time(),
+	blockjson, err := json.Marshal(block)
+	if err != nil {
+		return err
 	}
-	err := ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
+	cvmTransaction := &services.CvmTransactions{
+		ID:            id.String(),
+		Type:          typ,
+		BlockchainID:  blockChainID.String(),
+		Block:         block.Header.Number.String(),
+		CreatedAt:     ctx.Time(),
+		Serialization: blockjson,
+	}
+	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -169,7 +175,7 @@ func (w *Writer) insertAddress(
 	return ctx.Persist().InsertCvmAddresses(ctx.Ctx(), ctx.DB(), cvmAddress, cfg.PerformUpdates)
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, blockHeader *types.Header) error {
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, block *cblock.Block) error {
 	var err error
 
 	var totalin uint64
@@ -192,10 +198,10 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		idx++
 	}
 
-	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, block, totalin-totalout, unsignedBytes)
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte, blockHeader *types.Header) error {
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte, block *cblock.Block) error {
 	var err error
 
 	var totalout uint64
@@ -216,5 +222,5 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, blockHeader, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, block, totalin-totalout, unsignedBytes)
 }

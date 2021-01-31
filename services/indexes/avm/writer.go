@@ -5,6 +5,7 @@ package avm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -77,6 +78,14 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 }
 
 func (*Writer) Name() string { return "avm-index" }
+
+func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
+	tx, err := parseTx(w.codec, txBytes)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(tx)
+}
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
 	var (
@@ -249,7 +258,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	_, tx, err := parseTx(w.codec, txBytes)
+	tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}

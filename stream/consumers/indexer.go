@@ -15,7 +15,7 @@ const (
 	IndexerPVMName = "pvm"
 )
 
-var Indexer = stream.NewConsumerFactory(func(networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
+var IndexerConsumer = func(networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
 	switch chainVM {
 	case IndexerAVMName:
 		indexer, err = avm.NewWriter(networkID, chainID)
@@ -25,7 +25,9 @@ var Indexer = stream.NewConsumerFactory(func(networkID uint32, chainVM string, c
 		return nil, stream.ErrUnknownVM
 	}
 	return indexer, err
-})
+}
+
+var Indexer = stream.NewConsumerFactory(IndexerConsumer)
 
 var IndexerConsensus = stream.NewConsumerConsensusFactory(func(networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
 	switch chainVM {

@@ -145,7 +145,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, c.conns, msg, &block.Header, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, block, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {

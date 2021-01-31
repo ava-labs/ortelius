@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -49,12 +50,17 @@ var (
 )
 
 type Reader struct {
-	conns *services.Connections
+	conns     *services.Connections
+	avmLock   sync.RWMutex
+	networkID uint32
+	cmap      map[string]services.Consumer
 }
 
-func NewReader(conns *services.Connections) *Reader {
+func NewReader(networkID uint32, conns *services.Connections, cmap map[string]services.Consumer) *Reader {
 	return &Reader{
-		conns: conns,
+		conns:     conns,
+		networkID: networkID,
+		cmap:      cmap,
 	}
 }
 
@@ -1377,6 +1383,69 @@ func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
 		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
 		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
 		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
+}
+
+func (r *Reader) avmWriter(chainID string) (services.Consumer, error) {
+	r.avmLock.RLock()
+	w, ok := r.cmap[chainID]
+	r.avmLock.RUnlock()
+	if ok {
+		return w, nil
+	}
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("tx_json", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		CanonicalSerialization []byte
+		Serialization          []byte
+		ChainID                string
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("canonical_serialization", "chain_id").
+		From("avm_transactions").
+		Where("id=?", p.ListParams.ID.String()).
+		LoadContext(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		_, err = dbRunner.
+			Select("serialization", "chain_id").
+			From("pvm_blocks").
+			Where("id=?", p.ListParams.ID.String()).
+			LoadContext(ctx, rows)
+		if err != nil {
+			return nil, err
+		}
+		if len(rows) > 0 {
+			rows[0].CanonicalSerialization = rows[0].Serialization
+		}
+	}
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	var c services.Consumer
+	c, err = r.avmWriter(row.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	j, err := c.ParseJSON(row.CanonicalSerialization)
+	if err != nil {
+		return nil, err
+	}
+	return j, nil
 }
 
 func uint64Ptr(u64 uint64) *uint64 {

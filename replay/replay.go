@@ -329,7 +329,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, &value.block.Header, replay.persist)
+					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}

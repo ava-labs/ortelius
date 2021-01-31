@@ -85,7 +85,9 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := avax.NewReader(conns)
+	cmap := make(map[string]services.Consumer)
+
+	reader := avax.NewReader(networkID, conns, cmap)
 	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()

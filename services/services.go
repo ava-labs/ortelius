@@ -24,6 +24,7 @@ type Consumer interface {
 	Bootstrap(context.Context, *Connections, Persist) error
 	Consume(context.Context, *Connections, Consumable, Persist) error
 	ConsumeConsensus(context.Context, *Connections, Consumable, Persist) error
+	ParseJSON([]byte) ([]byte, error)
 }
 
 // ConsumerCtx
