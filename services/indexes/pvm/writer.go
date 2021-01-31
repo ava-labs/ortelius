@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -22,6 +23,8 @@ import (
 )
 
 var (
+	MaxSerializationLen = (16 * 1024 * 1024) - 1
+
 	ChainID = ids.ID{}
 
 	ErrUnknownBlockType = errors.New("unknown block type")
@@ -53,6 +56,15 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "pvm-index" }
 
+func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
+	var block platformvm.Block
+	_, err := w.codec.Unmarshal(txBytes, &block)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(&block)
+}
+
 func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
 	return nil
 }
@@ -68,7 +80,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist), c.Body())
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body())
 	if err != nil {
 		return err
 	}
@@ -100,7 +112,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	var (
 		db   = conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
-		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), persist)
+		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), 0, persist)
 	)
 
 	for idx, utxo := range platformGenesis.UTXOs {
@@ -206,7 +218,7 @@ func (w *Writer) indexCommonBlock(
 	blk platformvm.CommonBlock,
 	blockBytes []byte,
 ) error {
-	if len(blockBytes) > 32000 {
+	if len(blockBytes) > MaxSerializationLen {
 		blockBytes = []byte("")
 	}
 

@@ -162,7 +162,8 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer,
 		t.Fatal("Failed to create writer:", err.Error())
 	}
 
-	reader := avax.NewReader(conns)
+	cmap := make(map[string]services.Consumer)
+	reader := avax.NewReader(networkID, conns, cmap, nil)
 	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()
@@ -206,7 +207,7 @@ func TestInsertTxInternal(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -252,7 +253,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)

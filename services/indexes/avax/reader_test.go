@@ -206,7 +206,8 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
 
-	reader := NewReader(conns)
+	cmap := make(map[string]services.Consumer)
+	reader := NewReader(5, conns, cmap, nil)
 	return reader, func() {
 		s.Close()
 		_ = conns.Close()

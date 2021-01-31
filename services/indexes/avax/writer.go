@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	MaxSerializationLen = 64000
+	MaxSerializationLen = (16 * 1024 * 1024) - 1
 
 	// MaxMemoLen is the maximum number of bytes a memo can be in the database
 	MaxMemoLen = 2048

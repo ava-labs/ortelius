@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ava-labs/ortelius/stream/consumers"
+
 	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/avalanchego/genesis"
@@ -98,7 +100,19 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 
 	delayCache := NewDelayCache(cache)
 
-	avaxReader := avax.NewReader(connections)
+	consumersmap := make(map[string]services.Consumer)
+	for chid, chain := range conf.Chains {
+		consumer, err := consumers.IndexerConsumer(conf.NetworkID, chain.VMType, chid)
+		if err != nil {
+			return nil, err
+		}
+		consumersmap[chid] = consumer
+	}
+	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.Stream.CchainID)
+	if err != nil {
+		return nil, err
+	}
+	avaxReader := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain)
 
 	ctx := Context{sc: sc}
 

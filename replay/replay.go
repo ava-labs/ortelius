@@ -329,7 +329,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, &value.block.Header, replay.persist)
+					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -423,8 +423,8 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 					return
 				}
 
-				if len(block.BlockExtraData) == 0 {
-					continue
+				if block.BlockExtraData == nil {
+					block.BlockExtraData = []byte("")
 				}
 
 				hid := hashing.ComputeHash256(block.BlockExtraData)
