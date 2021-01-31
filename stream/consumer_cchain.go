@@ -172,6 +172,7 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 		chainID:      c.conf.CchainID,
 		body:         msg.Value,
 		timestamp:    msg.Time.UTC().Unix(),
+		nanosecond:   int64(msg.Time.UTC().Nanosecond()),
 		kafkaMessage: &msg,
 	}
 

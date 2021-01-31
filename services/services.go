@@ -17,6 +17,7 @@ type Consumable interface {
 	ChainID() string
 	Body() []byte
 	Timestamp() int64
+	Nanosecond() int64
 	KafkaMessage() *kafkaMessage.Message
 }
 
@@ -45,12 +46,12 @@ type ConsumerCtx struct {
 	persist Persist
 }
 
-func NewConsumerContext(ctx context.Context, job *health.Job, db dbr.SessionRunner, ts int64, persist Persist) ConsumerCtx {
+func NewConsumerContext(ctx context.Context, job *health.Job, db dbr.SessionRunner, ts int64, nanosecond int64, persist Persist) ConsumerCtx {
 	return ConsumerCtx{
 		ctx:     ctx,
 		job:     job,
 		db:      db,
-		time:    time.Unix(ts, 0),
+		time:    time.Unix(ts, nanosecond),
 		persist: persist,
 	}
 }

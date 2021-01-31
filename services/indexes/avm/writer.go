@@ -131,7 +131,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 		}
 
 		dbSess := conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), persist)
+		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), 0, persist)
 		return w.insertGenesis(cCtx, createChainTx.GenesisData)
 	}
 
@@ -170,7 +170,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	for _, tx := range txs {
 		var txID ids.ID
@@ -219,7 +219,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), persist), i.Body())
+	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}

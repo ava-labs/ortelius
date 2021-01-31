@@ -105,7 +105,7 @@ func TestInsertTxInternal(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -133,7 +133,7 @@ func TestInsertTxInternalRewards(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -163,7 +163,7 @@ func TestCommonBlock(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.indexCommonBlock(cCtx, blkid, models.BlockTypeCommit, tx, []byte(""))
 	if err != nil {
 		t.Fatal("insert failed", err)
