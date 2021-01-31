@@ -123,7 +123,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		block.BlockExtraData = []byte("")
 	}
 	id := hashing.ComputeHash256(block.BlockExtraData)
-	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
+	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
 
 	for {
 		err = c.persistConsume(nmsg, block)
