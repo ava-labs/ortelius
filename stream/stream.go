@@ -33,6 +33,7 @@ type Message struct {
 	chainID      string
 	body         []byte
 	timestamp    int64
+	nanosecond   int64
 	kafkaMessage *kafkaMessage.Message
 }
 
@@ -40,6 +41,7 @@ func (m *Message) ID() string                          { return m.id }
 func (m *Message) ChainID() string                     { return m.chainID }
 func (m *Message) Body() []byte                        { return m.body }
 func (m *Message) Timestamp() int64                    { return m.timestamp }
+func (m *Message) Nanosecond() int64                   { return m.nanosecond }
 func (m *Message) KafkaMessage() *kafkaMessage.Message { return m.kafkaMessage }
 
 func NewMessage(id string,

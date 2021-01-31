@@ -106,10 +106,6 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		return err
 	}
 
-	if len(block.BlockExtraData) == 0 {
-		return c.commitMessage(msg)
-	}
-
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
@@ -123,6 +119,9 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		}
 	}()
 
+	if block.BlockExtraData == nil {
+		block.BlockExtraData = []byte("")
+	}
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 
@@ -145,7 +144,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, c.conns, msg, &block.Header, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, block, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {
@@ -173,6 +172,7 @@ func (c *ConsumerCChain) getNextMessage(ctx context.Context) (*Message, error) {
 		chainID:      c.conf.CchainID,
 		body:         msg.Value,
 		timestamp:    msg.Time.UTC().Unix(),
+		nanosecond:   int64(msg.Time.UTC().Nanosecond()),
 		kafkaMessage: &msg,
 	}
 

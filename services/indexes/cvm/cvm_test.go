@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	cblock "github.com/ava-labs/ortelius/models"
+
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 
@@ -82,13 +84,14 @@ func TestInsertTxInternalExport(t *testing.T) {
 	extx.ExportedOutputs = []*avalancheGoAvax.TransferableOutput{transferableOut}
 
 	tx.UnsignedTx = extx
-	header := &types.Header{}
+	header := types.Header{}
+	block := &cblock.Block{Header: header}
 
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), header)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
@@ -115,13 +118,14 @@ func TestInsertTxInternalImport(t *testing.T) {
 	extx.ImportedInputs = []*avalancheGoAvax.TransferableInput{transferableIn}
 
 	tx.UnsignedTx = extx
-	header := &types.Header{}
+	header := types.Header{}
+	block := &cblock.Block{Header: header}
 
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), header)
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
