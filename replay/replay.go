@@ -423,8 +423,8 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 					return
 				}
 
-				if len(block.BlockExtraData) == 0 {
-					continue
+				if block.BlockExtraData == nil {
+					block.BlockExtraData = []byte("")
 				}
 
 				hid := hashing.ComputeHash256(block.BlockExtraData)

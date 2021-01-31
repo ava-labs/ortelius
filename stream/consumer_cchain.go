@@ -106,10 +106,6 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		return err
 	}
 
-	if len(block.BlockExtraData) == 0 {
-		return c.commitMessage(msg)
-	}
-
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
@@ -123,6 +119,9 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		}
 	}()
 
+	if block.BlockExtraData == nil {
+		block.BlockExtraData = []byte("")
+	}
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp())
 

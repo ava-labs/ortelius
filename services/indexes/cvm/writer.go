@@ -77,9 +77,11 @@ func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
 	atomicTX := new(evm.Tx)
-	_, err := w.codec.Unmarshal(blockBytes, atomicTX)
-	if err != nil {
-		return err
+	if len(blockBytes) > 0 {
+		_, err := w.codec.Unmarshal(blockBytes, atomicTX)
+		if err != nil {
+			return err
+		}
 	}
 	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block)
 }
