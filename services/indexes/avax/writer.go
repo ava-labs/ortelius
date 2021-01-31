@@ -28,7 +28,7 @@ var (
 	MaxSerializationLen = (16 * 1024 * 1024) - 1
 
 	// MaxMemoLen is the maximum number of bytes a memo can be in the database
-	MaxMemoLen = 2048
+	MaxMemoLen = 1024
 )
 
 var ecdsaRecoveryFactory = crypto.FactorySECP256K1R{}

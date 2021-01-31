@@ -69,13 +69,6 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			return nil, err
 		}
 
-		// Bootstrap our service
-		ctx, cancelFn := context.WithTimeout(context.Background(), consumerInitializeTimeout)
-		defer cancelFn()
-		if err = c.consumer.Bootstrap(ctx, c.conns, sc.Persist); err != nil {
-			return nil, err
-		}
-
 		// Setup config
 		c.groupName = conf.Consumer.GroupName
 		if c.groupName == "" {
