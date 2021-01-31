@@ -98,14 +98,14 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	case *evm.UnsignedExportTx:
 		typ = models.CChainExport
 		blockchainID = atx.BlockchainID
-		err = w.indexExportTx(ctx, txID, atx, blockBytes, block)
+		err = w.indexExportTx(ctx, txID, atx, blockBytes)
 		if err != nil {
 			return err
 		}
 	case *evm.UnsignedImportTx:
 		typ = models.CChainImport
 		blockchainID = atx.BlockchainID
-		err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, block)
+		err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,6 @@ func (w *Writer) indexTransaction(
 	id ids.ID,
 	typ models.CChainType,
 	blockChainID ids.ID,
-	block *cblock.Block,
 	txFee uint64,
 	unsignedBytes []byte,
 ) error {
@@ -188,7 +187,7 @@ func (w *Writer) insertAddress(
 	return ctx.Persist().InsertCvmAddresses(ctx.Ctx(), ctx.DB(), cvmAddress, cfg.PerformUpdates)
 }
 
-func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte, block *cblock.Block) error {
+func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedExportTx, unsignedBytes []byte) error {
 	var err error
 
 	var totalin uint64
@@ -211,10 +210,10 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		idx++
 	}
 
-	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, block, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, totalin-totalout, unsignedBytes)
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte, block *cblock.Block) error {
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte) error {
 	var err error
 
 	var totalout uint64
@@ -235,5 +234,5 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, block, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, totalin-totalout, unsignedBytes)
 }
