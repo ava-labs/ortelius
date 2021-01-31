@@ -278,7 +278,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
-			if len(trowsID) > 5 {
+			if len(trowsID) > 4 {
 				err = a.processOutputsPost(trows, trowsID, typ, session, persist)
 				if err != nil {
 					return 0, err
@@ -450,9 +450,10 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count+1, "+
-				"total_received = total_received+"+b.TotalReceived+" "+
+				"total_received = total_received+"+b.TotalReceived+", "+
+				"updated_at = ?"+
 				"where id=? "+
-				"", b.ID).
+				"", dbr.Now, b.ID).
 				ExecContext(ctx)
 			if err != nil {
 				return err
@@ -461,9 +462,10 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			_, err = dbTx.UpdateBySql("update accumulate_balances "+
 				"set "+
 				"utxo_count = utxo_count-1, "+
-				"total_sent = total_sent+"+b.TotalSent+" "+
+				"total_sent = total_sent+"+b.TotalSent+", "+
+				"updated_at = ?"+
 				"where id=? "+
-				"", b.ID).
+				"", dbr.Now, b.ID).
 				ExecContext(ctx)
 			if err != nil {
 				return err
@@ -521,7 +523,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
-			if len(trowsID) > 5 {
+			if len(trowsID) > 4 {
 				err = a.processTransactionsPost(trows, trowsID, session, persist)
 				if err != nil {
 					return 0, err
@@ -637,9 +639,10 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 
 	_, err = dbTx.UpdateBySql("update accumulate_balances "+
 		"set "+
-		"transaction_count = transaction_count+1 "+
+		"transaction_count = transaction_count+1, "+
+		"updated_at = ?"+
 		"where id=? "+
-		"", b.ID).
+		"", dbr.Now, b.ID).
 		ExecContext(ctx)
 	if err != nil {
 		return err

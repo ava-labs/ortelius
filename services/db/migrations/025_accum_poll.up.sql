@@ -7,7 +7,8 @@ create table accumulate_balances
     transaction_count decimal(65) not null default 0,
     total_received    decimal(65) not null default 0,
     total_sent        decimal(65) not null default 0,
-    utxo_count        decimal(65) not null default 0
+    utxo_count        decimal(65) not null default 0,
+    updated_at timestamp(6)       not null default current_timestamp(6)
 );
 
 create table output_addresses_accumulate

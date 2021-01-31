@@ -1359,6 +1359,7 @@ type AccumulateBalances struct {
 	TotalReceived    string
 	TotalSent        string
 	UtxoCount        string
+	UpdatedAt        time.Time
 }
 
 func (b *AccumulateBalances) ComputeID() error {
@@ -1387,6 +1388,7 @@ func (p *persist) QueryAccumulateBalances(
 		"cast(total_sent as char) transaction_count",
 		"cast(balance as char) transaction_count",
 		"cast(utxo_count as char) transaction_count",
+		"updated_at",
 	).From(TableAccumulateBalances).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1405,6 +1407,7 @@ func (p *persist) InsertAccumulateBalances(
 		Pair("chain_id", v.ChainID).
 		Pair("asset_id", v.AssetID).
 		Pair("address", v.Address).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAccumulateBalances, false, err)
