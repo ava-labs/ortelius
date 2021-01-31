@@ -206,6 +206,7 @@ func (c *consumerconsensus) getNextMessage(ctx context.Context) (*Message, error
 		chainID:      c.chainID,
 		body:         msg.Value,
 		timestamp:    msg.Time.UTC().Unix(),
+		nanosecond:   int64(msg.Time.UTC().Nanosecond()),
 		kafkaMessage: &msg,
 	}
 

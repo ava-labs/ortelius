@@ -329,7 +329,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, &value.block.Header, replay.persist)
+					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
 					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
 						break
 					}
@@ -423,8 +423,8 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 					return
 				}
 
-				if len(block.BlockExtraData) == 0 {
-					continue
+				if block.BlockExtraData == nil {
+					block.BlockExtraData = []byte("")
 				}
 
 				hid := hashing.ComputeHash256(block.BlockExtraData)
@@ -434,6 +434,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 					chain,
 					block.BlockExtraData,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMEC})
@@ -520,6 +521,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 					chain.ID,
 					msg.Value,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUMECONSENSUS})
@@ -606,6 +608,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 					chain.ID,
 					msg.Value,
 					msg.Time.UTC().Unix(),
+					int64(msg.Time.UTC().Nanosecond()),
 				)
 
 				worker.Enque(&WorkerPacket{writer: writer, message: msgc, consumeType: CONSUME})

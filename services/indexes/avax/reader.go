@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -49,12 +50,19 @@ var (
 )
 
 type Reader struct {
-	conns *services.Connections
+	conns           *services.Connections
+	avmLock         sync.RWMutex
+	networkID       uint32
+	chainConsumers  map[string]services.Consumer
+	cChainCconsumer services.ConsumerCChain
 }
 
-func NewReader(conns *services.Connections) *Reader {
+func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain) *Reader {
 	return &Reader{
-		conns: conns,
+		conns:           conns,
+		networkID:       networkID,
+		chainConsumers:  chainConsumers,
+		cChainCconsumer: cChainCconsumer,
 	}
 }
 
@@ -1134,6 +1142,8 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		"union_q.chain_id",
 		"union_q.payload",
 		"union_q.stake",
+		"union_q.stakeableout",
+		"union_q.genesisutxo",
 		"union_q.frozen",
 	).
 		From(su).
@@ -1313,6 +1323,8 @@ func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
 		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
+		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
+		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
 		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs").
@@ -1342,6 +1354,8 @@ func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
 		"avm_outputs_redeeming.chain_id",
 		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
 		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
+		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
+		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
 		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
 	).
 		From("avm_outputs_redeeming").
@@ -1371,6 +1385,150 @@ func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
 		LeftJoin("transactions_epoch", "avm_transactions.id = transactions_epoch.id").
 		LeftJoin("transactions_validator", "avm_transactions.id = transactions_validator.id").
 		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
+}
+
+func (r *Reader) chainWriter(chainID string) (services.Consumer, error) {
+	r.avmLock.RLock()
+	w, ok := r.chainConsumers[chainID]
+	r.avmLock.RUnlock()
+	if ok {
+		return w, nil
+	}
+	return nil, fmt.Errorf("unimplemented")
+}
+
+func (r *Reader) ATxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("atx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+		ChainID       string
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("canonical_serialization as serialization", "chain_id").
+		From("avm_transactions").
+		Where("id=?", p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	var c services.Consumer
+	c, err = r.chainWriter(row.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	j, err := c.ParseJSON(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	return j, nil
+}
+
+func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("ptx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+		ChainID       string
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization", "chain_id").
+		From("pvm_blocks").
+		Where("id=?", p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	var c services.Consumer
+	c, err = r.chainWriter(row.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	j, err := c.ParseJSON(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	return j, nil
+}
+
+func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("ctx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization").
+		From("cvm_transactions").
+		Where("block="+p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+	return row.Serialization, nil
+}
+
+func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("etx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization").
+		From("cvm_transactions").
+		Where("block="+p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	return r.cChainCconsumer.ParseJSON(row.Serialization)
 }
 
 func uint64Ptr(u64 uint64) *uint64 {
