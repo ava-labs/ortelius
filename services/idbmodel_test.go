@@ -594,6 +594,7 @@ func TestCvmTransactions(t *testing.T) {
 	v.BlockchainID = "bid1"
 	v.Block = "1"
 	v.CreatedAt = tm
+	v.Serialization = []byte("test123")
 
 	stream := health.NewStream()
 
@@ -619,6 +620,7 @@ func TestCvmTransactions(t *testing.T) {
 	v.BlockchainID = "bid2"
 	v.Block = "2"
 	v.CreatedAt = tm
+	v.Serialization = []byte("test456")
 
 	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -627,6 +629,9 @@ func TestCvmTransactions(t *testing.T) {
 	fv, err = p.QueryCvmTransactions(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
+	}
+	if string(fv.Serialization) != "test456" {
+		t.Fatal("compare fail")
 	}
 	if fv.Block != "2" {
 		t.Fatal("compare fail")
