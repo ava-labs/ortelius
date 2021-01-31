@@ -184,7 +184,6 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 			if err != nil {
 				*runErr = err
 			}
-			os.Exit(0)
 		},
 	}
 
@@ -225,12 +224,34 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run:   runStreamProcessorManagers(sc, config, runErr, []stream.ProcessorFactory{stream.NewConsensusProducerProcessor, stream.NewDecisionsProducerProcessor}, producerFactories(config)),
+		Run: runStreamProcessorManagers(
+			sc,
+			config,
+			runErr,
+			[]stream.ProcessorFactory{
+				stream.NewConsensusProducerProcessor,
+				stream.NewDecisionsProducerProcessor,
+			},
+			producerFactories(config),
+			nil,
+		),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run:   runStreamProcessorManagers(sc, config, runErr, []stream.ProcessorFactory{consumers.Indexer, consumers.IndexerConsensus}, indexerFactories(config)),
+		Run: runStreamProcessorManagers(
+			sc,
+			config,
+			runErr,
+			[]stream.ProcessorFactory{
+				consumers.Indexer,
+				consumers.IndexerConsensus,
+			},
+			indexerFactories(config),
+			[]consumers.ConsumerFactory{
+				consumers.IndexerConsumer,
+			},
+		),
 	})
 
 	return streamCmd
@@ -287,8 +308,21 @@ func runListenCloser(lc utils.ListenCloser) {
 
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
-func runStreamProcessorManagers(sc *services.Control, config *cfg.Config, _ *error, factories []stream.ProcessorFactory, listenCloseFactories []utils.ListenCloserFactory) func(_ *cobra.Command, _ []string) {
+func runStreamProcessorManagers(
+	sc *services.Control,
+	config *cfg.Config,
+	runError *error,
+	factories []stream.ProcessorFactory,
+	listenCloseFactories []utils.ListenCloserFactory,
+	consumerFactories []consumers.ConsumerFactory,
+) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
+		err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+		if err != nil {
+			*runError = err
+			return
+		}
+
 		wg := &sync.WaitGroup{}
 		wg.Add(len(factories))
 
