@@ -1412,7 +1412,7 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 		Select("canonical_serialization", "chain_id").
 		From("avm_transactions").
 		Where("id=?", p.ID).
-		LoadContext(ctx, rows)
+		LoadContext(ctx, &rows)
 	if err != nil {
 		return nil, err
 	}
@@ -1422,7 +1422,7 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 			Select("serialization", "chain_id").
 			From("pvm_blocks").
 			Where("id=?", p.ID).
-			LoadContext(ctx, rows)
+			LoadContext(ctx, &rows)
 		if err != nil {
 			return nil, err
 		}
@@ -1446,6 +1446,34 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 		return nil, err
 	}
 	return j, nil
+}
+
+func (r *Reader) CTxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("ctx_json", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization").
+		From("cvm_transactions").
+		Where("block="+p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+	return row.Serialization, nil
 }
 
 func uint64Ptr(u64 uint64) *uint64 {

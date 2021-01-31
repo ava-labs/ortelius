@@ -7,8 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"reflect"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -92,14 +90,44 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		return err
 	}
 
+	var typ models.CChainType = 0
+	var blockchainID ids.ID
 	switch atx := atomicTX.UnsignedTx.(type) {
 	case *evm.UnsignedExportTx:
-		return w.indexExportTx(ctx, txID, atx, blockBytes, block)
+		typ = models.CChainExport
+		blockchainID = atx.BlockchainID
+		err = w.indexExportTx(ctx, txID, atx, blockBytes, block)
+		if err != nil {
+			return err
+		}
 	case *evm.UnsignedImportTx:
-		return w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, block)
+		typ = models.CChainImport
+		blockchainID = atx.BlockchainID
+		err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, block)
+		if err != nil {
+			return err
+		}
 	default:
-		return ctx.Job().EventErr(fmt.Sprintf("unknown atomic tx %s", reflect.TypeOf(atx)), ErrUnknownBlockType)
 	}
+
+	blockjson, err := json.Marshal(block)
+	if err != nil {
+		return err
+	}
+	cvmTransaction := &services.CvmTransactions{
+		ID:            txID.String(),
+		Type:          typ,
+		BlockchainID:  blockchainID.String(),
+		Block:         block.Header.Number.String(),
+		CreatedAt:     ctx.Time(),
+		Serialization: blockjson,
+	}
+	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *Writer) indexTransaction(
@@ -111,23 +139,6 @@ func (w *Writer) indexTransaction(
 	txFee uint64,
 	unsignedBytes []byte,
 ) error {
-	blockjson, err := json.Marshal(block)
-	if err != nil {
-		return err
-	}
-	cvmTransaction := &services.CvmTransactions{
-		ID:            id.String(),
-		Type:          typ,
-		BlockchainID:  blockChainID.String(),
-		Block:         block.Header.Number.String(),
-		CreatedAt:     ctx.Time(),
-		Serialization: blockjson,
-	}
-	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
-	if err != nil {
-		return err
-	}
-
 	avmTxtype := ""
 	switch typ {
 	case models.CChainImport:

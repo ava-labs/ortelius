@@ -101,7 +101,8 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/outputs/:id", (*V2Context).GetOutput).
 		Get("/assets", (*V2Context).ListAssets).
 		Get("/assets/:id", (*V2Context).GetAsset).
-		Get("/txjson/:id", (*V2Context).TxJSON)
+		Get("/txjson/:id", (*V2Context).TxJSON).
+		Get("/ctxjson/:id", (*V2Context).CTxJSON)
 }
 
 //
@@ -569,6 +570,25 @@ func (c *V2Context) TxJSON(w web.ResponseWriter, r *web.Request) {
 	p.ID = id
 
 	b, err := c.avaxReader.TxJSON(ctx, p)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	WriteJSON(w, b)
+}
+
+func (c *V2Context) CTxJSON(w web.ResponseWriter, r *web.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+	defer cancel()
+	p := &params.TxJsonParam{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+	id := r.PathParams["id"]
+	p.ID = id
+
+	b, err := c.avaxReader.CTxJSON(ctx, p)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
