@@ -601,6 +601,7 @@ type BlockSort string
 
 type TxJsonParam struct {
 	ListParams ListParams
+	ID         string
 }
 
 func (p *TxJsonParam) ForValues(v uint8, q url.Values) error {

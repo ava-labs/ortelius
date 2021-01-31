@@ -565,6 +565,9 @@ func (c *V2Context) TxJSON(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
+	id := r.PathParams["id"]
+	p.ID = id
+
 	b, err := c.avaxReader.TxJSON(ctx, p)
 	if err != nil {
 		c.WriteErr(w, 400, err)

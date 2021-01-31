@@ -1411,7 +1411,7 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 	_, err = dbRunner.
 		Select("canonical_serialization", "chain_id").
 		From("avm_transactions").
-		Where("id=?", p.ListParams.ID.String()).
+		Where("id=?", p.ID).
 		LoadContext(ctx, rows)
 	if err != nil {
 		return nil, err
@@ -1421,7 +1421,7 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 		_, err = dbRunner.
 			Select("serialization", "chain_id").
 			From("pvm_blocks").
-			Where("id=?", p.ListParams.ID.String()).
+			Where("id=?", p.ID).
 			LoadContext(ctx, rows)
 		if err != nil {
 			return nil, err
