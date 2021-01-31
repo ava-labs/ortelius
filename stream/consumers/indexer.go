@@ -4,6 +4,12 @@
 package consumers
 
 import (
+	"context"
+	"sync"
+
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
@@ -15,6 +21,8 @@ const (
 	IndexerAVMName = "avm"
 	IndexerPVMName = "pvm"
 )
+
+type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 var IndexerConsumer = func(networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
 	switch chainVM {
@@ -47,3 +55,43 @@ var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer serv
 }
 
 var IndexerCChain = stream.NewConsumerCChain
+
+func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
+	conns, err := sc.Database()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ctx := context.Background()
+
+	errs := avlancheGoUtils.AtomicInterface{}
+
+	wg := sync.WaitGroup{}
+	for _, chain := range chains {
+		for _, factory := range factories {
+			bootstrapfactory, err := factory(networkID, chain.VMType, chain.ID)
+			if err != nil {
+				return err
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err = bootstrapfactory.Bootstrap(ctx, conns, sc.Persist)
+				if err != nil {
+					errs.SetValue(err)
+				}
+			}()
+		}
+	}
+
+	wg.Wait()
+
+	if errs.GetValue() != nil {
+		return errs.GetValue().(error)
+	}
+
+	return nil
+}

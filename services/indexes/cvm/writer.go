@@ -88,10 +88,6 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
-	return nil
-}
-
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
 	var atomicTX *evm.Tx
 	if len(blockBytes) > 0 {
