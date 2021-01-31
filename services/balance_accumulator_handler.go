@@ -400,6 +400,8 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	}
 
 	for _, b := range balances {
+		b.UpdatedAt = time.Unix(1, 0)
+
 		// add any missing transaction rows.
 		outputsTxsAccumulate := &OutputTxsAccumulate{
 			ChainID:       b.ChainID,
@@ -451,9 +453,9 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 				"set "+
 				"utxo_count = utxo_count+1, "+
 				"total_received = total_received+"+b.TotalReceived+", "+
-				"updated_at = ?"+
+				"updated_at = ? "+
 				"where id=? "+
-				"", dbr.Now, b.ID).
+				"", time.Now().UTC(), b.ID).
 				ExecContext(ctx)
 			if err != nil {
 				return err
@@ -463,9 +465,9 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 				"set "+
 				"utxo_count = utxo_count-1, "+
 				"total_sent = total_sent+"+b.TotalSent+", "+
-				"updated_at = ?"+
+				"updated_at = ? "+
 				"where id=? "+
-				"", dbr.Now, b.ID).
+				"", time.Now().UTC(), b.ID).
 				ExecContext(ctx)
 			if err != nil {
 				return err
@@ -605,9 +607,10 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 	}
 
 	b := &AccumulateBalances{
-		ChainID: row.ChainID,
-		AssetID: row.AssetID,
-		Address: row.Address,
+		ChainID:   row.ChainID,
+		AssetID:   row.AssetID,
+		Address:   row.Address,
+		UpdatedAt: time.Unix(1, 0),
 	}
 	err = b.ComputeID()
 	if err != nil {
@@ -640,9 +643,9 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 	_, err = dbTx.UpdateBySql("update accumulate_balances "+
 		"set "+
 		"transaction_count = transaction_count+1, "+
-		"updated_at = ?"+
+		"updated_at = ? "+
 		"where id=? "+
-		"", dbr.Now, b.ID).
+		"", time.Now().UTC(), b.ID).
 		ExecContext(ctx)
 	if err != nil {
 		return err
