@@ -76,6 +76,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 			if err != nil {
 				return err
 			}
+			sc.Log.Info("bootstrap %d vm %s chain %s", networkID, chain.VMType, chain.ID)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -83,6 +84,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 				if err != nil {
 					errs.SetValue(err)
 				}
+				sc.Log.Info("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chain.ID)
 			}()
 		}
 	}
