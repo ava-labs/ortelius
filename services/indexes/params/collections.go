@@ -599,12 +599,12 @@ func toTransactionSort(s string) (TransactionSort, error) {
 
 type BlockSort string
 
-type TxJsonParam struct {
+type TxDataParam struct {
 	ListParams ListParams
 	ID         string
 }
 
-func (p *TxJsonParam) ForValues(v uint8, q url.Values) error {
+func (p *TxDataParam) ForValues(v uint8, q url.Values) error {
 	if err := p.ListParams.ForValues(v, q); err != nil {
 		return err
 	}
@@ -612,6 +612,6 @@ func (p *TxJsonParam) ForValues(v uint8, q url.Values) error {
 	return nil
 }
 
-func (p *TxJsonParam) CacheKey() []string {
-	return append(p.ListParams.CacheKey())
+func (p *TxDataParam) CacheKey() []string {
+	return p.ListParams.CacheKey()
 }

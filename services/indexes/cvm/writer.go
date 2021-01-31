@@ -53,6 +53,23 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "cvm-index" }
 
+func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
+	block, err := cblock.Unmarshal(txdata)
+	if err != nil {
+		return nil, err
+	}
+	if block.BlockExtraData == nil || len(block.BlockExtraData) == 0 {
+		return []byte(""), nil
+	}
+	atomicTX := new(evm.Tx)
+	_, err = w.codec.Unmarshal(block.BlockExtraData, atomicTX)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(atomicTX)
+}
+
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
 	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
@@ -93,6 +110,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		return err
 	}
 
+	blockjson, err := json.Marshal(block)
+	if err != nil {
+		return err
+	}
+
 	var typ models.CChainType = 0
 	var blockchainID ids.ID
 	if atomicTX != nil {
@@ -113,12 +135,13 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			}
 		default:
 		}
+	} else {
+		txID, err = ids.ToID(hashing.ComputeHash256(blockjson))
+		if err != nil {
+			return err
+		}
 	}
 
-	blockjson, err := json.Marshal(block)
-	if err != nil {
-		return err
-	}
 	cvmTransaction := &services.CvmTransactions{
 		ID:            txID.String(),
 		Type:          typ,

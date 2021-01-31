@@ -17,3 +17,4 @@ alter table `transactions_block`  MODIFY `created_at` timestamp(6) not null defa
 alter table `transactions_validator`  MODIFY `created_at` timestamp(6) not null default current_timestamp(6);
 
 alter table `cvm_transactions` add column `serialization` mediumblob;
+create index cvm_transactions_block ON cvm_transactions (block);

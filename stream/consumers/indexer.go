@@ -6,6 +6,7 @@ package consumers
 import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/ava-labs/ortelius/stream"
 )
@@ -40,5 +41,9 @@ var IndexerConsensus = stream.NewConsumerConsensusFactory(func(networkID uint32,
 	}
 	return indexer, err
 })
+
+var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer services.ConsumerCChain, err error) {
+	return cvm.NewWriter(networkID, chainID)
+}
 
 var IndexerCChain = stream.NewConsumerCChain

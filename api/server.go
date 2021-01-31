@@ -108,7 +108,11 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 		}
 		consumersmap[chid] = consumer
 	}
-	avaxReader := avax.NewReader(conf.NetworkID, connections, consumersmap)
+	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.Stream.CchainID)
+	if err != nil {
+		return nil, err
+	}
+	avaxReader := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain)
 
 	ctx := Context{sc: sc}
 

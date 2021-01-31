@@ -50,17 +50,19 @@ var (
 )
 
 type Reader struct {
-	conns     *services.Connections
-	avmLock   sync.RWMutex
-	networkID uint32
-	cmap      map[string]services.Consumer
+	conns           *services.Connections
+	avmLock         sync.RWMutex
+	networkID       uint32
+	chainConsumers  map[string]services.Consumer
+	cChainCconsumer services.ConsumerCChain
 }
 
-func NewReader(networkID uint32, conns *services.Connections, cmap map[string]services.Consumer) *Reader {
+func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain) *Reader {
 	return &Reader{
-		conns:     conns,
-		networkID: networkID,
-		cmap:      cmap,
+		conns:           conns,
+		networkID:       networkID,
+		chainConsumers:  chainConsumers,
+		cChainCconsumer: cChainCconsumer,
 	}
 }
 
@@ -1385,9 +1387,9 @@ func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
 		LeftJoin("transactions_block", "avm_transactions.id = transactions_block.id")
 }
 
-func (r *Reader) avmWriter(chainID string) (services.Consumer, error) {
+func (r *Reader) chainWriter(chainID string) (services.Consumer, error) {
 	r.avmLock.RLock()
-	w, ok := r.cmap[chainID]
+	w, ok := r.chainConsumers[chainID]
 	r.avmLock.RUnlock()
 	if ok {
 		return w, nil
@@ -1395,21 +1397,20 @@ func (r *Reader) avmWriter(chainID string) (services.Consumer, error) {
 	return nil, fmt.Errorf("unimplemented")
 }
 
-func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, error) {
-	dbRunner, err := r.conns.DB().NewSession("tx_json", cfg.RequestTimeout)
+func (r *Reader) ATxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("atx_data", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
 
 	type Row struct {
-		CanonicalSerialization []byte
-		Serialization          []byte
-		ChainID                string
+		Serialization []byte
+		ChainID       string
 	}
 	rows := []Row{}
 
 	_, err = dbRunner.
-		Select("canonical_serialization", "chain_id").
+		Select("canonical_serialization as serialization", "chain_id").
 		From("avm_transactions").
 		Where("id=?", p.ID).
 		LoadContext(ctx, &rows)
@@ -1418,17 +1419,42 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 	}
 
 	if len(rows) == 0 {
-		_, err = dbRunner.
-			Select("serialization", "chain_id").
-			From("pvm_blocks").
-			Where("id=?", p.ID).
-			LoadContext(ctx, &rows)
-		if err != nil {
-			return nil, err
-		}
-		if len(rows) > 0 {
-			rows[0].CanonicalSerialization = rows[0].Serialization
-		}
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	var c services.Consumer
+	c, err = r.chainWriter(row.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	j, err := c.ParseJSON(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	return j, nil
+}
+
+func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("ptx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+		ChainID       string
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization", "chain_id").
+		From("pvm_blocks").
+		Where("id=?", p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
 	}
 	if len(rows) == 0 {
 		return []byte(""), nil
@@ -1437,19 +1463,19 @@ func (r *Reader) TxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, err
 	row := rows[0]
 
 	var c services.Consumer
-	c, err = r.avmWriter(row.ChainID)
+	c, err = r.chainWriter(row.ChainID)
 	if err != nil {
 		return nil, err
 	}
-	j, err := c.ParseJSON(row.CanonicalSerialization)
+	j, err := c.ParseJSON(row.Serialization)
 	if err != nil {
 		return nil, err
 	}
 	return j, nil
 }
 
-func (r *Reader) CTxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, error) {
-	dbRunner, err := r.conns.DB().NewSession("ctx_json", cfg.RequestTimeout)
+func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("ctx_data", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1474,6 +1500,35 @@ func (r *Reader) CTxJSON(ctx context.Context, p *params.TxJsonParam) ([]byte, er
 
 	row := rows[0]
 	return row.Serialization, nil
+}
+
+func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
+	dbRunner, err := r.conns.DB().NewSession("etx_data", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type Row struct {
+		Serialization []byte
+	}
+	rows := []Row{}
+
+	_, err = dbRunner.
+		Select("serialization").
+		From("cvm_transactions").
+		Where("block="+p.ID).
+		LoadContext(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rows) == 0 {
+		return []byte(""), nil
+	}
+
+	row := rows[0]
+
+	return r.cChainCconsumer.ParseJSON(row.Serialization)
 }
 
 func uint64Ptr(u64 uint64) *uint64 {

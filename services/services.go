@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	cblock "github.com/ava-labs/ortelius/models"
+
 	kafkaMessage "github.com/segmentio/kafka-go"
 
 	"github.com/gocraft/dbr/v2"
@@ -24,6 +26,13 @@ type Consumer interface {
 	Bootstrap(context.Context, *Connections, Persist) error
 	Consume(context.Context, *Connections, Consumable, Persist) error
 	ConsumeConsensus(context.Context, *Connections, Consumable, Persist) error
+	ParseJSON([]byte) ([]byte, error)
+}
+
+type ConsumerCChain interface {
+	Name() string
+	Bootstrap(context.Context, *Connections) error
+	Consume(context.Context, *Connections, Consumable, *cblock.Block, Persist) error
 	ParseJSON([]byte) ([]byte, error)
 }
 

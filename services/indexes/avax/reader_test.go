@@ -207,7 +207,7 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 	}
 
 	cmap := make(map[string]services.Consumer)
-	reader := NewReader(5, conns, cmap)
+	reader := NewReader(5, conns, cmap, nil)
 	return reader, func() {
 		s.Close()
 		_ = conns.Close()
