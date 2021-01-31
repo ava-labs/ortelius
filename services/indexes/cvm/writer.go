@@ -76,8 +76,9 @@ func (w *Writer) Bootstrap(_ context.Context, _ *services.Connections) error {
 }
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
-	atomicTX := new(evm.Tx)
+	var atomicTX *evm.Tx
 	if len(blockBytes) > 0 {
+		atomicTX = new(evm.Tx)
 		_, err := w.codec.Unmarshal(blockBytes, atomicTX)
 		if err != nil {
 			return err
@@ -94,22 +95,24 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 
 	var typ models.CChainType = 0
 	var blockchainID ids.ID
-	switch atx := atomicTX.UnsignedTx.(type) {
-	case *evm.UnsignedExportTx:
-		typ = models.CChainExport
-		blockchainID = atx.BlockchainID
-		err = w.indexExportTx(ctx, txID, atx, blockBytes)
-		if err != nil {
-			return err
+	if atomicTX != nil {
+		switch atx := atomicTX.UnsignedTx.(type) {
+		case *evm.UnsignedExportTx:
+			typ = models.CChainExport
+			blockchainID = atx.BlockchainID
+			err = w.indexExportTx(ctx, txID, atx, blockBytes)
+			if err != nil {
+				return err
+			}
+		case *evm.UnsignedImportTx:
+			typ = models.CChainImport
+			blockchainID = atx.BlockchainID
+			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes)
+			if err != nil {
+				return err
+			}
+		default:
 		}
-	case *evm.UnsignedImportTx:
-		typ = models.CChainImport
-		blockchainID = atx.BlockchainID
-		err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes)
-		if err != nil {
-			return err
-		}
-	default:
 	}
 
 	blockjson, err := json.Marshal(block)
