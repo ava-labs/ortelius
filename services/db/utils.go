@@ -15,6 +15,7 @@ const (
 	RemovedPassword = "[removed]"
 
 	DeadlockDBErrorMessage = "Deadlock found when trying to get lock; try restarting transaction"
+	TimeoutDBErrorMessage  = "Lock wait timeout exceeded; try restarting transaction"
 )
 
 func SanitizedDSN(cfg *cfg.DB) (string, string, error) {
@@ -37,6 +38,11 @@ func SanitizedDSN(cfg *cfg.DB) (string, string, error) {
 
 func ErrIsDuplicateEntryError(err error) bool {
 	return err != nil && strings.HasPrefix(err.Error(), "Error 1062: Duplicate entry")
+}
+
+func ErrIsLockError(err error) bool {
+	return err != nil && (strings.Contains(err.Error(), DeadlockDBErrorMessage) ||
+		strings.Contains(err.Error(), TimeoutDBErrorMessage))
 }
 
 func forceParseTimeParam(dsn string) (string, error) {
