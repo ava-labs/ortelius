@@ -54,20 +54,20 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connect
 	atomic.AddInt64(&a.running, 1)
 
 	go func() {
-		var conns *Connections
-		var err error
 		defer func() {
 			atomic.AddInt64(&a.running, -1)
+		}()
 
+		conns, err := sc.DatabaseOnly()
+		if err != nil {
+			return
+		}
+		defer func() {
 			if conns != nil {
 				_ = conns.Close()
 			}
 		}()
 
-		conns, err = sc.DatabaseOnly()
-		if err != nil {
-			return
-		}
 		for icnt := 0; icnt < 10; icnt++ {
 			_, err = a.runInternal(sc, conns, persist)
 			if err != nil {
