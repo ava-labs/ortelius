@@ -361,7 +361,11 @@ func (w *Writer) InsertOutputAddress(
 	if err != nil {
 		return err
 	}
-	err = ctx.Persist().InsertOutputAddressAccumulate(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return err
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 	if err != nil {
 		return err
 	}

@@ -131,6 +131,28 @@ type OutputAddressAccumulateWithTrID struct {
 	TransactionID string
 }
 
+func outTable(typ processType) string {
+	tbl := ""
+	switch typ {
+	case processTypeOut:
+		tbl = TableOutputAddressAccumulateOut
+	case processTypeIn:
+		tbl = TableOutputAddressAccumulateIn
+	}
+	return tbl
+}
+
+func balanceTable(typ processType) string {
+	tbl := ""
+	switch typ {
+	case processTypeOut:
+		tbl = TableAccumulateBalancesReceived
+	case processTypeIn:
+		tbl = TableAccumulateBalancesSent
+	}
+	return tbl
+}
+
 func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *dbr.Session) ([]*OutputAddressAccumulateWithTrID, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -138,29 +160,28 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 	var rowdata []*OutputAddressAccumulateWithTrID
 	var err error
 
+	tbl := outTable(typ)
+
 	b := session.Select(
-		"output_addresses_accumulate.id",
-		"output_addresses_accumulate.output_id",
-		"output_addresses_accumulate.address",
+		tbl+".id",
+		tbl+".output_id",
+		tbl+".address",
 		"avm_outputs.transaction_id",
 	).
-		From("output_addresses_accumulate").
-		Join("avm_outputs", "output_addresses_accumulate.output_id = avm_outputs.id")
+		From(tbl).
+		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
 
 	switch typ {
 	case processTypeOut:
-		b = b.
-			Where("output_addresses_accumulate.processed_out = ?", 0).
-			OrderAsc("output_addresses_accumulate.processed_out")
 	case processTypeIn:
 		b = b.
-			Join("avm_outputs_redeeming", "output_addresses_accumulate.output_id = avm_outputs_redeeming.id ").
-			Where("output_addresses_accumulate.processed_in = ?", 0).
-			OrderAsc("output_addresses_accumulate.processed_in")
+			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
 	}
 
 	_, err = b.
-		OrderAsc("output_addresses_accumulate.created_at").
+		Where(tbl+".processed = ?", 0).
+		OrderAsc(tbl+".processed").
+		OrderAsc(tbl+".created_at").
 		Limit(RowLimitValue).
 		LoadContext(ctx, &rowdata)
 	if err != nil {
@@ -221,6 +242,8 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
+	tbl := outTable(typ)
+
 	var err error
 	var dbTx *dbr.Tx
 	dbTx, err = session.Begin()
@@ -231,19 +254,11 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 
 	var rowdata []*OutputAddressAccumulateWithTrID
 
-	b := dbTx.Select(
+	_, err = dbTx.Select(
 		"id",
 	).
-		From("output_addresses_accumulate")
-
-	switch typ {
-	case processTypeOut:
-		b = b.Where("processed_out = ? and id in ?", 0, workRowsID)
-	case processTypeIn:
-		b = b.Where("processed_in = ? and id in ?", 0, workRowsID)
-	}
-
-	_, err = b.
+		From(tbl).
+		Where("processed = ? and id in ?", 0, workRowsID).
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
@@ -273,31 +288,25 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 ) error {
 	var err error
 
-	upd := ""
-	switch typ {
-	case processTypeOut:
-		upd = "processed_out"
-	case processTypeIn:
-		upd = "processed_in"
-	}
+	tbl := outTable(typ)
 
-	_, err = dbTx.Update("output_addresses_accumulate").
-		Set(upd, 1).
+	balancetbl := balanceTable(typ)
+
+	_, err = dbTx.Update(tbl).
+		Set("processed", 1).
 		Where("id=?", row.ID).
 		ExecContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	var balances []*AccumulateBalances
+	var balances []*AccumulateBalancesAmount
 
 	_, err = dbTx.Select(
 		"avm_outputs.chain_id",
 		"avm_output_addresses.address",
 		"avm_outputs.asset_id",
-		"count(distinct(avm_outputs.transaction_id)) as transaction_count",
-		"sum(avm_outputs.amount) as total_received",
-		"sum(avm_outputs.amount) as total_sent",
+		"sum(avm_outputs.amount) as total_amount",
 	).From("avm_outputs").
 		Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
 		Where("avm_outputs.id=? and avm_output_addresses.address=?", row.OutputID, row.Address).
@@ -312,9 +321,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	}
 
 	for _, b := range balances {
-		b.UpdatedAt = time.Unix(1, 0)
-
-		// add any missing transaction rows.
+		// add any missing txs rows.
 		outputsTxsAccumulate := &OutputTxsAccumulate{
 			ChainID:       b.ChainID,
 			AssetID:       b.AssetID,
@@ -331,19 +338,26 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			return err
 		}
 
+		b.UpdatedAt = time.Unix(1, 0)
 		err = b.ComputeID()
 		if err != nil {
 			return err
 		}
 
-		err = persist.InsertAccumulateBalances(ctx, dbTx, b)
+		switch typ {
+		case processTypeOut:
+			err = persist.InsertAccumulateBalancesReceived(ctx, dbTx, b)
+		case processTypeIn:
+			err = persist.InsertAccumulateBalancesSent(ctx, dbTx, b)
+		}
 		if err != nil {
 			return err
 		}
 
-		var balancesLocked []*AccumulateBalances
+		var balancesLocked []*AccumulateBalancesAmount
+
 		_, err = dbTx.Select("id").
-			From("accumulate_balances").
+			From(balancetbl).
 			Where("id = ?", b.ID).
 			Suffix("for update").
 			LoadContext(ctx, &balancesLocked)
@@ -359,31 +373,16 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			return fmt.Errorf("balancesLocked failed")
 		}
 
-		switch typ {
-		case processTypeOut:
-			_, err = dbTx.UpdateBySql("update accumulate_balances "+
-				"set "+
-				"utxo_count = utxo_count+1, "+
-				"total_received = total_received+"+b.TotalReceived+", "+
-				"updated_at = ? "+
-				"where id=? "+
-				"", time.Now().UTC(), b.ID).
-				ExecContext(ctx)
-			if err != nil {
-				return err
-			}
-		case processTypeIn:
-			_, err = dbTx.UpdateBySql("update accumulate_balances "+
-				"set "+
-				"utxo_count = utxo_count-1, "+
-				"total_sent = total_sent+"+b.TotalSent+", "+
-				"updated_at = ? "+
-				"where id=? "+
-				"", time.Now().UTC(), b.ID).
-				ExecContext(ctx)
-			if err != nil {
-				return err
-			}
+		_, err = dbTx.UpdateBySql("update "+balancetbl+" "+
+			"set "+
+			"utxo_count = utxo_count+1, "+
+			"total_amount = total_amount+"+b.TotalAmount+", "+
+			"updated_at = ? "+
+			"where id=? "+
+			"", time.Now().UTC(), b.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -518,7 +517,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 		return err
 	}
 
-	b := &AccumulateBalances{
+	b := &AccumulateBalancesTransactions{
 		ChainID:   row.ChainID,
 		AssetID:   row.AssetID,
 		Address:   row.Address,
@@ -528,14 +527,14 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 	if err != nil {
 		return err
 	}
-	err = persist.InsertAccumulateBalances(ctx, dbTx, b)
+	err = persist.InsertAccumulateBalancesTransactions(ctx, dbTx, b)
 	if err != nil {
 		return err
 	}
 
-	var balancesLocked []*AccumulateBalances
+	var balancesLocked []*AccumulateBalancesTransactions
 	_, err = dbTx.Select("id").
-		From("accumulate_balances").
+		From(TableAccumulateBalancesTransactions).
 		Where("id = ?", b.ID).
 		Suffix("for update").
 		LoadContext(ctx, &balancesLocked)
@@ -552,7 +551,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 		return fmt.Errorf("balancesLocked failed")
 	}
 
-	_, err = dbTx.UpdateBySql("update accumulate_balances "+
+	_, err = dbTx.UpdateBySql("update "+TableAccumulateBalancesTransactions+" "+
 		"set "+
 		"transaction_count = transaction_count+1, "+
 		"updated_at = ? "+
