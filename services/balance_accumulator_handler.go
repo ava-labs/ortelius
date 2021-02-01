@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -32,9 +33,42 @@ func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Con
 }
 
 type BalancerAccumulateHandler struct {
+	running int64
+	lock    sync.Mutex
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, conns *Connections) {
+func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connections) {
+	if atomic.LoadInt64(&a.running) < 2 {
+		return
+	}
+
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if atomic.LoadInt64(&a.running) < 2 {
+		return
+	}
+
+	atomic.AddInt64(&a.running, 1)
+
+	go func() {
+		var conns *Connections
+		defer func() {
+			atomic.AddInt64(&a.running, -1)
+
+			if conns != nil {
+				_ = conns.Close()
+			}
+		}()
+
+		conns, err := sc.DatabaseOnly()
+		if err != nil {
+			return
+		}
+		a.runInternal(sc, conns, persist)
+	}()
+}
+
+func (a *BalancerAccumulateHandler) runInternal(sc *Control, conns *Connections, persist Persist) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -45,7 +79,6 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, conns *Con
 			if !db.ErrIsLockError(err) {
 				break
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
@@ -60,7 +93,6 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, conns *Con
 			if !db.ErrIsLockError(err) {
 				break
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
@@ -75,7 +107,6 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, conns *Con
 			if !db.ErrIsLockError(err) {
 				break
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 		if err != nil {
 			sc.Log.Warn("Accumulate %v", err)
@@ -90,7 +121,7 @@ func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, per
 		if err != nil {
 			return err
 		}
-		if cnt == 0 {
+		if cnt < RowLimitValueBase {
 			break
 		}
 	}
@@ -104,7 +135,7 @@ func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, pers
 		if err != nil {
 			return err
 		}
-		if cnt == 0 {
+		if cnt < RowLimitValueBase {
 			break
 		}
 	}
@@ -118,7 +149,7 @@ func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, pe
 		if err != nil {
 			return err
 		}
-		if cnt == 0 {
+		if cnt < RowLimitValueBase {
 			break
 		}
 	}
