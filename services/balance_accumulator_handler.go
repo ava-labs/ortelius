@@ -14,6 +14,7 @@ import (
 
 var RowLimitValueBase = 1000
 var RowLimitValue = uint64(RowLimitValueBase)
+var LockSize = 1
 
 var updTimeout = 10 * time.Minute
 
@@ -184,18 +185,18 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 	}
 
 	if len(rowdataAvail) > 0 {
-		trowsID := make([]string, 0, 5)
+		trowsID := make([]string, 0, LockSize)
 		trows := make(map[string]*OutputAddressAccumulateWithTrID)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
-			if len(trowsID) > 4 {
+			if len(trowsID) > LockSize {
 				err = a.processOutputsPost(trows, trowsID, typ, session, persist)
 				if err != nil {
 					return 0, err
 				}
 				trows = make(map[string]*OutputAddressAccumulateWithTrID)
-				trowsID = make([]string, 0, 5)
+				trowsID = make([]string, 0, LockSize)
 			}
 		}
 
@@ -431,18 +432,18 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 		return 0, err
 	}
 	if len(rowdataAvail) > 0 {
-		trowsID := make([]string, 0, 5)
+		trowsID := make([]string, 0, LockSize)
 		trows := make(map[string]*OutputTxsAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
-			if len(trowsID) > 4 {
+			if len(trowsID) > LockSize {
 				err = a.processTransactionsPost(trows, trowsID, session, persist)
 				if err != nil {
 					return 0, err
 				}
 				trows = make(map[string]*OutputTxsAccumulate)
-				trowsID = make([]string, 0, 5)
+				trowsID = make([]string, 0, LockSize)
 			}
 		}
 
