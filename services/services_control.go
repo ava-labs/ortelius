@@ -29,10 +29,6 @@ type Control struct {
 
 func (s *Control) Init() {
 	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
-	s.BalanceAccumulatorManager.handlers =
-		append(s.BalanceAccumulatorManager.handlers, &BalancerAccumulateHandler{})
-	s.BalanceAccumulatorManager.handlers =
-		append(s.BalanceAccumulatorManager.handlers, &BalancerAccumulateHandler{})
 }
 
 func (s *Control) InitProduceMetrics() {
