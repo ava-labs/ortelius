@@ -289,7 +289,6 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	var err error
 
 	tbl := outTable(typ)
-
 	balancetbl := balanceTable(typ)
 
 	_, err = dbTx.Update(tbl).
@@ -404,7 +403,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		"transaction_id",
 		"processed",
 	).
-		From("output_txs_accumulate").
+		From(TableOutputTxsAccumulate).
 		Where("processed = ?", 0).
 		OrderAsc("processed").
 		OrderAsc("created_at").
@@ -479,7 +478,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPost(
 	_, err = dbTx.Select(
 		"id",
 	).
-		From("output_txs_accumulate").
+		From(TableOutputTxsAccumulate).
 		Where("processed = ? and id in ?", 0, workRowsID).
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
@@ -509,7 +508,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 ) error {
 	var err error
 
-	_, err = dbTx.Update("output_txs_accumulate").
+	_, err = dbTx.Update(TableOutputTxsAccumulate).
 		Set("processed", 1).
 		Where("id = ?", row.ID).
 		ExecContext(ctx)
