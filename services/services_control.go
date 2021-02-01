@@ -43,6 +43,17 @@ func (s *Control) InitConsumeMetrics() {
 	metrics.Prometheus.CounterInit(MetricConsumeFailureCountKey, "records failure")
 }
 
+func (s *Control) DatabaseOnly() (*Connections, error) {
+	c, err := NewDBFromConfig(s.Services, false)
+	if err != nil {
+		return nil, err
+	}
+	c.DB().SetMaxIdleConns(32)
+	c.DB().SetConnMaxIdleTime(5 * time.Minute)
+	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	return c, nil
+}
+
 func (s *Control) Database() (*Connections, error) {
 	c, err := NewConnectionsFromConfig(s.Services, false)
 	if err != nil {
@@ -51,7 +62,7 @@ func (s *Control) Database() (*Connections, error) {
 	c.DB().SetMaxIdleConns(32)
 	c.DB().SetConnMaxIdleTime(5 * time.Minute)
 	c.DB().SetConnMaxLifetime(5 * time.Minute)
-	return c, err
+	return c, nil
 }
 
 func (s *Control) DatabaseRO() (*Connections, error) {
@@ -62,5 +73,5 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 	c.DB().SetMaxIdleConns(32)
 	c.DB().SetConnMaxIdleTime(5 * time.Minute)
 	c.DB().SetConnMaxLifetime(5 * time.Minute)
-	return c, err
+	return c, nil
 }

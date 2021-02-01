@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -51,7 +50,7 @@ type consumer struct {
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		conns, err := sc.Database()
+		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			return nil, err
 		}
@@ -153,10 +152,10 @@ func (c *consumer) ProcessNextMessage() error {
 
 	for {
 		err = c.persistConsume(msg)
-		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()

@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -78,7 +77,7 @@ func (replay *replay) Start() error {
 	replayEndTime := time.Now().UTC().Add(time.Minute)
 	waitGroup := new(int64)
 
-	conns, err := replay.sc.Database()
+	conns, err := replay.sc.DatabaseOnly()
 	if err != nil {
 		return err
 	}
@@ -306,10 +305,10 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 			case CONSUME:
 				for {
 					consumererr = value.writer.Consume(context.Background(), replay.conns, value.message, replay.persist)
-					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
+					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -318,10 +317,10 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 			case CONSUMECONSENSUS:
 				for {
 					consumererr = value.writer.ConsumeConsensus(context.Background(), replay.conns, value.message, replay.persist)
-					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
+					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -330,10 +329,10 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 			case CONSUMEC:
 				for {
 					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
-					if consumererr == nil || !strings.Contains(consumererr.Error(), db.DeadlockDBErrorMessage) {
+					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
