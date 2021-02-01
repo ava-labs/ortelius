@@ -5,6 +5,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -92,9 +93,8 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 		if err != nil {
 			return nil, stream.EventErrKv("connect.db", err, kvs)
 		}
-		stream.EventKv("connect.db", kvs)
 	} else {
-		stream.Event("connect.db.skip")
+		return nil, fmt.Errorf("invalid databas")
 	}
 
 	return NewConnections(stream, dbConn, nil), nil
