@@ -227,11 +227,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}
 
-	if err = dbTx.Commit(); err != nil {
-		return stacktrace.Propagate(err, "Failed to commit database tx")
-	}
-
-	return nil
+	return dbTx.Commit()
 }
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
