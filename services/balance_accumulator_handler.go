@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -24,57 +23,22 @@ var processTypeIn processType = 1
 var processTypeOut processType = 2
 
 type BalanceAccumulatorManager struct {
-	handlers []*BalancerAccumulateHandler
+	handler BalancerAccumulateHandler
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, _ *Connections) {
-	for _, h := range a.handlers {
-		h.Run(persist, sc)
-	}
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Connections) {
+	a.handler.Run(persist, sc, conns)
 }
 
 type BalancerAccumulateHandler struct {
-	runningOutputOuts   int64
-	runningOutputIns    int64
-	runningTransactions int64
-	lock                sync.Mutex
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
-	a.runOutputsOuts(persist, sc)
-	a.runOutputsIns(persist, sc)
-	a.runTransactions(persist, sc)
-}
-
-func (a *BalancerAccumulateHandler) runOutputsOuts(persist Persist, sc *Control) {
-	if atomic.LoadInt64(&a.runningOutputOuts) != 0 {
-		return
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if atomic.LoadInt64(&a.runningOutputOuts) != 0 {
-		return
-	}
-
-	atomic.AddInt64(&a.runningOutputOuts, 1)
+func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, conns *Connections) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		defer func() {
-			atomic.AddInt64(&a.runningOutputOuts, -1)
-		}()
-
-		conns, err := sc.DatabaseOnly()
-		if err != nil {
-			sc.Log.Warn("Accumulate conns create %v", err)
-			return
-		}
-		defer func() {
-			err := conns.Close()
-			if err != nil {
-				sc.Log.Warn("Accumulate conns close %v", err)
-			}
-		}()
-
+		defer wg.Done()
+		var err error
 		for {
 			err = a.accumulateOutputOuts(conns, persist)
 			if !db.ErrIsLockError(err) {
@@ -86,37 +50,10 @@ func (a *BalancerAccumulateHandler) runOutputsOuts(persist Persist, sc *Control)
 			sc.Log.Warn("Accumulate %v", err)
 		}
 	}()
-}
-
-func (a *BalancerAccumulateHandler) runOutputsIns(persist Persist, sc *Control) {
-	if atomic.LoadInt64(&a.runningOutputIns) != 0 {
-		return
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if atomic.LoadInt64(&a.runningOutputIns) != 0 {
-		return
-	}
-
-	atomic.AddInt64(&a.runningOutputIns, 1)
+	wg.Add(1)
 	go func() {
-		defer func() {
-			atomic.AddInt64(&a.runningOutputIns, -1)
-		}()
-
-		conns, err := sc.DatabaseOnly()
-		if err != nil {
-			sc.Log.Warn("Accumulate conns create %v", err)
-			return
-		}
-		defer func() {
-			err := conns.Close()
-			if err != nil {
-				sc.Log.Warn("Accumulate conns close %v", err)
-			}
-		}()
-
+		defer wg.Done()
+		var err error
 		for {
 			err = a.accumulateOutputIns(conns, persist)
 			if !db.ErrIsLockError(err) {
@@ -128,37 +65,10 @@ func (a *BalancerAccumulateHandler) runOutputsIns(persist Persist, sc *Control) 
 			sc.Log.Warn("Accumulate %v", err)
 		}
 	}()
-}
-
-func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control) {
-	if atomic.LoadInt64(&a.runningTransactions) != 0 {
-		return
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if atomic.LoadInt64(&a.runningTransactions) != 0 {
-		return
-	}
-
-	atomic.AddInt64(&a.runningTransactions, 1)
+	wg.Add(1)
 	go func() {
-		defer func() {
-			atomic.AddInt64(&a.runningTransactions, -1)
-		}()
-
-		conns, err := sc.DatabaseOnly()
-		if err != nil {
-			sc.Log.Warn("Accumulate conns create %v", err)
-			return
-		}
-		defer func() {
-			err := conns.Close()
-			if err != nil {
-				sc.Log.Warn("Accumulate conns close %v", err)
-			}
-		}()
-
+		defer wg.Done()
+		var err error
 		for {
 			err = a.accumulateTranactions(conns, persist)
 			if !db.ErrIsLockError(err) {
@@ -170,6 +80,7 @@ func (a *BalancerAccumulateHandler) runTransactions(persist Persist, sc *Control
 			sc.Log.Warn("Accumulate %v", err)
 		}
 	}()
+	wg.Wait()
 }
 
 func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist) error {
