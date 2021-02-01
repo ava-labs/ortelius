@@ -55,6 +55,7 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connect
 
 	go func() {
 		var conns *Connections
+		var err error
 		defer func() {
 			atomic.AddInt64(&a.running, -1)
 
@@ -63,7 +64,7 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connect
 			}
 		}()
 
-		conns, err := sc.DatabaseOnly()
+		conns, err = sc.DatabaseOnly()
 		if err != nil {
 			return
 		}
