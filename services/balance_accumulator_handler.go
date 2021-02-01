@@ -14,7 +14,7 @@ import (
 
 var RowLimitValueBase = 1000
 var RowLimitValue = uint64(RowLimitValueBase)
-var LockSize = 1
+var LockSize = 5
 
 var updTimeout = 10 * time.Minute
 
