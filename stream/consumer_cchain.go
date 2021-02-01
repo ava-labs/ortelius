@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,10 +126,10 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 
 	for {
 		err = c.persistConsume(nmsg, block)
-		if err == nil || !strings.Contains(err.Error(), db.DeadlockDBErrorMessage) {
+		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
@@ -244,7 +243,7 @@ func (c *ConsumerCChain) isStopping() bool {
 }
 
 func (c *ConsumerCChain) init() error {
-	conns, err := c.sc.Database()
+	conns, err := c.sc.DatabaseOnly()
 	if err != nil {
 		return err
 	}

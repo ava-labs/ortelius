@@ -324,7 +324,7 @@ func (p *ProducerCChain) isStopping() bool {
 }
 
 func (p *ProducerCChain) init() error {
-	conns, err := p.sc.Database()
+	conns, err := p.sc.DatabaseOnly()
 	if err != nil {
 		return err
 	}

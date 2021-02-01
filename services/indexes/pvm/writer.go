@@ -57,7 +57,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 func (*Writer) Name() string { return "pvm-index" }
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	var block platformvm.Block
+	var block platformvm.Tx
 	_, err := w.codec.Unmarshal(txBytes, &block)
 	if err != nil {
 		return nil, err

@@ -183,23 +183,6 @@ func (w *Writer) InsertTransactionIns(
 
 	inputID := in.TxID.Prefix(uint64(in.OutputIndex))
 
-	outputsRedeeming := &services.OutputsRedeeming{
-		ID:                     inputID.String(),
-		RedeemedAt:             ctx.Time(),
-		RedeemingTransactionID: txID.String(),
-		Amount:                 in.Input().Amount(),
-		OutputIndex:            in.OutputIndex,
-		Intx:                   in.TxID.String(),
-		AssetID:                in.AssetID().String(),
-		ChainID:                chainID,
-		CreatedAt:              ctx.Time(),
-	}
-
-	err = ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
-	if err != nil {
-		return 0, err
-	}
-
 	if idx < len(creds) {
 		// For each signature we recover the public key and the data to the db
 		cred, ok := creds[idx].(*secp256k1fx.Credential)
@@ -220,7 +203,20 @@ func (w *Writer) InsertTransactionIns(
 			}
 		}
 	}
-	return totalin, nil
+
+	outputsRedeeming := &services.OutputsRedeeming{
+		ID:                     inputID.String(),
+		RedeemedAt:             ctx.Time(),
+		RedeemingTransactionID: txID.String(),
+		Amount:                 in.Input().Amount(),
+		OutputIndex:            in.OutputIndex,
+		Intx:                   in.TxID.String(),
+		AssetID:                in.AssetID().String(),
+		ChainID:                chainID,
+		CreatedAt:              ctx.Time(),
+	}
+
+	return totalin, ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionOuts(
@@ -259,6 +255,18 @@ func (w *Writer) InsertOutput(
 ) error {
 	outputID := txID.Prefix(uint64(idx))
 
+	var err error
+
+	// Ingest each Output Address
+	for _, addr := range out.Addresses() {
+		addrBytes := [20]byte{}
+		copy(addrBytes[:], addr)
+		err = w.InsertOutputAddress(ctx, outputID, addrBytes, nil)
+		if err != nil {
+			return err
+		}
+	}
+
 	output := &services.Outputs{
 		ID:            outputID.String(),
 		ChainID:       chainID,
@@ -279,21 +287,8 @@ func (w *Writer) InsertOutput(
 		CreatedAt:     ctx.Time(),
 	}
 
-	err := ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
-	if err != nil {
-		return err
-	}
-
-	// Ingest each Output Address
-	for _, addr := range out.Addresses() {
-		addrBytes := [20]byte{}
-		copy(addrBytes[:], addr)
-		err = w.InsertOutputAddress(ctx, outputID, addrBytes, nil)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	// ensure that addresses are created before the outputs
+	return ctx.Persist().InsertOutputs(ctx.Ctx(), ctx.DB(), output, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertAddressFromPublicKey(

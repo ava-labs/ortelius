@@ -132,7 +132,10 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 
 		dbSess := conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), 0, persist)
-		return w.insertGenesis(cCtx, createChainTx.GenesisData)
+		err = w.insertGenesis(cCtx, createChainTx.GenesisData)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -224,11 +227,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}
 
-	if err = dbTx.Commit(); err != nil {
-		return stacktrace.Propagate(err, "Failed to commit database tx")
-	}
-
-	return nil
+	return dbTx.Commit()
 }
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
