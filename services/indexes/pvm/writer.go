@@ -84,12 +84,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	if err != nil {
 		return err
 	}
-	err = dbTx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return dbTx.Commit()
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
@@ -149,11 +144,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 		errs.Add(w.indexTransaction(cCtx, ChainID, *tx, true))
 	}
 
-	if errs.Errored() {
-		return errs.Err
-	}
-
-	return nil
+	return errs.Err
 }
 
 func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {

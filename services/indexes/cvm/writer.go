@@ -85,13 +85,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	if err != nil {
 		return err
 	}
-
-	err = dbTx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return dbTx.Commit()
 }
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
