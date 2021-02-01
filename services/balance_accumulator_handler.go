@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/gocraft/dbr/v2"
@@ -16,6 +18,7 @@ import (
 var RowLimitValueBase = 1000
 var RowLimitValue = uint64(RowLimitValueBase)
 var LockSize = 5
+var Threads = int64(4)
 
 var updTimeout = 10 * time.Minute
 
@@ -38,13 +41,13 @@ type BalancerAccumulateHandler struct {
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connections) {
-	if atomic.LoadInt64(&a.running) < 2 {
+	if atomic.LoadInt64(&a.running) > Threads {
 		return
 	}
 
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if atomic.LoadInt64(&a.running) < 2 {
+	if atomic.LoadInt64(&a.running) > Threads {
 		return
 	}
 
@@ -64,97 +67,132 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connect
 		if err != nil {
 			return
 		}
-		a.runInternal(sc, conns, persist)
+		for icnt := 0; icnt < 10; icnt++ {
+			_, err = a.runInternal(sc, conns, persist)
+			if err != nil {
+				sc.Log.Info("accumulate balance error %v", err)
+			}
+		}
 	}()
 }
 
-func (a *BalancerAccumulateHandler) runInternal(sc *Control, conns *Connections, persist Persist) {
+func (a *BalancerAccumulateHandler) runInternal(_ *Control, conns *Connections, persist Persist) (uint64, error) {
+	errs := avlancheGoUtils.AtomicInterface{}
+	var totalcnt uint64
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		var err error
+		var cnt uint64
 		for {
-			err = a.accumulateOutputOuts(conns, persist)
+			cnt, err = a.accumulateOutputOuts(conns, persist)
+			if err == nil {
+				atomic.AddUint64(&totalcnt, cnt)
+				break
+			}
 			if !db.ErrIsLockError(err) {
 				break
 			}
 		}
 		if err != nil {
-			sc.Log.Warn("Accumulate %v", err)
+			errs.SetValue(err)
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		var err error
+		var cnt uint64
 		for {
-			err = a.accumulateOutputIns(conns, persist)
+			cnt, err = a.accumulateOutputIns(conns, persist)
+			if err == nil {
+				atomic.AddUint64(&totalcnt, cnt)
+				break
+			}
 			if !db.ErrIsLockError(err) {
 				break
 			}
 		}
 		if err != nil {
-			sc.Log.Warn("Accumulate %v", err)
+			errs.SetValue(err)
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		var err error
+		var cnt uint64
 		for {
-			err = a.accumulateTranactions(conns, persist)
+			cnt, err = a.accumulateTranactions(conns, persist)
+			if err == nil {
+				atomic.AddUint64(&totalcnt, cnt)
+				break
+			}
 			if !db.ErrIsLockError(err) {
 				break
 			}
 		}
 		if err != nil {
-			sc.Log.Warn("Accumulate %v", err)
+			errs.SetValue(err)
 		}
 	}()
 	wg.Wait()
+
+	if errs.GetValue() != nil {
+		return totalcnt, errs.GetValue().(error)
+	}
+
+	return totalcnt, nil
 }
 
-func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist) error {
+func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist) (uint64, error) {
+	var totalcnt uint64
 	for {
 		cnt, err := a.processOutputs(processTypeOut, conns, persist)
 		if err != nil {
-			return err
+			return totalcnt, err
 		}
+		totalcnt += uint64(cnt)
 		if cnt < RowLimitValueBase {
 			break
 		}
 	}
 
-	return nil
+	return totalcnt, nil
 }
 
-func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist) error {
+func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist) (uint64, error) {
+	var totalcnt uint64
 	for {
 		cnt, err := a.processOutputs(processTypeIn, conns, persist)
 		if err != nil {
-			return err
+			return totalcnt, err
 		}
+		totalcnt += uint64(cnt)
 		if cnt < RowLimitValueBase {
 			break
 		}
 	}
 
-	return nil
+	return totalcnt, nil
 }
 
-func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, persist Persist) error {
+func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, persist Persist) (uint64, error) {
+	var totalcnt uint64
 	for {
 		cnt, err := a.processTransactions(conns, persist)
 		if err != nil {
-			return err
+			return totalcnt, err
 		}
+		totalcnt += uint64(cnt)
 		if cnt < RowLimitValueBase {
 			break
 		}
 	}
 
-	return nil
+	return totalcnt, nil
 }
 
 type OutputAddressAccumulateWithTrID struct {
