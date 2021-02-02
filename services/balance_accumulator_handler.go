@@ -80,6 +80,7 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 				if cnt < RowLimitValue {
 					break
 				}
+				icnt = 0
 			}
 		}()
 	}
