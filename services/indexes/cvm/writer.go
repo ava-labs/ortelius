@@ -109,6 +109,9 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	}
 
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
+	if err != nil {
+		return err
+	}
 
 	var typ models.CChainType = 0
 	var blockchainID ids.ID
