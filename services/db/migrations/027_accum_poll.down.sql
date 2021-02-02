@@ -1,0 +1,6 @@
+drop table accumulate_balances_received;
+drop table accumulate_balances_sent;
+drop table accumulate_balances_transactions;
+drop table output_addresses_accumulate_out;
+drop table output_addresses_accumulate_in;
+drop table output_txs_accumulate;

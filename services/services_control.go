@@ -21,13 +21,20 @@ const (
 )
 
 type Control struct {
-	Services cfg.Services
-	Log      logging.Logger
-	Persist  Persist
-	Features map[string]struct{}
+	Services                   cfg.Services
+	Log                        logging.Logger
+	Persist                    Persist
+	Features                   map[string]struct{}
+	IsAccumulateBalanceIndexer bool
+	BalanceAccumulatorManager  *BalanceAccumulatorManager
 }
 
 func (s *Control) Init() {
+	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
+		s.Log.Info("enable feature accumulate_balance_indexer")
+		s.IsAccumulateBalanceIndexer = true
+	}
+	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 }
 
 func (s *Control) InitProduceMetrics() {
