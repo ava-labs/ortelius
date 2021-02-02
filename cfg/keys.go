@@ -6,6 +6,7 @@ package cfg
 const (
 	keysNetworkID    = "networkID"
 	keysLogDirectory = "logDirectory"
+	keysFeatures     = "features"
 
 	keysChains       = "chains"
 	keysChainsID     = "id"

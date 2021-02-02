@@ -5,6 +5,7 @@ package cfg
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -29,6 +30,7 @@ type Config struct {
 	Services          `json:"services"`
 	MetricsListenAddr string `json:"metricsListenAddr"`
 	AdminListenAddr   string `json:"adminListenAddr"`
+	Features          map[string]struct{}
 }
 
 type Chain struct {
@@ -126,9 +128,19 @@ func NewFromFile(filePath string) (*Config, error) {
 		dbrodsn = servicesDBViper.GetString(keysServicesDBRODSN)
 	}
 
+	features := v.GetStringSlice(keysFeatures)
+	featuresMap := make(map[string]struct{})
+	for _, feature := range features {
+		featurec := strings.TrimSpace(strings.ToLower(feature))
+		if featurec == "" {
+			continue
+		}
+		featuresMap[featurec] = struct{}{}
+	}
 	// Put it all together
 	return &Config{
 		NetworkID:         v.GetUint32(keysNetworkID),
+		Features:          featuresMap,
 		Chains:            chains,
 		MetricsListenAddr: v.GetString(keysServicesMetricsListenAddr),
 		AdminListenAddr:   v.GetString(keysServicesAdminListenAddr),
