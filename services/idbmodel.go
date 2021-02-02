@@ -1043,8 +1043,8 @@ func (p *persist) InsertCvmTransactionsTxdata(
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,block=?,block="+v.Block+",serialization=?,created_at=? where id=?",
-				v.Hash, v.Serialization, v.Serialization, v.CreatedAt, v.ID).
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,block="+v.Block+",serialization=?,created_at=? where id=?",
+				v.Hash, v.Serialization, v.CreatedAt, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdata, true, err)

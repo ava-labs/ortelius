@@ -145,7 +145,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	for ipos, txdata := range block.TxsBytes {
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
-		rawhashhex := hex.EncodeToString(rawhash[:])
+		rawhashhex := rawhash.String()
 		iddata, err := ids.ToID(hashing.ComputeHash256(
 			[]byte(fmt.Sprintf("%s:%s", block.Header.Number.String(), rawhashhex))),
 		)
@@ -154,7 +154,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		}
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
 			ID:            iddata.String(),
-			Hash:          hex.EncodeToString(rawhash[:]),
+			Hash:          rawhashhex,
 			Block:         block.Header.Number.String(),
 			Serialization: txdata,
 			CreatedAt:     ctx.Time(),
