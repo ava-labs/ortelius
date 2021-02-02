@@ -24,10 +24,10 @@ type Control struct {
 	Services cfg.Services
 	Log      logging.Logger
 	Persist  Persist
+	Features map[string]struct{}
 }
 
 func (s *Control) Init() {
-
 }
 
 func (s *Control) InitProduceMetrics() {
