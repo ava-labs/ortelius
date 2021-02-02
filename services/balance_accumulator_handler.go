@@ -30,6 +30,9 @@ type BalanceAccumulatorManager struct {
 }
 
 func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+	if !sc.IsAccumulateBalanceIndexer {
+		return
+	}
 	a.handler.Run(persist, sc)
 }
 

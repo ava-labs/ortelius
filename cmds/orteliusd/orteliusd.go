@@ -99,10 +99,11 @@ func execute() error {
 
 				models.SetBech32HRP(c.NetworkID)
 
-				serviceControl.Init()
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
 				serviceControl.Persist = services.NewPersist()
+				serviceControl.Features = c.Features
+				serviceControl.Init()
 
 				*config = *c
 
