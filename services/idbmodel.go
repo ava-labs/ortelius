@@ -1035,7 +1035,7 @@ func (p *persist) InsertCvmTransactionsTxdata(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (id,hash,block,serialization,create_at) values(?,?,"+v.Block+",?,?)",
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (id,hash,block,serialization,created_at) values(?,?,"+v.Block+",?,?)",
 			v.ID, v.Hash, v.Serialization, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
