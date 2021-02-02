@@ -163,7 +163,7 @@ func (c *consumer) ProcessNextMessage() error {
 		return err
 	}
 
-	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc, c.conns)
+	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }

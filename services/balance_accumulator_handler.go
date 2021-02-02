@@ -29,8 +29,8 @@ type BalanceAccumulatorManager struct {
 	handler BalancerAccumulateHandler
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Connections) {
-	a.handler.Run(persist, sc, conns)
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+	a.handler.Run(persist, sc)
 }
 
 type BalancerAccumulateHandler struct {
@@ -40,7 +40,7 @@ type BalancerAccumulateHandler struct {
 	lock        sync.Mutex
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connections) {
+func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
 		if atomic.LoadInt64(runcnt) >= Threads {
 			return

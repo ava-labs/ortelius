@@ -1,13 +1,3 @@
-create table accumulate_balances_transactions
-(
-    id                varchar(50) not null primary key,
-    chain_id          varchar(50) not null,
-    asset_id          varchar(50) not null,
-    address           varchar(50) not null,
-    transaction_count decimal(65) not null default 0,
-    updated_at timestamp(6)       not null default current_timestamp(6)
-);
-
 create table accumulate_balances_received
 (
     id                varchar(50) not null primary key,
@@ -19,6 +9,9 @@ create table accumulate_balances_received
     updated_at timestamp(6)       not null default current_timestamp(6)
 );
 
+create index `accumulate_balances_received_address_chain_id` on `accumulate_balances_received` (address,chain_id);
+create index `accumulate_balances_received_chain_id` on `accumulate_balances_received` (chain_id);
+
 create table accumulate_balances_sent
 (
     id                varchar(50) not null primary key,
@@ -27,6 +20,16 @@ create table accumulate_balances_sent
     address           varchar(50) not null,
     total_amount      decimal(65) not null default 0,
     utxo_count        decimal(65) not null default 0,
+    updated_at timestamp(6)       not null default current_timestamp(6)
+);
+
+create table accumulate_balances_transactions
+(
+    id                varchar(50) not null primary key,
+    chain_id          varchar(50) not null,
+    asset_id          varchar(50) not null,
+    address           varchar(50) not null,
+    transaction_count decimal(65) not null default 0,
     updated_at timestamp(6)       not null default current_timestamp(6)
 );
 
