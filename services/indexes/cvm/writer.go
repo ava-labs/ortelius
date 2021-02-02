@@ -114,7 +114,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	}
 
 	var typ models.CChainType = 0
-	var blockchainID ids.ID
+	var blockchainID string
 	if atomicTX != nil {
 		txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
 		if err != nil {
@@ -124,14 +124,14 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		switch atx := atomicTX.UnsignedTx.(type) {
 		case *evm.UnsignedExportTx:
 			typ = models.CChainExport
-			blockchainID = atx.BlockchainID
+			blockchainID = atx.BlockchainID.String()
 			err = w.indexExportTx(ctx, txID, atx, blockBytes)
 			if err != nil {
 				return err
 			}
 		case *evm.UnsignedImportTx:
 			typ = models.CChainImport
-			blockchainID = atx.BlockchainID
+			blockchainID = atx.BlockchainID.String()
 			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes)
 			if err != nil {
 				return err
@@ -144,7 +144,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		ID:            id.String(),
 		TransactionID: txIDString,
 		Type:          typ,
-		BlockchainID:  blockchainID.String(),
+		BlockchainID:  blockchainID,
 		Block:         block.Header.Number.String(),
 		CreatedAt:     ctx.Time(),
 		Serialization: blockjson,
