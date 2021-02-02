@@ -1172,7 +1172,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_transactions.block",
 	).
 		From("cvm_addresses").
-		Join("cvm_transactions", "cvm_addresses.transaction_id=cvm_transactions.id").
+		Join("cvm_transactions", "cvm_addresses.transaction_id=cvm_transactions.transaction_id").
 		Where("cvm_addresses.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &cvmAddress)
 	if err != nil {
