@@ -639,7 +639,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		baseq = p.Apply(dbRunner.
 			Select(
 				"accumulate_balances_received.chain_id",
-				" accumulate_balances_received.address",
+				"accumulate_balances_received.address",
 				"accumulate_balances_received.asset_id",
 				"accumulate_balances_transactions.transaction_count",
 				"accumulate_balances_received.total_amount as total_received",
@@ -650,10 +650,9 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 			From("accumulate_balances_received").
 			LeftJoin("accumulate_balances_sent", "accumulate_balances_received.id = accumulate_balances_sent.id").
 			LeftJoin("accumulate_balances_transactions", "accumulate_balances_received.id = accumulate_balances_transactions.id").
-			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
-			OrderAsc("avm_outputs.chain_id").
-			OrderAsc("avm_output_addresses.address").
-			OrderAsc("avm_outputs.asset_id"), true)
+			OrderAsc("accumulate_balances_received.chain_id").
+			OrderAsc("accumulate_balances_received.address").
+			OrderAsc("accumulate_balances_received.asset_id"), true)
 	} else {
 		ua = dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
 			Distinct().

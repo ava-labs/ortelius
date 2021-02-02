@@ -403,7 +403,7 @@ func (p *ListAddressesParams) CacheKey() []string {
 }
 
 func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder, accumulate_reader bool) *dbr.SelectBuilder {
-	if accumulate_reader {
+	if !accumulate_reader {
 		b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id", false)
 		if len(p.ChainIDs) != 0 {
 			b.Where("avm_outputs.chain_id IN ?", p.ChainIDs)
