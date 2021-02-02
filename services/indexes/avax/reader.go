@@ -22,6 +22,8 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
+
+	corethType "github.com/ava-labs/coreth/core/types"
 )
 
 const (
@@ -1487,7 +1489,6 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Serialization []byte
 	}
 	rows := []Row{}
-
 	_, err = dbRunner.
 		Select("serialization").
 		From("cvm_transactions").
@@ -1502,11 +1503,41 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	row := rows[0]
+
 	block, err := cblock.Unmarshal(row.Serialization)
 	if err != nil {
 		return nil, err
 	}
 	block.TxsBytes = nil
+
+	type RowData struct {
+		Idx           uint64
+		Serialization []byte
+	}
+	rowsData := []RowData{}
+
+	_, err = dbRunner.
+		Select(
+			"idx",
+			"srialization",
+		).
+		From("cvm_transactions").
+		Where("block="+p.ID).
+		OrderAsc("idx").
+		LoadContext(ctx, &rowsData)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rowData := range rowsData {
+		var tr corethType.Transaction
+		err := tr.UnmarshalJSON(rowData.Serialization)
+		if err != nil {
+			return nil, err
+		}
+		block.Txs = append(block.Txs, tr)
+	}
+
 	return json.Marshal(block)
 }
 
