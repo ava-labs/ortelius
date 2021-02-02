@@ -934,6 +934,7 @@ func (p *persist) InsertCvmAddresses(
 
 type CvmTransactions struct {
 	ID            string
+	TransactionID string
 	Type          models.CChainType
 	BlockchainID  string
 	Block         string
@@ -949,6 +950,7 @@ func (p *persist) QueryCvmTransactions(
 	v := &CvmTransactions{}
 	err := sess.Select(
 		"id",
+		"transaction_id",
 		"type",
 		"blockchain_id",
 		"cast(block as char) as block",
@@ -968,16 +970,16 @@ func (p *persist) InsertCvmTransactions(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactions+" (id,type,blockchain_id,created_at,block,serialization) values(?,?,?,?,"+v.Block+",?)",
-			v.ID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization).
+		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization) values(?,?,?,?,?,"+v.Block+",?)",
+			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactions, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactions+" set type=?,blockchain_id=?,block="+v.Block+",serialization=? where id=?",
-				v.Type, v.BlockchainID, v.Serialization, v.ID).
+			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=? where id=?",
+				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactions, true, err)
