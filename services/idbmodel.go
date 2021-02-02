@@ -1427,14 +1427,13 @@ func (p *persist) InsertOutputTxsAccumulate(
 }
 
 type AccumulateBalancesAmount struct {
-	ID               string
-	ChainID          string
-	AssetID          string
-	Address          string
-	TransactionCount string
-	TotalAmount      string
-	UtxoCount        string
-	UpdatedAt        time.Time
+	ID          string
+	ChainID     string
+	AssetID     string
+	Address     string
+	TotalAmount string
+	UtxoCount   string
+	UpdatedAt   time.Time
 }
 
 func (b *AccumulateBalancesAmount) ComputeID() error {
