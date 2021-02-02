@@ -1,7 +1,7 @@
 create table `cvm_transactions_txdata`
 (
     block          decimal(65)     not null,
-    idx            unsigned bigint not null,
+    idx            bigint unsigned not null,
     hash           varchar(100)    not null,
     serialization  mediumblob,
     created_at                     timestamp       not null default current_timestamp,
