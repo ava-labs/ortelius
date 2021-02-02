@@ -650,9 +650,9 @@ func TestCvmTransactionsTxdata(t *testing.T) {
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &CvmTransactionsTxdata{}
-	v.ID = "id1"
-	v.Hash = "h1"
 	v.Block = "1"
+	v.Idx = 1
+	v.Hash = "h1"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test123")
 
@@ -677,7 +677,6 @@ func TestCvmTransactionsTxdata(t *testing.T) {
 	}
 
 	v.Hash = "h2"
-	v.Block = "2"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test456")
 
@@ -692,7 +691,7 @@ func TestCvmTransactionsTxdata(t *testing.T) {
 	if string(fv.Serialization) != "test456" {
 		t.Fatal("compare fail")
 	}
-	if fv.Block != "2" {
+	if fv.Hash != "h2" {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {

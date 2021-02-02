@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gocraft/dbr/v2"
@@ -252,7 +253,7 @@ func (m *MockPersist) InsertCvmTransactions(ctx context.Context, runner dbr.Sess
 func (m *MockPersist) QueryCvmTransactionsTxdata(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdata) (*CvmTransactionsTxdata, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.CvmTransactionsTxdata[v.ID]; present {
+	if v, present := m.CvmTransactionsTxdata[fmt.Sprintf("%s:%v", v.Block, v.Idx)]; present {
 		return v, nil
 	}
 	return nil, nil
@@ -263,7 +264,7 @@ func (m *MockPersist) InsertCvmTransactionsTxdata(ctx context.Context, runner db
 	defer m.lock.Unlock()
 	nv := &CvmTransactionsTxdata{}
 	*nv = *v
-	m.CvmTransactionsTxdata[v.ID] = nv
+	m.CvmTransactionsTxdata[fmt.Sprintf("%s:%v", v.Block, v.Idx)] = nv
 	return nil
 }
 
