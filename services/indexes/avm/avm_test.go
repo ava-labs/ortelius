@@ -185,7 +185,9 @@ func TestInsertTxInternal(t *testing.T) {
 	baseTx := &avm.BaseTx{}
 
 	transferableOut := &avalancheGoAvax.TransferableOutput{}
-	transferableOut.Out = &secp256k1fx.TransferOutput{}
+	transferableOut.Out = &secp256k1fx.TransferOutput{
+		OutputOwners: secp256k1fx.OutputOwners{Addrs: []ids.ShortID{ids.ShortEmpty}},
+	}
 	baseTx.Outs = []*avalancheGoAvax.TransferableOutput{transferableOut}
 
 	transferableIn := &avalancheGoAvax.TransferableInput{}
@@ -224,10 +226,19 @@ func TestInsertTxInternal(t *testing.T) {
 	if len(persist.Addresses) != 1 {
 		t.Fatal("insert failed")
 	}
-	if len(persist.AddressChain) != 1 {
+	if len(persist.AddressChain) != 2 {
 		t.Fatal("insert failed")
 	}
 	if len(persist.OutputsRedeeming) != 1 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputAddressAccumulateIn) != 2 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputAddressAccumulateOut) != 2 {
+		t.Fatal("insert failed")
+	}
+	if len(persist.OutputTxsAccumulate) != 1 {
 		t.Fatal("insert failed")
 	}
 }
