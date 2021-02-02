@@ -101,19 +101,23 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 }
 
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block) error {
-	txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
-	if err != nil {
-		return err
-	}
+	txIDString := ""
 
 	blockjson, err := json.Marshal(block)
 	if err != nil {
 		return err
 	}
 
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
+
 	var typ models.CChainType = 0
 	var blockchainID ids.ID
 	if atomicTX != nil {
+		txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
+		if err != nil {
+			return err
+		}
+		txIDString = txID.String()
 		switch atx := atomicTX.UnsignedTx.(type) {
 		case *evm.UnsignedExportTx:
 			typ = models.CChainExport
@@ -131,15 +135,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			}
 		default:
 		}
-	} else {
-		txID, err = ids.ToID(hashing.ComputeHash256(blockjson))
-		if err != nil {
-			return err
-		}
 	}
 
 	cvmTransaction := &services.CvmTransactions{
-		ID:            txID.String(),
+		ID:            id.String(),
+		TransactionID: txIDString,
 		Type:          typ,
 		BlockchainID:  blockchainID.String(),
 		Block:         block.Header.Number.String(),

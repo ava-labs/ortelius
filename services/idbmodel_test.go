@@ -590,6 +590,7 @@ func TestCvmTransactions(t *testing.T) {
 
 	v := &CvmTransactions{}
 	v.ID = "id1"
+	v.TransactionID = "trid1"
 	v.Type = models.CChainIn
 	v.BlockchainID = "bid1"
 	v.Block = "1"
@@ -617,6 +618,7 @@ func TestCvmTransactions(t *testing.T) {
 	}
 
 	v.Type = models.CchainOut
+	v.TransactionID = "trid2"
 	v.BlockchainID = "bid2"
 	v.Block = "2"
 	v.CreatedAt = tm
@@ -631,6 +633,9 @@ func TestCvmTransactions(t *testing.T) {
 		t.Fatal("query fail", err)
 	}
 	if string(fv.Serialization) != "test456" {
+		t.Fatal("compare fail")
+	}
+	if fv.TransactionID != "trid2" {
 		t.Fatal("compare fail")
 	}
 	if fv.Block != "2" {
