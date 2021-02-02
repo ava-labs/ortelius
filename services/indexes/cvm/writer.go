@@ -5,8 +5,10 @@ package cvm
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -139,6 +141,31 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		default:
 		}
 	}
+
+	for ipos, txdata := range block.TxsBytes {
+		rawtx := block.Txs[ipos]
+		rawhash := rawtx.Hash()
+		rawhashhex := hex.EncodeToString(rawhash[:])
+		iddata, err := ids.ToID(hashing.ComputeHash256(
+			[]byte(fmt.Sprintf("%s:%s", block.Header.Number.String(), rawhashhex))),
+		)
+		if err != nil {
+			return err
+		}
+		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
+			ID:            iddata.String(),
+			Hash:          hex.EncodeToString(rawhash[:]),
+			Block:         block.Header.Number.String(),
+			Serialization: txdata,
+			CreatedAt:     ctx.Time(),
+		}
+		err = ctx.Persist().InsertCvmTransactionsTxdata(ctx.Ctx(), ctx.DB(), cvmTransactionTxdata, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+	block.TxsBytes = nil
+	block.Txs = nil
 
 	cvmTransaction := &services.CvmTransactions{
 		ID:            id.String(),

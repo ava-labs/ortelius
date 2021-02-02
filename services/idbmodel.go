@@ -25,6 +25,7 @@ const (
 	TableTransactionsEpochs             = "transactions_epoch"
 	TableCvmAddresses                   = "cvm_addresses"
 	TableCvmTransactions                = "cvm_transactions"
+	TableCvmTransactionsTxdata          = "cvm_transactions_txdata"
 	TablePvmBlocks                      = "pvm_blocks"
 	TableRewards                        = "rewards"
 	TableTransactionsValidator          = "transactions_validator"
@@ -162,6 +163,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*CvmTransactions,
+		bool,
+	) error
+
+	QueryCvmTransactionsTxdata(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdata,
+	) (*CvmTransactionsTxdata, error)
+	InsertCvmTransactionsTxdata(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdata,
 		bool,
 	) error
 
@@ -983,6 +996,58 @@ func (p *persist) InsertCvmTransactions(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactions, true, err)
+		}
+	}
+	return nil
+}
+
+type CvmTransactionsTxdata struct {
+	ID            string
+	Hash          string
+	Block         string
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmTransactionsTxdata(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactionsTxdata,
+) (*CvmTransactionsTxdata, error) {
+	v := &CvmTransactionsTxdata{}
+	err := sess.Select(
+		"id",
+		"hash",
+		"block",
+		"srialization",
+		"created_at",
+	).From(TableCvmTransactionsTxdata).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactionsTxdata(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmTransactionsTxdata,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (id,hash,block,serialization,create_at) values(?,?,"+v.Block+",?,?)",
+			v.ID, v.Hash, v.Serialization, v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmTransactionsTxdata, false, err)
+	}
+	if upd {
+		_, err = sess.
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,block=?,block="+v.Block+",serialization=?,created_at=? where id=?",
+				v.Hash, v.Serialization, v.Serialization, v.CreatedAt, v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableCvmTransactionsTxdata, true, err)
 		}
 	}
 	return nil

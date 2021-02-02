@@ -5,12 +5,15 @@ package avax
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"sync"
 	"time"
+
+	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -1499,7 +1502,12 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	row := rows[0]
-	return row.Serialization, nil
+	block, err := cblock.Unmarshal(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	block.TxsBytes = nil
+	return json.Marshal(block)
 }
 
 func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {
