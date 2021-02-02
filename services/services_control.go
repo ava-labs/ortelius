@@ -25,14 +25,19 @@ type Control struct {
 	Log                        logging.Logger
 	Persist                    Persist
 	Features                   map[string]struct{}
-	IsAccumulateBalanceIndexer bool
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
+	IsAccumulateBalanceIndexer bool
+	IsAccumulateBalanceReader  bool
 }
 
 func (s *Control) Init() {
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
 		s.IsAccumulateBalanceIndexer = true
+	}
+	if _, ok := s.Features["accumulate_balance_reader"]; ok {
+		s.Log.Info("enable feature accumulate_balance_reader")
+		s.IsAccumulateBalanceReader = true
 	}
 	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 }
