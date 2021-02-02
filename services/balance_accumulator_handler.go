@@ -8,19 +8,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
 	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLimitValueBase = 1000
+var RowLimitValueBase = 5000
 var RowLimitValue = uint64(RowLimitValueBase)
 var LockSize = 5
-var Threads = int64(4)
+var Threads = int64(2)
 
-var updTimeout = 10 * time.Minute
+var updTimeout = 1 * time.Minute
 
 type processType uint32
 
@@ -36,164 +34,65 @@ func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, conns *Con
 }
 
 type BalancerAccumulateHandler struct {
-	running int64
-	lock    sync.Mutex
+	runcntIns   int64
+	runcntOuts  int64
+	runcntTrans int64
+	lock        sync.Mutex
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, _ *Connections) {
-	if atomic.LoadInt64(&a.running) > Threads {
-		return
-	}
+	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
+		if atomic.LoadInt64(runcnt) >= Threads {
+			return
+		}
 
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if atomic.LoadInt64(&a.running) > Threads {
-		return
-	}
+		a.lock.Lock()
+		defer a.lock.Unlock()
 
-	atomic.AddInt64(&a.running, 1)
-
-	go func() {
-		defer func() {
-			atomic.AddInt64(&a.running, -1)
-		}()
+		if atomic.LoadInt64(runcnt) >= Threads {
+			return
+		}
 
 		conns, err := sc.DatabaseOnly()
 		if err != nil {
+			sc.Log.Error("accumulate error %v", err)
 			return
 		}
-		defer func() {
-			if conns != nil {
+
+		atomic.AddInt64(runcnt, 1)
+
+		go func() {
+			defer func() {
+				atomic.AddInt64(runcnt, -1)
 				_ = conns.Close()
+			}()
+			icnt := 0
+			for ; icnt < 10; icnt++ {
+				cnt, err := f(conns, persist)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					sc.Log.Error("accumulate error %s %v", id, err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
 			}
 		}()
-
-		for icnt := 0; icnt < 10; icnt++ {
-			_, err = a.runInternal(sc, conns, persist)
-			if err != nil {
-				sc.Log.Info("accumulate balance error %v", err)
-			}
-		}
-	}()
-}
-
-func (a *BalancerAccumulateHandler) runInternal(_ *Control, conns *Connections, persist Persist) (uint64, error) {
-	errs := avlancheGoUtils.AtomicInterface{}
-	var totalcnt uint64
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-		var cnt uint64
-		for {
-			cnt, err = a.accumulateOutputOuts(conns, persist)
-			if err == nil {
-				atomic.AddUint64(&totalcnt, cnt)
-				break
-			}
-			if !db.ErrIsLockError(err) {
-				break
-			}
-		}
-		if err != nil {
-			errs.SetValue(err)
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-		var cnt uint64
-		for {
-			cnt, err = a.accumulateOutputIns(conns, persist)
-			if err == nil {
-				atomic.AddUint64(&totalcnt, cnt)
-				break
-			}
-			if !db.ErrIsLockError(err) {
-				break
-			}
-		}
-		if err != nil {
-			errs.SetValue(err)
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-		var cnt uint64
-		for {
-			cnt, err = a.accumulateTranactions(conns, persist)
-			if err == nil {
-				atomic.AddUint64(&totalcnt, cnt)
-				break
-			}
-			if !db.ErrIsLockError(err) {
-				break
-			}
-		}
-		if err != nil {
-			errs.SetValue(err)
-		}
-	}()
-	wg.Wait()
-
-	if errs.GetValue() != nil {
-		return totalcnt, errs.GetValue().(error)
 	}
 
-	return totalcnt, nil
-}
-
-func (a *BalancerAccumulateHandler) accumulateOutputOuts(conns *Connections, persist Persist) (uint64, error) {
-	var totalcnt uint64
-	for {
-		cnt, err := a.processOutputs(processTypeOut, conns, persist)
-		if err != nil {
-			return totalcnt, err
-		}
-		totalcnt += uint64(cnt)
-		if cnt < RowLimitValueBase {
-			break
-		}
-	}
-
-	return totalcnt, nil
-}
-
-func (a *BalancerAccumulateHandler) accumulateOutputIns(conns *Connections, persist Persist) (uint64, error) {
-	var totalcnt uint64
-	for {
-		cnt, err := a.processOutputs(processTypeIn, conns, persist)
-		if err != nil {
-			return totalcnt, err
-		}
-		totalcnt += uint64(cnt)
-		if cnt < RowLimitValueBase {
-			break
-		}
-	}
-
-	return totalcnt, nil
-}
-
-func (a *BalancerAccumulateHandler) accumulateTranactions(conns *Connections, persist Persist) (uint64, error) {
-	var totalcnt uint64
-	for {
-		cnt, err := a.processTransactions(conns, persist)
-		if err != nil {
-			return totalcnt, err
-		}
-		totalcnt += uint64(cnt)
-		if cnt < RowLimitValueBase {
-			break
-		}
-	}
-
-	return totalcnt, nil
+	frun(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processOutputs(processTypeOut, conns, persist)
+	})
+	frun(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processOutputs(processTypeIn, conns, persist)
+	})
+	frun(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processTransactions(conns, persist)
+	})
 }
 
 type OutputAddressAccumulateWithTrID struct {
@@ -264,7 +163,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist) (int, error) {
+func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
@@ -282,7 +181,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
 			if len(trowsID) > LockSize {
-				err = a.processOutputsPost(trows, trowsID, typ, session, persist)
+				err := RepeatForLock(func() error { return a.processOutputsPost(trows, trowsID, typ, session, persist) })
 				if err != nil {
 					return 0, err
 				}
@@ -292,14 +191,14 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 		}
 
 		if len(trowsID) > 0 {
-			err = a.processOutputsPost(trows, trowsID, typ, session, persist)
+			err := RepeatForLock(func() error { return a.processOutputsPost(trows, trowsID, typ, session, persist) })
 			if err != nil {
 				return 0, err
 			}
 		}
 	}
 
-	return len(rowdataAvail), nil
+	return uint64(len(rowdataAvail)), nil
 }
 
 func (a *BalancerAccumulateHandler) processOutputsPost(
@@ -489,7 +388,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (int, error) {
+func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
@@ -506,7 +405,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
 			if len(trowsID) > LockSize {
-				err = a.processTransactionsPost(trows, trowsID, session, persist)
+				err := RepeatForLock(func() error { return a.processTransactionsPost(trows, trowsID, session, persist) })
 				if err != nil {
 					return 0, err
 				}
@@ -516,14 +415,14 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 		}
 
 		if len(trowsID) > 0 {
-			err = a.processTransactionsPost(trows, trowsID, session, persist)
+			err := RepeatForLock(func() error { return a.processTransactionsPost(trows, trowsID, session, persist) })
 			if err != nil {
 				return 0, err
 			}
 		}
 	}
 
-	return len(rowdataAvail), nil
+	return uint64(len(rowdataAvail)), nil
 }
 
 func (a *BalancerAccumulateHandler) processTransactionsPost(
@@ -632,4 +531,18 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 	}
 
 	return nil
+}
+
+func RepeatForLock(f func() error) error {
+	var err error
+	for {
+		err = f()
+		if err == nil {
+			return nil
+		}
+		if db.ErrIsLockError(err) {
+			continue
+		}
+		return err
+	}
 }
