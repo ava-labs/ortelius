@@ -955,6 +955,8 @@ type CvmTransactions struct {
 	Serialization []byte
 	TxTime        time.Time
 	Nonce         uint64
+	Hash          string
+	ParentHash    string
 }
 
 func (p *persist) QueryCvmTransactions(
@@ -973,6 +975,8 @@ func (p *persist) QueryCvmTransactions(
 		"serialization",
 		"tx_time",
 		"nonce",
+		"hash",
+		"parent_hash",
 	).From(TableCvmTransactions).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -987,16 +991,16 @@ func (p *persist) InsertCvmTransactions(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization,tx_time,nonce) values(?,?,?,?,?,"+v.Block+",?,?,?)",
-			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization, v.TxTime, v.Nonce).
+		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization,tx_time,nonce,hash,parent_hash) values(?,?,?,?,?,"+v.Block+",?,?,?,?,?)",
+			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization, v.TxTime, v.Nonce, v.Hash, v.ParentHash).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactions, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=?,tx_time=?,nonce=? where id=?",
-				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.TxTime, v.Nonce, v.ID).
+			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=?,tx_time=?,nonce=?,hash=?,parent_hash=? where id=?",
+				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.TxTime, v.Nonce, v.Hash, v.ParentHash, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactions, true, err)
