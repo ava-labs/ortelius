@@ -4,7 +4,7 @@ create table `cvm_transactions_txdata`
     idx            bigint unsigned not null,
     hash           varchar(100)    not null,
     serialization  mediumblob,
-    created_at                     timestamp       not null default current_timestamp,
+    created_at(6)  timestamp       not null default current_timestamp(6),
     primary key(block,idx)
 );
 
