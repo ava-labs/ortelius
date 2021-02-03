@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -147,6 +148,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			Idx:           uint64(ipos),
 			Hash:          rawhash.String(),
 			Rcpt:          rcptstr,
+			Nonce:         rawtx.Nonce(),
 			Serialization: txdata,
 			CreatedAt:     ctx.Time(),
 		}
@@ -163,6 +165,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		return err
 	}
 
+	tm := time.Unix(int64(block.Header.Time), 0)
 	cvmTransaction := &services.CvmTransactions{
 		ID:            id.String(),
 		TransactionID: txIDString,
@@ -171,6 +174,8 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		Block:         block.Header.Number.String(),
 		CreatedAt:     ctx.Time(),
 		Serialization: blockjson,
+		TxTime:        tm,
+		Nonce:         block.Header.Nonce.Uint64(),
 	}
 	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
 	if err != nil {
