@@ -1019,7 +1019,7 @@ func (p *persist) QueryCvmTransactionsTxdata(
 		"block",
 		"idx",
 		"hash",
-		"srialization",
+		"serialization",
 		"created_at",
 	).From(TableCvmTransactionsTxdata).
 		Where("block="+q.Block+" and idx=?", q.Idx).

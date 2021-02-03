@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -102,11 +103,6 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block) error {
 	txIDString := ""
 
-	blockjson, err := json.Marshal(block)
-	if err != nil {
-		return err
-	}
-
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
 	if err != nil {
 		return err
@@ -143,8 +139,8 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
-			Block:           block.Header.Number.String(),
-			Idx:  uint64(ipos),
+			Block:         block.Header.Number.String(),
+			Idx:           uint64(ipos),
 			Hash:          rawhash.String(),
 			Serialization: txdata,
 			CreatedAt:     ctx.Time(),
@@ -156,6 +152,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	}
 	block.TxsBytes = nil
 	block.Txs = nil
+
+	blockjson, err := json.Marshal(block)
+	if err != nil {
+		return err
+	}
 
 	cvmTransaction := &services.CvmTransactions{
 		ID:            id.String(),

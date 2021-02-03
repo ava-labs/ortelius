@@ -1519,9 +1519,9 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	_, err = dbRunner.
 		Select(
 			"idx",
-			"srialization",
+			"serialization",
 		).
-		From("cvm_transactions").
+		From("cvm_transactions_txdata").
 		Where("block="+p.ID).
 		OrderAsc("idx").
 		LoadContext(ctx, &rowsData)
