@@ -14,4 +14,4 @@ create index cvm_transactions_txdata_hash ON cvm_transactions_txdata (hash);
 create index cvm_transactions_txdata_rcpt ON cvm_transactions_txdata (rcpt);
 
 alter table `cvm_transactions` add COLUMN `tx_time` timestamp(6) not null default current_timestamp(6);
-alter table `cvm_transactions` add COLUMN `nonce` bigint unsigned not null;
+alter table `cvm_transactions` add COLUMN `nonce` bigint unsigned not null default 0;
