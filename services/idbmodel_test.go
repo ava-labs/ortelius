@@ -597,6 +597,8 @@ func TestCvmTransactions(t *testing.T) {
 	v.Serialization = []byte("test123")
 	v.TxTime = txtime
 	v.Nonce = 10
+	v.Hash = "h1"
+	v.ParentHash = "ph1"
 
 	stream := health.NewStream()
 
@@ -628,6 +630,8 @@ func TestCvmTransactions(t *testing.T) {
 	v.Serialization = []byte("test456")
 	v.TxTime = txtime2
 	v.Nonce = 11
+	v.Hash = "h2"
+	v.ParentHash = "ph2"
 
 	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
