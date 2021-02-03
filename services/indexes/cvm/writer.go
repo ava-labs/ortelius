@@ -176,6 +176,8 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		Serialization: blockjson,
 		TxTime:        tm,
 		Nonce:         block.Header.Nonce.Uint64(),
+		Hash:          block.Header.Hash().String(),
+		ParentHash:    block.Header.ParentHash.String(),
 	}
 	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
 	if err != nil {
