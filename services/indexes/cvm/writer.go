@@ -165,7 +165,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		return err
 	}
 
-	tm := time.Unix(int64(block.Header.Time), 0)
+	htime := int64(block.Header.Time)
+	if htime == 0 {
+		htime = 1
+	}
+	tm := time.Unix(htime, 0)
 	cvmTransaction := &services.CvmTransactions{
 		ID:            id.String(),
 		TransactionID: txIDString,
