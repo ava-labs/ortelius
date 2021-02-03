@@ -987,7 +987,7 @@ func (p *persist) InsertCvmTransactions(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization,tx_time) values(?,?,?,?,?,"+v.Block+",?,?,?)",
+		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization,tx_time,nonce) values(?,?,?,?,?,"+v.Block+",?,?,?)",
 			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization, v.TxTime, v.Nonce).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
