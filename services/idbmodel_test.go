@@ -585,6 +585,7 @@ func TestCvmTransactions(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	txtime := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
 
 	v := &CvmTransactions{}
 	v.ID = "id1"
@@ -594,6 +595,8 @@ func TestCvmTransactions(t *testing.T) {
 	v.Block = "1"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test123")
+	v.TxTime = txtime
+	v.Nonce = 10
 
 	stream := health.NewStream()
 
@@ -615,12 +618,16 @@ func TestCvmTransactions(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 
+	txtime2 := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
+
 	v.Type = models.CchainOut
 	v.TransactionID = "trid2"
 	v.BlockchainID = "bid2"
 	v.Block = "2"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test456")
+	v.TxTime = txtime2
+	v.Nonce = 11
 
 	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -633,10 +640,68 @@ func TestCvmTransactions(t *testing.T) {
 	if string(fv.Serialization) != "test456" {
 		t.Fatal("compare fail")
 	}
+	if !fv.TxTime.Equal(txtime2) {
+		t.Fatal("compare fail")
+	}
 	if fv.TransactionID != "trid2" {
 		t.Fatal("compare fail")
 	}
 	if fv.Block != "2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestCvmTransactionsTxdata(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmTransactionsTxdata{}
+	v.Block = "1"
+	v.Idx = 1
+	v.Hash = "h1"
+	v.CreatedAt = tm
+	v.Serialization = []byte("test123")
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmTransactionsTxdata).Exec()
+
+	err = p.InsertCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Hash = "h2"
+	v.CreatedAt = tm
+	v.Serialization = []byte("test456")
+
+	err = p.InsertCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if string(fv.Serialization) != "test456" {
+		t.Fatal("compare fail")
+	}
+	if fv.Hash != "h2" {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {

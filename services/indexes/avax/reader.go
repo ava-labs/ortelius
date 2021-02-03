@@ -5,12 +5,15 @@ package avax
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"sync"
 	"time"
+
+	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -19,6 +22,8 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
+
+	corethType "github.com/ava-labs/coreth/core/types"
 )
 
 const (
@@ -1484,7 +1489,6 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Serialization []byte
 	}
 	rows := []Row{}
-
 	_, err = dbRunner.
 		Select("serialization").
 		From("cvm_transactions").
@@ -1499,7 +1503,43 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	row := rows[0]
-	return row.Serialization, nil
+
+	block, err := cblock.Unmarshal(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	block.TxsBytes = nil
+
+	type RowData struct {
+		Idx           uint64
+		Serialization []byte
+	}
+	rowsData := []RowData{}
+
+	_, err = dbRunner.
+		Select(
+			"idx",
+			"serialization",
+		).
+		From("cvm_transactions_txdata").
+		Where("block="+p.ID).
+		OrderAsc("idx").
+		LoadContext(ctx, &rowsData)
+	if err != nil {
+		return nil, err
+	}
+
+	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
+	for _, rowData := range rowsData {
+		var tr corethType.Transaction
+		err := tr.UnmarshalJSON(rowData.Serialization)
+		if err != nil {
+			return nil, err
+		}
+		block.Txs = append(block.Txs, tr)
+	}
+
+	return json.Marshal(block)
 }
 
 func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {

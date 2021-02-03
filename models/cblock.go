@@ -15,7 +15,7 @@ type Block struct {
 	Version        uint32              `json:"version"`
 	ReceivedAt     time.Time           `json:"received_at"`
 	BlockExtraData []byte              `json:"blockExtraData"`
-	Txs            []types.Transaction `json:"-"`
+	Txs            []types.Transaction `json:"transactions,omitempty"`
 }
 
 func New(bl *types.Block) (*Block, error) {

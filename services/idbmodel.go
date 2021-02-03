@@ -25,6 +25,7 @@ const (
 	TableTransactionsEpochs             = "transactions_epoch"
 	TableCvmAddresses                   = "cvm_addresses"
 	TableCvmTransactions                = "cvm_transactions"
+	TableCvmTransactionsTxdata          = "cvm_transactions_txdata"
 	TablePvmBlocks                      = "pvm_blocks"
 	TableRewards                        = "rewards"
 	TableTransactionsValidator          = "transactions_validator"
@@ -162,6 +163,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*CvmTransactions,
+		bool,
+	) error
+
+	QueryCvmTransactionsTxdata(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdata,
+	) (*CvmTransactionsTxdata, error)
+	InsertCvmTransactionsTxdata(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdata,
 		bool,
 	) error
 
@@ -940,6 +953,8 @@ type CvmTransactions struct {
 	Block         string
 	CreatedAt     time.Time
 	Serialization []byte
+	TxTime        time.Time
+	Nonce         uint64
 }
 
 func (p *persist) QueryCvmTransactions(
@@ -956,6 +971,8 @@ func (p *persist) QueryCvmTransactions(
 		"cast(block as char) as block",
 		"created_at",
 		"serialization",
+		"tx_time",
+		"nonce",
 	).From(TableCvmTransactions).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -970,19 +987,75 @@ func (p *persist) InsertCvmTransactions(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization) values(?,?,?,?,?,"+v.Block+",?)",
-			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization).
+		InsertBySql("insert into "+TableCvmTransactions+" (id,transaction_id,type,blockchain_id,created_at,block,serialization,tx_time,nonce) values(?,?,?,?,?,"+v.Block+",?,?,?)",
+			v.ID, v.TransactionID, v.Type, v.BlockchainID, v.CreatedAt, v.Serialization, v.TxTime, v.Nonce).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactions, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=? where id=?",
-				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.ID).
+			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=?,tx_time=?,nonce=? where id=?",
+				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.TxTime, v.Nonce, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactions, true, err)
+		}
+	}
+	return nil
+}
+
+type CvmTransactionsTxdata struct {
+	Block         string
+	Idx           uint64
+	Hash          string
+	Rcpt          string
+	Nonce         uint64
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmTransactionsTxdata(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactionsTxdata,
+) (*CvmTransactionsTxdata, error) {
+	v := &CvmTransactionsTxdata{}
+	err := sess.Select(
+		"block",
+		"idx",
+		"hash",
+		"rcpt",
+		"nonce",
+		"serialization",
+		"created_at",
+	).From(TableCvmTransactionsTxdata).
+		Where("block="+q.Block+" and idx=?", q.Idx).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactionsTxdata(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmTransactionsTxdata,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (block,idx,hash,rcpt,nonce,serialization,created_at) values("+v.Block+",?,?,?,?,?,?)",
+			v.Idx, v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmTransactionsTxdata, false, err)
+	}
+	if upd {
+		_, err = sess.
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,rcpt=?,nonce=?,serialization=?,created_at=? where block="+v.Block+" and idx=?",
+				v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt, v.Idx).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableCvmTransactionsTxdata, true, err)
 		}
 	}
 	return nil
