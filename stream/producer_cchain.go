@@ -5,6 +5,7 @@ package stream
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -177,7 +178,16 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		var kafkaMessages []kafka.Message
 
 		for _, bl := range localBlocks {
-			block, err := cblock.Marshal(bl.block)
+			cblk, err := cblock.New(bl.block)
+			if err != nil {
+				return err
+			}
+			if cblk == nil {
+				return fmt.Errorf("invalid block")
+			}
+			// wipe before re-encoding
+			cblk.Txs = nil
+			block, err := json.Marshal(cblk)
 			if err != nil {
 				return err
 			}

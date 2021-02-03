@@ -99,10 +99,11 @@ func execute() error {
 
 				models.SetBech32HRP(c.NetworkID)
 
-				serviceControl.Init()
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
 				serviceControl.Persist = services.NewPersist()
+				serviceControl.Features = c.Features
+				serviceControl.Init()
 
 				*config = *c
 
@@ -225,6 +226,7 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
 		Run: runStreamProcessorManagers(
+			false,
 			sc,
 			config,
 			runErr,
@@ -240,6 +242,7 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
 		Run: runStreamProcessorManagers(
+			true,
 			sc,
 			config,
 			runErr,
@@ -309,6 +312,7 @@ func runListenCloser(lc utils.ListenCloser) {
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
 func runStreamProcessorManagers(
+	indexer bool,
 	sc *services.Control,
 	config *cfg.Config,
 	runError *error,
@@ -317,10 +321,15 @@ func runStreamProcessorManagers(
 	consumerFactories []consumers.ConsumerFactory,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
-		err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
-		if err != nil {
-			*runError = err
-			return
+		if indexer {
+			err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+			if err != nil {
+				*runError = err
+				return
+			}
+
+			// start the accumulator at startup
+			sc.BalanceAccumulatorManager.Run(sc.Persist, sc)
 		}
 
 		wg := &sync.WaitGroup{}

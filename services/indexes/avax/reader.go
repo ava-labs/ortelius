@@ -5,12 +5,15 @@ package avax
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"sync"
 	"time"
+
+	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -19,6 +22,8 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
+
+	corethType "github.com/ava-labs/coreth/core/types"
 )
 
 const (
@@ -51,15 +56,17 @@ var (
 
 type Reader struct {
 	conns           *services.Connections
+	sc              *services.Control
 	avmLock         sync.RWMutex
 	networkID       uint32
 	chainConsumers  map[string]services.Consumer
 	cChainCconsumer services.ConsumerCChain
 }
 
-func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain) *Reader {
+func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) *Reader {
 	return &Reader{
 		conns:           conns,
+		sc:              sc,
 		networkID:       networkID,
 		chainConsumers:  chainConsumers,
 		cChainCconsumer: cChainCconsumer,
@@ -623,34 +630,64 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		PublicKey []byte `json:"publicKey"`
 	}
 
-	ua := dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
-		Distinct().
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		OrderAsc("avm_outputs.chain_id").
-		OrderAsc("avm_output_addresses.address")
+	var ua *dbr.SelectStmt
+	var baseq *dbr.SelectStmt
 
-	baseq := dbRunner.
-		Select(
-			"avm_outputs.chain_id",
-			"avm_output_addresses.address",
-			"avm_outputs.asset_id",
-			"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
-			"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
-			"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
-		).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		Where("avm_output_addresses.address in ?", dbRunner.Select(
-			"avm_outputs_ua.address",
-		).From(p.Apply(ua).As("avm_outputs_ua"))).
-		GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
-		OrderAsc("avm_outputs.chain_id").
-		OrderAsc("avm_output_addresses.address").
-		OrderAsc("avm_outputs.asset_id")
+	if r.sc.IsAccumulateBalanceReader {
+		ua = dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+			Distinct().
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+			OrderAsc("avm_outputs.chain_id").
+			OrderAsc("avm_output_addresses.address")
+
+		baseq = p.Apply(dbRunner.
+			Select(
+				"accumulate_balances_received.chain_id",
+				"accumulate_balances_received.address",
+				"accumulate_balances_received.asset_id",
+				"accumulate_balances_transactions.transaction_count",
+				"accumulate_balances_received.total_amount as total_received",
+				"case when accumulate_balances_sent.total_amount is null then 0 else accumulate_balances_sent.total_amount end as total_sent",
+				"accumulate_balances_received.total_amount - case when accumulate_balances_sent.total_amount is null then 0 else accumulate_balances_sent.total_amount end as balance",
+				"accumulate_balances_received.utxo_count - case when accumulate_balances_sent.utxo_count is null then 0 else accumulate_balances_sent.utxo_count end as utxo_count",
+			).
+			From("accumulate_balances_received").
+			LeftJoin("accumulate_balances_sent", "accumulate_balances_received.id = accumulate_balances_sent.id").
+			LeftJoin("accumulate_balances_transactions", "accumulate_balances_received.id = accumulate_balances_transactions.id").
+			OrderAsc("accumulate_balances_received.chain_id").
+			OrderAsc("accumulate_balances_received.address").
+			OrderAsc("accumulate_balances_received.asset_id"), true)
+	} else {
+		ua = dbRunner.Select("avm_outputs.chain_id", "avm_output_addresses.address").
+			Distinct().
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+			OrderAsc("avm_outputs.chain_id").
+			OrderAsc("avm_output_addresses.address")
+
+		baseq = dbRunner.
+			Select(
+				"avm_outputs.chain_id",
+				"avm_output_addresses.address",
+				"avm_outputs.asset_id",
+				"COUNT(DISTINCT(avm_outputs.transaction_id)) AS transaction_count",
+				"COALESCE(SUM(avm_outputs.amount), 0) AS total_received",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NOT NULL THEN avm_outputs.amount ELSE 0 END), 0) AS total_sent",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN avm_outputs.amount ELSE 0 END), 0) AS balance",
+				"COALESCE(SUM(CASE WHEN avm_outputs_redeeming.redeeming_transaction_id IS NULL THEN 1 ELSE 0 END), 0) AS utxo_count",
+			).
+			From("avm_outputs").
+			LeftJoin("avm_output_addresses", "avm_output_addresses.output_id = avm_outputs.id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
+			Where("avm_output_addresses.address in ?", dbRunner.Select(
+				"avm_outputs_ua.address",
+			).From(p.Apply(ua, false).As("avm_outputs_ua"))).
+			GroupBy("avm_outputs.chain_id", "avm_output_addresses.address", "avm_outputs.asset_id").
+			OrderAsc("avm_outputs.chain_id").
+			OrderAsc("avm_output_addresses.address").
+			OrderAsc("avm_outputs.asset_id")
+	}
 
 	builder := dbRunner.Select(
 		"avm_outputs_j.chain_id",
@@ -698,7 +735,7 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 		count = uint64Ptr(uint64(p.ListParams.Offset) + uint64(len(addresses)))
 		if len(addresses) >= p.ListParams.Limit {
 			p.ListParams = params.ListParams{}
-			sqc := p.Apply(ua)
+			sqc := p.Apply(ua, true)
 			buildercnt := dbRunner.Select(
 				"count(*)",
 			).From(sqc.As("avm_outputs_j"))
@@ -1172,7 +1209,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_transactions.block",
 	).
 		From("cvm_addresses").
-		Join("cvm_transactions", "cvm_addresses.transaction_id=cvm_transactions.id").
+		Join("cvm_transactions", "cvm_addresses.transaction_id=cvm_transactions.transaction_id").
 		Where("cvm_addresses.transaction_id IN ?", txIDs).
 		LoadContext(ctx, &cvmAddress)
 	if err != nil {
@@ -1484,7 +1521,6 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Serialization []byte
 	}
 	rows := []Row{}
-
 	_, err = dbRunner.
 		Select("serialization").
 		From("cvm_transactions").
@@ -1499,7 +1535,43 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	row := rows[0]
-	return row.Serialization, nil
+
+	block, err := cblock.Unmarshal(row.Serialization)
+	if err != nil {
+		return nil, err
+	}
+	block.TxsBytes = nil
+
+	type RowData struct {
+		Idx           uint64
+		Serialization []byte
+	}
+	rowsData := []RowData{}
+
+	_, err = dbRunner.
+		Select(
+			"idx",
+			"serialization",
+		).
+		From("cvm_transactions_txdata").
+		Where("block="+p.ID).
+		OrderAsc("idx").
+		LoadContext(ctx, &rowsData)
+	if err != nil {
+		return nil, err
+	}
+
+	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
+	for _, rowData := range rowsData {
+		var tr corethType.Transaction
+		err := tr.UnmarshalJSON(rowData.Serialization)
+		if err != nil {
+			return nil, err
+		}
+		block.Txs = append(block.Txs, tr)
+	}
+
+	return json.Marshal(block)
 }
 
 func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, error) {

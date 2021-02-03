@@ -402,15 +402,25 @@ func (p *ListAddressesParams) CacheKey() []string {
 	return k
 }
 
-func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id")
+func (p *ListAddressesParams) Apply(b *dbr.SelectBuilder, accumulateReader bool) *dbr.SelectBuilder {
+	if !accumulateReader {
+		b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id", false)
+		if len(p.ChainIDs) != 0 {
+			b.Where("avm_outputs.chain_id IN ?", p.ChainIDs)
+		}
 
-	if len(p.ChainIDs) != 0 {
-		b.Where("avm_outputs.chain_id IN ?", p.ChainIDs)
-	}
+		if p.Address != nil {
+			b.Where("avm_output_addresses.address = ?", p.Address.String())
+		}
+	} else {
+		b = p.ListParams.ApplyPk("avm_output_addresses", b, "output_id", true)
+		if len(p.ChainIDs) != 0 {
+			b.Where("accumulate_balances_received.chain_id IN ?", p.ChainIDs)
+		}
 
-	if p.Address != nil {
-		b.Where("avm_output_addresses.address = ?", p.Address.String())
+		if p.Address != nil {
+			b.Where("accumulate_balances_received.address = ?", p.Address.String())
+		}
 	}
 
 	return b

@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -587,14 +585,20 @@ func TestCvmTransactions(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	txtime := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
 
 	v := &CvmTransactions{}
 	v.ID = "id1"
+	v.TransactionID = "trid1"
 	v.Type = models.CChainIn
 	v.BlockchainID = "bid1"
 	v.Block = "1"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test123")
+	v.TxTime = txtime
+	v.Nonce = 10
+	v.Hash = "h1"
+	v.ParentHash = "ph1"
 
 	stream := health.NewStream()
 
@@ -616,11 +620,18 @@ func TestCvmTransactions(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 
+	txtime2 := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
+
 	v.Type = models.CchainOut
+	v.TransactionID = "trid2"
 	v.BlockchainID = "bid2"
 	v.Block = "2"
 	v.CreatedAt = tm
 	v.Serialization = []byte("test456")
+	v.TxTime = txtime2
+	v.Nonce = 11
+	v.Hash = "h2"
+	v.ParentHash = "ph2"
 
 	err = p.InsertCvmTransactions(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -633,7 +644,68 @@ func TestCvmTransactions(t *testing.T) {
 	if string(fv.Serialization) != "test456" {
 		t.Fatal("compare fail")
 	}
+	if !fv.TxTime.Equal(txtime2) {
+		t.Fatal("compare fail")
+	}
+	if fv.TransactionID != "trid2" {
+		t.Fatal("compare fail")
+	}
 	if fv.Block != "2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestCvmTransactionsTxdata(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmTransactionsTxdata{}
+	v.Block = "1"
+	v.Idx = 1
+	v.Hash = "h1"
+	v.CreatedAt = tm
+	v.Serialization = []byte("test123")
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmTransactionsTxdata).Exec()
+
+	err = p.InsertCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Hash = "h2"
+	v.CreatedAt = tm
+	v.Serialization = []byte("test456")
+
+	err = p.InsertCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmTransactionsTxdata(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if string(fv.Serialization) != "test456" {
+		t.Fatal("compare fail")
+	}
+	if fv.Hash != "h2" {
 		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
@@ -875,7 +947,6 @@ func TestAddressBech32(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
-	fmt.Fprintf(os.Stderr, "%v %v\n", *v, *fv)
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
@@ -892,6 +963,226 @@ func TestAddressBech32(t *testing.T) {
 	}
 	if v.Bech32Address != "badr2" {
 		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestOutputAddressAccumulateOut(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &OutputAddressAccumulate{}
+	v.OutputID = "out1"
+	v.Address = "adr1"
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateOut).Exec()
+
+	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestOutputAddressAccumulateIn(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &OutputAddressAccumulate{}
+	v.OutputID = "out1"
+	v.Address = "adr1"
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateIn).Exec()
+
+	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestOutputTxsAccumulate(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &OutputTxsAccumulate{}
+	v.ChainID = "ch1"
+	v.AssetID = "asset1"
+	v.Address = "adr1"
+	v.TransactionID = "tr1"
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputTxsAccumulate).Exec()
+
+	err = p.InsertOutputTxsAccumulate(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryOutputTxsAccumulate(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestAccumulateBalancesReceived(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &AccumulateBalancesAmount{}
+	v.ChainID = "ch1"
+	v.AssetID = "asset1"
+	v.Address = "adr1"
+	v.TotalAmount = "0"
+	v.UtxoCount = "0"
+	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAccumulateBalancesReceived).Exec()
+
+	err = p.InsertAccumulateBalancesReceived(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryAccumulateBalancesReceived(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestAccumulateBalancesSent(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &AccumulateBalancesAmount{}
+	v.ChainID = "ch1"
+	v.AssetID = "asset1"
+	v.Address = "adr1"
+	v.TotalAmount = "0"
+	v.UtxoCount = "0"
+	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAccumulateBalancesSent).Exec()
+
+	err = p.InsertAccumulateBalancesSent(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryAccumulateBalancesSent(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestAccumulateBalancesTransactions(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &AccumulateBalancesTransactions{}
+	v.ChainID = "ch1"
+	v.AssetID = "asset1"
+	v.Address = "adr1"
+	v.TransactionCount = "0"
+	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableAccumulateBalancesTransactions).Exec()
+
+	err = p.InsertAccumulateBalancesTransactions(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryAccumulateBalancesTransactions(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
 	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")

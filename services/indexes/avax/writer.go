@@ -6,6 +6,7 @@ package avax
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/utils/formatting"
 
@@ -196,6 +197,7 @@ func (w *Writer) InsertTransactionIns(
 				if err != nil {
 					return 0, err
 				}
+
 				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 				if err != nil {
 					return 0, err
@@ -261,7 +263,24 @@ func (w *Writer) InsertOutput(
 	for _, addr := range out.Addresses() {
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
-		err = w.InsertOutputAddress(ctx, outputID, addrBytes, nil)
+		addrid := ids.ShortID(addrBytes)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil)
+		if err != nil {
+			return err
+		}
+
+		outputTxsAccumulate := &services.OutputTxsAccumulate{
+			ChainID:       chainID,
+			AssetID:       assetID.String(),
+			Address:       addrid.String(),
+			TransactionID: txID.String(),
+			CreatedAt:     time.Now(),
+		}
+		err = outputTxsAccumulate.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = ctx.Persist().InsertOutputTxsAccumulate(ctx.Ctx(), ctx.DB(), outputTxsAccumulate)
 		if err != nil {
 			return err
 		}
@@ -329,6 +348,24 @@ func (w *Writer) InsertOutputAddress(
 		Bech32Address: bech32Addr,
 	}
 	err = ctx.Persist().InsertAddressBech32(ctx.Ctx(), ctx.DB(), addressBech32, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	outputAddressAccumulate := &services.OutputAddressAccumulate{
+		OutputID:  outputID.String(),
+		Address:   address.String(),
+		CreatedAt: time.Now(),
+	}
+	err = outputAddressAccumulate.ComputeID()
+	if err != nil {
+		return err
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return err
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
 	if err != nil {
 		return err
 	}

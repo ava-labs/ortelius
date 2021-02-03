@@ -21,13 +21,27 @@ const (
 )
 
 type Control struct {
-	Services cfg.Services
-	Log      logging.Logger
-	Persist  Persist
+	Services                   cfg.Services
+	Log                        logging.Logger
+	Persist                    Persist
+	Features                   map[string]struct{}
+	BalanceAccumulatorManager  *BalanceAccumulatorManager
+	IsAccumulateBalanceIndexer bool
+	IsAccumulateBalanceReader  bool
 }
 
 func (s *Control) Init() {
+	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
+		s.Log.Info("enable feature accumulate_balance_indexer")
+		s.IsAccumulateBalanceIndexer = true
 
+		// reader will work only if we enable indexer.
+		if _, ok := s.Features["accumulate_balance_reader"]; ok {
+			s.Log.Info("enable feature accumulate_balance_reader")
+			s.IsAccumulateBalanceReader = true
+		}
+	}
+	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 }
 
 func (s *Control) InitProduceMetrics() {
