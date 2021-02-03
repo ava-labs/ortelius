@@ -1529,6 +1529,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		return nil, err
 	}
 
+	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
 	for _, rowData := range rowsData {
 		var tr corethType.Transaction
 		err := tr.UnmarshalJSON(rowData.Serialization)
