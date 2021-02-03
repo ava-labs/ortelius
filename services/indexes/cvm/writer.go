@@ -138,10 +138,15 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	for ipos, txdata := range block.TxsBytes {
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
+		tostr := ""
+		if rawtx.To() != nil {
+			tostr = rawtx.To().String()
+		}
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
 			Block:         block.Header.Number.String(),
 			Idx:           uint64(ipos),
 			Hash:          rawhash.String(),
+			To:            tostr,
 			Serialization: txdata,
 			CreatedAt:     ctx.Time(),
 		}

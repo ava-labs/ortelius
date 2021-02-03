@@ -1005,6 +1005,7 @@ type CvmTransactionsTxdata struct {
 	Block         string
 	Idx           uint64
 	Hash          string
+	To            string
 	Serialization []byte
 	CreatedAt     time.Time
 }
@@ -1019,6 +1020,7 @@ func (p *persist) QueryCvmTransactionsTxdata(
 		"block",
 		"idx",
 		"hash",
+		"to",
 		"serialization",
 		"created_at",
 	).From(TableCvmTransactionsTxdata).
@@ -1035,16 +1037,16 @@ func (p *persist) InsertCvmTransactionsTxdata(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (block,idx,hash,serialization,created_at) values("+v.Block+",?,?,?,?)",
-			v.Idx, v.Hash, v.Serialization, v.CreatedAt).
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (block,idx,hash,to,serialization,created_at) values("+v.Block+",?,?,?,?,?)",
+			v.Idx, v.Hash, v.To, v.Serialization, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactionsTxdata, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,serialization=?,created_at=? where block="+v.Block+" and idx=?",
-				v.Hash, v.Serialization, v.CreatedAt, v.Idx).
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,to=?,serialization=?,created_at=? where block="+v.Block+" and idx=?",
+				v.Hash, v.To, v.Serialization, v.CreatedAt, v.Idx).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdata, true, err)
