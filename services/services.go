@@ -51,7 +51,10 @@ type consumeState struct {
 }
 
 func NewConsumerState() ConsumeState {
-	return &consumeState{outputIds: make(map[ids.ID]struct{})}
+	return &consumeState{
+		outputIds: make(map[ids.ID]struct{}),
+		addresses: make(map[ids.ShortID]struct{}),
+	}
 }
 
 func (c *consumeState) AddOutputIds(i ids.ID) {
