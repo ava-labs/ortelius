@@ -166,9 +166,9 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		"a.id",
 		"a.output_id",
 		"a.address",
-		"avm_output.transaction_id",
+		"avm_outputs.transaction_id",
 	).From(sb.As("a")).
-		Join("avm_outputs", "a.output_id = avm_outputs.output_id").
+		Join("avm_outputs", "a.output_id = avm_outputs.id").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return nil, err
