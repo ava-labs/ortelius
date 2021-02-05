@@ -64,12 +64,12 @@ func (s *Server) Close() error {
 
 func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	// Pre-calculate IDs and index responses
-	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
+	genesisBytes, avaxAssetID, err := genesis.Genesis(conf.NetworkID,"")
 	if err != nil {
 		return nil, err
 	}
 
-	xChainGenesisTx, err := genesis.VMGenesis(conf.NetworkID, avmVM.ID)
+	xChainGenesisTx, err := genesis.VMGenesis(genesisBytes, avmVM.ID)
 	if err != nil {
 		return nil, err
 	}
