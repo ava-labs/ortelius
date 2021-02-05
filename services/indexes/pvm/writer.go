@@ -65,11 +65,11 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(&block)
 }
 
-func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist, consumeState services.ConsumeState) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist, consumeState services.ConsumeState) error {
 	job := conns.Stream().NewJob("pvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -80,14 +80,14 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body())
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist, consumeState), c.Body())
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist, consumeState services.ConsumeState) error {
 	job := conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID)
@@ -107,7 +107,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	var (
 		db   = conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
-		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), 0, persist)
+		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), 0, persist, consumeState)
 	)
 
 	for idx, utxo := range platformGenesis.UTXOs {

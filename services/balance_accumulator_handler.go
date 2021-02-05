@@ -26,14 +26,20 @@ var processTypeIn processType = 1
 var processTypeOut processType = 2
 
 type BalanceAccumulatorManager struct {
-	handler BalancerAccumulateHandler
+	handler *BalancerAccumulateHandler
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+func NewBalanceAccumulatorManager() *BalanceAccumulatorManager {
+	return &BalanceAccumulatorManager{
+		handler: &BalancerAccumulateHandler{},
+	}
+}
+
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, consumeState ConsumeState) {
 	if !sc.IsAccumulateBalanceIndexer {
 		return
 	}
-	a.handler.Run(persist, sc)
+	a.handler.Run(persist, sc, consumeState)
 }
 
 type BalancerAccumulateHandler struct {
@@ -43,7 +49,7 @@ type BalancerAccumulateHandler struct {
 	lock        sync.Mutex
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
+func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeState ConsumeState) {
 	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
 		if atomic.LoadInt64(runcnt) >= Threads {
 			return
@@ -139,7 +145,6 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		tbl+".id",
 		tbl+".output_id",
 		tbl+".address",
-		"avm_outputs.transaction_id",
 	).
 		From(tbl).
 		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
@@ -151,11 +156,19 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
 	}
 
-	_, err = b.
+	sb := b.
 		Where(tbl+".processed = ?", 0).
-		OrderAsc(tbl+".processed").
-		OrderAsc(tbl+".created_at").
-		Limit(RowLimitValue).
+		OrderAsc(tbl + ".processed").
+		OrderAsc(tbl + ".created_at").
+		Limit(RowLimitValue)
+
+	_, err = session.Select(
+		"a.id",
+		"a.output_id",
+		"a.address",
+		"avm_output.transaction_id",
+	).From(sb.As("a")).
+		Join("avm_outputs", "a.output_id = avm_outputs.output_id").
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return nil, err

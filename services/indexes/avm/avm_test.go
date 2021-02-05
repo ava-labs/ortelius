@@ -36,7 +36,8 @@ func TestIndexBootstrap(t *testing.T) {
 	defer closeFn()
 
 	persist := services.NewPersist()
-	err := writer.Bootstrap(newTestContext(), conns, persist)
+	consumeState := services.NewConsumerState()
+	err := writer.Bootstrap(newTestContext(), conns, persist, consumeState)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
 	}
@@ -209,7 +210,8 @@ func TestInsertTxInternal(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	consumeState := services.NewConsumerState()
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist, consumeState)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -264,7 +266,8 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 	persist := services.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	consumeState := services.NewConsumerState()
+	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist, consumeState)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)

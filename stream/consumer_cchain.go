@@ -124,8 +124,9 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
 
+	consumeState := services.NewConsumerState()
 	for {
-		err = c.persistConsume(nmsg, block)
+		err = c.persistConsume(nmsg, block, consumeState)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -142,10 +143,10 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	return c.commitMessage(msg)
 }
 
-func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
+func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block, consumeState services.ConsumeState) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, c.conns, msg, block, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, block, c.sc.Persist, consumeState)
 }
 
 func (c *ConsumerCChain) nextMessage() (*Message, error) {

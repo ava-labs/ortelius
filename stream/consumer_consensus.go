@@ -141,8 +141,9 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 	}()
 
+	consumeState := services.NewConsumerState()
 	for {
-		err = c.persistConsume(msg)
+		err = c.persistConsume(msg, consumeState)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -159,10 +160,10 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 	return c.commitMessage(msg)
 }
 
-func (c *consumerconsensus) persistConsume(msg *Message) error {
+func (c *consumerconsensus) persistConsume(msg *Message, consumeState services.ConsumeState) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.ConsumeConsensus(ctx, c.conns, msg, c.sc.Persist)
+	return c.consumer.ConsumeConsensus(ctx, c.conns, msg, c.sc.Persist, consumeState)
 }
 
 func (c *consumerconsensus) nextMessage() (*Message, error) {

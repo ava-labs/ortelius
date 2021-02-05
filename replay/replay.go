@@ -238,10 +238,11 @@ func (replay *replay) handleReader(chain cfg.Chain, replayEndTime time.Time, wai
 	replay.uniqueIDLock.Unlock()
 
 	{
+		consumeState := services.NewConsumerState()
 		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
 		ctx := context.Background()
 		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
-		err := writer.Bootstrap(ctx, conns, replay.persist)
+		err := writer.Bootstrap(ctx, conns, replay.persist, consumeState)
 		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
 		if err != nil {
 			replay.errs.SetValue(err)
@@ -300,11 +301,13 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 	return func(_ int, valuei interface{}) {
 		switch value := valuei.(type) {
 		case *WorkerPacket:
+			consumeState := services.NewConsumerState()
+
 			var consumererr error
 			switch value.consumeType {
 			case CONSUME:
 				for {
-					consumererr = value.writer.Consume(context.Background(), replay.conns, value.message, replay.persist)
+					consumererr = value.writer.Consume(context.Background(), replay.conns, value.message, replay.persist, consumeState)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
@@ -316,7 +319,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMECONSENSUS:
 				for {
-					consumererr = value.writer.ConsumeConsensus(context.Background(), replay.conns, value.message, replay.persist)
+					consumererr = value.writer.ConsumeConsensus(context.Background(), replay.conns, value.message, replay.persist, consumeState)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
@@ -328,7 +331,7 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
+					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist, consumeState)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}

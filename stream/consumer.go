@@ -150,8 +150,9 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 	}()
 
+	consumeState := services.NewConsumerState()
 	for {
-		err = c.persistConsume(msg)
+		err = c.persistConsume(msg, consumeState)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -168,10 +169,10 @@ func (c *consumer) ProcessNextMessage() error {
 	return c.commitMessage(msg)
 }
 
-func (c *consumer) persistConsume(msg *Message) error {
+func (c *consumer) persistConsume(msg *Message, consumeState services.ConsumeState) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, c.conns, msg, c.sc.Persist)
+	return c.consumer.Consume(ctx, c.conns, msg, c.sc.Persist, consumeState)
 }
 
 func (c *consumer) nextMessage() (*Message, error) {
