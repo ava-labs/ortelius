@@ -50,6 +50,20 @@ type BalancerAccumulateHandler struct {
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeState ConsumeState) {
+	if consumeState != nil {
+		conns, err := sc.DatabaseOnly()
+		if err != nil {
+			sc.Log.Error("accumulate error %v", err)
+			return
+		}
+		defer func() {
+			_ = conns.Close()
+		}()
+		a.processOutputs(processTypeOut, conns, persist, consumeState)
+		a.processOutputs(processTypeIn, conns, persist, consumeState)
+		a.processTransactions(conns, persist, consumeState)
+		return
+	}
 	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
 		if atomic.LoadInt64(runcnt) >= Threads {
 			return
@@ -95,13 +109,13 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeSta
 	}
 
 	frun(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(processTypeOut, conns, persist)
+		return a.processOutputs(processTypeOut, conns, persist, nil)
 	})
 	frun(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(processTypeIn, conns, persist)
+		return a.processOutputs(processTypeIn, conns, persist, nil)
 	})
 	frun(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processTransactions(conns, persist)
+		return a.processTransactions(conns, persist, nil)
 	})
 }
 
@@ -132,7 +146,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *dbr.Session) ([]*OutputAddressAccumulateWithTrID, error) {
+func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *dbr.Session, consumeState ConsumeState) ([]*OutputAddressAccumulateWithTrID, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -154,6 +168,15 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 	case processTypeIn:
 		b = b.
 			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
+	}
+
+	if consumeState != nil {
+		outputIds := consumeState.GetOutputIds()
+		// no outputs... no work to do..
+		if len(outputIds) == 0 {
+			return rowdata, nil
+		}
+		b.Where(tbl+".output_id in ?", outputIds)
 	}
 
 	sb := b.
@@ -180,13 +203,13 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist) (uint64, error) {
+func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist, consumeState ConsumeState) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*OutputAddressAccumulateWithTrID
-	rowdataAvail, err = a.processOutputsPre(typ, session)
+	rowdataAvail, err = a.processOutputsPre(typ, session, consumeState)
 	if err != nil {
 		return 0, err
 	}
@@ -374,14 +397,14 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session) ([]*OutputTxsAccumulate, error) {
+func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session, consumeState ConsumeState) ([]*OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
 	var err error
 	var rowdata []*OutputTxsAccumulate
 
-	_, err = session.Select(
+	b := session.Select(
 		"id",
 		"chain_id",
 		"asset_id",
@@ -389,7 +412,18 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		"transaction_id",
 		"processed",
 	).
-		From(TableOutputTxsAccumulate).
+		From(TableOutputTxsAccumulate)
+
+	if consumeState != nil {
+		addresses := consumeState.GetAddresses()
+		// no outputs... no work to do..
+		if len(addresses) == 0 {
+			return rowdata, nil
+		}
+		b.Where(TableOutputTxsAccumulate+".address in ?", addresses)
+	}
+
+	_, err = b.
 		Where("processed = ?", 0).
 		OrderAsc("processed").
 		OrderAsc("created_at").
@@ -405,13 +439,13 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
+func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist, consumeState ConsumeState) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*OutputTxsAccumulate
-	rowdataAvail, err = a.processTransactionsPre(session)
+	rowdataAvail, err = a.processTransactionsPre(session, consumeState)
 	if err != nil {
 		return 0, err
 	}
