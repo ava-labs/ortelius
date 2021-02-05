@@ -329,7 +329,7 @@ func runStreamProcessorManagers(
 			}
 
 			// start the accumulator at startup
-			sc.BalanceAccumulatorManager.Run(sc.Persist, sc)
+			sc.BalanceAccumulatorManager.Run(sc.Persist, sc, nil)
 		}
 
 		wg := &sync.WaitGroup{}
