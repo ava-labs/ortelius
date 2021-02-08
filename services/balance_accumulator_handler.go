@@ -150,6 +150,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
 
 	switch typ {
+	case processTypeOut:
 	case processTypeIn:
 		b = b.
 			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
