@@ -124,6 +124,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			if err == nil {
 				break
 			}
+			wb.log.Warn("Error writing to kafka (retry):", err)
 			time.Sleep(defaultWriteRetrySleep)
 		}
 
