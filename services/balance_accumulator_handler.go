@@ -169,16 +169,14 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 
 	switch typ {
 	case processTypeOut:
-		b = b.
-			OrderAsc(tbl + ".processed")
 	case processTypeIn:
 		b = b.
 			Where(tbl+".output_processed = ?", 1).
-			OrderAsc(tbl + ".output_processed").
-			OrderAsc(tbl + ".processed")
+			OrderAsc(tbl + ".output_processed")
 	}
 
 	sb := b.
+		OrderAsc(tbl + ".processed").
 		OrderAsc(tbl + ".created_at").
 		Limit(RowLimitValue)
 
