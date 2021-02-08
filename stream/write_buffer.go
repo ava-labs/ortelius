@@ -111,11 +111,11 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 		}()
 
-		wm := func(buffer2 []kafka.Message, bufferSize int) error {
+		wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
 			ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
 			defer cancelFn()
 
-			return wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...)
+			return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
 		}
 
 		var err error
