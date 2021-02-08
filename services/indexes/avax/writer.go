@@ -218,6 +218,11 @@ func (w *Writer) InsertTransactionIns(
 		CreatedAt:              ctx.Time(),
 	}
 
+	err = ctx.Persist().UpdateOutputAddressAccumulateInOutputsProcessed(ctx.Ctx(), ctx.DB(), inputID.String())
+	if err != nil {
+		return 0, err
+	}
+
 	return totalin, ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
 }
 

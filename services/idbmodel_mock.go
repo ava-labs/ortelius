@@ -394,6 +394,17 @@ func (m *MockPersist) InsertOutputAddressAccumulateIn(ctx context.Context, runne
 	return nil
 }
 
+func (m *MockPersist) UpdateOutputAddressAccumulateInOutputsProcessed(ctx context.Context, runner dbr.SessionRunner, id string) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	for _, v := range m.OutputAddressAccumulateIn {
+		if v.OutputID == id {
+			v.OutputProcessed = 1
+		}
+	}
+	return nil
+}
+
 func (m *MockPersist) QueryOutputTxsAccumulate(ctx context.Context, runner dbr.SessionRunner, v *OutputTxsAccumulate) (*OutputTxsAccumulate, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()

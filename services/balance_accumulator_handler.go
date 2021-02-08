@@ -50,20 +50,6 @@ type BalancerAccumulateHandler struct {
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeState ConsumeState) {
-	if consumeState != nil {
-		conns, err := sc.DatabaseOnly()
-		if err != nil {
-			sc.Log.Error("accumulate error %v", err)
-			return
-		}
-		defer func() {
-			_ = conns.Close()
-		}()
-		a.processOutputs(processTypeOut, conns, persist, consumeState)
-		a.processOutputs(processTypeIn, conns, persist, consumeState)
-		a.processTransactions(conns, persist, consumeState)
-		return
-	}
 	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
 		if atomic.LoadInt64(runcnt) >= Threads {
 			return
@@ -164,7 +150,6 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
 
 	switch typ {
-	case processTypeOut:
 	case processTypeIn:
 		b = b.
 			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
@@ -179,9 +164,20 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		b.Where(tbl+".output_id in ?", outputIds)
 	}
 
+	b.Where(tbl+".processed = ?", 0)
+
+	switch typ {
+	case processTypeOut:
+		b = b.
+			OrderAsc(tbl + ".processed")
+	case processTypeIn:
+		b = b.
+			Where(tbl+".output_processed = ?", 1).
+			OrderAsc(tbl + ".output_processed").
+			OrderAsc(tbl + ".processed")
+	}
+
 	sb := b.
-		Where(tbl+".processed = ?", 0).
-		OrderAsc(tbl + ".processed").
 		OrderAsc(tbl + ".created_at").
 		Limit(RowLimitValue)
 
