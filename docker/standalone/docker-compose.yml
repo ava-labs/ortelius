@@ -10,7 +10,7 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.1.3"
+    image: "avaplatform/avalanchego:v1.1.4"
     command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
