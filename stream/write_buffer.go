@@ -100,9 +100,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
-		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-		defer cancelFn()
-
 		collectors := metrics.NewCollectors(
 			metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
 			metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
@@ -114,14 +111,22 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 		}()
 
+		wm := func(buffer2 []kafka.Message, bufferSize int) error {
+			ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+			defer cancelFn()
+
+			return wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...)
+		}
+
 		var err error
 		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
-			err = wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...)
+			err = wm(buffer2, bufferSize)
 			if err == nil {
 				break
 			}
 			time.Sleep(defaultWriteRetrySleep)
 		}
+
 		if err != nil {
 			collectors.Error()
 			wb.log.Error("Error writing to kafka:", err)
