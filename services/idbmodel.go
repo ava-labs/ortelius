@@ -1456,7 +1456,7 @@ func (p *persist) UpdateOutputAddressAccumulateInOutputsProcessed(
 	_, err = sess.
 		Update(TableOutputAddressAccumulateIn).
 		Set("output_processed", 1).
-		Where("output_id=?", id).
+		Where("output_id=? and output_processed <> ?", id, 1).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateIn, false, err)
