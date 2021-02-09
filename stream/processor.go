@@ -176,13 +176,22 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	id := backend.ID()
 
 	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
+	tdoneCh := make(chan struct{})
+	defer func() {
+		t.Stop()
+		close(tdoneCh)
+	}()
 
 	// Log run statistics periodically until asked to stop
 	go func() {
-		for range t.C {
-			c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-			if c.isStopping() {
+		for {
+			select {
+			case <-t.C:
+				c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+				if c.isStopping() {
+					return
+				}
+			case <-tdoneCh:
 				return
 			}
 		}

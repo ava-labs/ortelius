@@ -444,13 +444,22 @@ func (p *ProducerCChain) runProcessor() error {
 	id := p.ID()
 
 	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
+	tdoneCh := make(chan struct{})
+	defer func() {
+		t.Stop()
+		close(tdoneCh)
+	}()
 
 	// Log run statistics periodically until asked to stop
 	go func() {
-		for range t.C {
-			p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-			if p.isStopping() {
+		for {
+			select {
+			case <-t.C:
+				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+				if p.isStopping() {
+					return
+				}
+			case <-tdoneCh:
 				return
 			}
 		}

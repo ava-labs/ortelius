@@ -64,6 +64,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		// Create consumer backend
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
+			c.Close()
 			return nil, err
 		}
 
@@ -92,6 +93,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			defer cancelFn()
 
 			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
+				c.Close()
 				return nil, err
 			}
 		}
