@@ -301,7 +301,7 @@ func (e *export) startCchain(addr *net.TCPAddr, chain string, replayEndTime time
 			defer atomic.AddInt64(waitGroup, -1)
 			defer e.counterWaits.Add(tn, -1)
 
-			e.sc.Log.Info("e for topic %s:%d init", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     e.config.Kafka.Brokers,
@@ -309,11 +309,11 @@ func (e *export) startCchain(addr *net.TCPAddr, chain string, replayEndTime time
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
-			e.sc.Log.Info("e for topic %s:%d reading", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if e.errs.GetValue() != nil {
-					e.sc.Log.Info("e for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					e.sc.Log.Info("export for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -327,7 +327,7 @@ func (e *export) startCchain(addr *net.TCPAddr, chain string, replayEndTime time
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					e.sc.Log.Info("e for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					e.sc.Log.Info("export for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
@@ -383,7 +383,7 @@ func (e *export) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTim
 			defer atomic.AddInt64(waitGroup, -1)
 			defer e.counterWaits.Add(tn, -1)
 
-			e.sc.Log.Info("e for topic %s:%d init", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     e.config.Kafka.Brokers,
@@ -391,11 +391,11 @@ func (e *export) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTim
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
-			e.sc.Log.Info("e for topic %s:%d reading", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if e.errs.GetValue() != nil {
-					e.sc.Log.Info("e for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					e.sc.Log.Info("export for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -409,7 +409,7 @@ func (e *export) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayEndTim
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					e.sc.Log.Info("e for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					e.sc.Log.Info("export for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
@@ -459,7 +459,7 @@ func (e *export) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime
 			defer atomic.AddInt64(waitGroup, -1)
 			defer e.counterWaits.Add(tn, -1)
 
-			e.sc.Log.Info("e for topic %s:%d init", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d init", tn, partOffset.Partition)
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Topic:       tn,
 				Brokers:     e.config.Kafka.Brokers,
@@ -467,11 +467,11 @@ func (e *export) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime
 				StartOffset: partOffset.FirstOffset,
 				MaxBytes:    stream.ConsumerMaxBytesDefault,
 			})
-			e.sc.Log.Info("e for topic %s:%d reading", tn, partOffset.Partition)
+			e.sc.Log.Info("export for topic %s:%d reading", tn, partOffset.Partition)
 
 			for {
 				if e.errs.GetValue() != nil {
-					e.sc.Log.Info("e for topic %s:%d stopped for errors", tn, partOffset.Partition)
+					e.sc.Log.Info("export for topic %s:%d stopped for errors", tn, partOffset.Partition)
 					return
 				}
 
@@ -485,7 +485,7 @@ func (e *export) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEndTime
 				}
 
 				if msg.Time.UTC().After(replayEndTime) {
-					e.sc.Log.Info("e for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
+					e.sc.Log.Info("export for topic %s:%d reached %s", tn, partOffset.Partition, replayEndTime.String())
 					return
 				}
 
