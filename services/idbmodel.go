@@ -1010,9 +1010,9 @@ func (p *persist) InsertCvmTransactions(
 }
 
 type CvmTransactionsTxdata struct {
+	Hash          string
 	Block         string
 	Idx           uint64
-	Hash          string
 	Rcpt          string
 	Nonce         uint64
 	Serialization []byte
@@ -1026,15 +1026,15 @@ func (p *persist) QueryCvmTransactionsTxdata(
 ) (*CvmTransactionsTxdata, error) {
 	v := &CvmTransactionsTxdata{}
 	err := sess.Select(
+		"hash",
 		"block",
 		"idx",
-		"hash",
 		"rcpt",
 		"nonce",
 		"serialization",
 		"created_at",
 	).From(TableCvmTransactionsTxdata).
-		Where("block="+q.Block+" and idx=?", q.Idx).
+		Where("hash="+q.Hash).
 		LoadOneContext(ctx, v)
 	return v, err
 }
@@ -1047,7 +1047,7 @@ func (p *persist) InsertCvmTransactionsTxdata(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (block,idx,hash,rcpt,nonce,serialization,created_at) values("+v.Block+",?,?,?,?,?,?)",
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (hash,block,idx,rcpt,nonce,serialization,created_at) values(?,"+v.Block+",?,?,?,?,?)",
 			v.Idx, v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -1055,8 +1055,8 @@ func (p *persist) InsertCvmTransactionsTxdata(
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,rcpt=?,nonce=?,serialization=?,created_at=? where block="+v.Block+" and idx=?",
-				v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt, v.Idx).
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set block="+v.Block+",idx=?,rcpt=?,nonce=?,serialization=?,created_at=? where hash=?",
+				v.Idx, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt, v.Hash).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdata, true, err)
