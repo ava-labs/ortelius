@@ -41,7 +41,8 @@ func (s *Control) Init() {
 			s.IsAccumulateBalanceReader = true
 		}
 	}
-	s.BalanceAccumulatorManager = NewBalanceAccumulatorManager()
+	persist := NewPersist()
+	s.BalanceAccumulatorManager = NewBalanceAccumulatorManager(persist, s)
 }
 
 func (s *Control) InitProduceMetrics() {
