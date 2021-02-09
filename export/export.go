@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -69,7 +68,7 @@ func (e *export) Start() error {
 	waitGroup := new(int64)
 
 	tnow := time.Now().UTC().Unix()
-	file, err := os.OpenFile(fmt.Sprintf("extract.%d.json", tnow), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+	file, err := os.OpenFile(fmt.Sprintf("export.%d.json", tnow), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
 	if err != nil {
 		return err
 	}
@@ -169,10 +168,11 @@ type WorkerPacket struct {
 }
 
 type JSONData struct {
-	Key     string    `json:"key"`
-	Data    string    `json:"data"`
-	Time    time.Time `json:"time"`
-	ChainID string    `json:"chainID"`
+	Key     string      `json:"key"`
+	Data    string      `json:"data"`
+	Time    time.Time   `json:"time"`
+	ChainID string      `json:"chainID"`
+	Type    ConsumeType `json:"type"`
 }
 
 func (e *export) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
@@ -226,6 +226,7 @@ func (e *export) workerProcessor() func(int, interface{}) {
 					Data:    hex.EncodeToString(value.message.KafkaMessage().Value),
 					Time:    value.message.KafkaMessage().Time,
 					ChainID: value.message.ChainID(),
+					Type:    value.consumeType,
 				}
 				j, err := json.Marshal(exportJSON)
 				if err != nil {
@@ -242,6 +243,7 @@ func (e *export) workerProcessor() func(int, interface{}) {
 					Data:    hex.EncodeToString(value.message.KafkaMessage().Value),
 					Time:    value.message.KafkaMessage().Time,
 					ChainID: value.message.ChainID(),
+					Type:    value.consumeType,
 				}
 				j, err := json.Marshal(exportJSON)
 				if err != nil {
@@ -263,6 +265,7 @@ func (e *export) workerProcessor() func(int, interface{}) {
 					Data:    string(bl),
 					Time:    value.message.KafkaMessage().Time,
 					ChainID: value.message.ChainID(),
+					Type:    value.consumeType,
 				}
 				j, err := json.Marshal(exportJSON)
 				if err != nil {
@@ -343,10 +346,14 @@ func (e *export) startCchain(addr *net.TCPAddr, chain string, replayEndTime time
 					block.BlockExtraData = []byte("")
 				}
 
-				hid := hashing.ComputeHash256(block.BlockExtraData)
+				id, err := ids.ToID(msg.Key)
+				if err != nil {
+					e.errs.SetValue(err)
+					return
+				}
 
 				msgc := stream.NewMessageWithKafka(
-					string(hid),
+					id.String(),
 					chain,
 					block.BlockExtraData,
 					msg.Time.UTC().Unix(),
