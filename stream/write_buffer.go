@@ -19,6 +19,8 @@ const (
 	defaultBufferedWriterSize         = 256
 	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 5
 	defaultWriteTimeout               = 1 * time.Minute
+	defaultWriteRetry                 = 10
+	defaultWriteRetrySleep            = 1 * time.Second
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
@@ -34,6 +36,7 @@ type bufferedWriter struct {
 	metricSuccessCountKey       string
 	metricFailureCountKey       string
 	metricProcessMillisCountKey string
+	flushTicker                 *time.Ticker
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -61,6 +64,7 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
+	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
 	return wb
@@ -75,8 +79,7 @@ func (wb *bufferedWriter) Write(msg []byte) {
 // batches
 func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
-		lastFlush   = time.Now()
-		flushTicker = time.NewTicker(flushInterval)
+		lastFlush = time.Now()
 
 		bufferSize = 0
 		buffer     = make([](*[]byte), size)
@@ -98,9 +101,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
-		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-		defer cancelFn()
-
 		collectors := metrics.NewCollectors(
 			metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
 			metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
@@ -112,7 +112,24 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 		}()
 
-		if err := wb.writer.WriteMessages(ctx, buffer2[:bufferSize]...); err != nil {
+		wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
+			ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+			defer cancelFn()
+
+			return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
+		}
+
+		var err error
+		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+			err = wm(buffer2, bufferSize)
+			if err == nil {
+				break
+			}
+			wb.log.Warn("Error writing to kafka (retry):", err)
+			time.Sleep(defaultWriteRetrySleep)
+		}
+
+		if err != nil {
 			collectors.Error()
 			wb.log.Error("Error writing to kafka:", err)
 		}
@@ -121,7 +138,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	}
 
 	defer func() {
-		flushTicker.Stop()
+		wb.flushTicker.Stop()
 		flush()
 		close(wb.doneCh)
 	}()
@@ -142,7 +159,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			// Add this message to the buffer and if it's full we flush and
 			buffer[bufferSize] = msg
 			bufferSize++
-		case <-flushTicker.C:
+		case <-wb.flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
 			if time.Now().After(lastFlush.Add(flushInterval)) {
 				flush()
@@ -155,6 +172,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 func (wb *bufferedWriter) close() error {
 	// Close buffer and wait for it to stop, flush, and signal back
 	close(wb.buffer)
+	wb.flushTicker.Stop()
 	<-wb.doneCh
 	return wb.writer.Close()
 }

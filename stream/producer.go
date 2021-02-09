@@ -49,6 +49,10 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	var err error
 	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
 	if err != nil {
+		if p.writeBuffer != nil {
+			p.writeBuffer.close()
+			p.writeBuffer = nil
+		}
 		return nil, err
 	}
 
