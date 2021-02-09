@@ -13,6 +13,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ava-labs/ortelius/export"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
@@ -54,6 +56,9 @@ const (
 
 	streamReplayCmdUse  = "replay"
 	streamReplayCmdDesc = "Runs the replay"
+
+	streamReplayExportCmdUse  = "replayExport"
+	streamReplayExportCmdDesc = "Runs the replay export"
 
 	streamProducerCmdUse  = "producer"
 	streamProducerCmdDesc = "Runs the stream producer daemon"
@@ -146,6 +151,7 @@ func execute() error {
 	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, fmt.Sprintf("replay queue size threads default %d", defaultReplayQueueThreads))
 
 	cmd.AddCommand(
+		createReplayExportCmds(serviceControl, config, &runErr, replayqueuesize, replayqueuethreads),
 		createReplayCmds(serviceControl, config, &runErr, replayqueuesize, replayqueuethreads),
 		createStreamCmds(serviceControl, config, &runErr),
 		createAPICmds(serviceControl, config, &runErr),
@@ -181,6 +187,23 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
 			replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
+			err := replay.Start()
+			if err != nil {
+				*runErr = err
+			}
+		},
+	}
+
+	return replayCmd
+}
+
+func createReplayExportCmds(sc *services.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
+	replayCmd := &cobra.Command{
+		Use:   streamReplayExportCmdUse,
+		Short: streamReplayExportCmdDesc,
+		Long:  streamReplayExportCmdDesc,
+		Run: func(cmd *cobra.Command, args []string) {
+			replay := export.New(sc, config, *replayqueuesize, *replayqueuethreads)
 			err := replay.Start()
 			if err != nil {
 				*runErr = err
