@@ -213,6 +213,9 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 			b = b.
 				Where(tbl+".output_processed = ?", 1).
 				OrderAsc(tbl + ".output_processed")
+		} else {
+			b = b.
+				Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
 		}
 	}
 
