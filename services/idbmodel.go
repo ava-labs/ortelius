@@ -1034,7 +1034,7 @@ func (p *persist) QueryCvmTransactionsTxdata(
 		"serialization",
 		"created_at",
 	).From(TableCvmTransactionsTxdata).
-		Where("hash="+q.Hash).
+		Where("hash=?", q.Hash).
 		LoadOneContext(ctx, v)
 	return v, err
 }
@@ -1048,7 +1048,7 @@ func (p *persist) InsertCvmTransactionsTxdata(
 	var err error
 	_, err = sess.
 		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (hash,block,idx,rcpt,nonce,serialization,created_at) values(?,"+v.Block+",?,?,?,?,?)",
-			v.Idx, v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
+			v.Hash, v.Idx, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactionsTxdata, false, err)
