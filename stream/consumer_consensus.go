@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -146,7 +145,6 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()

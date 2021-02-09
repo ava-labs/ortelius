@@ -129,7 +129,6 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
