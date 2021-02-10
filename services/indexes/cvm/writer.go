@@ -39,7 +39,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	_, avaxAssetID, err := genesis.Genesis(networkID)
+	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
 		return nil, err
 	}

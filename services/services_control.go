@@ -28,9 +28,10 @@ type Control struct {
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
+	GenesisContainer           *GenesisContainer
 }
 
-func (s *Control) Init() {
+func (s *Control) Init(networkID uint32) error {
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
 		s.IsAccumulateBalanceIndexer = true
@@ -42,6 +43,14 @@ func (s *Control) Init() {
 		}
 	}
 	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
+
+	var err error
+	s.GenesisContainer, err = NewGenesisContainer(networkID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Control) InitProduceMetrics() {
