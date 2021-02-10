@@ -311,7 +311,6 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -323,7 +322,6 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -335,7 +333,6 @@ func (replay *replay) workerProcessor() func(int, interface{}) {
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
-					time.Sleep(1 * time.Millisecond)
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)

@@ -36,6 +36,7 @@ type bufferedWriter struct {
 	metricSuccessCountKey       string
 	metricFailureCountKey       string
 	metricProcessMillisCountKey string
+	flushTicker                 *time.Ticker
 }
 
 func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
@@ -63,6 +64,7 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
+	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
 	return wb
@@ -77,8 +79,7 @@ func (wb *bufferedWriter) Write(msg []byte) {
 // batches
 func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
-		lastFlush   = time.Now()
-		flushTicker = time.NewTicker(flushInterval)
+		lastFlush = time.Now()
 
 		bufferSize = 0
 		buffer     = make([](*[]byte), size)
@@ -137,7 +138,8 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	}
 
 	defer func() {
-		flushTicker.Stop()
+		close(wb.buffer)
+		wb.flushTicker.Stop()
 		flush()
 		close(wb.doneCh)
 	}()
@@ -158,7 +160,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			// Add this message to the buffer and if it's full we flush and
 			buffer[bufferSize] = msg
 			bufferSize++
-		case <-flushTicker.C:
+		case <-wb.flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
 			if time.Now().After(lastFlush.Add(flushInterval)) {
 				flush()
@@ -171,6 +173,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 func (wb *bufferedWriter) close() error {
 	// Close buffer and wait for it to stop, flush, and signal back
 	close(wb.buffer)
+	wb.flushTicker.Stop()
 	<-wb.doneCh
 	return wb.writer.Close()
 }

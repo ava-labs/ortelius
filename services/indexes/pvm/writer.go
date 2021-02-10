@@ -57,12 +57,17 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 func (*Writer) Name() string { return "pvm-index" }
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	var block platformvm.Tx
-	_, err := w.codec.Unmarshal(txBytes, &block)
+	var blockTx platformvm.Tx
+	_, err := w.codec.Unmarshal(txBytes, &blockTx)
 	if err != nil {
-		return nil, err
+		var block platformvm.Block
+		_, err := w.codec.Unmarshal(txBytes, &block)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(&block)
 	}
-	return json.Marshal(&block)
+	return json.Marshal(&blockTx)
 }
 
 func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist, consumeState services.ConsumeState) error {
