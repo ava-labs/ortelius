@@ -436,7 +436,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session, consumeState ConsumeState) ([]*OutputTxsAccumulate, error) {
+func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session, _ ConsumeState) ([]*OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -452,15 +452,6 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session,
 		"processed",
 	).
 		From(TableOutputTxsAccumulate)
-
-	if consumeState != nil {
-		addresses := consumeState.GetAddresses()
-		// no outputs... no work to do..
-		if len(addresses) == 0 {
-			return rowdata, nil
-		}
-		b.Where(TableOutputTxsAccumulate+".address in ?", addresses)
-	}
 
 	_, err = b.
 		Where("processed = ?", 0).
