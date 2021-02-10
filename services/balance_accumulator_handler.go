@@ -178,7 +178,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session, consumeState ConsumeState) ([]*OutputAddressAccumulateWithTrID, error) {
+func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session, _ ConsumeState) ([]*OutputAddressAccumulateWithTrID, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -194,15 +194,6 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	).
 		From(tbl).
 		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
-
-	if consumeState != nil {
-		outputIds := consumeState.GetOutputIds()
-		// no outputs... no work to do..
-		if len(outputIds) == 0 {
-			return rowdata, nil
-		}
-		b.Where(tbl+".output_id in ?", outputIds)
-	}
 
 	b.Where(tbl+".processed = ?", 0)
 
