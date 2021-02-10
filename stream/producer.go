@@ -31,11 +31,17 @@ type Producer struct {
 
 // NewProducer creates a producer using the given config
 func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
+	sock, err := socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Producer{
 		chainID:                 chainID,
 		eventType:               eventType,
 		writeBuffer:             newBufferedWriter(sc.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
 		sc:                      sc,
+		sock:                    sock,
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
@@ -45,16 +51,6 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 	sc.InitProduceMetrics()
-
-	var err error
-	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
-	if err != nil {
-		if p.writeBuffer != nil {
-			p.writeBuffer.close()
-			p.writeBuffer = nil
-		}
-		return nil, err
-	}
 
 	return p, nil
 }

@@ -74,6 +74,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		// Create consumer backend
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
+			c.Close()
 			return nil, err
 		}
 
@@ -102,6 +103,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			defer cancelFn()
 
 			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
+				c.Close()
 				return nil, err
 			}
 		}
@@ -155,7 +157,6 @@ func (c *consumer) ProcessNextMessage() error {
 		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()

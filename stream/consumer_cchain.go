@@ -129,7 +129,6 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
@@ -351,13 +350,22 @@ func (c *ConsumerCChain) runProcessor() error {
 	id := c.ID()
 
 	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
+	tdoneCh := make(chan struct{})
+	defer func() {
+		t.Stop()
+		close(tdoneCh)
+	}()
 
 	// Log run statistics periodically until asked to stop
 	go func() {
-		for range t.C {
-			c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-			if c.isStopping() {
+		for {
+			select {
+			case <-t.C:
+				c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+				if c.isStopping() {
+					return
+				}
+			case <-tdoneCh:
 				return
 			}
 		}

@@ -144,9 +144,9 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			rcptstr = rawtx.To().String()
 		}
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
+			Hash:          rawhash.String(),
 			Block:         block.Header.Number.String(),
 			Idx:           uint64(ipos),
-			Hash:          rawhash.String(),
 			Rcpt:          rcptstr,
 			Nonce:         rawtx.Nonce(),
 			Serialization: txdata,

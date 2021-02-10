@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -65,6 +64,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 		// Create consumer backend
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
+			c.Close()
 			return nil, err
 		}
 
@@ -93,6 +93,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			defer cancelFn()
 
 			if err = c.reader.SetOffsetAt(ctx, conf.Consumer.StartTime); err != nil {
+				c.Close()
 				return nil, err
 			}
 		}
@@ -146,7 +147,6 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		if !db.ErrIsLockError(err) {
 			break
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 	if err != nil {
 		collectors.Error()
