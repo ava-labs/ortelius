@@ -138,7 +138,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	}
 
 	defer func() {
-		close(wb.buffer)
 		wb.flushTicker.Stop()
 		flush()
 		close(wb.doneCh)
