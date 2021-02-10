@@ -44,6 +44,10 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) *BalanceAccumula
 }
 
 func (a *BalanceAccumulatorManager) runTicker() {
+	if !a.sc.IsAccumulateBalanceIndexer {
+		return
+	}
+
 	runEvent := func() {
 		conns, err := a.sc.DatabaseOnly()
 		if err != nil {
