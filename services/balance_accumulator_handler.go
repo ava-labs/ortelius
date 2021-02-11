@@ -30,6 +30,7 @@ type BalanceAccumulatorManager struct {
 	ticker  *time.Ticker
 	sc      *Control
 	persist Persist
+	tickerOnce sync.Once
 }
 
 func NewBalanceAccumulatorManager(persist Persist, sc *Control) *BalanceAccumulatorManager {
@@ -43,6 +44,12 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) *BalanceAccumula
 }
 
 func (a *BalanceAccumulatorManager) RunTicker() {
+	a.tickerOnce.Do(func() {
+		a.runTicker()
+	})
+}
+
+func (a *BalanceAccumulatorManager) runTicker() {
 	if !a.sc.IsAccumulateBalanceIndexer {
 		return
 	}
