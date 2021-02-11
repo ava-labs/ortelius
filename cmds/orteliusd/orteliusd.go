@@ -325,6 +325,7 @@ func runStreamProcessorManagers(
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
+			sc.BalanceAccumulatorManager.RunTicker()
 			err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 			if err != nil {
 				*runError = err

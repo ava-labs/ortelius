@@ -39,11 +39,10 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) *BalanceAccumula
 		sc:      sc,
 		persist: persist,
 	}
-	bmanager.runTicker()
 	return bmanager
 }
 
-func (a *BalanceAccumulatorManager) runTicker() {
+func (a *BalanceAccumulatorManager) RunTicker() {
 	if !a.sc.IsAccumulateBalanceIndexer {
 		return
 	}
