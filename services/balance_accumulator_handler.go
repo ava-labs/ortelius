@@ -26,10 +26,10 @@ var processTypeIn processType = 1
 var processTypeOut processType = 2
 
 type BalanceAccumulatorManager struct {
-	handler *BalancerAccumulateHandler
-	ticker  *time.Ticker
-	sc      *Control
-	persist Persist
+	handler    *BalancerAccumulateHandler
+	ticker     *time.Ticker
+	sc         *Control
+	persist    Persist
 	tickerOnce sync.Once
 }
 
