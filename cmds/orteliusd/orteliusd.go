@@ -271,7 +271,7 @@ func indexerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
 
 func producerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
 	var factories []utils.ListenCloserFactory
-	// factories = append(factories, stream.NewProducerCChain())
+	factories = append(factories, stream.NewProducerCChain())
 	return factories
 }
 
