@@ -43,7 +43,6 @@ const (
 	dbReadTimeout     = 10 * time.Second
 	dbWriteTimeout    = 10 * time.Second
 
-	notFoundSleep  = 1 * time.Second
 	readRPCTimeout = 500 * time.Millisecond
 
 	blocksToQueue = 25
@@ -249,12 +248,12 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 
 		lblocknext := big.NewInt(0).SetUint64(lblock)
-		if lblocknext.Cmp(current) >= 0 {
+		if lblocknext.Cmp(p.block) <= 0 {
 			time.Sleep(readRPCTimeout)
 			continue
 		}
 
-		for lblocknext.Cmp(current) < 0 {
+		for lblocknext.Cmp(p.block) > 0 {
 			bl, err := p.readBlockFromRPC(current)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
