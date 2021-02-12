@@ -176,8 +176,7 @@ func (p *ProducerCChain) fetchBlock(number *big.Int) (*cblock.Block, error) {
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
-	current := new(big.Int)
-	current.Set(p.block)
+	current := new(big.Int).Set(p.block)
 
 	type localBlockObject struct {
 		block       *types.Block
@@ -306,8 +305,7 @@ func (p *ProducerCChain) getBlock() error {
 		return err
 	}
 
-	n := new(big.Int)
-	n, ok := n.SetString(block, 10)
+	n, ok := big.NewInt(0).SetString(block, 10)
 	if !ok {
 		return fmt.Errorf("invalid block %s", block)
 	}
