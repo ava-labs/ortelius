@@ -432,6 +432,10 @@ func (p *ProducerCChain) runProcessor() error {
 					p.sc.Log.Warn("%s", err.Error())
 					return nil
 				}
+				if strings.HasSuffix(err.Error(), "read: connection reset by peer") {
+					p.sc.Log.Warn("%s", err.Error())
+					return nil
+				}
 
 				failures++
 				p.Failure()
