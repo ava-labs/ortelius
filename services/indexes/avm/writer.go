@@ -283,6 +283,7 @@ func (w *Writer) insertTxInternal(ctx services.ConsumerCtx, tx *avm.Tx, txBytes 
 			nil,
 			0,
 			false,
+			nil,
 		)
 	case *avm.ExportTx:
 		return w.avax.InsertTransaction(
@@ -296,6 +297,7 @@ func (w *Writer) insertTxInternal(ctx services.ConsumerCtx, tx *avm.Tx, txBytes 
 			&avax.AddOutsContainer{Outs: castTx.ExportedOuts, ChainID: castTx.DestinationChain.String()},
 			0,
 			false,
+			nil,
 		)
 	case *avm.BaseTx:
 		return w.avax.InsertTransaction(
@@ -309,6 +311,7 @@ func (w *Writer) insertTxInternal(ctx services.ConsumerCtx, tx *avm.Tx, txBytes 
 			nil,
 			0,
 			false,
+			nil,
 		)
 	default:
 		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
@@ -362,7 +365,7 @@ func (w *Writer) insertOperationTx(
 		}
 	}
 
-	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, addIns, nil, totalout, genesis)
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeOperation, addIns, nil, totalout, genesis, nil)
 }
 
 func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, tx *avm.CreateAssetTx, creds []verify.Verifiable, alias string, genesis bool) error {
@@ -410,5 +413,5 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		return err
 	}
 
-	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis)
+	return w.avax.InsertTransaction(ctx, txBytes, tx.UnsignedBytes(), &tx.BaseTx.BaseTx, creds, models.TransactionTypeCreateAsset, nil, nil, totalout, genesis, nil)
 }

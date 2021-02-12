@@ -37,6 +37,7 @@ const (
 	TableAccumulateBalancesReceived     = "accumulate_balances_received"
 	TableAccumulateBalancesSent         = "accumulate_balances_sent"
 	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
+	TableOutputsRewards                 = "avm_outputs_rewards"
 )
 
 type Persist interface {
@@ -303,6 +304,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*AccumulateBalancesTransactions,
+	) error
+
+	QueryOutputsRewards(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputsRewards,
+	) (*OutputsRewards, error)
+	InsertOutputsRewards(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputsRewards,
+		bool,
 	) error
 }
 
@@ -1661,5 +1674,72 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 		return EventErr(TableAccumulateBalancesTransactions, false, err)
 	}
 
+	return nil
+}
+
+type OutputsRewards struct {
+	ID            string
+	ChainID       string
+	TransactionID string
+	OutputIndex   uint32
+	Threshold     uint32
+	Locktime      uint64
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryOutputsRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputsRewards,
+) (*OutputsRewards, error) {
+	v := &OutputsRewards{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"transaction_id",
+		"output_index",
+		"locktime",
+		"threshold",
+		"created_at",
+	).From(TableOutputsRewards).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputsRewards(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputsRewards,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableOutputsRewards).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
+		Pair("locktime", v.Locktime).
+		Pair("threshold", v.Threshold).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputsRewards, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableOutputsRewards).
+			Set("chain_id", v.ChainID).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Set("locktime", v.Locktime).
+			Set("threshold", v.Threshold).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableOutputsRewards, true, err)
+		}
+	}
 	return nil
 }

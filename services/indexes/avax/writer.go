@@ -65,6 +65,7 @@ func (w *Writer) InsertTransaction(
 	addOuts *AddOutsContainer,
 	addlOutTxfee uint64,
 	genesis bool,
+	rewardsOwner *verify.Verifiable,
 ) error {
 	var (
 		err      error
@@ -107,6 +108,38 @@ func (w *Writer) InsertTransaction(
 				return err
 			}
 			idx++
+		}
+	}
+
+	if rewardsOwner != nil {
+		owner, ok := (*rewardsOwner).(*secp256k1fx.OutputOwners)
+		if !ok {
+			return fmt.Errorf("rewards owner not secp256k1fx.OutputOwners")
+		}
+		outputID := baseTx.ID().Prefix(uint64(idx))
+		outputsRewards := &services.OutputsRewards{
+			ID:            outputID.String(),
+			ChainID:       w.chainID,
+			TransactionID: baseTx.ID().String(),
+			OutputIndex:   idx,
+			Locktime:      owner.Locktime,
+			Threshold:     owner.Threshold,
+			CreatedAt:     ctx.Time(),
+		}
+		err = ctx.Persist().InsertOutputsRewards(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+
+		// Ingest each Output Address
+		for _, addr := range owner.Addresses() {
+			addrBytes := [20]byte{}
+			copy(addrBytes[:], addr)
+			addrid := ids.ShortID(addrBytes)
+			err = w.InsertOutputAddress(ctx, outputID, addrid, nil)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
