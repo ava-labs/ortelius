@@ -160,20 +160,6 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 	return p.ethClient.BlockNumber(ctx)
 }
 
-func (p *ProducerCChain) fetchBlock(number *big.Int) (*cblock.Block, error) {
-	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
-	defer cancelCTX()
-	block, err := p.ethClient.BlockByNumber(ctx, number)
-	if err != nil {
-		return nil, err
-	}
-	ncblock, err := cblock.New(block)
-	if err != nil {
-		return nil, err
-	}
-	return ncblock, err
-}
-
 func (p *ProducerCChain) ProcessNextMessage() error {
 	current := new(big.Int).Set(p.block)
 
@@ -237,7 +223,9 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 	defer func() {
 		err := consumeBlock()
-		p.sc.Log.Warn("consume block error %v", err)
+		if err != nil {
+			p.sc.Log.Warn("consume block error %v", err)
+		}
 	}()
 
 	for {
