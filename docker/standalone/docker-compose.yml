@@ -44,7 +44,7 @@ services:
       - zookeeper
       - kafka
   producer: &ortelius-app
-    image: "avaplatform/ortelius:6883f45"
+    image: "avaplatform/ortelius:efc0875"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services
