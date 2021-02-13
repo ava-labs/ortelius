@@ -215,6 +215,9 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			}
 
 			p.block.Set(blockNumber)
+			if p.block.Uint64()%1000 == 0 {
+				p.sc.Log.Info("current block %s", p.block.String())
+			}
 		}
 		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 
