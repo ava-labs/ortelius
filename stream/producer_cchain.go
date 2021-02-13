@@ -169,7 +169,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		time        time.Time
 	}
 
-	var localBlocks []*localBlockObject
+	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
 	consumeBlock := func() error {
 		if len(localBlocks) == 0 {
@@ -201,7 +201,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 		}
 
-		localBlocks = nil
+		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
 		err := p.writeMessagesToKafka(kafkaMessages...)
 		if err != nil {
