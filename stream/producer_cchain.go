@@ -161,7 +161,7 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
-	current := new(big.Int).Set(p.block)
+	current := big.NewInt(0).Set(p.block)
 
 	type localBlockObject struct {
 		block       *types.Block
@@ -216,7 +216,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 			p.block.Set(blockNumber)
 		}
-		p.block = p.block.Add(p.block, big.NewInt(1))
+		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 
 		return nil
 	}
@@ -238,7 +238,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		lblocknext := big.NewInt(0).SetUint64(lblock)
 		if lblocknext.Cmp(p.block) <= 0 {
 			time.Sleep(readRPCTimeout)
-			continue
+			return ErrNoMessage
 		}
 
 		for lblocknext.Cmp(p.block) > 0 {
