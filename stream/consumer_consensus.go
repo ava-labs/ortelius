@@ -174,6 +174,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		).From(services.TableTxPool).
 			Where("processed=? and topic=?", 0, c.topicName).
 			OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
+			Limit(pollLimit).
 			LoadContext(ctx, &rowdata))
 		if err != nil {
 			return err
