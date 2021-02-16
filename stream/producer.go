@@ -35,7 +35,7 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	if err != nil {
 		return nil, err
 	}
-	writer, err := newBufferedWriter(sc, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType))
+	writer, err := newBufferedWriter(sc, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType), conf.NetworkID, chainID)
 	if err != nil {
 		_ = sock.Close()
 		return nil, err

@@ -41,9 +41,11 @@ type bufferedWriter struct {
 	metricProcessMillisCountKey string
 	flushTicker                 *time.Ticker
 	conns                       *services.Connections
+	chainID                     string
+	networkID                   uint32
 }
 
-func newBufferedWriter(sc *services.Control, brokers []string, topic string) (*bufferedWriter, error) {
+func newBufferedWriter(sc *services.Control, brokers []string, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
 	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
@@ -63,6 +65,8 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string) (*b
 		metricSuccessCountKey:       "kafka_write_records_success",
 		metricFailureCountKey:       "kafka_write_records_failure",
 		metricProcessMillisCountKey: "kafka_write_records_process_millis",
+		chainID:                     chainID,
+		networkID:                   networkID,
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
@@ -136,8 +140,8 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 					break
 				}
 				txPool := &services.TxPool{
-					NetworkID:     uint32(0),
-					ChainID:       "",
+					NetworkID:     wb.networkID,
+					ChainID:       wb.chainID,
 					Key:           id.String(),
 					Serialization: *b,
 					Processed:     0,
