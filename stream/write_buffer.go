@@ -142,7 +142,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				txPool := &services.TxPool{
 					NetworkID:     wb.networkID,
 					ChainID:       wb.chainID,
-					Key:           id.String(),
+					MsgKey:        id.String(),
 					Serialization: *b,
 					Processed:     0,
 					Topic:         wb.topic,

@@ -1201,7 +1201,7 @@ func TestTxPool(t *testing.T) {
 	v.ChainID = "ch1"
 	v.Serialization = []byte("hello")
 	v.Topic = "topic1"
-	v.Key = "key1"
+	v.MsgKey = "key1"
 
 	err := v.ComputeID()
 	if err != nil {

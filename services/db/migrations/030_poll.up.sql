@@ -3,7 +3,7 @@ create table `tx_pool`
     id             varchar(50)        not null primary key,
     network_id     bigint unsigned default 0,
     chain_id       varchar(50)       not null,
-    key            varchar(50)       not null,
+    msg_key        varchar(50)       not null,
     serialization  mediumblob,
     processed      smallint unsigned not null default 0,
     topic          varchar(100)        not null primary key,

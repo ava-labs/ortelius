@@ -1680,7 +1680,7 @@ type TxPool struct {
 	ID            string
 	NetworkID     uint32
 	ChainID       string
-	Key           string
+	MsgKey        string
 	Serialization []byte
 	Processed     int
 	Topic         string
@@ -1688,7 +1688,7 @@ type TxPool struct {
 }
 
 func (b *TxPool) ComputeID() error {
-	idsv := fmt.Sprintf("%s:%s", b.Key, b.Topic)
+	idsv := fmt.Sprintf("%s:%s", b.MsgKey, b.Topic)
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 	if err != nil {
 		return err
@@ -1729,7 +1729,7 @@ func (p *persist) InsertTxPool(
 		Pair("id", v.ID).
 		Pair("network_id", v.NetworkID).
 		Pair("chain_id", v.ChainID).
-		Pair("key", v.Key).
+		Pair("key", v.MsgKey).
 		Pair("serialization", v.Serialization).
 		Pair("processed", v.Processed).
 		Pair("topic", v.Topic).

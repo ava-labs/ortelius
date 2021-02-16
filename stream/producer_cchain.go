@@ -237,7 +237,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				txPool := &services.TxPool{
 					NetworkID:     p.conf.NetworkID,
 					ChainID:       p.conf.CchainID,
-					Key:           id.String(),
+					MsgKey:        id.String(),
 					Serialization: kafkaMessage.Value,
 					Processed:     0,
 					Topic:         p.topic,
