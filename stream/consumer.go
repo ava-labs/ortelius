@@ -170,6 +170,12 @@ func (c *consumer) ProcessNextMessage() error {
 		job := c.conns.Stream().NewJob("query-txpoll")
 		sess := c.conns.DB().NewSessionForEventReceiver(job)
 
+		updateStatus := func(txPoll *services.TxPool) error {
+			ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+			defer cancelFn()
+			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
+		}
+
 		ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 		defer cancelFn()
 
@@ -207,6 +213,11 @@ func (c *consumer) ProcessNextMessage() error {
 				nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
 			}
 			err = wm(msg)
+			if err != nil {
+				return err
+			}
+			row.Processed = 1
+			err = updateStatus(row)
 			if err != nil {
 				return err
 			}

@@ -316,6 +316,11 @@ type Persist interface {
 		dbr.SessionRunner,
 		*TxPool,
 	) error
+	UpdateTxPoolStatus(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) error
 }
 
 type persist struct {
@@ -1734,6 +1739,24 @@ func (p *persist) InsertTxPool(
 		Pair("processed", v.Processed).
 		Pair("topic", v.Topic).
 		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTxPool, false, err)
+	}
+
+	return nil
+}
+
+func (p *persist) UpdateTxPoolStatus(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TxPool,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableTxPool).
+		Set("processed", v.Processed).
+		Where("id=?", v.ID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableTxPool, false, err)
