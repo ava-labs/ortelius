@@ -182,6 +182,7 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 
 		if len(rowdata) == 0 {
+			time.Sleep(1 * time.Millisecond)
 			return nil
 		}
 

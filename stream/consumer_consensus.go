@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -170,6 +171,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 
 		if len(rowdata) == 0 {
+			time.Sleep(1 * time.Millisecond)
 			return nil
 		}
 
