@@ -43,6 +43,9 @@ func (s *Control) Init(networkID uint32) error {
 			s.IsAccumulateBalanceReader = true
 		}
 	}
+	if _, ok := s.Features["db_poll"]; ok {
+		s.IsDBPoll = true
+	}
 	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 
 	var err error
