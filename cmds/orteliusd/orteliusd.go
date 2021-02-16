@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -79,6 +81,8 @@ func main() {
 
 // Execute runs the root command for ortelius
 func execute() error {
+	rand.Seed(time.Now().UnixNano())
+
 	var (
 		runErr             error
 		config             = &cfg.Config{}

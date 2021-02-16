@@ -6,6 +6,7 @@ package stream
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -35,6 +36,7 @@ type consumerconsensus struct {
 	metricSuccessCountKey         string
 
 	groupName string
+	topicName string
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
@@ -77,10 +79,10 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			c.groupName = ""
 		}
 
-		topicName := GetTopicName(conf.NetworkID, chainID, EventTypeConsensus)
+		c.topicName = GetTopicName(conf.NetworkID, chainID, EventTypeConsensus)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       topicName,
+			Topic:       c.topicName,
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
@@ -121,6 +123,84 @@ func (c *consumerconsensus) Close() error {
 
 // ProcessNextMessage waits for a new Message and adds it to the services
 func (c *consumerconsensus) ProcessNextMessage() error {
+	wm := func(msg *Message) error {
+		var err error
+		collectors := metrics.NewCollectors(
+			metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+			metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+			metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+			metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		)
+		defer func() {
+			err := collectors.Collect()
+			if err != nil {
+				c.sc.Log.Error("collectors.Collect: %s", err)
+			}
+		}()
+
+		for {
+			err = c.persistConsume(msg)
+			if !db.ErrIsLockError(err) {
+				break
+			}
+		}
+		if err != nil {
+			collectors.Error()
+			c.sc.Log.Error("consumer.Consume: %s", err)
+			return err
+		}
+
+		c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
+		return err
+	}
+
+	if c.sc.IsDBPoll {
+		job := c.conns.Stream().NewJob("query-txpoll")
+		sess := c.conns.DB().NewSessionForEventReceiver(job)
+
+		ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+		defer cancelFn()
+
+		var rowdata []*services.TxPool
+		_, err := sess.Select(
+			"id",
+			"network_id",
+			"chain_id",
+			"msg_key",
+			"serialization",
+			"processed",
+			"topic",
+			"created_at",
+		).From(services.TableTxPool).
+			Where("processed=? and topic=?", 0, c.topicName).
+			LoadContext(ctx, &rowdata)
+		if err != nil {
+			return err
+		}
+
+		if len(rowdata) == 0 {
+			return nil
+		}
+
+		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
+
+		for _, row := range rowdata {
+			msg := &Message{
+				id:         row.MsgKey,
+				chainID:    c.chainID,
+				body:       row.Serialization,
+				timestamp:  row.CreatedAt.UTC().Unix(),
+				nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+			}
+			err = wm(msg)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
@@ -129,32 +209,10 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		return err
 	}
 
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
-	)
-	defer func() {
-		err := collectors.Collect()
-		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
-		}
-	}()
-
-	for {
-		err = c.persistConsume(msg)
-		if !db.ErrIsLockError(err) {
-			break
-		}
-	}
+	err = wm(msg)
 	if err != nil {
-		collectors.Error()
-		c.sc.Log.Error("consumer.ConsumeConsensus: %s", err)
 		return err
 	}
-
-	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }
