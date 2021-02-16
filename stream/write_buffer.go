@@ -132,11 +132,10 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 
 			for _, b := range buffer[:bufferSize] {
-				h := hashing.ComputeHash256(*b)
 				var id ids.ID
-				id, err = ids.ToID(h)
+				id, err = ids.ToID(hashing.ComputeHash256(*b))
 				if err != nil {
-					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					wb.sc.Log.Warn("Error writing to db:", err)
 					break
 				}
 				txPool := &services.TxPool{
@@ -150,15 +149,15 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				}
 				err = txPool.ComputeID()
 				if err != nil {
-					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					wb.sc.Log.Warn("Error writing to db:", err)
 					break
 				}
 				for icnt := 0; icnt < defaultWriteRetry; icnt++ {
 					err = wm(txPool)
-					if err != nil {
+					if err == nil {
 						break
 					}
-					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					wb.sc.Log.Warn("Error writing to db (retry):", err)
 					time.Sleep(defaultWriteRetrySleep)
 				}
 			}
