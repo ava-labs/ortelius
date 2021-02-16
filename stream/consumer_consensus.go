@@ -38,6 +38,8 @@ type consumerconsensus struct {
 
 	groupName string
 	topicName string
+
+	rotatePart int
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
@@ -57,6 +59,10 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			metricSuccessCountKey:         fmt.Sprintf("consume_consensus_records_success_%s", chainID),
 			metricFailureCountKey:         fmt.Sprintf("consume_consensus_records_failure_%s", chainID),
 			id:                            fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID),
+		}
+		c.rotatePart = int(time.Now().Unix() / 10)
+		if c.rotatePart > 9 {
+			c.rotatePart = 0
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
@@ -165,9 +171,22 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 		}
 
-		rowdata, err := fetchPollForTopic(sess, c.topicName)
-		if err != nil {
-			return err
+		var err error
+		var rowdata []*services.TxPool
+		for icnt := 0; icnt < 10; icnt++ {
+			rowdata, err = fetchPollForTopic(sess, c.topicName, &c.rotatePart)
+			c.rotatePart++
+			if c.rotatePart > 9 {
+				c.rotatePart = 0
+			}
+
+			if err != nil {
+				return err
+			}
+
+			if len(rowdata) > 0 {
+				break
+			}
 		}
 
 		if len(rowdata) == 0 {

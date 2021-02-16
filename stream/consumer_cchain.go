@@ -100,7 +100,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 		}
 
-		rowdata, err := fetchPollForTopic(sess, c.topicName)
+		rowdata, err := fetchPollForTopic(sess, c.topicName, nil)
 		if err != nil {
 			return err
 		}

@@ -8,12 +8,12 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-func fetchPollForTopic(sess *dbr.Session, topicName string) ([]*services.TxPool, error) {
+func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*services.TxPool, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 
 	var rowdata []*services.TxPool
-	_, err := sess.Select(
+	q := sess.Select(
 		"id",
 		"network_id",
 		"chain_id",
@@ -22,8 +22,17 @@ func fetchPollForTopic(sess *dbr.Session, topicName string) ([]*services.TxPool,
 		"processed",
 		"topic",
 		"created_at",
-	).From(services.TableTxPool).
-		Where("processed=? and topic=?", 0, topicName).
+	).From(services.TableTxPool)
+
+	if part != nil {
+		q = q.
+			Where("processed=? and topic=? and floor(mod(unix_timestamp(created_at)*100000,1)*10)=?", 0, topicName, *part)
+	} else {
+		q = q.
+			Where("processed=? and topic=?", 0, topicName)
+	}
+
+	_, err := q.
 		OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
 		Limit(pollLimit).
 		LoadContext(ctx, &rowdata)
