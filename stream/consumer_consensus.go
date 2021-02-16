@@ -164,24 +164,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 		}
 
-		ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-		defer cancelFn()
-
-		var rowdata []*services.TxPool
-		_, err := (sess.Select(
-			"id",
-			"network_id",
-			"chain_id",
-			"msg_key",
-			"serialization",
-			"processed",
-			"topic",
-			"created_at",
-		).From(services.TableTxPool).
-			Where("processed=? and topic=?", 0, c.topicName).
-			OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
-			Limit(pollLimit).
-			LoadContext(ctx, &rowdata))
+		rowdata, err := fetchPollForTopic(sess, c.topicName)
 		if err != nil {
 			return err
 		}
