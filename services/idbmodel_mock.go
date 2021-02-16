@@ -485,11 +485,11 @@ func (m *MockPersist) InsertTxPool(ctx context.Context, runner dbr.SessionRunner
 	return nil
 }
 
-func (m *MockPersist) UpdateTxPoolStatus(ctx context.Context, runner dbr.SessionRunner, v *TxPool) (*TxPool, error) {
+func (m *MockPersist) UpdateTxPoolStatus(ctx context.Context, runner dbr.SessionRunner, v *TxPool) error {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	if fv, present := m.TxPool[v.ID]; present {
 		fv.Processed = v.Processed
 	}
-	return nil, nil
+	return nil
 }
