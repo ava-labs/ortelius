@@ -162,7 +162,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		defer cancelFn()
 
 		var rowdata []*services.TxPool
-		_, err := sess.Select(
+		_, err := (sess.Select(
 			"id",
 			"network_id",
 			"chain_id",
@@ -173,7 +173,8 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 			"created_at",
 		).From(services.TableTxPool).
 			Where("processed=? and topic=?", 0, c.topicName).
-			LoadContext(ctx, &rowdata)
+			OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
+			LoadContext(ctx, &rowdata))
 		if err != nil {
 			return err
 		}

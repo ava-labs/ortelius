@@ -183,6 +183,7 @@ func (c *consumer) ProcessNextMessage() error {
 			"created_at",
 		).From(services.TableTxPool).
 			Where("processed=? and topic=?", 0, c.topicName).
+			OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
 			LoadContext(ctx, &rowdata)
 		if err != nil {
 			return err
