@@ -9,3 +9,5 @@ create table avm_outputs_rewards
     created_at timestamp(6) default CURRENT_TIMESTAMP(6) not null
 );
 
+create index avm_outputs_rewards_transaction_id ON avm_outputs_rewards (transaction_id);
+
