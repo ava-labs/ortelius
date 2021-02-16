@@ -10,5 +10,5 @@ create table `tx_pool`
     created_at     timestamp(6)       not null default current_timestamp(6)
 );
 
-create index tx_pool_processed ON tx_pool (processed, topic, created_at);
+create index tx_pool_processed ON tx_pool (processed, topic, created_at asc);
 
