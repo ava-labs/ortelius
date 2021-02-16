@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -67,6 +69,7 @@ type ProducerCChain struct {
 	// Concurrency control
 	quitCh chan struct{}
 	doneCh chan struct{}
+	topic  string
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -84,6 +87,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		})
 
 		p := &ProducerCChain{
+			topic:                   topicName,
 			conf:                    conf,
 			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
@@ -134,6 +138,18 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 	defer cancelCTX()
 
 	return p.writer.WriteMessages(ctx, messages...)
+}
+
+func (p *ProducerCChain) updateTxPool(txPool *services.TxPool, updateTime time.Time) error {
+	dbRunner, err := p.conns.DB().NewSession("updateTxPool", dbWriteTimeout)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
+	defer cancelCtx()
+
+	return p.sc.Persist.InsertTxPool(ctx, dbRunner, txPool)
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
@@ -203,12 +219,40 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
-		err := p.writeMessagesToKafka(kafkaMessages...)
-		if err != nil {
-			return err
+		if !p.sc.IsDBPoll {
+			err := p.writeMessagesToKafka(kafkaMessages...)
+			if err != nil {
+				return err
+			}
 		}
 
-		for _, blockNumber := range blockNumberUpdates {
+		for ipos, blockNumber := range blockNumberUpdates {
+			if p.sc.IsDBPoll {
+				kafkaMessage := kafkaMessages[ipos]
+				id, err := ids.ToID(kafkaMessage.Key)
+				if err != nil {
+					return err
+				}
+
+				txPool := &services.TxPool{
+					NetworkID:     uint32(0),
+					ChainID:       "",
+					Key:           id.String(),
+					Serialization: kafkaMessage.Value,
+					Processed:     0,
+					Topic:         p.topic,
+					CreatedAt:     time.Now(),
+				}
+				err = txPool.ComputeID()
+				if err != nil {
+					return err
+				}
+				err = p.updateTxPool(txPool, time.Now().UTC())
+				if err != nil {
+					return err
+				}
+			}
+
 			err := p.updateBlock(blockNumber, time.Now().UTC())
 			if err != nil {
 				return err

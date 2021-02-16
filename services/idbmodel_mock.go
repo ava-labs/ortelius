@@ -31,6 +31,7 @@ type MockPersist struct {
 	AccumulateBalancesReceived     map[string]*AccumulateBalancesAmount
 	AccumulateBalancesSent         map[string]*AccumulateBalancesAmount
 	AccumulateBalancesTransactions map[string]*AccumulateBalancesTransactions
+	TxPool                         map[string]*TxPool
 }
 
 func NewPersistMock() *MockPersist {
@@ -57,6 +58,7 @@ func NewPersistMock() *MockPersist {
 		AccumulateBalancesReceived:     make(map[string]*AccumulateBalancesAmount),
 		AccumulateBalancesSent:         make(map[string]*AccumulateBalancesAmount),
 		AccumulateBalancesTransactions: make(map[string]*AccumulateBalancesTransactions),
+		TxPool:                         make(map[string]*TxPool),
 	}
 }
 
@@ -462,5 +464,23 @@ func (m *MockPersist) InsertAccumulateBalancesTransactions(ctx context.Context, 
 	nv := &AccumulateBalancesTransactions{}
 	*nv = *v
 	m.AccumulateBalancesTransactions[v.ID] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryTxPool(ctx context.Context, runner dbr.SessionRunner, v *TxPool) (*TxPool, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.TxPool[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertTxPool(ctx context.Context, runner dbr.SessionRunner, v *TxPool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &TxPool{}
+	*nv = *v
+	m.TxPool[v.ID] = nv
 	return nil
 }

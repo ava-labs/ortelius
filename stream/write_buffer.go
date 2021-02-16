@@ -7,9 +7,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/metrics"
+	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/ortelius/services"
+
+	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/segmentio/kafka-go"
@@ -27,22 +29,25 @@ var defaultBufferedWriterFlushInterval = 1 * time.Second
 
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
+	topic  string
 	writer *kafka.Writer
 	buffer chan (*[]byte)
 	doneCh chan (struct{})
-	log    logging.Logger
+	sc     *services.Control
 
 	// metrics
 	metricSuccessCountKey       string
 	metricFailureCountKey       string
 	metricProcessMillisCountKey string
 	flushTicker                 *time.Ticker
+	conns                       *services.Connections
 }
 
-func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
+func newBufferedWriter(sc *services.Control, brokers []string, topic string) (*bufferedWriter, error) {
 	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
+		topic: topic,
 		writer: kafka.NewWriter(kafka.WriterConfig{
 			Brokers:      brokers,
 			Topic:        topic,
@@ -54,7 +59,7 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 		}),
 		buffer:                      make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
-		log:                         log,
+		sc:                          sc,
 		metricSuccessCountKey:       "kafka_write_records_success",
 		metricFailureCountKey:       "kafka_write_records_failure",
 		metricProcessMillisCountKey: "kafka_write_records_process_millis",
@@ -64,10 +69,15 @@ func newBufferedWriter(log logging.Logger, brokers []string, topic string) *buff
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
+	conns, err := wb.sc.DatabaseOnly()
+	if err != nil {
+		return nil, err
+	}
+	wb.conns = conns
 	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
-	return wb
+	return wb, nil
 }
 
 // Write adds the message to the buffer.
@@ -86,11 +96,77 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		buffer2    = make([]kafka.Message, size)
 	)
 
-	flush := func() {
+	var err error
+
+	flush := func() error {
 		defer func() { lastFlush = time.Now() }()
 
 		if bufferSize == 0 {
-			return
+			return nil
+		}
+
+		if wb.sc.IsDBPoll {
+			collectors := metrics.NewCollectors(
+				metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
+				metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
+			)
+			defer func() {
+				err := collectors.Collect()
+				if err != nil {
+					wb.sc.Log.Error("collectors.Collect: %s", err)
+				}
+			}()
+
+			job := wb.conns.Stream().NewJob("pvm-index")
+			sess := wb.conns.DB().NewSessionForEventReceiver(job)
+
+			wm := func(txPool *services.TxPool) error {
+				ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+				defer cancelFn()
+
+				return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+			}
+
+			for _, b := range buffer[:bufferSize] {
+				h := hashing.ComputeHash256(*b)
+				var id ids.ID
+				id, err = ids.ToID(h)
+				if err != nil {
+					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					break
+				}
+				txPool := &services.TxPool{
+					NetworkID:     uint32(0),
+					ChainID:       "",
+					Key:           id.String(),
+					Serialization: *b,
+					Processed:     0,
+					Topic:         wb.topic,
+					CreatedAt:     time.Now(),
+				}
+				err = txPool.ComputeID()
+				if err != nil {
+					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					break
+				}
+				for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+					err = wm(txPool)
+					if err != nil {
+						break
+					}
+					wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+					time.Sleep(defaultWriteRetrySleep)
+				}
+			}
+
+			if err != nil {
+				collectors.Error()
+				wb.sc.Log.Error("Error writing to kafka:", err)
+			}
+
+			bufferSize = 0
+
+			return err
 		}
 
 		for bpos, b := range buffer[:bufferSize] {
@@ -108,7 +184,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer func() {
 			err := collectors.Collect()
 			if err != nil {
-				wb.log.Error("collectors.Collect: %s", err)
+				wb.sc.Log.Error("collectors.Collect: %s", err)
 			}
 		}()
 
@@ -119,22 +195,23 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
 		}
 
-		var err error
 		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
 			err = wm(buffer2, bufferSize)
 			if err == nil {
 				break
 			}
-			wb.log.Warn("Error writing to kafka (retry):", err)
+			wb.sc.Log.Warn("Error writing to kafka (retry):", err)
 			time.Sleep(defaultWriteRetrySleep)
 		}
 
 		if err != nil {
 			collectors.Error()
-			wb.log.Error("Error writing to kafka:", err)
+			wb.sc.Log.Error("Error writing to kafka:", err)
 		}
 
 		bufferSize = 0
+
+		return err
 	}
 
 	defer func() {
@@ -174,5 +251,8 @@ func (wb *bufferedWriter) close() error {
 	close(wb.buffer)
 	wb.flushTicker.Stop()
 	<-wb.doneCh
+	if wb.conns != nil {
+		_ = wb.conns.Close()
+	}
 	return wb.writer.Close()
 }

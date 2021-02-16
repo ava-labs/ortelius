@@ -28,6 +28,7 @@ type Control struct {
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
+	IsDBPoll                   bool
 	GenesisContainer           *GenesisContainer
 }
 
