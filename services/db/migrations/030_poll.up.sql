@@ -7,7 +7,7 @@ create table `tx_pool`
     serialization  mediumblob,
     processed      smallint unsigned not null default 0,
     topic          varchar(100)        not null primary key,
-    created_at     timestamp(6)       not null default current_timestamp(6),
+    created_at     timestamp(6)       not null default current_timestamp(6)
 );
 
 create index tx_pool_processed ON tx_pool (processed, topic, created_at);
