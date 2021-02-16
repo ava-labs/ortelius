@@ -1707,7 +1707,7 @@ func (p *persist) QueryTxPool(
 		"id",
 		"network_id",
 		"chain_id",
-		"key",
+		"msg_key",
 		"serialization",
 		"processed",
 		"topic",
@@ -1729,7 +1729,7 @@ func (p *persist) InsertTxPool(
 		Pair("id", v.ID).
 		Pair("network_id", v.NetworkID).
 		Pair("chain_id", v.ChainID).
-		Pair("key", v.MsgKey).
+		Pair("msg_key", v.MsgKey).
 		Pair("serialization", v.Serialization).
 		Pair("processed", v.Processed).
 		Pair("topic", v.Topic).
