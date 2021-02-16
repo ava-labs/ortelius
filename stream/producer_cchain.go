@@ -140,7 +140,7 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 	return p.writer.WriteMessages(ctx, messages...)
 }
 
-func (p *ProducerCChain) updateTxPool(txPool *services.TxPool, updateTime time.Time) error {
+func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
 	dbRunner, err := p.conns.DB().NewSession("updateTxPool", dbWriteTimeout)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				if err != nil {
 					return err
 				}
-				err = p.updateTxPool(txPool, time.Now().UTC())
+				err = p.updateTxPool(txPool)
 				if err != nil {
 					return err
 				}
