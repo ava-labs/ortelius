@@ -1202,6 +1202,7 @@ func TestTxPool(t *testing.T) {
 	v.Serialization = []byte("hello")
 	v.Topic = "topic1"
 	v.MsgKey = "key1"
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
 
 	err := v.ComputeID()
 	if err != nil {
