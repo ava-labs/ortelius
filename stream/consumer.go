@@ -28,6 +28,8 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 
 	pollLimit = 100
+
+	rotateMax = 1
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -72,7 +74,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
 		c.rotatePart = int(time.Now().Unix() / 10)
-		if c.rotatePart > 9 {
+		if c.rotatePart > rotateMax {
 			c.rotatePart = 0
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
@@ -184,10 +186,10 @@ func (c *consumer) ProcessNextMessage() error {
 
 		var err error
 		var rowdata []*services.TxPool
-		for icnt := 0; icnt < 10; icnt++ {
+		for icnt := 0; icnt < rotateMax+1; icnt++ {
 			rowdata, err = fetchPollForTopic(sess, c.topicName, &c.rotatePart)
 			c.rotatePart++
-			if c.rotatePart > 9 {
+			if c.rotatePart > rotateMax {
 				c.rotatePart = 0
 			}
 
