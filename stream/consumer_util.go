@@ -25,9 +25,9 @@ func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*servi
 	).From(services.TableTxPool)
 
 	if part != nil {
-		if *part == 0 {
+		if *part == 1 {
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))>4", 0, topicName)
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))>=5", 0, topicName)
 		} else {
 			q = q.
 				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))<5", 0, topicName)
