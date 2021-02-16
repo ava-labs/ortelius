@@ -33,7 +33,7 @@ func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*servi
 	}
 
 	_, err := q.
-		OrderAsc("processed").OrderAsc("topic").OrderAsc("created_at").
+		OrderAsc("topic").OrderAsc("processed").OrderAsc("created_at").
 		Limit(pollLimit).
 		LoadContext(ctx, &rowdata)
 	if err != nil {
