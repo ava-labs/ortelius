@@ -6,6 +6,7 @@ package stream
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -25,6 +26,10 @@ const (
 
 	ConsumerEventTypeDefault = EventTypeDecisions
 	ConsumerMaxBytesDefault  = 10e8
+
+	pollLimit = 100
+
+	rotateMax = 1
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -45,6 +50,9 @@ type consumer struct {
 	metricSuccessCountKey         string
 
 	groupName string
+	topicName string
+
+	rotatePart int
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
@@ -64,6 +72,10 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
 			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
 			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
+		}
+		c.rotatePart = int(time.Now().Unix() / 10)
+		if c.rotatePart > rotateMax {
+			c.rotatePart = 0
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
@@ -87,10 +99,10 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			c.groupName = ""
 		}
 
-		topicName := GetTopicName(conf.NetworkID, chainID, EventTypeDecisions)
+		c.topicName = GetTopicName(conf.NetworkID, chainID, EventTypeDecisions)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
-			Topic:       topicName,
+			Topic:       c.topicName,
 			Brokers:     conf.Kafka.Brokers,
 			GroupID:     c.groupName,
 			StartOffset: kafka.FirstOffset,
@@ -131,6 +143,94 @@ func (c *consumer) Close() error {
 
 // ProcessNextMessage waits for a new Message and adds it to the services
 func (c *consumer) ProcessNextMessage() error {
+	wm := func(msg *Message) error {
+		var err error
+		collectors := metrics.NewCollectors(
+			metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+			metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+			metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+			metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		)
+		defer func() {
+			err := collectors.Collect()
+			if err != nil {
+				c.sc.Log.Error("collectors.Collect: %s", err)
+			}
+		}()
+
+		for {
+			err = c.persistConsume(msg)
+			if !db.ErrIsLockError(err) {
+				break
+			}
+		}
+		if err != nil {
+			collectors.Error()
+			c.sc.Log.Error("consumer.Consume: %s", err)
+			return err
+		}
+
+		c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
+		return err
+	}
+
+	if c.sc.IsDBPoll {
+		job := c.conns.Stream().NewJob("query-txpoll")
+		sess := c.conns.DB().NewSessionForEventReceiver(job)
+
+		updateStatus := func(txPoll *services.TxPool) error {
+			ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+			defer cancelFn()
+			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
+		}
+
+		var err error
+		var rowdata []*services.TxPool
+		for icnt := 0; icnt < rotateMax+1; icnt++ {
+			rowdata, err = fetchPollForTopic(sess, c.topicName, &c.rotatePart)
+			c.rotatePart++
+			if c.rotatePart > rotateMax {
+				c.rotatePart = 0
+			}
+
+			if err != nil {
+				return err
+			}
+
+			if len(rowdata) > 0 {
+				break
+			}
+		}
+
+		if len(rowdata) == 0 {
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		}
+
+		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
+
+		for _, row := range rowdata {
+			msg := &Message{
+				id:         row.MsgKey,
+				chainID:    c.chainID,
+				body:       row.Serialization,
+				timestamp:  row.CreatedAt.UTC().Unix(),
+				nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+			}
+			err = wm(msg)
+			if err != nil {
+				return err
+			}
+			row.Processed = 1
+			err = updateStatus(row)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
@@ -139,32 +239,10 @@ func (c *consumer) ProcessNextMessage() error {
 		return err
 	}
 
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
-	)
-	defer func() {
-		err := collectors.Collect()
-		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
-		}
-	}()
-
-	for {
-		err = c.persistConsume(msg)
-		if !db.ErrIsLockError(err) {
-			break
-		}
-	}
+	err = wm(msg)
 	if err != nil {
-		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
-
-	c.sc.BalanceAccumulatorManager.Run(c.sc.Persist, c.sc)
 
 	return c.commitMessage(msg)
 }
