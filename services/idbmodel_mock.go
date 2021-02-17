@@ -474,7 +474,7 @@ func (m *MockPersist) InsertAccumulateBalancesTransactions(ctx context.Context, 
 func (m *MockPersist) QueryOutputsRewardsAddress(ctx context.Context, runner dbr.SessionRunner, v *OutputsRewardsAddress) (*OutputsRewardsAddress, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.OutputsRewardsAddress[v.ID]; present {
+	if v, present := m.OutputsRewardsAddress[v.ID+" "+v.Address]; present {
 		return v, nil
 	}
 	return nil, nil
@@ -492,7 +492,7 @@ func (m *MockPersist) InsertOutputsRewardsAddress(ctx context.Context, runner db
 func (m *MockPersist) QueryOutputsRewards(ctx context.Context, runner dbr.SessionRunner, v *OutputsRewards) (*OutputsRewards, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.OutputsRewards[v.ID+" "+v.Address]; present {
+	if v, present := m.OutputsRewards[v.ID]; present {
 		return v, nil
 	}
 	return nil, nil
