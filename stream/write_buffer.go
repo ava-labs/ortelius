@@ -121,7 +121,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				}
 			}()
 
-			job := wb.conns.Stream().NewJob("pvm-index")
+			job := wb.conns.Stream().NewJob("write-buffer")
 			sess := wb.conns.DB().NewSessionForEventReceiver(job)
 
 			wm := func(txPool *services.TxPool) error {
