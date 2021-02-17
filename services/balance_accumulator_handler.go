@@ -66,7 +66,7 @@ func (a *BalanceAccumulatorManager) runTicker() {
 
 		icnt := 0
 		for ; icnt < 10; icnt++ {
-			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist, nil)
+			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
 			if db.ErrIsLockError(err) {
 				icnt = 0
 				continue
@@ -91,11 +91,11 @@ func (a *BalanceAccumulatorManager) runTicker() {
 	}()
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control, consumeState ConsumeState) {
+func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
 	if !sc.IsAccumulateBalanceIndexer {
 		return
 	}
-	a.handler.Run(persist, sc, consumeState)
+	a.handler.Run(persist, sc)
 }
 
 type BalancerAccumulateHandler struct {
@@ -105,7 +105,7 @@ type BalancerAccumulateHandler struct {
 	lock        sync.Mutex
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeState ConsumeState) {
+func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
 		if atomic.LoadInt64(runcnt) >= Threads {
 			return
@@ -151,13 +151,13 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control, consumeSta
 	}
 
 	frun(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeOut, conns, persist, nil)
+		return a.processOutputs(true, processTypeOut, conns, persist)
 	})
 	frun(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeIn, conns, persist, nil)
+		return a.processOutputs(true, processTypeIn, conns, persist)
 	})
 	frun(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processTransactions(conns, persist, nil)
+		return a.processTransactions(conns, persist)
 	})
 }
 
@@ -188,7 +188,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session, _ ConsumeState) ([]*OutputAddressAccumulateWithTrID, error) {
+func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*OutputAddressAccumulateWithTrID, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -246,19 +246,18 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *Connections, persist Persist, consumeState ConsumeState) (uint64, error) {
+func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *Connections, persist Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*OutputAddressAccumulateWithTrID
-	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session, consumeState)
+	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
 	}
@@ -446,7 +445,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session, _ ConsumeState) ([]*OutputTxsAccumulate, error) {
+func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session) ([]*OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -473,19 +472,18 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session,
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist, consumeState ConsumeState) (uint64, error) {
+func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*OutputTxsAccumulate
-	rowdataAvail, err = a.processTransactionsPre(session, consumeState)
+	rowdataAvail, err = a.processTransactionsPre(session)
 	if err != nil {
 		return 0, err
 	}

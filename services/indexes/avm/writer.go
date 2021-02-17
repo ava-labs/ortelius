@@ -87,7 +87,7 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(tx)
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist, consumeState services.ConsumeState) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -131,7 +131,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 		}
 
 		dbSess := conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), 0, persist, consumeState)
+		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), 0, persist)
 		err = w.insertGenesis(cCtx, createChainTx.GenesisData)
 		if err != nil {
 			return err
@@ -141,7 +141,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist, consumeState services.ConsumeState) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	var (
 		job  = conns.Stream().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
@@ -173,7 +173,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist, consumeState)
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	for _, tx := range txs {
 		var txID ids.ID
@@ -196,7 +196,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist, consumeState services.ConsumeState) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
 		job  = conns.Stream().NewJob("avm-index")
@@ -222,7 +222,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist, consumeState), i.Body())
+	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to insert tx")
 	}

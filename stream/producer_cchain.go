@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -43,7 +45,6 @@ const (
 	dbReadTimeout     = 10 * time.Second
 	dbWriteTimeout    = 10 * time.Second
 
-	notFoundSleep  = 1 * time.Second
 	readRPCTimeout = 500 * time.Millisecond
 
 	blocksToQueue = 25
@@ -68,6 +69,7 @@ type ProducerCChain struct {
 	// Concurrency control
 	quitCh chan struct{}
 	doneCh chan struct{}
+	topic  string
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -85,6 +87,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		})
 
 		p := &ProducerCChain{
+			topic:                   topicName,
 			conf:                    conf,
 			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
@@ -121,7 +124,6 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, e
 
 	bl, err := p.ethClient.BlockByNumber(ctx, blockNumber)
 	if err == coreth.NotFound {
-		time.Sleep(notFoundSleep)
 		return nil, ErrNoMessage
 	}
 	if err != nil {
@@ -136,6 +138,18 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 	defer cancelCTX()
 
 	return p.writer.WriteMessages(ctx, messages...)
+}
+
+func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
+	dbRunner, err := p.conns.DB().NewSession("updateTxPool", dbWriteTimeout)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
+	defer cancelCtx()
+
+	return p.sc.Persist.InsertTxPool(ctx, dbRunner, txPool)
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
@@ -156,9 +170,14 @@ func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time)
 	return nil
 }
 
+func (p *ProducerCChain) fetchLatest() (uint64, error) {
+	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
+	defer cancelCTX()
+	return p.ethClient.BlockNumber(ctx)
+}
+
 func (p *ProducerCChain) ProcessNextMessage() error {
-	current := new(big.Int)
-	current.Set(p.block)
+	current := big.NewInt(0).Set(p.block)
 
 	type localBlockObject struct {
 		block       *types.Block
@@ -166,7 +185,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		time        time.Time
 	}
 
-	var localBlocks []*localBlockObject
+	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
 	consumeBlock := func() error {
 		if len(localBlocks) == 0 {
@@ -198,52 +217,100 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 		}
 
-		localBlocks = nil
+		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
-		err := p.writeMessagesToKafka(kafkaMessages...)
-		if err != nil {
-			return err
+		if !p.sc.IsDBPoll {
+			err := p.writeMessagesToKafka(kafkaMessages...)
+			if err != nil {
+				return err
+			}
 		}
 
-		for _, blockNumber := range blockNumberUpdates {
+		for ipos, blockNumber := range blockNumberUpdates {
+			if p.sc.IsDBPoll {
+				kafkaMessage := kafkaMessages[ipos]
+				id, err := ids.ToID(kafkaMessage.Key)
+				if err != nil {
+					return err
+				}
+
+				txPool := &services.TxPool{
+					NetworkID:     p.conf.NetworkID,
+					ChainID:       p.conf.CchainID,
+					MsgKey:        id.String(),
+					Serialization: kafkaMessage.Value,
+					Processed:     0,
+					Topic:         p.topic,
+					CreatedAt:     time.Now(),
+				}
+				err = txPool.ComputeID()
+				if err != nil {
+					return err
+				}
+				err = p.updateTxPool(txPool)
+				if err != nil {
+					return err
+				}
+			}
+
 			err := p.updateBlock(blockNumber, time.Now().UTC())
 			if err != nil {
 				return err
 			}
 
 			p.block.Set(blockNumber)
+			if p.block.Uint64()%1000 == 0 {
+				p.sc.Log.Info("current block %s", p.block.String())
+			}
 		}
-		p.block = p.block.Add(p.block, big.NewInt(1))
+		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 
 		return nil
 	}
 
-	for {
-		bl, err := p.readBlockFromRPC(current)
+	defer func() {
+		err := consumeBlock()
 		if err != nil {
-			err2 := consumeBlock()
-			if err2 != nil {
-				time.Sleep(readRPCTimeout)
-				return err2
-			}
+			p.sc.Log.Warn("consume block error %v", err)
+		}
+	}()
+
+	for !p.isStopping() {
+		lblock, err := p.fetchLatest()
+		if err != nil {
 			time.Sleep(readRPCTimeout)
 			return err
 		}
-		_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-		_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-		ncurrent := new(big.Int)
-		ncurrent.Set(current)
-		localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
-		if len(localBlocks) > blocksToQueue {
-			err = consumeBlock()
-			if err != nil {
-				return err
-			}
+		lblocknext := big.NewInt(0).SetUint64(lblock)
+		if lblocknext.Cmp(p.block) <= 0 {
+			time.Sleep(readRPCTimeout)
+			return ErrNoMessage
 		}
 
-		current = current.Add(current, big.NewInt(1))
+		for !p.isStopping() && lblocknext.Cmp(p.block) > 0 {
+			bl, err := p.readBlockFromRPC(current)
+			if err != nil {
+				time.Sleep(readRPCTimeout)
+				return err
+			}
+			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
+
+			ncurrent := big.NewInt(0).Set(current)
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
+			if len(localBlocks) > blocksToQueue {
+				err = consumeBlock()
+				if err != nil {
+					return err
+				}
+			}
+
+			current = current.Add(current, big.NewInt(1))
+		}
 	}
+
+	return nil
 }
 
 func (p *ProducerCChain) Failure() {
@@ -274,8 +341,7 @@ func (p *ProducerCChain) getBlock() error {
 		return err
 	}
 
-	n := new(big.Int)
-	n, ok := n.SetString(block, 10)
+	n, ok := big.NewInt(0).SetString(block, 10)
 	if !ok {
 		return fmt.Errorf("invalid block %s", block)
 	}

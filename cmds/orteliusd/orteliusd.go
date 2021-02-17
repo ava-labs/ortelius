@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -79,6 +81,8 @@ func main() {
 
 // Execute runs the root command for ortelius
 func execute() error {
+	rand.Seed(time.Now().UnixNano())
+
 	var (
 		runErr             error
 		config             = &cfg.Config{}
@@ -252,6 +256,8 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			[]stream.ProcessorFactory{
 				consumers.Indexer,
 				consumers.IndexerConsensus,
+				consumers.Indexer,
+				consumers.IndexerConsensus,
 			},
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
@@ -265,7 +271,11 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 
 func indexerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
 	var factories []utils.ListenCloserFactory
-	factories = append(factories, consumers.IndexerCChain())
+	factories = append(
+		factories,
+		consumers.IndexerCChain(),
+		consumers.IndexerCChain(),
+	)
 	return factories
 }
 
@@ -333,7 +343,7 @@ func runStreamProcessorManagers(
 			}
 
 			// start the accumulator at startup
-			sc.BalanceAccumulatorManager.Run(sc.Persist, sc, nil)
+			sc.BalanceAccumulatorManager.Run(sc.Persist, sc)
 		}
 
 		wg := &sync.WaitGroup{}

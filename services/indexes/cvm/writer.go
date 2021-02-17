@@ -71,7 +71,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	return json.Marshal(atomicTX)
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist, consumeState services.ConsumeState) error {
+func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
 	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -82,7 +82,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist, consumeState), c.Body(), block)
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body(), block)
 	if err != nil {
 		return err
 	}

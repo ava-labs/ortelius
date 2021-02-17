@@ -386,11 +386,6 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	if ctx.ConsumeState() != nil {
-		ctx.ConsumeState().AddOutputIds(outputID)
-		ctx.ConsumeState().AddAddresses(address)
-	}
-
 	if sig == nil {
 		return nil
 	}

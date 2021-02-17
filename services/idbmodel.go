@@ -37,6 +37,7 @@ const (
 	TableAccumulateBalancesReceived     = "accumulate_balances_received"
 	TableAccumulateBalancesSent         = "accumulate_balances_sent"
 	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
+	TableTxPool                         = "tx_pool"
 )
 
 type Persist interface {
@@ -308,6 +309,22 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*AccumulateBalancesTransactions,
+	) error
+
+	QueryTxPool(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) (*TxPool, error)
+	InsertTxPool(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) error
+	UpdateTxPoolStatus(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
 	) error
 }
 
@@ -1683,6 +1700,90 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAccumulateBalancesTransactions, false, err)
+	}
+
+	return nil
+}
+
+type TxPool struct {
+	ID            string
+	NetworkID     uint32
+	ChainID       string
+	MsgKey        string
+	Serialization []byte
+	Processed     int
+	Topic         string
+	CreatedAt     time.Time
+}
+
+func (b *TxPool) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s", b.MsgKey, b.Topic)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
+}
+
+func (p *persist) QueryTxPool(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TxPool,
+) (*TxPool, error) {
+	v := &TxPool{}
+	err := sess.Select(
+		"id",
+		"network_id",
+		"chain_id",
+		"msg_key",
+		"serialization",
+		"processed",
+		"topic",
+		"created_at",
+	).From(TableTxPool).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTxPool(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TxPool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTxPool).
+		Pair("id", v.ID).
+		Pair("network_id", v.NetworkID).
+		Pair("chain_id", v.ChainID).
+		Pair("msg_key", v.MsgKey).
+		Pair("serialization", v.Serialization).
+		Pair("processed", v.Processed).
+		Pair("topic", v.Topic).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTxPool, false, err)
+	}
+
+	return nil
+}
+
+func (p *persist) UpdateTxPoolStatus(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TxPool,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableTxPool).
+		Set("processed", v.Processed).
+		Where("id=?", v.ID).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTxPool, false, err)
 	}
 
 	return nil

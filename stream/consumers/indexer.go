@@ -80,8 +80,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				consumeState := services.NewConsumerState()
-				err = bootstrapfactory.Bootstrap(ctx, conns, sc.Persist, consumeState)
+				err = bootstrapfactory.Bootstrap(ctx, conns, sc.Persist)
 				if err != nil {
 					errs.SetValue(err)
 				}
