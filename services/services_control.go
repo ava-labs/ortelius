@@ -28,6 +28,7 @@ type Control struct {
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
+	IsDBPoll                   bool
 	GenesisContainer           *GenesisContainer
 }
 
@@ -41,6 +42,9 @@ func (s *Control) Init(networkID uint32) error {
 			s.Log.Info("enable feature accumulate_balance_reader")
 			s.IsAccumulateBalanceReader = true
 		}
+	}
+	if _, ok := s.Features["db_poll"]; ok {
+		s.IsDBPoll = true
 	}
 	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
 

@@ -161,7 +161,6 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
@@ -386,7 +385,6 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
