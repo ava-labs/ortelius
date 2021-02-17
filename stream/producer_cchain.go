@@ -275,7 +275,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 	}()
 
-	for {
+	for !p.isStopping() {
 		lblock, err := p.fetchLatest()
 		if err != nil {
 			time.Sleep(readRPCTimeout)
@@ -288,7 +288,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return ErrNoMessage
 		}
 
-		for lblocknext.Cmp(p.block) > 0 {
+		for !p.isStopping() && lblocknext.Cmp(p.block) > 0 {
 			bl, err := p.readBlockFromRPC(current)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
@@ -309,6 +309,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			current = current.Add(current, big.NewInt(1))
 		}
 	}
+
+	return nil
 }
 
 func (p *ProducerCChain) Failure() {
