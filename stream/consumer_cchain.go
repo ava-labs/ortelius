@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -50,6 +51,7 @@ type ConsumerCChain struct {
 	consumer *cvm.Writer
 
 	groupName string
+	topicName string
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
@@ -88,6 +90,49 @@ func (c *ConsumerCChain) ID() string {
 }
 
 func (c *ConsumerCChain) ProcessNextMessage() error {
+	if c.sc.IsDBPoll {
+		job := c.conns.Stream().NewJob("query-txpoll")
+		sess := c.conns.DB().NewSessionForEventReceiver(job)
+
+		updateStatus := func(txPoll *services.TxPool) error {
+			ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+			defer cancelFn()
+			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
+		}
+
+		rowdata, err := fetchPollForTopic(sess, c.topicName, nil)
+		if err != nil {
+			return err
+		}
+		if len(rowdata) == 0 {
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		}
+
+		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
+
+		for _, row := range rowdata {
+			msg := &Message{
+				id:         row.MsgKey,
+				chainID:    c.conf.CchainID,
+				body:       row.Serialization,
+				timestamp:  row.CreatedAt.UTC().Unix(),
+				nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+			}
+			err = c.Consume(msg)
+			if err != nil {
+				return err
+			}
+			row.Processed = 1
+			err = updateStatus(row)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	msg, err := c.nextMessage()
 	if err != nil {
 		if err != context.DeadlineExceeded {
@@ -155,6 +200,9 @@ func (c *ConsumerCChain) nextMessage() (*Message, error) {
 }
 
 func (c *ConsumerCChain) commitMessage(msg services.Consumable) error {
+	if msg.KafkaMessage() == nil {
+		return nil
+	}
 	ctx, cancelFn := context.WithTimeout(context.Background(), kafkaReadTimeout)
 	defer cancelFn()
 	return c.reader.CommitMessages(ctx, *msg.KafkaMessage())
@@ -301,9 +349,9 @@ func (c *ConsumerCChain) runProcessor() error {
 		c.groupName = c.consumer.Name()
 	}
 
-	topicName := fmt.Sprintf("%d-%s-cchain", c.conf.NetworkID, c.conf.CchainID)
+	c.topicName = fmt.Sprintf("%d-%s-cchain", c.conf.NetworkID, c.conf.CchainID)
 	c.reader = kafka.NewReader(kafka.ReaderConfig{
-		Topic:       topicName,
+		Topic:       c.topicName,
 		Brokers:     c.conf.Kafka.Brokers,
 		GroupID:     c.groupName,
 		StartOffset: kafka.FirstOffset,

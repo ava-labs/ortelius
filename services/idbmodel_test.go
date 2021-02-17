@@ -1247,3 +1247,41 @@ func TestOutputsRewards(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestTxPool(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &TxPool{}
+	v.NetworkID = 1
+	v.ChainID = "ch1"
+	v.Serialization = []byte("hello")
+	v.Topic = "topic1"
+	v.MsgKey = "key1"
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("compute id failed", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTxPool).Exec()
+
+	err = p.InsertTxPool(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTxPool(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

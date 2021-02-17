@@ -35,11 +35,16 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	if err != nil {
 		return nil, err
 	}
+	writer, err := newBufferedWriter(sc, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType), conf.NetworkID, chainID)
+	if err != nil {
+		_ = sock.Close()
+		return nil, err
+	}
 
 	p := &Producer{
 		chainID:                 chainID,
 		eventType:               eventType,
-		writeBuffer:             newBufferedWriter(sc.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		writeBuffer:             writer,
 		sc:                      sc,
 		sock:                    sock,
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
