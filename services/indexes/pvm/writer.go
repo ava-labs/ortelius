@@ -354,9 +354,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 
 		// Ingest each Output Address
 		for ipos, addr := range owner.Addresses() {
-			addrBytes := [20]byte{}
-			copy(addrBytes[:], addr)
-			addrid := ids.ShortID(addrBytes)
+			addrid := ids.ShortID{}
+			copy(addrid[:], addr)
 			outputsRewardsAddress := &services.OutputsRewardsAddress{
 				ID:          baseTx.ID().String(),
 				Address:     addrid.String(),

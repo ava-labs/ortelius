@@ -485,14 +485,14 @@ func (m *MockPersist) InsertOutputsRewardsAddress(ctx context.Context, runner db
 	defer m.lock.Unlock()
 	nv := &OutputsRewardsAddress{}
 	*nv = *v
-	m.OutputsRewardsAddress[v.ID] = nv
+	m.OutputsRewardsAddress[v.ID+" "+v.Address] = nv
 	return nil
 }
 
 func (m *MockPersist) QueryOutputsRewards(ctx context.Context, runner dbr.SessionRunner, v *OutputsRewards) (*OutputsRewards, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.OutputsRewards[v.ID]; present {
+	if v, present := m.OutputsRewards[v.ID+" "+v.Address]; present {
 		return v, nil
 	}
 	return nil, nil
