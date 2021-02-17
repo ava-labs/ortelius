@@ -38,6 +38,7 @@ const (
 	TableAccumulateBalancesSent         = "accumulate_balances_sent"
 	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
 	TableOutputsRewards                 = "avm_outputs_rewards"
+	TableOutputsRewardsAddress          = "avm_outputs_rewards_address"
 	TableTxPool                         = "tx_pool"
 )
 
@@ -305,6 +306,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*AccumulateBalancesTransactions,
+	) error
+
+	QueryOutputsRewardsAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputsRewardsAddress,
+	) (*OutputsRewardsAddress, error)
+	InsertOutputsRewardsAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*OutputsRewardsAddress,
+		bool,
 	) error
 
 	QueryOutputsRewards(
@@ -1694,14 +1707,63 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 	return nil
 }
 
+type OutputsRewardsAddress struct {
+	ID          string
+	Address     string
+	OutputIndex uint32
+}
+
+func (p *persist) QueryOutputsRewardsAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *OutputsRewardsAddress,
+) (*OutputsRewardsAddress, error) {
+	v := &OutputsRewardsAddress{}
+	err := sess.Select(
+		"id",
+		"address",
+		"output_index",
+	).From(TableOutputsRewardsAddress).
+		Where("id=? and address=?", q.ID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertOutputsRewardsAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *OutputsRewardsAddress,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableOutputsRewardsAddress).
+		Pair("id", v.ID).
+		Pair("address", v.Address).
+		Pair("output_index", v.OutputIndex).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputsRewardsAddress, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableOutputsRewardsAddress).
+			Set("output_index", v.OutputIndex).
+			Where("id=? and address=?", v.ID, v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableOutputsRewardsAddress, true, err)
+		}
+	}
+	return nil
+}
+
 type OutputsRewards struct {
-	ID            string
-	ChainID       string
-	TransactionID string
-	OutputIndex   uint32
-	Threshold     uint32
-	Locktime      uint64
-	CreatedAt     time.Time
+	ID        string
+	ChainID   string
+	Threshold uint32
+	Locktime  uint64
+	CreatedAt time.Time
 }
 
 func (p *persist) QueryOutputsRewards(
@@ -1713,8 +1775,6 @@ func (p *persist) QueryOutputsRewards(
 	err := sess.Select(
 		"id",
 		"chain_id",
-		"transaction_id",
-		"output_index",
 		"locktime",
 		"threshold",
 		"created_at",
@@ -1735,8 +1795,6 @@ func (p *persist) InsertOutputsRewards(
 		InsertInto(TableOutputsRewards).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
-		Pair("transaction_id", v.TransactionID).
-		Pair("output_index", v.OutputIndex).
 		Pair("locktime", v.Locktime).
 		Pair("threshold", v.Threshold).
 		Pair("created_at", v.CreatedAt).
@@ -1748,11 +1806,9 @@ func (p *persist) InsertOutputsRewards(
 		_, err = sess.
 			Update(TableOutputsRewards).
 			Set("chain_id", v.ChainID).
-			Set("transaction_id", v.TransactionID).
-			Set("output_index", v.OutputIndex).
 			Set("locktime", v.Locktime).
 			Set("threshold", v.Threshold).
-			Where("id = ?", v.ID).
+			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableOutputsRewards, true, err)

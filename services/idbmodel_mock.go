@@ -31,6 +31,7 @@ type MockPersist struct {
 	AccumulateBalancesReceived     map[string]*AccumulateBalancesAmount
 	AccumulateBalancesSent         map[string]*AccumulateBalancesAmount
 	AccumulateBalancesTransactions map[string]*AccumulateBalancesTransactions
+	OutputsRewardsAddress          map[string]*OutputsRewardsAddress
 	OutputsRewards                 map[string]*OutputsRewards
 	TxPool                         map[string]*TxPool
 }
@@ -60,6 +61,7 @@ func NewPersistMock() *MockPersist {
 		AccumulateBalancesSent:         make(map[string]*AccumulateBalancesAmount),
 		AccumulateBalancesTransactions: make(map[string]*AccumulateBalancesTransactions),
 		OutputsRewards:                 make(map[string]*OutputsRewards),
+		OutputsRewardsAddress:          make(map[string]*OutputsRewardsAddress),
 		TxPool:                         make(map[string]*TxPool),
 	}
 }
@@ -466,6 +468,24 @@ func (m *MockPersist) InsertAccumulateBalancesTransactions(ctx context.Context, 
 	nv := &AccumulateBalancesTransactions{}
 	*nv = *v
 	m.AccumulateBalancesTransactions[v.ID] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryOutputsRewardsAddress(ctx context.Context, runner dbr.SessionRunner, v *OutputsRewardsAddress) (*OutputsRewardsAddress, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.OutputsRewardsAddress[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertOutputsRewardsAddress(ctx context.Context, runner dbr.SessionRunner, v *OutputsRewardsAddress, b bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &OutputsRewardsAddress{}
+	*nv = *v
+	m.OutputsRewardsAddress[v.ID] = nv
 	return nil
 }
 

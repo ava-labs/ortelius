@@ -1192,16 +1192,61 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 	}
 }
 
+func TestOutputsRewardsAddress(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &OutputsRewardsAddress{}
+	v.ID = "txid1"
+	v.Address = "addr1"
+	v.OutputIndex = 1
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputsRewardsAddress).Exec()
+
+	err = p.InsertOutputsRewardsAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryOutputsRewardsAddress(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputIndex = 4
+
+	err = p.InsertOutputsRewardsAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputsRewardsAddress(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.OutputIndex != 4 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
 func TestOutputsRewards(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &OutputsRewards{}
-	v.ID = "id1"
+	v.ID = "txid1"
 	v.ChainID = "cid1"
-	v.TransactionID = "txid1"
-	v.OutputIndex = 1
 	v.Locktime = 3
 	v.Threshold = 4
 	v.CreatedAt = tm
@@ -1227,8 +1272,6 @@ func TestOutputsRewards(t *testing.T) {
 	}
 
 	v.ChainID = "cid2"
-	v.TransactionID = "txid2"
-	v.OutputIndex = 2
 	v.Locktime = 4
 	v.Threshold = 5
 
