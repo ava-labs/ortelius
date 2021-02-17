@@ -242,7 +242,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 
 	var ins *avaxIndexer.AddInsContainer
 	var outs *avaxIndexer.AddOutsContainer
-	var rewardsOwner *verify.Verifiable
+	var rewardsOwner verify.Verifiable
 	var err error
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
@@ -261,7 +261,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
-		rewardsOwner = &castTx.RewardsOwner
+		rewardsOwner = castTx.RewardsOwner
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
@@ -285,7 +285,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
-		rewardsOwner = &castTx.RewardsOwner
+		rewardsOwner = castTx.RewardsOwner
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateSubnet
@@ -336,7 +336,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	}
 
 	if rewardsOwner != nil {
-		owner, ok := (*rewardsOwner).(*secp256k1fx.OutputOwners)
+		owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
 		if !ok {
 			return fmt.Errorf("rewards owner not secp256k1fx.OutputOwners")
 		}
