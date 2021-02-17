@@ -1,3 +1,3 @@
-drop index avm_outputs_rewards_transaction_id ON avm_outputs_rewards;
-
+drop index avm_outputs_rewards_address_address ON avm_outputs_rewards_address;
+drop table avm_outputs_rewards_address;
 drop table avm_outputs_rewards;
