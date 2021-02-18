@@ -376,13 +376,13 @@ func runStreamProcessorManagers(
 		}
 
 		wg.Add(len(listenCloseFactories))
-		for _, listenCloseFactory := range listenCloseFactories {
-			go func(listenCloserFactory utils.ListenCloserFactory) {
+		for ipos, listenCloseFactory := range listenCloseFactories {
+			go func(listenCloserFactory utils.ListenCloserFactory, idx int) {
 				defer wg.Done()
 
-				lc := listenCloserFactory(sc, *config)
+				lc := listenCloserFactory(sc, *config, idx)
 				runListenCloser(lc)
-			}(listenCloseFactory)
+			}(listenCloseFactory, ipos)
 		}
 
 		wg.Wait()

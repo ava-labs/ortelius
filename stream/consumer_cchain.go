@@ -52,11 +52,14 @@ type ConsumerCChain struct {
 
 	groupName string
 	topicName string
+
+	idx int
 }
 
 func NewConsumerCChain() utils.ListenCloserFactory {
-	return func(sc *services.Control, conf cfg.Config) utils.ListenCloser {
+	return func(sc *services.Control, conf cfg.Config, idx int) utils.ListenCloser {
 		c := &ConsumerCChain{
+			idx: idx,
 			conf:                          conf,
 			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CchainID),
@@ -100,7 +103,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 		}
 
-		rowdata, err := fetchPollForTopic(sess, c.topicName, nil)
+		rowdata, err := fetchPollForTopic(sess, c.topicName, &c.idx)
 		if err != nil {
 			return err
 		}
