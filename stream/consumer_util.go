@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	totalParts = "4"
+	totalParts = "2"
 )
 
 func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*services.TxPool, error) {
@@ -33,15 +33,9 @@ func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*servi
 		case 0:
 			q = q.
 				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=0", 0, topicName)
-		case 1:
-			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=1", 0, topicName)
-		case 2:
-			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=2", 0, topicName)
 		default:
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))>=3", 0, topicName)
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))>=1", 0, topicName)
 		}
 	} else {
 		q = q.
