@@ -282,6 +282,8 @@ func indexerFactories(_ *cfg.Config) []utils.ListenCloserFactory {
 		factories,
 		consumers.IndexerCChain(),
 		consumers.IndexerCChain(),
+		consumers.IndexerCChain(),
+		consumers.IndexerCChain(),
 	)
 	return factories
 }
