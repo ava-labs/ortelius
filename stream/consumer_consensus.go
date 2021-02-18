@@ -39,8 +39,6 @@ type consumerconsensus struct {
 	groupName string
 	topicName string
 
-	rotatePart int
-
 	idx int
 }
 
@@ -63,10 +61,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			metricFailureCountKey:         fmt.Sprintf("consume_consensus_records_failure_%s", chainID),
 			id:                            fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
-		c.rotatePart = int(time.Now().Unix() / 10)
-		if c.rotatePart > rotateMax {
-			c.rotatePart = 0
-		}
+
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
@@ -177,10 +172,6 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		var err error
 		var rowdata []*services.TxPool
 		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx)
-		c.rotatePart++
-		if c.rotatePart > rotateMax {
-			c.rotatePart = 0
-		}
 
 		if err != nil {
 			return err

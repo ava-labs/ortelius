@@ -52,8 +52,6 @@ type consumer struct {
 	groupName string
 	topicName string
 
-	rotatePart int
-
 	idx int
 }
 
@@ -76,10 +74,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
 			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
-		c.rotatePart = int(time.Now().Unix() / 10)
-		if c.rotatePart > rotateMax {
-			c.rotatePart = 0
-		}
+
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
@@ -190,10 +185,6 @@ func (c *consumer) ProcessNextMessage() error {
 		var err error
 		var rowdata []*services.TxPool
 		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx)
-		c.rotatePart++
-		if c.rotatePart > rotateMax {
-			c.rotatePart = 0
-		}
 
 		if err != nil {
 			return err

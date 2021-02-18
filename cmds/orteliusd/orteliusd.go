@@ -241,6 +241,7 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 				stream.NewConsensusProducerProcessor,
 				stream.NewDecisionsProducerProcessor,
 			},
+			nil,
 			producerFactories(config),
 			nil,
 		),
@@ -255,12 +256,14 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			runErr,
 			[]stream.ProcessorFactory{
 				consumers.Indexer,
-				consumers.IndexerConsensus,
 				consumers.Indexer,
-				consumers.IndexerConsensus,
 				consumers.Indexer,
-				consumers.IndexerConsensus,
 				consumers.Indexer,
+			},
+			[]stream.ProcessorFactory{
+				consumers.IndexerConsensus,
+				consumers.IndexerConsensus,
+				consumers.IndexerConsensus,
 				consumers.IndexerConsensus,
 			},
 			indexerFactories(config),
@@ -334,6 +337,7 @@ func runStreamProcessorManagers(
 	config *cfg.Config,
 	runError *error,
 	factories []stream.ProcessorFactory,
+	factoriesConsensus []stream.ProcessorFactory,
 	listenCloseFactories []utils.ListenCloserFactory,
 	consumerFactories []consumers.ConsumerFactory,
 ) func(_ *cobra.Command, _ []string) {
@@ -353,6 +357,15 @@ func runStreamProcessorManagers(
 		wg.Add(len(factories))
 
 		for ipos, factory := range factories {
+			go func(factory stream.ProcessorFactory, idx int) {
+				defer wg.Done()
+
+				// Create and start processor manager
+				pm := stream.NewProcessorManager(sc, *config, factory, idx)
+				runListenCloser(pm)
+			}(factory, ipos)
+		}
+		for ipos, factory := range factoriesConsensus {
 			go func(factory stream.ProcessorFactory, idx int) {
 				defer wg.Done()
 
