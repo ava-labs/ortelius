@@ -28,8 +28,6 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 
 	pollLimit = 100
-
-	rotateMax = 1
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
