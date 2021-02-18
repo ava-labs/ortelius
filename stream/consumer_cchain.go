@@ -59,7 +59,7 @@ type ConsumerCChain struct {
 func NewConsumerCChain() utils.ListenCloserFactory {
 	return func(sc *services.Control, conf cfg.Config, idx int) utils.ListenCloser {
 		c := &ConsumerCChain{
-			idx: idx,
+			idx:                           idx,
 			conf:                          conf,
 			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CchainID),
