@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -111,8 +110,6 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			time.Sleep(100 * time.Millisecond)
 			return nil
 		}
-
-		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 		for _, row := range rowdata {
 			msg := &Message{

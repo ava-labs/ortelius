@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -192,8 +191,6 @@ func (c *consumer) ProcessNextMessage() error {
 			time.Sleep(100 * time.Millisecond)
 			return nil
 		}
-
-		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 		for _, row := range rowdata {
 			msg := &Message{
