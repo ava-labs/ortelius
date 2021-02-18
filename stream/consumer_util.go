@@ -8,6 +8,10 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
+const (
+	totalParts = "4"
+)
+
 func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*services.TxPool, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
@@ -25,12 +29,19 @@ func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*servi
 	).From(services.TableTxPool)
 
 	if part != nil {
-		if *part == 1 {
+		switch *part {
+		case 0:
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))>=5", 0, topicName)
-		} else {
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=0", 0, topicName)
+		case 1:
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))<5", 0, topicName)
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=1", 0, topicName)
+		case 2:
+			q = q.
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))=2", 0, topicName)
+		default:
+			q = q.
+				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,"+totalParts+"))>=3", 0, topicName)
 		}
 	} else {
 		q = q.

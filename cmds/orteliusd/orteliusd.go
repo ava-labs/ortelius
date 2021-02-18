@@ -258,6 +258,10 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 				consumers.IndexerConsensus,
 				consumers.Indexer,
 				consumers.IndexerConsensus,
+				consumers.Indexer,
+				consumers.IndexerConsensus,
+				consumers.Indexer,
+				consumers.IndexerConsensus,
 			},
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
@@ -348,14 +352,14 @@ func runStreamProcessorManagers(
 		wg := &sync.WaitGroup{}
 		wg.Add(len(factories))
 
-		for _, factory := range factories {
-			go func(factory stream.ProcessorFactory) {
+		for ipos, factory := range factories {
+			go func(factory stream.ProcessorFactory, idx int) {
 				defer wg.Done()
 
 				// Create and start processor manager
-				pm := stream.NewProcessorManager(sc, *config, factory)
+				pm := stream.NewProcessorManager(sc, *config, factory, idx)
 				runListenCloser(pm)
-			}(factory)
+			}(factory, ipos)
 		}
 
 		wg.Add(len(listenCloseFactories))

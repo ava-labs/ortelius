@@ -53,17 +53,20 @@ type consumer struct {
 	topicName string
 
 	rotatePart int
+
+	idx int
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string, idx int) (Processor, error) {
 		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			return nil, err
 		}
 
 		c := &consumer{
+			idx:                           idx,
 			chainID:                       chainID,
 			conns:                         conns,
 			sc:                            sc,
@@ -186,20 +189,14 @@ func (c *consumer) ProcessNextMessage() error {
 
 		var err error
 		var rowdata []*services.TxPool
-		for icnt := 0; icnt < rotateMax+1; icnt++ {
-			rowdata, err = fetchPollForTopic(sess, c.topicName, &c.rotatePart)
-			c.rotatePart++
-			if c.rotatePart > rotateMax {
-				c.rotatePart = 0
-			}
+		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx)
+		c.rotatePart++
+		if c.rotatePart > rotateMax {
+			c.rotatePart = 0
+		}
 
-			if err != nil {
-				return err
-			}
-
-			if len(rowdata) > 0 {
-				break
-			}
+		if err != nil {
+			return err
 		}
 
 		if len(rowdata) == 0 {
