@@ -61,12 +61,12 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int) (Processor, error) {
+func NewConsensusProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int, _ int) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeConsensus)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int) (Processor, error) {
+func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int, _ int) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeDecisions)
 }
 

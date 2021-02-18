@@ -27,7 +27,7 @@ var (
 )
 
 // ProcessorFactory takes in configuration and returns a stream Processor
-type ProcessorFactory func(*services.Control, cfg.Config, string, string, int) (Processor, error)
+type ProcessorFactory func(*services.Control, cfg.Config, string, string, int, int) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
@@ -49,11 +49,12 @@ type ProcessorManager struct {
 	quitCh chan struct{}
 	doneCh chan struct{}
 
-	idx int
+	idx    int
+	maxIdx int
 }
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
-func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory, idx int) *ProcessorManager {
+func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory, idx int, maxIdx int) *ProcessorManager {
 	return &ProcessorManager{
 		conf: conf,
 		sc:   sc,
@@ -63,7 +64,8 @@ func NewProcessorManager(sc *services.Control, conf cfg.Config, factory Processo
 		quitCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
 
-		idx: idx,
+		idx:    idx,
+		maxIdx: maxIdx,
 	}
 }
 
@@ -135,7 +137,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	defer c.sc.Log.Info("Exiting worker for chain %s", chainConfig.ID)
 
 	// Create a backend to get messages from
-	backend, err := c.factory(c.sc, c.conf, chainConfig.VMType, chainConfig.ID, c.idx)
+	backend, err := c.factory(c.sc, c.conf, chainConfig.VMType, chainConfig.ID, c.idx, c.maxIdx)
 	if err != nil {
 		return err
 	}

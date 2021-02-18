@@ -38,12 +38,13 @@ type consumerconsensus struct {
 	groupName string
 	topicName string
 
-	idx int
+	idx    int
+	maxIdx int
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
 func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string, idx int) (Processor, error) {
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string, idx int, maxIdx int) (Processor, error) {
 		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			return nil, err
@@ -51,6 +52,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 
 		c := &consumerconsensus{
 			idx:                           idx,
+			maxIdx:                        maxIdx,
 			chainID:                       chainID,
 			conns:                         conns,
 			sc:                            sc,
@@ -170,7 +172,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 
 		var err error
 		var rowdata []*services.TxPool
-		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx)
+		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx, c.maxIdx)
 
 		if err != nil {
 			return err

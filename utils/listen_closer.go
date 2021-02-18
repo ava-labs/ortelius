@@ -11,4 +11,4 @@ type ListenCloser interface {
 	Close() error
 }
 
-type ListenCloserFactory func(*services.Control, cfg.Config, int) ListenCloser
+type ListenCloserFactory func(*services.Control, cfg.Config, int, int) ListenCloser
