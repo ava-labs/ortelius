@@ -23,8 +23,6 @@ import (
 
 	"github.com/ava-labs/ortelius/utils"
 
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/ava-labs/coreth/core/types"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -173,13 +171,11 @@ func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time)
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_blocks (block,created_at) values ("+blockNumber.String()+",?)",
-		updateTime)
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+	cvmBlocks := &services.CvmBlocks{
+		Block:     blockNumber.String(),
+		CreatedAt: updateTime,
 	}
-	return nil
+	return p.sc.Persist.InsertCvmBlocks(ctx, dbRunner, cvmBlocks)
 }
 
 func (p *ProducerCChain) fetchLatest() (uint64, error) {
@@ -202,18 +198,15 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return nil
 		}
 
-		if p.sc.IsDBPoll {
-			currentBlock := big.NewInt(0).Set(p.block)
+		var blockNumberUpdates []*big.Int
 
+		if p.sc.IsDBPoll {
 			errs := avlancheGoUtils.AtomicInterface{}
 
 			for _, bl := range localBlocks {
 				p.worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
 
-				currentBlock.Set(bl.blockNumber)
-				if currentBlock.Uint64()%1000 == 0 {
-					p.sc.Log.Info("current block %s", currentBlock.String())
-				}
+				blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 			}
 
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
@@ -224,42 +217,36 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			if errs.GetValue() != nil {
 				return errs.GetValue().(error)
 			}
+		} else {
+			var kafkaMessages []kafka.Message
 
-			p.block = big.NewInt(0).Add(currentBlock, big.NewInt(1))
+			for _, bl := range localBlocks {
+				cblk, err := cblock.New(bl.block)
+				if err != nil {
+					return err
+				}
+				if cblk == nil {
+					return fmt.Errorf("invalid block")
+				}
+				// wipe before re-encoding
+				cblk.Txs = nil
+				block, err := json.Marshal(cblk)
+				if err != nil {
+					return err
+				}
 
-			return nil
-		}
+				kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
+				kafkaMessages = append(kafkaMessages, kafkaMessage)
 
-		var blockNumberUpdates []*big.Int
+				blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+			}
 
-		var kafkaMessages []kafka.Message
+			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
-		for _, bl := range localBlocks {
-			cblk, err := cblock.New(bl.block)
+			err := p.writeMessagesToKafka(kafkaMessages...)
 			if err != nil {
 				return err
 			}
-			if cblk == nil {
-				return fmt.Errorf("invalid block")
-			}
-			// wipe before re-encoding
-			cblk.Txs = nil
-			block, err := json.Marshal(cblk)
-			if err != nil {
-				return err
-			}
-
-			kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
-			kafkaMessages = append(kafkaMessages, kafkaMessage)
-
-			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
-		}
-
-		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
-
-		err := p.writeMessagesToKafka(kafkaMessages...)
-		if err != nil {
-			return err
 		}
 
 		for _, blockNumber := range blockNumberUpdates {
@@ -608,12 +595,6 @@ func (p *ProducerCChain) processWork(_ int, workPacketI interface{}) {
 		return
 	}
 	err = p.updateTxPool(txPool)
-	if err != nil {
-		wp.errs.SetValue(err)
-		return
-	}
-
-	err = p.updateBlock(wp.bl.blockNumber, time.Now().UTC())
 	if err != nil {
 		wp.errs.SetValue(err)
 		return
