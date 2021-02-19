@@ -359,6 +359,19 @@ func TestTransactionNext(t *testing.T) {
 		t.Fatal("invalid sort")
 	}
 
+	_ = tp.ForValues(0, n)
+	tp.ListParams.Limit = 1
+	tl, _ = reader.ListTransactions(ctx, &tp, ids.ID{})
+	if len(tl.Transactions) != 1 {
+		t.Fatal("invalid transactions")
+	}
+	if tl.Transactions[0].ID != "3" {
+		t.Fatal("invalid transactions")
+	}
+
+	tp = params.ListTransactionsParams{}
+	_ = tp.ForValues(0, url.Values{})
+	tp.ListParams.Limit = 2
 	tp.Sort = params.TransactionSortTimestampDesc
 	tl, _ = reader.ListTransactions(ctx, &tp, ids.ID{})
 	if len(tl.Transactions) != 2 {
@@ -375,5 +388,15 @@ func TestTransactionNext(t *testing.T) {
 	}
 	if n[params.KeySortBy][0] != params.TransactionSortTimestampDesc {
 		t.Fatal("invalid sort")
+	}
+
+	_ = tp.ForValues(0, n)
+	tp.ListParams.Limit = 1
+	tl, _ = reader.ListTransactions(ctx, &tp, ids.ID{})
+	if len(tl.Transactions) != 1 {
+		t.Fatal("invalid transactions")
+	}
+	if tl.Transactions[0].ID != "2" {
+		t.Fatal("invalid transactions")
 	}
 }
