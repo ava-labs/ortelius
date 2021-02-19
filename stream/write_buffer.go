@@ -50,7 +50,6 @@ type bufferedWriter struct {
 	conns                       *services.Connections
 	chainID                     string
 	networkID                   uint32
-	worker                      utils.Worker
 }
 
 func newBufferedWriter(sc *services.Control, brokers []string, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
@@ -86,12 +85,6 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string, net
 		return nil, err
 	}
 	wb.conns = conns
-
-	accumfunc := func(part int, v interface{}) {
-		wb.processWork(part, v)
-	}
-
-	wb.worker = utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 
 	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
@@ -136,13 +129,15 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				}
 			}()
 
-			for _, b := range buffer[:bufferSize] {
-				wb.worker.Enque(&WorkPacket{b: b})
+			accumfunc := func(part int, v interface{}) {
+				wb.processWork(part, v)
 			}
 
-			for wb.worker.JobCnt() > 0 && !wb.worker.IsFinished() {
-				time.Sleep(time.Millisecond)
+			worker := utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
+			for _, b := range buffer[:bufferSize] {
+				worker.Enque(&WorkPacket{b: b})
 			}
+			worker.Finish(time.Millisecond)
 
 			if err != nil {
 				collectors.Error()

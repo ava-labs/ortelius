@@ -72,8 +72,6 @@ type ProducerCChain struct {
 	quitCh chan struct{}
 	doneCh chan struct{}
 	topic  string
-
-	worker utils.Worker
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -106,12 +104,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 		sc.InitProduceMetrics()
-
-		accumfunc := func(part int, v interface{}) {
-			p.processWork(part, v)
-		}
-
-		p.worker = utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 
 		return p
 	}
@@ -199,17 +191,20 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		if p.sc.IsDBPoll {
 			errs := avlancheGoUtils.AtomicInterface{}
 
+			accumfunc := func(part int, v interface{}) {
+				p.processWork(part, v)
+			}
+
+			worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 			for _, bl := range localBlocks {
-				p.worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
+				worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
 
 				blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 			}
+			worker.Finish(time.Millisecond)
 
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
-			for p.worker.JobCnt() > 0 && !p.worker.IsFinished() {
-				time.Sleep(time.Millisecond)
-			}
 			if errs.GetValue() != nil {
 				return errs.GetValue().(error)
 			}
