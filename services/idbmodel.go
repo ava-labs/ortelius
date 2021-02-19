@@ -952,7 +952,7 @@ func (p *persist) InsertCvmBlocks(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmBlocks+" (block,creaed_at) values("+v.Block+",?)",
+		InsertBySql("insert into "+TableCvmBlocks+" (block,created_at) values("+v.Block+",?)",
 			v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
