@@ -31,16 +31,23 @@ type BalanceAccumulatorManager struct {
 	sc         *Control
 	persist    Persist
 	tickerOnce sync.Once
+	conns      *Connections
 }
 
-func NewBalanceAccumulatorManager(persist Persist, sc *Control) *BalanceAccumulatorManager {
+func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
+	conns, err := sc.DatabaseOnly()
+	if err != nil {
+		return nil, err
+	}
+
 	bmanager := &BalanceAccumulatorManager{
-		handler: &BalancerAccumulateHandler{},
+		handler: &BalancerAccumulateHandler{conns: conns},
 		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
+		conns:   conns,
 	}
-	return bmanager
+	return bmanager, nil
 }
 
 func (a *BalanceAccumulatorManager) RunTicker() {
@@ -55,18 +62,9 @@ func (a *BalanceAccumulatorManager) runTicker() {
 	}
 
 	runEvent := func() {
-		conns, err := a.sc.DatabaseOnly()
-		if err != nil {
-			a.sc.Log.Error("accumulate ticker error %v", err)
-			return
-		}
-		defer func() {
-			_ = conns.Close()
-		}()
-
 		icnt := 0
 		for ; icnt < 10; icnt++ {
-			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
+			cnt, err := a.handler.processOutputs(false, processTypeIn, a.conns, a.persist)
 			if db.ErrIsLockError(err) {
 				icnt = 0
 				continue
@@ -103,6 +101,7 @@ type BalancerAccumulateHandler struct {
 	runcntOuts  int64
 	runcntTrans int64
 	lock        sync.Mutex
+	conns       *Connections
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
@@ -118,22 +117,15 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 			return
 		}
 
-		conns, err := sc.DatabaseOnly()
-		if err != nil {
-			sc.Log.Error("accumulate error %v", err)
-			return
-		}
-
 		atomic.AddInt64(runcnt, 1)
 
 		go func() {
 			defer func() {
 				atomic.AddInt64(runcnt, -1)
-				_ = conns.Close()
 			}()
 			icnt := 0
 			for ; icnt < 10; icnt++ {
-				cnt, err := f(conns, persist)
+				cnt, err := f(a.conns, persist)
 				if db.ErrIsLockError(err) {
 					icnt = 0
 					continue

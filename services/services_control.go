@@ -46,10 +46,13 @@ func (s *Control) Init(networkID uint32) error {
 	if _, ok := s.Features["db_poll"]; ok {
 		s.IsDBPoll = true
 	}
-	persist := NewPersist()
-	s.BalanceAccumulatorManager = NewBalanceAccumulatorManager(persist, s)
-
 	var err error
+	persist := NewPersist()
+	s.BalanceAccumulatorManager, err = NewBalanceAccumulatorManager(persist, s)
+	if err != nil {
+		return err
+	}
+
 	s.GenesisContainer, err = NewGenesisContainer(networkID)
 	if err != nil {
 		return err
