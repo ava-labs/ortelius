@@ -577,7 +577,7 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
-	if len(txs) < listParams.Limit || len(txs) == 0 {
+	if len(txs) == 0 || len(txs) < listParams.Limit {
 		return nil
 	}
 
