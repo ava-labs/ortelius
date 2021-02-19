@@ -372,19 +372,19 @@ func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, reward
 	for ipos, addr := range owner.Addresses() {
 		addrid := ids.ShortID{}
 		copy(addrid[:], addr)
-		outputsRewardsAddress := &services.TransactionRewardsOwnersAddress{
+		txRewardsOwnerAddress := &services.TransactionRewardsOwnersAddress{
 			ID:          txID.String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
 		}
 
-		err = ctx.Persist().InsertTransactionRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), outputsRewardsAddress, cfg.PerformUpdates)
+		err = ctx.Persist().InsertTransactionRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
 		if err != nil {
 			return err
 		}
 	}
 
-	outputsRewards := &services.TransactionRewardsOwners{
+	txRewardsOwner := &services.TransactionRewardsOwners{
 		ID:        txID.String(),
 		ChainID:   w.chainID,
 		Threshold: owner.Threshold,
@@ -392,7 +392,7 @@ func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, reward
 		CreatedAt: ctx.Time(),
 	}
 
-	return ctx.Persist().InsertTransactionRewardsOwners(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactionRewardsOwners(ctx.Ctx(), ctx.DB(), txRewardsOwner, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
