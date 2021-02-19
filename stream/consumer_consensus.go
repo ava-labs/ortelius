@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -39,18 +38,21 @@ type consumerconsensus struct {
 	groupName string
 	topicName string
 
-	rotatePart int
+	idx    int
+	maxIdx int
 }
 
 // NewConsumerConsensusFactory returns a processorFactory for the given service consumer
 func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactory {
-	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string, idx int, maxIdx int) (Processor, error) {
 		conns, err := sc.DatabaseOnly()
 		if err != nil {
 			return nil, err
 		}
 
 		c := &consumerconsensus{
+			idx:                           idx,
+			maxIdx:                        maxIdx,
 			chainID:                       chainID,
 			conns:                         conns,
 			sc:                            sc,
@@ -60,10 +62,7 @@ func NewConsumerConsensusFactory(factory serviceConsumerFactory) ProcessorFactor
 			metricFailureCountKey:         fmt.Sprintf("consume_consensus_records_failure_%s", chainID),
 			id:                            fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID),
 		}
-		c.rotatePart = int(time.Now().Unix() / 10)
-		if c.rotatePart > rotateMax {
-			c.rotatePart = 0
-		}
+
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
 		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
@@ -173,28 +172,16 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 
 		var err error
 		var rowdata []*services.TxPool
-		for icnt := 0; icnt < rotateMax+1; icnt++ {
-			rowdata, err = fetchPollForTopic(sess, c.topicName, &c.rotatePart)
-			c.rotatePart++
-			if c.rotatePart > rotateMax {
-				c.rotatePart = 0
-			}
+		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx, c.maxIdx)
 
-			if err != nil {
-				return err
-			}
-
-			if len(rowdata) > 0 {
-				break
-			}
+		if err != nil {
+			return err
 		}
 
 		if len(rowdata) == 0 {
 			time.Sleep(100 * time.Millisecond)
 			return nil
 		}
-
-		rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 		for _, row := range rowdata {
 			msg := &Message{
