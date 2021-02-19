@@ -195,8 +195,6 @@ type localBlockObject struct {
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
-	current := big.NewInt(0).Set(p.block)
-
 	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
 	consumeBlock := func() error {
@@ -205,14 +203,16 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 
 		if p.sc.IsDBPoll {
+			currentBlock := big.NewInt(0).Set(p.block)
+
 			errs := avlancheGoUtils.AtomicInterface{}
 
 			for _, bl := range localBlocks {
 				p.worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
 
-				current.Set(bl.blockNumber)
-				if current.Uint64()%1000 == 0 {
-					p.sc.Log.Info("current block %s", current.String())
+				currentBlock.Set(bl.blockNumber)
+				if currentBlock.Uint64()%1000 == 0 {
+					p.sc.Log.Info("current block %s", currentBlock.String())
 				}
 			}
 
@@ -225,7 +225,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				return errs.GetValue().(error)
 			}
 
-			p.block = big.NewInt(0).Add(current, big.NewInt(1))
+			p.block = big.NewInt(0).Add(currentBlock, big.NewInt(1))
 
 			return nil
 		}
@@ -284,6 +284,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			p.sc.Log.Warn("consume block error %v", err)
 		}
 	}()
+
+	current := big.NewInt(0).Set(p.block)
 
 	for !p.isStopping() {
 		lblock, err := p.fetchLatest()
