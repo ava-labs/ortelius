@@ -29,11 +29,15 @@ const (
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 
+type BufferContainer struct {
+	b []byte
+}
+
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
 	topic  string
 	writer *kafka.Writer
-	buffer chan (*[]byte)
+	buffer chan (*BufferContainer)
 	doneCh chan (struct{})
 	sc     *services.Control
 
@@ -62,7 +66,7 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string, net
 			WriteTimeout: defaultWriteTimeout,
 			RequiredAcks: int(kafka.RequireAll),
 		}),
-		buffer:                      make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		buffer:                      make(chan *BufferContainer, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
 		sc:                          sc,
 		metricSuccessCountKey:       "kafka_write_records_success",
@@ -96,7 +100,7 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string, net
 
 // Write adds the message to the buffer.
 func (wb *bufferedWriter) Write(msg []byte) {
-	wb.buffer <- &msg
+	wb.buffer <- &BufferContainer{b: msg}
 }
 
 // loop takes in messages from the buffer and commits them to Kafka when in
@@ -106,7 +110,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		lastFlush = time.Now()
 
 		bufferSize = 0
-		buffer     = make([](*[]byte), size)
+		buffer     = make([](*BufferContainer), size)
 		buffer2    = make([]kafka.Message, size)
 	)
 
@@ -132,7 +136,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}()
 
 			for _, b := range buffer[:bufferSize] {
-				wb.worker.Enque(&WorkPacket{b: *b})
+				wb.worker.Enque(&WorkPacket{b: b})
 			}
 
 			for wb.worker.JobCnt() > 0 && !wb.worker.IsFinished() {
@@ -152,7 +156,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		for bpos, b := range buffer[:bufferSize] {
 			// reset the message..
 			buffer2[bpos] = kafka.Message{}
-			buffer2[bpos].Value = *b
+			buffer2[bpos].Value = b.b
 			// compute hash before processing.
 			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
@@ -238,7 +242,7 @@ func (wb *bufferedWriter) close() error {
 }
 
 type WorkPacket struct {
-	b []byte
+	b *BufferContainer
 }
 
 func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
@@ -259,7 +263,7 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 
 	var err error
 	var id ids.ID
-	id, err = ids.ToID(hashing.ComputeHash256(wp.b))
+	id, err = ids.ToID(hashing.ComputeHash256(wp.b.b))
 	if err != nil {
 		wb.sc.Log.Warn("Error writing to db:", err)
 		return
@@ -268,7 +272,7 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 		NetworkID:     wb.networkID,
 		ChainID:       wb.chainID,
 		MsgKey:        id.String(),
-		Serialization: wp.b,
+		Serialization: wp.b.b,
 		Processed:     0,
 		Topic:         wb.topic,
 		CreatedAt:     time.Now(),
