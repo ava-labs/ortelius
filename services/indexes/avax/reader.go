@@ -1180,7 +1180,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_addresses.transaction_id",
 		"cvm_addresses.address",
 		"cvm_addresses.asset_id",
-		"cvm_addresses.created_at as timestamp",
+		"cvm_addresses.created_at",
 		"cvm_transactions.blockchain_id as chain_id",
 		"cvm_transactions.block",
 	).
