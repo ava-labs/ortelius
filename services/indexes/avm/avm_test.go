@@ -5,6 +5,8 @@ package avm
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -289,5 +291,82 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 	}
 	if len(persist.Assets) != 1 {
 		t.Fatal("insert failed")
+	}
+}
+
+func TestNextLogic(t *testing.T) {
+	conns, _, reader, closeFn := newTestIndex(t, testXChainID)
+	defer closeFn()
+	ctx := context.Background()
+
+	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+
+	persist := services.NewPersist()
+
+	tnow1 := time.Now().Truncate(time.Second)
+	tx1 := &services.Transactions{
+		ID:        "1",
+		ChainID:   "1",
+		CreatedAt: tnow1,
+	}
+	persist.InsertTransactions(ctx, session, tx1, false)
+
+	tnow2 := tnow1.Add(time.Second)
+	tx2 := &services.Transactions{
+		ID:        "2",
+		ChainID:   "1",
+		CreatedAt: tnow2,
+	}
+	persist.InsertTransactions(ctx, session, tx2, false)
+
+	tnow3 := tnow2.Add(time.Second)
+	tx3 := &services.Transactions{
+		ID:        "3",
+		ChainID:   "1",
+		CreatedAt: tnow3,
+	}
+	persist.InsertTransactions(ctx, session, tx3, false)
+
+	tnow4 := tnow3.Add(time.Second)
+	tx4 := &services.Transactions{
+		ID:        "3",
+		ChainID:   "1",
+		CreatedAt: tnow4,
+	}
+	persist.InsertTransactions(ctx, session, tx4, false)
+
+	tp := params.ListTransactionsParams{}
+	tp.ForValues(0, url.Values{})
+	tp.ListParams.Limit = 2
+
+	tp.Sort = params.TransactionSortTimestampAsc
+	tl, _ := reader.ListTransactions(ctx, &tp, ids.ID{})
+	if len(tl.Transactions) != 2 {
+		t.Fatal("tl invalid")
+	}
+
+	n, _ := url.ParseQuery(*tl.Next)
+
+	if n[params.KeyStartTime][0] != fmt.Sprintf("%d", tnow3.Unix()) {
+		t.Fatal("invalid next starttime")
+	}
+	if n[params.KeySortBy][0] != params.TransactionSortTimestampAsc {
+		t.Fatal("invalid sort")
+	}
+
+	tp.Sort = params.TransactionSortTimestampDesc
+	tl, _ = reader.ListTransactions(ctx, &tp, ids.ID{})
+
+	if len(tl.Transactions) != 2 {
+		t.Fatal("tl invalid")
+	}
+
+	n, _ = url.ParseQuery(*tl.Next)
+
+	if n[params.KeyEndTime][0] != fmt.Sprintf("%d", tnow1.Add(time.Second).Unix()) {
+		t.Fatal("invalid next endtime")
+	}
+	if n[params.KeySortBy][0] != params.TransactionSortTimestampDesc {
+		t.Fatal("invalid sort")
 	}
 }
