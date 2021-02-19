@@ -1136,8 +1136,6 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 }
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
-	var outputs []*compositeRecord
-
 	s1_0 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
@@ -1146,8 +1144,12 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		From("avm_outputs_redeeming").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
-	s1 := selectOutputs(dbRunner).
-		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id")
+	var outputs []*compositeRecord
+	_, err := selectOutputs(dbRunner).
+		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id").LoadContext(ctx, &outputs)
+	if err != nil {
+		return nil, err
+	}
 
 	s2 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs_redeeming").
@@ -1155,41 +1157,15 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	// if we get an input but have not yet seen the output.
-	s3 := selectOutputsRedeeming(dbRunner).
+	var outputs2 []*compositeRecord
+	_, err = selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
-			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
-
-	su := dbr.Union(s1, s3).As("union_q")
-	_, err := dbRunner.Select("union_q.id",
-		"union_q.transaction_id",
-		"union_q.output_index",
-		"union_q.asset_id",
-		"union_q.output_type",
-		"union_q.amount",
-		"union_q.locktime",
-		"union_q.stake_locktime",
-		"union_q.threshold",
-		"union_q.created_at",
-		"union_q.redeeming_transaction_id",
-		"union_q.group_id",
-		"union_q.output_id",
-		"union_q.address",
-		"union_q.signature",
-		"union_q.public_key",
-		"union_q.chain_id",
-		"union_q.payload",
-		"union_q.stake",
-		"union_q.stakeableout",
-		"union_q.genesisutxo",
-		"union_q.frozen",
-	).
-		From(su).
-		LoadContext(ctx, &outputs)
+			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2"))).LoadContext(ctx, &outputs2)
 	if err != nil {
 		return nil, err
 	}
 
-	return outputs, nil
+	return append(outputs, outputs2...), nil
 }
 
 func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {

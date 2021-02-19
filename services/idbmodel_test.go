@@ -1192,6 +1192,105 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 	}
 }
 
+func TestTransactionsRewardsOwnersAddress(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &TransactionsRewardsOwnersAddress{}
+	v.ID = "txid1"
+	v.Address = "addr1"
+	v.OutputIndex = 1
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsRewardsOwnersAddress).Exec()
+
+	err = p.InsertTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputIndex = 4
+
+	err = p.InsertTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.OutputIndex != 4 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestTransactionsRewardsOwners(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &TransactionsRewardsOwners{}
+	v.ID = "txid1"
+	v.ChainID = "cid1"
+	v.Locktime = 3
+	v.Threshold = 4
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsRewardsOwners).Exec()
+
+	err = p.InsertTransactionsRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.ChainID = "cid2"
+	v.Locktime = 4
+	v.Threshold = 5
+
+	err = p.InsertTransactionsRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryTransactionsRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Threshold != 5 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
 func TestTxPool(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
