@@ -581,17 +581,14 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 		return nil
 	}
 
-	lasttx := txs[len(txs)-1]
-	lasttxCreated := lasttx.CreatedAt
-	lasttxCreatedAdjusted := lasttxCreated
+	lasttxCreated := txs[len(txs)-1].CreatedAt
 
 	next := ""
 	switch transactionsParams.Sort {
 	case params.TransactionSortTimestampAsc:
-		lasttxCreatedAdjusted = lasttxCreated.Add(time.Second)
-		next = fmt.Sprintf("%s=%d", params.KeyStartTime, lasttxCreatedAdjusted.Unix())
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, lasttxCreated.Add(time.Second).Unix())
 	case params.TransactionSortTimestampDesc:
-		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttxCreatedAdjusted.Unix())
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttxCreated.Unix())
 	}
 
 	for k, vs := range listParams.Values {
