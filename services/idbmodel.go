@@ -15,29 +15,31 @@ import (
 )
 
 const (
-	TableTransactions                   = "avm_transactions"
-	TableOutputsRedeeming               = "avm_outputs_redeeming"
-	TableOutputs                        = "avm_outputs"
-	TableAssets                         = "avm_assets"
-	TableAddresses                      = "addresses"
-	TableAddressChain                   = "address_chain"
-	TableOutputAddresses                = "avm_output_addresses"
-	TableTransactionsEpochs             = "transactions_epoch"
-	TableCvmAddresses                   = "cvm_addresses"
-	TableCvmTransactions                = "cvm_transactions"
-	TableCvmTransactionsTxdata          = "cvm_transactions_txdata"
-	TablePvmBlocks                      = "pvm_blocks"
-	TableRewards                        = "rewards"
-	TableTransactionsValidator          = "transactions_validator"
-	TableTransactionsBlock              = "transactions_block"
-	TableAddressBech32                  = "addresses_bech32"
-	TableOutputAddressAccumulateOut     = "output_addresses_accumulate_out"
-	TableOutputAddressAccumulateIn      = "output_addresses_accumulate_in"
-	TableOutputTxsAccumulate            = "output_txs_accumulate"
-	TableAccumulateBalancesReceived     = "accumulate_balances_received"
-	TableAccumulateBalancesSent         = "accumulate_balances_sent"
-	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
-	TableTxPool                         = "tx_pool"
+	TableTransactions                     = "avm_transactions"
+	TableOutputsRedeeming                 = "avm_outputs_redeeming"
+	TableOutputs                          = "avm_outputs"
+	TableAssets                           = "avm_assets"
+	TableAddresses                        = "addresses"
+	TableAddressChain                     = "address_chain"
+	TableOutputAddresses                  = "avm_output_addresses"
+	TableTransactionsEpochs               = "transactions_epoch"
+	TableCvmAddresses                     = "cvm_addresses"
+	TableCvmTransactions                  = "cvm_transactions"
+	TableCvmTransactionsTxdata            = "cvm_transactions_txdata"
+	TablePvmBlocks                        = "pvm_blocks"
+	TableRewards                          = "rewards"
+	TableTransactionsValidator            = "transactions_validator"
+	TableTransactionsBlock                = "transactions_block"
+	TableAddressBech32                    = "addresses_bech32"
+	TableOutputAddressAccumulateOut       = "output_addresses_accumulate_out"
+	TableOutputAddressAccumulateIn        = "output_addresses_accumulate_in"
+	TableOutputTxsAccumulate              = "output_txs_accumulate"
+	TableAccumulateBalancesReceived       = "accumulate_balances_received"
+	TableAccumulateBalancesSent           = "accumulate_balances_sent"
+	TableAccumulateBalancesTransactions   = "accumulate_balances_transactions"
+	TableTransactionsRewardsOwners        = "transactions_rewards_owners"
+	TableTransactionsRewardsOwnersAddress = "transactions_rewards_owners_address"
+	TableTxPool                           = "tx_pool"
 )
 
 type Persist interface {
@@ -304,6 +306,30 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*AccumulateBalancesTransactions,
+	) error
+
+	QueryTransactionsRewardsOwnersAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersAddress,
+	) (*TransactionsRewardsOwnersAddress, error)
+	InsertTransactionsRewardsOwnersAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersAddress,
+		bool,
+	) error
+
+	QueryTransactionsRewardsOwners(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwners,
+	) (*TransactionsRewardsOwners, error)
+	InsertTransactionsRewardsOwners(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwners,
+		bool,
 	) error
 
 	QueryTxPool(
@@ -1678,6 +1704,116 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 		return EventErr(TableAccumulateBalancesTransactions, false, err)
 	}
 
+	return nil
+}
+
+type TransactionsRewardsOwnersAddress struct {
+	ID          string
+	Address     string
+	OutputIndex uint32
+}
+
+func (p *persist) QueryTransactionsRewardsOwnersAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwnersAddress,
+) (*TransactionsRewardsOwnersAddress, error) {
+	v := &TransactionsRewardsOwnersAddress{}
+	err := sess.Select(
+		"id",
+		"address",
+		"output_index",
+	).From(TableTransactionsRewardsOwnersAddress).
+		Where("id=? and address=?", q.ID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwnersAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwnersAddress,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwnersAddress).
+		Pair("id", v.ID).
+		Pair("address", v.Address).
+		Pair("output_index", v.OutputIndex).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwnersAddress, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwnersAddress).
+			Set("output_index", v.OutputIndex).
+			Where("id=? and address=?", v.ID, v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwnersAddress, true, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsRewardsOwners struct {
+	ID        string
+	ChainID   string
+	Threshold uint32
+	Locktime  uint64
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsRewardsOwners(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwners,
+) (*TransactionsRewardsOwners, error) {
+	v := &TransactionsRewardsOwners{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"locktime",
+		"threshold",
+		"created_at",
+	).From(TableTransactionsRewardsOwners).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwners(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwners,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwners).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("locktime", v.Locktime).
+		Pair("threshold", v.Threshold).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwners, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwners).
+			Set("chain_id", v.ChainID).
+			Set("locktime", v.Locktime).
+			Set("threshold", v.Threshold).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwners, true, err)
+		}
+	}
 	return nil
 }
 

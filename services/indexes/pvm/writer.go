@@ -7,6 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -256,6 +262,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
+		if castTx.RewardsOwner != nil {
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			if err != nil {
+				return err
+			}
+		}
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
@@ -278,6 +290,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
 			return err
+		}
+		if castTx.RewardsOwner != nil {
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			if err != nil {
+				return err
+			}
 		}
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -340,6 +358,41 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		0,
 		genesis,
 	)
+}
+
+func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
+	var err error
+
+	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
+	if !ok {
+		return fmt.Errorf("rewards owner %v", reflect.TypeOf(rewardsOwner))
+	}
+
+	// Ingest each Output Address
+	for ipos, addr := range owner.Addresses() {
+		addrid := ids.ShortID{}
+		copy(addrid[:], addr)
+		txRewardsOwnerAddress := &services.TransactionsRewardsOwnersAddress{
+			ID:          txID.String(),
+			Address:     addrid.String(),
+			OutputIndex: uint32(ipos),
+		}
+
+		err = ctx.Persist().InsertTransactionsRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+
+	txRewardsOwner := &services.TransactionsRewardsOwners{
+		ID:        txID.String(),
+		ChainID:   w.chainID,
+		Threshold: owner.Threshold,
+		Locktime:  owner.Locktime,
+		CreatedAt: ctx.Time(),
+	}
+
+	return ctx.Persist().InsertTransactionsRewardsOwners(ctx.Ctx(), ctx.DB(), txRewardsOwner, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
