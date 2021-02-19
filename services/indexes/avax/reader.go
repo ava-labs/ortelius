@@ -580,15 +580,19 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 	if len(txs) < listParams.Limit {
 		return nil
 	}
+	lasttx := txs[len(txs)-1]
+	lasttxCreated := lasttx.CreatedAt
+	lasttxCreatedAdjusted := lasttxCreated
+
 	next := ""
 	switch transactionsParams.Sort {
 	case params.TransactionSortTimestampAsc:
-		firsttx := txs[0]
-		next = fmt.Sprintf("%s=%d", params.KeyStartTime, firsttx.CreatedAt.Unix())
+		lasttxCreatedAdjusted = lasttxCreated.Add(time.Second)
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, lasttxCreatedAdjusted.Unix())
 	case params.TransactionSortTimestampDesc:
-		lasttx := txs[len(txs)-1]
-		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttx.CreatedAt.Unix()+1)
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttxCreatedAdjusted.Unix())
 	}
+
 	for k, vs := range listParams.Values {
 		switch k {
 		case params.KeyLimit:
