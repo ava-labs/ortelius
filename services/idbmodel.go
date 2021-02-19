@@ -15,31 +15,31 @@ import (
 )
 
 const (
-	TableTransactions                   = "avm_transactions"
-	TableOutputsRedeeming               = "avm_outputs_redeeming"
-	TableOutputs                        = "avm_outputs"
-	TableAssets                         = "avm_assets"
-	TableAddresses                      = "addresses"
-	TableAddressChain                   = "address_chain"
-	TableOutputAddresses                = "avm_output_addresses"
-	TableTransactionsEpochs             = "transactions_epoch"
-	TableCvmAddresses                   = "cvm_addresses"
-	TableCvmTransactions                = "cvm_transactions"
-	TableCvmTransactionsTxdata          = "cvm_transactions_txdata"
-	TablePvmBlocks                      = "pvm_blocks"
-	TableRewards                        = "rewards"
-	TableTransactionsValidator          = "transactions_validator"
-	TableTransactionsBlock              = "transactions_block"
-	TableAddressBech32                  = "addresses_bech32"
-	TableOutputAddressAccumulateOut     = "output_addresses_accumulate_out"
-	TableOutputAddressAccumulateIn      = "output_addresses_accumulate_in"
-	TableOutputTxsAccumulate            = "output_txs_accumulate"
-	TableAccumulateBalancesReceived     = "accumulate_balances_received"
-	TableAccumulateBalancesSent         = "accumulate_balances_sent"
-	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
-	TableRewardsOwners                  = "rewards_owners"
-	TableRewardsOwnersAddress           = "rewards_owners_address"
-	TableTxPool                         = "tx_pool"
+	TableTransactions                    = "avm_transactions"
+	TableOutputsRedeeming                = "avm_outputs_redeeming"
+	TableOutputs                         = "avm_outputs"
+	TableAssets                          = "avm_assets"
+	TableAddresses                       = "addresses"
+	TableAddressChain                    = "address_chain"
+	TableOutputAddresses                 = "avm_output_addresses"
+	TableTransactionsEpochs              = "transactions_epoch"
+	TableCvmAddresses                    = "cvm_addresses"
+	TableCvmTransactions                 = "cvm_transactions"
+	TableCvmTransactionsTxdata           = "cvm_transactions_txdata"
+	TablePvmBlocks                       = "pvm_blocks"
+	TableRewards                         = "rewards"
+	TableTransactionsValidator           = "transactions_validator"
+	TableTransactionsBlock               = "transactions_block"
+	TableAddressBech32                   = "addresses_bech32"
+	TableOutputAddressAccumulateOut      = "output_addresses_accumulate_out"
+	TableOutputAddressAccumulateIn       = "output_addresses_accumulate_in"
+	TableOutputTxsAccumulate             = "output_txs_accumulate"
+	TableAccumulateBalancesReceived      = "accumulate_balances_received"
+	TableAccumulateBalancesSent          = "accumulate_balances_sent"
+	TableAccumulateBalancesTransactions  = "accumulate_balances_transactions"
+	TableTransactionRewardsOwners        = "transaction_rewards_owners"
+	TableTransactionRewardsOwnersAddress = "transaction_rewards_owners_address"
+	TableTxPool                          = "tx_pool"
 )
 
 type Persist interface {
@@ -308,27 +308,27 @@ type Persist interface {
 		*AccumulateBalancesTransactions,
 	) error
 
-	QueryRewardsOwnersAddress(
+	QueryTransactionRewardsOwnersAddress(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwnersAddress,
-	) (*RewardsOwnersAddress, error)
-	InsertRewardsOwnersAddress(
+		*TransactionRewardsOwnersAddress,
+	) (*TransactionRewardsOwnersAddress, error)
+	InsertTransactionRewardsOwnersAddress(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwnersAddress,
+		*TransactionRewardsOwnersAddress,
 		bool,
 	) error
 
-	QueryRewardsOwners(
+	QueryTransactionRewardsOwners(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwners,
-	) (*RewardsOwners, error)
-	InsertRewardsOwners(
+		*TransactionRewardsOwners,
+	) (*TransactionRewardsOwners, error)
+	InsertTransactionRewardsOwners(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwners,
+		*TransactionRewardsOwners,
 		bool,
 	) error
 
@@ -1707,58 +1707,58 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 	return nil
 }
 
-type RewardsOwnersAddress struct {
+type TransactionRewardsOwnersAddress struct {
 	ID          string
 	Address     string
 	OutputIndex uint32
 }
 
-func (p *persist) QueryRewardsOwnersAddress(
+func (p *persist) QueryTransactionRewardsOwnersAddress(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *RewardsOwnersAddress,
-) (*RewardsOwnersAddress, error) {
-	v := &RewardsOwnersAddress{}
+	q *TransactionRewardsOwnersAddress,
+) (*TransactionRewardsOwnersAddress, error) {
+	v := &TransactionRewardsOwnersAddress{}
 	err := sess.Select(
 		"id",
 		"address",
 		"output_index",
-	).From(TableRewardsOwnersAddress).
+	).From(TableTransactionRewardsOwnersAddress).
 		Where("id=? and address=?", q.ID, q.Address).
 		LoadOneContext(ctx, v)
 	return v, err
 }
 
-func (p *persist) InsertRewardsOwnersAddress(
+func (p *persist) InsertTransactionRewardsOwnersAddress(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *RewardsOwnersAddress,
+	v *TransactionRewardsOwnersAddress,
 	upd bool,
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto(TableRewardsOwnersAddress).
+		InsertInto(TableTransactionRewardsOwnersAddress).
 		Pair("id", v.ID).
 		Pair("address", v.Address).
 		Pair("output_index", v.OutputIndex).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableRewardsOwnersAddress, false, err)
+		return EventErr(TableTransactionRewardsOwnersAddress, false, err)
 	}
 	if upd {
 		_, err = sess.
-			Update(TableRewardsOwnersAddress).
+			Update(TableTransactionRewardsOwnersAddress).
 			Set("output_index", v.OutputIndex).
 			Where("id=? and address=?", v.ID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
-			return EventErr(TableRewardsOwnersAddress, true, err)
+			return EventErr(TableTransactionRewardsOwnersAddress, true, err)
 		}
 	}
 	return nil
 }
 
-type RewardsOwners struct {
+type TransactionRewardsOwners struct {
 	ID        string
 	ChainID   string
 	Threshold uint32
@@ -1766,33 +1766,33 @@ type RewardsOwners struct {
 	CreatedAt time.Time
 }
 
-func (p *persist) QueryRewardsOwners(
+func (p *persist) QueryTransactionRewardsOwners(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *RewardsOwners,
-) (*RewardsOwners, error) {
-	v := &RewardsOwners{}
+	q *TransactionRewardsOwners,
+) (*TransactionRewardsOwners, error) {
+	v := &TransactionRewardsOwners{}
 	err := sess.Select(
 		"id",
 		"chain_id",
 		"locktime",
 		"threshold",
 		"created_at",
-	).From(TableRewardsOwners).
+	).From(TableTransactionRewardsOwners).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
 	return v, err
 }
 
-func (p *persist) InsertRewardsOwners(
+func (p *persist) InsertTransactionRewardsOwners(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *RewardsOwners,
+	v *TransactionRewardsOwners,
 	upd bool,
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto(TableRewardsOwners).
+		InsertInto(TableTransactionRewardsOwners).
 		Pair("id", v.ID).
 		Pair("chain_id", v.ChainID).
 		Pair("locktime", v.Locktime).
@@ -1800,18 +1800,18 @@ func (p *persist) InsertRewardsOwners(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableRewardsOwners, false, err)
+		return EventErr(TableTransactionRewardsOwners, false, err)
 	}
 	if upd {
 		_, err = sess.
-			Update(TableRewardsOwners).
+			Update(TableTransactionRewardsOwners).
 			Set("chain_id", v.ChainID).
 			Set("locktime", v.Locktime).
 			Set("threshold", v.Threshold).
 			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
-			return EventErr(TableRewardsOwners, true, err)
+			return EventErr(TableTransactionRewardsOwners, true, err)
 		}
 	}
 	return nil

@@ -1196,7 +1196,7 @@ func TestRewardsOwnersAddress(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 
-	v := &RewardsOwnersAddress{}
+	v := &TransactionRewardsOwnersAddress{}
 	v.ID = "txid1"
 	v.Address = "addr1"
 	v.OutputIndex = 1
@@ -1207,13 +1207,13 @@ func TestRewardsOwnersAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableRewardsOwnersAddress).Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionRewardsOwnersAddress).Exec()
 
-	err = p.InsertRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err := p.QueryRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
+	fv, err := p.QueryTransactionRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
@@ -1223,11 +1223,11 @@ func TestRewardsOwnersAddress(t *testing.T) {
 
 	v.OutputIndex = 4
 
-	err = p.InsertRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err = p.QueryRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
+	fv, err = p.QueryTransactionRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
@@ -1244,7 +1244,7 @@ func TestRewardsOwners(t *testing.T) {
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
 
-	v := &RewardsOwners{}
+	v := &TransactionRewardsOwners{}
 	v.ID = "txid1"
 	v.ChainID = "cid1"
 	v.Locktime = 3
@@ -1257,13 +1257,13 @@ func TestRewardsOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal("db fail", err)
 	}
-	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableRewardsOwners).Exec()
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionRewardsOwners).Exec()
 
-	err = p.InsertRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err := p.QueryRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
+	fv, err := p.QueryTransactionRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
@@ -1275,11 +1275,11 @@ func TestRewardsOwners(t *testing.T) {
 	v.Locktime = 4
 	v.Threshold = 5
 
-	err = p.InsertRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
+	err = p.InsertTransactionRewardsOwners(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
-	fv, err = p.QueryRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
+	fv, err = p.QueryTransactionRewardsOwners(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}

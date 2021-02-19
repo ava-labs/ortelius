@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 
@@ -262,7 +263,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertRewardsOwner(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
 			if err != nil {
 				return err
 			}
@@ -291,7 +292,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertRewardsOwner(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
 			if err != nil {
 				return err
 			}
@@ -359,31 +360,31 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	)
 }
 
-func (w *Writer) insertRewardsOwner(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
+func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
 	var err error
 
 	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
 	if !ok {
-		return fmt.Errorf("rewards owner not secp256k1fx.OutputOwners")
+		return fmt.Errorf("rewards owner %v", reflect.TypeOf(rewardsOwner))
 	}
 
 	// Ingest each Output Address
 	for ipos, addr := range owner.Addresses() {
 		addrid := ids.ShortID{}
 		copy(addrid[:], addr)
-		outputsRewardsAddress := &services.RewardsOwnersAddress{
+		outputsRewardsAddress := &services.TransactionRewardsOwnersAddress{
 			ID:          txID.String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
 		}
 
-		err = ctx.Persist().InsertRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), outputsRewardsAddress, cfg.PerformUpdates)
+		err = ctx.Persist().InsertTransactionRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), outputsRewardsAddress, cfg.PerformUpdates)
 		if err != nil {
 			return err
 		}
 	}
 
-	outputsRewards := &services.RewardsOwners{
+	outputsRewards := &services.TransactionRewardsOwners{
 		ID:        txID.String(),
 		ChainID:   w.chainID,
 		Threshold: owner.Threshold,
@@ -391,7 +392,7 @@ func (w *Writer) insertRewardsOwner(ctx services.ConsumerCtx, rewardsOwner verif
 		CreatedAt: ctx.Time(),
 	}
 
-	return ctx.Persist().InsertRewardsOwners(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactionRewardsOwners(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {

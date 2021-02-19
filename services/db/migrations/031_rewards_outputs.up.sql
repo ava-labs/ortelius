@@ -1,4 +1,4 @@
-create table rewards_owners
+create table transaction_rewards_owners
 (
     id varchar(50) not null primary key,
     chain_id varchar(50) not null,
@@ -7,7 +7,7 @@ create table rewards_owners
     created_at timestamp(6) default CURRENT_TIMESTAMP(6) not null
 );
 
-create table rewards_owners_address
+create table transaction_rewards_owners_address
 (
     id           varchar(50) not null,
     address      varchar(50) not null,
@@ -15,4 +15,4 @@ create table rewards_owners_address
     primary key (id, address)
 );
 
-create index rewards_owners_address_address on rewards_owners_address (address);
+create index transaction_rewards_owners_address_address on transaction_rewards_owners_address (address);
