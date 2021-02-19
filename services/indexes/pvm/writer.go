@@ -242,7 +242,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 
 	var ins *avaxIndexer.AddInsContainer
 	var outs *avaxIndexer.AddOutsContainer
-	var rewardsOwner verify.Verifiable
+
 	var err error
 	switch castTx := tx.UnsignedTx.(type) {
 	case *platformvm.UnsignedAddValidatorTx:
@@ -261,7 +261,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
-		rewardsOwner = castTx.RewardsOwner
+		if castTx.RewardsOwner != nil {
+			err = w.insertRewardsOwner(ctx, castTx.RewardsOwner, baseTx.ID())
+			if err != nil {
+				return err
+			}
+		}
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
@@ -285,7 +290,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
-		rewardsOwner = castTx.RewardsOwner
+		if castTx.RewardsOwner != nil {
+			err = w.insertRewardsOwner(ctx, castTx.RewardsOwner, baseTx.ID())
+			if err != nil {
+				return err
+			}
+		}
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateSubnet
@@ -335,39 +345,6 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
 	}
 
-	if rewardsOwner != nil {
-		owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
-		if !ok {
-			return fmt.Errorf("rewards owner not secp256k1fx.OutputOwners")
-		}
-		outputsRewards := &services.OutputsRewards{
-			ID:        baseTx.ID().String(),
-			ChainID:   w.chainID,
-			Threshold: owner.Threshold,
-			Locktime:  owner.Locktime,
-			CreatedAt: ctx.Time(),
-		}
-		err = ctx.Persist().InsertOutputsRewards(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
-		if err != nil {
-			return err
-		}
-
-		// Ingest each Output Address
-		for ipos, addr := range owner.Addresses() {
-			addrid := ids.ShortID{}
-			copy(addrid[:], addr)
-			outputsRewardsAddress := &services.OutputsRewardsAddress{
-				ID:          baseTx.ID().String(),
-				Address:     addrid.String(),
-				OutputIndex: uint32(ipos),
-			}
-			err = ctx.Persist().InsertOutputsRewardsAddress(ctx.Ctx(), ctx.DB(), outputsRewardsAddress, cfg.PerformUpdates)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
 	return w.avax.InsertTransaction(
 		ctx,
 		tx.Bytes(),
@@ -380,6 +357,41 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		0,
 		genesis,
 	)
+}
+
+func (w *Writer) insertRewardsOwner(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
+	var err error
+
+	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
+	if !ok {
+		return fmt.Errorf("rewards owner not secp256k1fx.OutputOwners")
+	}
+
+	// Ingest each Output Address
+	for ipos, addr := range owner.Addresses() {
+		addrid := ids.ShortID{}
+		copy(addrid[:], addr)
+		outputsRewardsAddress := &services.OutputsRewardsAddress{
+			ID:          txID.String(),
+			Address:     addrid.String(),
+			OutputIndex: uint32(ipos),
+		}
+
+		err = ctx.Persist().InsertOutputsRewardsAddress(ctx.Ctx(), ctx.DB(), outputsRewardsAddress, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+
+	outputsRewards := &services.OutputsRewards{
+		ID:        txID.String(),
+		ChainID:   w.chainID,
+		Threshold: owner.Threshold,
+		Locktime:  owner.Locktime,
+		CreatedAt: ctx.Time(),
+	}
+
+	return ctx.Persist().InsertOutputsRewards(ctx.Ctx(), ctx.DB(), outputsRewards, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
