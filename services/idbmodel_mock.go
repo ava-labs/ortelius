@@ -31,8 +31,8 @@ type MockPersist struct {
 	AccumulateBalancesReceived     map[string]*AccumulateBalancesAmount
 	AccumulateBalancesSent         map[string]*AccumulateBalancesAmount
 	AccumulateBalancesTransactions map[string]*AccumulateBalancesTransactions
-	OutputsRewardsAddress          map[string]*RewardsOwnerAddress
-	OutputsRewards                 map[string]*RewardsOwner
+	OutputsRewardsAddress          map[string]*RewardsOwnersAddress
+	OutputsRewards                 map[string]*RewardsOwners
 	TxPool                         map[string]*TxPool
 }
 
@@ -60,8 +60,8 @@ func NewPersistMock() *MockPersist {
 		AccumulateBalancesReceived:     make(map[string]*AccumulateBalancesAmount),
 		AccumulateBalancesSent:         make(map[string]*AccumulateBalancesAmount),
 		AccumulateBalancesTransactions: make(map[string]*AccumulateBalancesTransactions),
-		OutputsRewards:                 make(map[string]*RewardsOwner),
-		OutputsRewardsAddress:          make(map[string]*RewardsOwnerAddress),
+		OutputsRewards:                 make(map[string]*RewardsOwners),
+		OutputsRewardsAddress:          make(map[string]*RewardsOwnersAddress),
 		TxPool:                         make(map[string]*TxPool),
 	}
 }
@@ -471,7 +471,7 @@ func (m *MockPersist) InsertAccumulateBalancesTransactions(ctx context.Context, 
 	return nil
 }
 
-func (m *MockPersist) QueryRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwnerAddress) (*RewardsOwnerAddress, error) {
+func (m *MockPersist) QueryRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwnersAddress) (*RewardsOwnersAddress, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	if v, present := m.OutputsRewardsAddress[v.ID+" "+v.Address]; present {
@@ -480,16 +480,16 @@ func (m *MockPersist) QueryRewardsOwnersAddress(ctx context.Context, runner dbr.
 	return nil, nil
 }
 
-func (m *MockPersist) InsertRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwnerAddress, b bool) error {
+func (m *MockPersist) InsertRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwnersAddress, b bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	nv := &RewardsOwnerAddress{}
+	nv := &RewardsOwnersAddress{}
 	*nv = *v
 	m.OutputsRewardsAddress[v.ID+" "+v.Address] = nv
 	return nil
 }
 
-func (m *MockPersist) QueryRewardsOwner(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwner) (*RewardsOwner, error) {
+func (m *MockPersist) QueryRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwners) (*RewardsOwners, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	if v, present := m.OutputsRewards[v.ID]; present {
@@ -498,10 +498,10 @@ func (m *MockPersist) QueryRewardsOwner(ctx context.Context, runner dbr.SessionR
 	return nil, nil
 }
 
-func (m *MockPersist) InsertRewardsOwner(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwner, b bool) error {
+func (m *MockPersist) InsertRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *RewardsOwners, b bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	nv := &RewardsOwner{}
+	nv := &RewardsOwners{}
 	*nv = *v
 	m.OutputsRewards[v.ID] = nv
 	return nil

@@ -311,24 +311,24 @@ type Persist interface {
 	QueryRewardsOwnersAddress(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwnerAddress,
-	) (*RewardsOwnerAddress, error)
+		*RewardsOwnersAddress,
+	) (*RewardsOwnersAddress, error)
 	InsertRewardsOwnersAddress(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwnerAddress,
+		*RewardsOwnersAddress,
 		bool,
 	) error
 
-	QueryRewardsOwner(
+	QueryRewardsOwners(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwner,
-	) (*RewardsOwner, error)
-	InsertRewardsOwner(
+		*RewardsOwners,
+	) (*RewardsOwners, error)
+	InsertRewardsOwners(
 		context.Context,
 		dbr.SessionRunner,
-		*RewardsOwner,
+		*RewardsOwners,
 		bool,
 	) error
 
@@ -1707,7 +1707,7 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 	return nil
 }
 
-type RewardsOwnerAddress struct {
+type RewardsOwnersAddress struct {
 	ID          string
 	Address     string
 	OutputIndex uint32
@@ -1716,9 +1716,9 @@ type RewardsOwnerAddress struct {
 func (p *persist) QueryRewardsOwnersAddress(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *RewardsOwnerAddress,
-) (*RewardsOwnerAddress, error) {
-	v := &RewardsOwnerAddress{}
+	q *RewardsOwnersAddress,
+) (*RewardsOwnersAddress, error) {
+	v := &RewardsOwnersAddress{}
 	err := sess.Select(
 		"id",
 		"address",
@@ -1732,7 +1732,7 @@ func (p *persist) QueryRewardsOwnersAddress(
 func (p *persist) InsertRewardsOwnersAddress(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *RewardsOwnerAddress,
+	v *RewardsOwnersAddress,
 	upd bool,
 ) error {
 	var err error
@@ -1758,7 +1758,7 @@ func (p *persist) InsertRewardsOwnersAddress(
 	return nil
 }
 
-type RewardsOwner struct {
+type RewardsOwners struct {
 	ID        string
 	ChainID   string
 	Threshold uint32
@@ -1766,12 +1766,12 @@ type RewardsOwner struct {
 	CreatedAt time.Time
 }
 
-func (p *persist) QueryRewardsOwner(
+func (p *persist) QueryRewardsOwners(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *RewardsOwner,
-) (*RewardsOwner, error) {
-	v := &RewardsOwner{}
+	q *RewardsOwners,
+) (*RewardsOwners, error) {
+	v := &RewardsOwners{}
 	err := sess.Select(
 		"id",
 		"chain_id",
@@ -1784,10 +1784,10 @@ func (p *persist) QueryRewardsOwner(
 	return v, err
 }
 
-func (p *persist) InsertRewardsOwner(
+func (p *persist) InsertRewardsOwners(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *RewardsOwner,
+	v *RewardsOwners,
 	upd bool,
 ) error {
 	var err error
