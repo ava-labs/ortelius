@@ -303,13 +303,15 @@ func TestNextLogic(t *testing.T) {
 
 	persist := services.NewPersist()
 
-	tnow1 := time.Now().Truncate(time.Second)
+	tnow0 := time.Now().Truncate(time.Second)
+
+	tnow1 := tnow0.Add(time.Second)
 	tx1 := &services.Transactions{
 		ID:        "1",
 		ChainID:   "1",
 		CreatedAt: tnow1,
 	}
-	persist.InsertTransactions(ctx, session, tx1, false)
+	_ = persist.InsertTransactions(ctx, session, tx1, false)
 
 	tnow2 := tnow1.Add(time.Second)
 	tx2 := &services.Transactions{
@@ -317,7 +319,7 @@ func TestNextLogic(t *testing.T) {
 		ChainID:   "1",
 		CreatedAt: tnow2,
 	}
-	persist.InsertTransactions(ctx, session, tx2, false)
+	_ = persist.InsertTransactions(ctx, session, tx2, false)
 
 	tnow3 := tnow2.Add(time.Second)
 	tx3 := &services.Transactions{
@@ -325,24 +327,27 @@ func TestNextLogic(t *testing.T) {
 		ChainID:   "1",
 		CreatedAt: tnow3,
 	}
-	persist.InsertTransactions(ctx, session, tx3, false)
+	_ = persist.InsertTransactions(ctx, session, tx3, false)
 
 	tnow4 := tnow3.Add(time.Second)
 	tx4 := &services.Transactions{
-		ID:        "3",
+		ID:        "4",
 		ChainID:   "1",
 		CreatedAt: tnow4,
 	}
-	persist.InsertTransactions(ctx, session, tx4, false)
+	_ = persist.InsertTransactions(ctx, session, tx4, false)
 
 	tp := params.ListTransactionsParams{}
-	tp.ForValues(0, url.Values{})
+	_ = tp.ForValues(0, url.Values{})
 	tp.ListParams.Limit = 2
 
 	tp.Sort = params.TransactionSortTimestampAsc
 	tl, _ := reader.ListTransactions(ctx, &tp, ids.ID{})
 	if len(tl.Transactions) != 2 {
-		t.Fatal("tl invalid")
+		t.Fatal("invalid transactions")
+	}
+	if tl.Transactions[0].ID != "1" && tl.Transactions[0].ID != "2" {
+		t.Fatal("invalid transactions")
 	}
 
 	n, _ := url.ParseQuery(*tl.Next)
@@ -360,10 +365,13 @@ func TestNextLogic(t *testing.T) {
 	if len(tl.Transactions) != 2 {
 		t.Fatal("tl invalid")
 	}
+	if tl.Transactions[0].ID != "4" && tl.Transactions[0].ID != "3" {
+		t.Fatal("invalid transactions")
+	}
 
 	n, _ = url.ParseQuery(*tl.Next)
 
-	if n[params.KeyEndTime][0] != fmt.Sprintf("%d", tnow1.Add(time.Second).Unix()) {
+	if n[params.KeyEndTime][0] != fmt.Sprintf("%d", tnow3.Unix()) {
 		t.Fatal("invalid next endtime")
 	}
 	if n[params.KeySortBy][0] != params.TransactionSortTimestampDesc {
