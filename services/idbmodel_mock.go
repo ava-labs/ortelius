@@ -230,7 +230,7 @@ func (m *MockPersist) QueryCvmBlocks(ctx context.Context, runner dbr.SessionRunn
 	return nil, nil
 }
 
-func (m *MockPersist) InsertCvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *CvmBlocks, b bool) error {
+func (m *MockPersist) InsertCvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *CvmBlocks) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &CvmBlocks{}
