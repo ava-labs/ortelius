@@ -8,61 +8,61 @@ import (
 )
 
 type MockPersist struct {
-	lock                            sync.RWMutex
-	Transactions                    map[string]*Transactions
-	Outputs                         map[string]*Outputs
-	OutputsRedeeming                map[string]*OutputsRedeeming
-	CvmTransactions                 map[string]*CvmTransactions
-	CvmTransactionsTxdata           map[string]*CvmTransactionsTxdata
-	CvmAddresses                    map[string]*CvmAddresses
-	TransactionsValidator           map[string]*TransactionsValidator
-	TransactionsBlock               map[string]*TransactionsBlock
-	Rewards                         map[string]*Rewards
-	Addresses                       map[string]*Addresses
-	AddressChain                    map[string]*AddressChain
-	OutputAddresses                 map[string]*OutputAddresses
-	Assets                          map[string]*Assets
-	TransactionsEpoch               map[string]*TransactionsEpoch
-	PvmBlocks                       map[string]*PvmBlocks
-	AddressBech32                   map[string]*AddressBech32
-	OutputAddressAccumulateOut      map[string]*OutputAddressAccumulate
-	OutputAddressAccumulateIn       map[string]*OutputAddressAccumulate
-	OutputTxsAccumulate             map[string]*OutputTxsAccumulate
-	AccumulateBalancesReceived      map[string]*AccumulateBalancesAmount
-	AccumulateBalancesSent          map[string]*AccumulateBalancesAmount
-	AccumulateBalancesTransactions  map[string]*AccumulateBalancesTransactions
-	TransactionRewardsOwnersAddress map[string]*TransactionRewardsOwnersAddress
-	TransactionRewardsOwners        map[string]*TransactionRewardsOwners
-	TxPool                          map[string]*TxPool
+	lock                             sync.RWMutex
+	Transactions                     map[string]*Transactions
+	Outputs                          map[string]*Outputs
+	OutputsRedeeming                 map[string]*OutputsRedeeming
+	CvmTransactions                  map[string]*CvmTransactions
+	CvmTransactionsTxdata            map[string]*CvmTransactionsTxdata
+	CvmAddresses                     map[string]*CvmAddresses
+	TransactionsValidator            map[string]*TransactionsValidator
+	TransactionsBlock                map[string]*TransactionsBlock
+	Rewards                          map[string]*Rewards
+	Addresses                        map[string]*Addresses
+	AddressChain                     map[string]*AddressChain
+	OutputAddresses                  map[string]*OutputAddresses
+	Assets                           map[string]*Assets
+	TransactionsEpoch                map[string]*TransactionsEpoch
+	PvmBlocks                        map[string]*PvmBlocks
+	AddressBech32                    map[string]*AddressBech32
+	OutputAddressAccumulateOut       map[string]*OutputAddressAccumulate
+	OutputAddressAccumulateIn        map[string]*OutputAddressAccumulate
+	OutputTxsAccumulate              map[string]*OutputTxsAccumulate
+	AccumulateBalancesReceived       map[string]*AccumulateBalancesAmount
+	AccumulateBalancesSent           map[string]*AccumulateBalancesAmount
+	AccumulateBalancesTransactions   map[string]*AccumulateBalancesTransactions
+	TransactionsRewardsOwnersAddress map[string]*TransactionsRewardsOwnersAddress
+	TransactionsRewardsOwners        map[string]*TransactionsRewardsOwners
+	TxPool                           map[string]*TxPool
 }
 
 func NewPersistMock() *MockPersist {
 	return &MockPersist{
-		Transactions:                    make(map[string]*Transactions),
-		Outputs:                         make(map[string]*Outputs),
-		OutputsRedeeming:                make(map[string]*OutputsRedeeming),
-		CvmTransactions:                 make(map[string]*CvmTransactions),
-		CvmTransactionsTxdata:           make(map[string]*CvmTransactionsTxdata),
-		CvmAddresses:                    make(map[string]*CvmAddresses),
-		TransactionsValidator:           make(map[string]*TransactionsValidator),
-		TransactionsBlock:               make(map[string]*TransactionsBlock),
-		Rewards:                         make(map[string]*Rewards),
-		Addresses:                       make(map[string]*Addresses),
-		AddressChain:                    make(map[string]*AddressChain),
-		OutputAddresses:                 make(map[string]*OutputAddresses),
-		Assets:                          make(map[string]*Assets),
-		TransactionsEpoch:               make(map[string]*TransactionsEpoch),
-		PvmBlocks:                       make(map[string]*PvmBlocks),
-		AddressBech32:                   make(map[string]*AddressBech32),
-		OutputAddressAccumulateOut:      make(map[string]*OutputAddressAccumulate),
-		OutputAddressAccumulateIn:       make(map[string]*OutputAddressAccumulate),
-		OutputTxsAccumulate:             make(map[string]*OutputTxsAccumulate),
-		AccumulateBalancesReceived:      make(map[string]*AccumulateBalancesAmount),
-		AccumulateBalancesSent:          make(map[string]*AccumulateBalancesAmount),
-		AccumulateBalancesTransactions:  make(map[string]*AccumulateBalancesTransactions),
-		TransactionRewardsOwners:        make(map[string]*TransactionRewardsOwners),
-		TransactionRewardsOwnersAddress: make(map[string]*TransactionRewardsOwnersAddress),
-		TxPool:                          make(map[string]*TxPool),
+		Transactions:                     make(map[string]*Transactions),
+		Outputs:                          make(map[string]*Outputs),
+		OutputsRedeeming:                 make(map[string]*OutputsRedeeming),
+		CvmTransactions:                  make(map[string]*CvmTransactions),
+		CvmTransactionsTxdata:            make(map[string]*CvmTransactionsTxdata),
+		CvmAddresses:                     make(map[string]*CvmAddresses),
+		TransactionsValidator:            make(map[string]*TransactionsValidator),
+		TransactionsBlock:                make(map[string]*TransactionsBlock),
+		Rewards:                          make(map[string]*Rewards),
+		Addresses:                        make(map[string]*Addresses),
+		AddressChain:                     make(map[string]*AddressChain),
+		OutputAddresses:                  make(map[string]*OutputAddresses),
+		Assets:                           make(map[string]*Assets),
+		TransactionsEpoch:                make(map[string]*TransactionsEpoch),
+		PvmBlocks:                        make(map[string]*PvmBlocks),
+		AddressBech32:                    make(map[string]*AddressBech32),
+		OutputAddressAccumulateOut:       make(map[string]*OutputAddressAccumulate),
+		OutputAddressAccumulateIn:        make(map[string]*OutputAddressAccumulate),
+		OutputTxsAccumulate:              make(map[string]*OutputTxsAccumulate),
+		AccumulateBalancesReceived:       make(map[string]*AccumulateBalancesAmount),
+		AccumulateBalancesSent:           make(map[string]*AccumulateBalancesAmount),
+		AccumulateBalancesTransactions:   make(map[string]*AccumulateBalancesTransactions),
+		TransactionsRewardsOwners:        make(map[string]*TransactionsRewardsOwners),
+		TransactionsRewardsOwnersAddress: make(map[string]*TransactionsRewardsOwnersAddress),
+		TxPool:                           make(map[string]*TxPool),
 	}
 }
 
@@ -471,39 +471,39 @@ func (m *MockPersist) InsertAccumulateBalancesTransactions(ctx context.Context, 
 	return nil
 }
 
-func (m *MockPersist) QueryTransactionRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *TransactionRewardsOwnersAddress) (*TransactionRewardsOwnersAddress, error) {
+func (m *MockPersist) QueryTransactionsRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *TransactionsRewardsOwnersAddress) (*TransactionsRewardsOwnersAddress, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.TransactionRewardsOwnersAddress[v.ID+" "+v.Address]; present {
+	if v, present := m.TransactionsRewardsOwnersAddress[v.ID+" "+v.Address]; present {
 		return v, nil
 	}
 	return nil, nil
 }
 
-func (m *MockPersist) InsertTransactionRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *TransactionRewardsOwnersAddress, b bool) error {
+func (m *MockPersist) InsertTransactionsRewardsOwnersAddress(ctx context.Context, runner dbr.SessionRunner, v *TransactionsRewardsOwnersAddress, b bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	nv := &TransactionRewardsOwnersAddress{}
+	nv := &TransactionsRewardsOwnersAddress{}
 	*nv = *v
-	m.TransactionRewardsOwnersAddress[v.ID+" "+v.Address] = nv
+	m.TransactionsRewardsOwnersAddress[v.ID+" "+v.Address] = nv
 	return nil
 }
 
-func (m *MockPersist) QueryTransactionRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *TransactionRewardsOwners) (*TransactionRewardsOwners, error) {
+func (m *MockPersist) QueryTransactionsRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *TransactionsRewardsOwners) (*TransactionsRewardsOwners, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.TransactionRewardsOwners[v.ID]; present {
+	if v, present := m.TransactionsRewardsOwners[v.ID]; present {
 		return v, nil
 	}
 	return nil, nil
 }
 
-func (m *MockPersist) InsertTransactionRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *TransactionRewardsOwners, b bool) error {
+func (m *MockPersist) InsertTransactionsRewardsOwners(ctx context.Context, runner dbr.SessionRunner, v *TransactionsRewardsOwners, b bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	nv := &TransactionRewardsOwners{}
+	nv := &TransactionsRewardsOwners{}
 	*nv = *v
-	m.TransactionRewardsOwners[v.ID] = nv
+	m.TransactionsRewardsOwners[v.ID] = nv
 	return nil
 }
 

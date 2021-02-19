@@ -263,7 +263,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
 			if err != nil {
 				return err
 			}
@@ -292,7 +292,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
 			if err != nil {
 				return err
 			}
@@ -360,7 +360,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	)
 }
 
-func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
+func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
 	var err error
 
 	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
@@ -372,19 +372,19 @@ func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, reward
 	for ipos, addr := range owner.Addresses() {
 		addrid := ids.ShortID{}
 		copy(addrid[:], addr)
-		txRewardsOwnerAddress := &services.TransactionRewardsOwnersAddress{
+		txRewardsOwnerAddress := &services.TransactionsRewardsOwnersAddress{
 			ID:          txID.String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
 		}
 
-		err = ctx.Persist().InsertTransactionRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
+		err = ctx.Persist().InsertTransactionsRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
 		if err != nil {
 			return err
 		}
 	}
 
-	txRewardsOwner := &services.TransactionRewardsOwners{
+	txRewardsOwner := &services.TransactionsRewardsOwners{
 		ID:        txID.String(),
 		ChainID:   w.chainID,
 		Threshold: owner.Threshold,
@@ -392,7 +392,7 @@ func (w *Writer) insertTransactionRewardsOwners(ctx services.ConsumerCtx, reward
 		CreatedAt: ctx.Time(),
 	}
 
-	return ctx.Persist().InsertTransactionRewardsOwners(ctx.Ctx(), ctx.DB(), txRewardsOwner, cfg.PerformUpdates)
+	return ctx.Persist().InsertTransactionsRewardsOwners(ctx.Ctx(), ctx.DB(), txRewardsOwner, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {

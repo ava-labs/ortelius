@@ -1,3 +1,3 @@
-drop index transaction_rewards_owners_address_address ON rewards_owners_address;
-drop table transaction_rewards_owners_address;
-drop table transaction_rewards_owners;
+drop index transactions_rewards_owners_address_address ON rewards_owners_address;
+drop table transactions_rewards_owners_address;
+drop table transactions_rewards_owners;
