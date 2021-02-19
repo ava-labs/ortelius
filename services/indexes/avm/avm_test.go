@@ -361,9 +361,8 @@ func TestTransactionNext(t *testing.T) {
 
 	tp.Sort = params.TransactionSortTimestampDesc
 	tl, _ = reader.ListTransactions(ctx, &tp, ids.ID{})
-
 	if len(tl.Transactions) != 2 {
-		t.Fatal("tl invalid")
+		t.Fatal("invalid transactions")
 	}
 	if tl.Transactions[0].ID != "4" && tl.Transactions[0].ID != "3" {
 		t.Fatal("invalid transactions")
