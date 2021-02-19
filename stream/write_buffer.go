@@ -25,6 +25,7 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 	defaultWriteRetry                 = 10
 	defaultWriteRetrySleep            = 1 * time.Second
+	defaultWorkerSize                 = 4
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
@@ -90,7 +91,7 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string, net
 		wb.processWork(part, v)
 	}
 
-	wb.worker = utils.NewWorker(10, defaultBufferedWriterMsgQueueSize, accumfunc)
+	wb.worker = utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 
 	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)

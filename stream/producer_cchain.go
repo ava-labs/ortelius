@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	cblock "github.com/ava-labs/ortelius/models"
@@ -48,6 +50,8 @@ const (
 	readRPCTimeout = 500 * time.Millisecond
 
 	blocksToQueue = 25
+
+	defaultWorkerCChainSize = 4
 )
 
 type ProducerCChain struct {
@@ -70,6 +74,8 @@ type ProducerCChain struct {
 	quitCh chan struct{}
 	doneCh chan struct{}
 	topic  string
+
+	worker utils.Worker
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -102,6 +108,12 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
 		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 		sc.InitProduceMetrics()
+
+		accumfunc := func(part int, v interface{}) {
+			p.processWork(part, v)
+		}
+
+		p.worker = utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 
 		return p
 	}
@@ -176,19 +188,43 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 	return p.ethClient.BlockNumber(ctx)
 }
 
+type localBlockObject struct {
+	block       *types.Block
+	blockNumber *big.Int
+	time        time.Time
+}
+
 func (p *ProducerCChain) ProcessNextMessage() error {
 	current := big.NewInt(0).Set(p.block)
-
-	type localBlockObject struct {
-		block       *types.Block
-		blockNumber *big.Int
-		time        time.Time
-	}
 
 	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
 	consumeBlock := func() error {
 		if len(localBlocks) == 0 {
+			return nil
+		}
+
+		if p.sc.IsDBPoll {
+			errs := avlancheGoUtils.AtomicInterface{}
+
+			for _, bl := range localBlocks {
+				p.worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
+
+				current.Set(bl.blockNumber)
+				if current.Uint64()%1000 == 0 {
+					p.sc.Log.Info("current block %s", current.String())
+				}
+			}
+
+			for p.worker.JobCnt() > 0 && !p.worker.IsFinished() {
+				time.Sleep(time.Millisecond)
+			}
+			if errs.GetValue() != nil {
+				return errs.GetValue().(error)
+			}
+
+			p.block = big.NewInt(0).Add(current, big.NewInt(1))
+
 			return nil
 		}
 
@@ -219,40 +255,12 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
-		if !p.sc.IsDBPoll {
-			err := p.writeMessagesToKafka(kafkaMessages...)
-			if err != nil {
-				return err
-			}
+		err := p.writeMessagesToKafka(kafkaMessages...)
+		if err != nil {
+			return err
 		}
 
-		for ipos, blockNumber := range blockNumberUpdates {
-			if p.sc.IsDBPoll {
-				kafkaMessage := kafkaMessages[ipos]
-				id, err := ids.ToID(kafkaMessage.Key)
-				if err != nil {
-					return err
-				}
-
-				txPool := &services.TxPool{
-					NetworkID:     p.conf.NetworkID,
-					ChainID:       p.conf.CchainID,
-					MsgKey:        id.String(),
-					Serialization: kafkaMessage.Value,
-					Processed:     0,
-					Topic:         p.topic,
-					CreatedAt:     time.Now(),
-				}
-				err = txPool.ComputeID()
-				if err != nil {
-					return err
-				}
-				err = p.updateTxPool(txPool)
-				if err != nil {
-					return err
-				}
-			}
-
+		for _, blockNumber := range blockNumberUpdates {
 			err := p.updateBlock(blockNumber, time.Now().UTC())
 			if err != nil {
 				return err
@@ -544,4 +552,66 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	return nil
+}
+
+type WorkPacketCChain struct {
+	bl   *localBlockObject
+	errs *avlancheGoUtils.AtomicInterface
+}
+
+func (p *ProducerCChain) processWork(_ int, workPacketI interface{}) {
+	wp, ok := workPacketI.(*WorkPacketCChain)
+	if !ok {
+		return
+	}
+
+	cblk, err := cblock.New(wp.bl.block)
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
+	if cblk == nil {
+		return
+	}
+	// wipe before re-encoding
+	cblk.Txs = nil
+	block, err := json.Marshal(cblk)
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
+
+	key := hashing.ComputeHash256(block)
+
+	id, err := ids.ToID(key)
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
+
+	txPool := &services.TxPool{
+		NetworkID:     p.conf.NetworkID,
+		ChainID:       p.conf.CchainID,
+		MsgKey:        id.String(),
+		Serialization: block,
+		Processed:     0,
+		Topic:         p.topic,
+		CreatedAt:     time.Now(),
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
+	err = p.updateTxPool(txPool)
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
+
+	err = p.updateBlock(wp.bl.blockNumber, time.Now().UTC())
+	if err != nil {
+		wp.errs.SetValue(err)
+		return
+	}
 }
