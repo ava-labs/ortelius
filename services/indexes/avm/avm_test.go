@@ -294,7 +294,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 	}
 }
 
-func TestNextLogic(t *testing.T) {
+func TestTransactionNext(t *testing.T) {
 	conns, _, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
