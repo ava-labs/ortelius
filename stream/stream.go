@@ -53,6 +53,16 @@ func NewMessage(id string,
 	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond}
 }
 
+func NewMessageWithKafka(id string,
+	chainID string,
+	body []byte,
+	timestamp int64,
+	nanosecond int64,
+	kafkaMessage *kafkaMessage.Message,
+) services.Consumable {
+	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond, kafkaMessage: kafkaMessage}
+}
+
 func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
 	return path.Join(root, fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType))
 }
