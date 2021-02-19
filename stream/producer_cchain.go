@@ -216,6 +216,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				}
 			}
 
+			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
+
 			for p.worker.JobCnt() > 0 && !p.worker.IsFinished() {
 				time.Sleep(time.Millisecond)
 			}
