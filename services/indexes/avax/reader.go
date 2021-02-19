@@ -577,9 +577,10 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
-	if len(txs) < listParams.Limit {
+	if len(txs) < listParams.Limit || len(txs) < 2 {
 		return nil
 	}
+
 	lasttx := txs[len(txs)-1]
 	lasttxCreated := lasttx.CreatedAt
 	lasttxCreatedAdjusted := lasttxCreated

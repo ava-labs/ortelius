@@ -301,6 +301,8 @@ func TestTransactionNext(t *testing.T) {
 
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 
+	_, _ = session.DeleteFrom("avm_transactions").ExecContext(ctx)
+
 	persist := services.NewPersist()
 
 	tnow0 := time.Now().Truncate(time.Second)
