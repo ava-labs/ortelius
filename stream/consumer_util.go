@@ -2,13 +2,14 @@ package stream
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/gocraft/dbr/v2"
 )
 
-func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*services.TxPool, error) {
+func fetchPollForTopic(sess *dbr.Session, topicName string, part *int, maxPart int) ([]*services.TxPool, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 
@@ -25,12 +26,13 @@ func fetchPollForTopic(sess *dbr.Session, topicName string, part *int) ([]*servi
 	).From(services.TableTxPool)
 
 	if part != nil {
-		if *part == 1 {
+		createdAtStr := fmt.Sprintf("floor( mod(unix_timestamp(created_at)*100000,%d))", maxPart)
+		if *part < maxPart-1 {
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))>=5", 0, topicName)
+				Where("processed=? and topic=? and "+createdAtStr+"=?", 0, topicName, *part)
 		} else {
 			q = q.
-				Where("processed=? and topic=? and floor( mod(unix_timestamp(created_at)*100000,10))<5", 0, topicName)
+				Where("processed=? and topic=? and "+createdAtStr+">=?", 0, topicName, *part)
 		}
 	} else {
 		q = q.
