@@ -151,22 +151,18 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 }
 
 func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
-	dbRunner, err := p.conns.DB().NewSession("updateTxPool", dbWriteTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("update-tx-pool")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	return p.sc.Persist.InsertTxPool(ctx, dbRunner, txPool)
+	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
-	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("update-block")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
@@ -175,7 +171,7 @@ func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time)
 		Block:     blockNumber.String(),
 		CreatedAt: updateTime,
 	}
-	return p.sc.Persist.InsertCvmBlocks(ctx, dbRunner, cvmBlocks)
+	return p.sc.Persist.InsertCvmBlocks(ctx, sess, cvmBlocks)
 }
 
 func (p *ProducerCChain) fetchLatest() (uint64, error) {
@@ -198,7 +194,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return nil
 		}
 
-		var blockNumberUpdates []*big.Int
+		blockNumberUpdates := make([]*big.Int, 0, len(localBlocks))
 
 		if p.sc.IsDBPoll {
 			errs := avlancheGoUtils.AtomicInterface{}
@@ -325,15 +321,14 @@ func (p *ProducerCChain) Success() {
 func (p *ProducerCChain) getBlock() error {
 	var err error
 
-	dbRunner, err := p.conns.DB().NewSession("getBlock", dbReadTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("get-block")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
+
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
 	var block string
-	_, err = dbRunner.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
+	_, err = sess.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
 		From("cvm_blocks").
 		LoadContext(ctx, &block)
 	if err != nil {
@@ -346,7 +341,7 @@ func (p *ProducerCChain) getBlock() error {
 	}
 	p.block = n
 	if p.block.String() != "0" {
-		p.block = p.block.Add(p.block, big.NewInt(1))
+		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 	}
 	p.sc.Log.Info("starting processing block %s", p.block.String())
 	return nil
