@@ -1192,7 +1192,7 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 	}
 }
 
-func TestRewardsOwnersAddress(t *testing.T) {
+func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 
@@ -1239,7 +1239,7 @@ func TestRewardsOwnersAddress(t *testing.T) {
 	}
 }
 
-func TestRewardsOwners(t *testing.T) {
+func TestTransactionsRewardsOwners(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
