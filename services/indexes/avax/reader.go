@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -1520,14 +1521,45 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	type Row struct {
 		Serialization []byte
 	}
+
 	rows := []Row{}
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+
+	iv, res := big.NewInt(0).SetString(p.ID, 10)
+	if iv != nil && res {
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("block="+p.ID).
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		h := p.ID
+		if !strings.HasPrefix(p.ID, "0x") {
+			h = "0x" + h
+		}
+
+		sq := dbRunner.
+			Select("block").
+			From("cvm_transactions_txdata").
+			Where("hash=? or rcpt=?", h, h)
+
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("hash=? or parent_hash=? or block in ?",
+				h,
+				h,
+				dbRunner.Select("block").From(sq.As("sq")),
+			).
+			OrderDesc("block").
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
