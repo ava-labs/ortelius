@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services"
@@ -19,7 +21,7 @@ import (
 
 const (
 	defaultBufferedWriterSize         = 256
-	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 5
+	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 100
 	defaultWriteTimeout               = 1 * time.Minute
 	defaultWriteRetry                 = 10
 	defaultWriteRetrySleep            = 1 * time.Second
@@ -43,6 +45,7 @@ type bufferedWriter struct {
 	conns                       *services.Connections
 	chainID                     string
 	networkID                   uint32
+	worker                      utils.Worker
 }
 
 func newBufferedWriter(sc *services.Control, brokers []string, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
@@ -78,6 +81,13 @@ func newBufferedWriter(sc *services.Control, brokers []string, topic string, net
 		return nil, err
 	}
 	wb.conns = conns
+
+	accumfunc := func(part int, v interface{}) {
+		wb.processWork(part, v)
+	}
+
+	wb.worker = utils.NewWorker(10, defaultBufferedWriterMsgQueueSize, accumfunc)
+
 	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
@@ -121,45 +131,12 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				}
 			}()
 
-			job := wb.conns.Stream().NewJob("write-buffer")
-			sess := wb.conns.DB().NewSessionForEventReceiver(job)
-
-			wm := func(txPool *services.TxPool) error {
-				ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-				defer cancelFn()
-
-				return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+			for _, b := range buffer[:bufferSize] {
+				wb.worker.Enque(&WorkPacket{b: *b})
 			}
 
-			for _, b := range buffer[:bufferSize] {
-				var id ids.ID
-				id, err = ids.ToID(hashing.ComputeHash256(*b))
-				if err != nil {
-					wb.sc.Log.Warn("Error writing to db:", err)
-					break
-				}
-				txPool := &services.TxPool{
-					NetworkID:     wb.networkID,
-					ChainID:       wb.chainID,
-					MsgKey:        id.String(),
-					Serialization: *b,
-					Processed:     0,
-					Topic:         wb.topic,
-					CreatedAt:     time.Now(),
-				}
-				err = txPool.ComputeID()
-				if err != nil {
-					wb.sc.Log.Warn("Error writing to db:", err)
-					break
-				}
-				for icnt := 0; icnt < defaultWriteRetry; icnt++ {
-					err = wm(txPool)
-					if err == nil {
-						break
-					}
-					wb.sc.Log.Warn("Error writing to db (retry):", err)
-					time.Sleep(defaultWriteRetrySleep)
-				}
+			for wb.worker.JobCnt() > 0 && !wb.worker.IsFinished() {
+				time.Sleep(time.Millisecond)
 			}
 
 			if err != nil {
@@ -258,4 +235,55 @@ func (wb *bufferedWriter) close() error {
 		_ = wb.conns.Close()
 	}
 	return wb.writer.Close()
+}
+
+type WorkPacket struct {
+	b []byte
+}
+
+func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
+	job := wb.conns.Stream().NewJob("write-buffer")
+	sess := wb.conns.DB().NewSessionForEventReceiver(job)
+
+	wm := func(txPool *services.TxPool) error {
+		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+		defer cancelFn()
+
+		return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+	}
+
+	wp, ok := workPacketI.(*WorkPacket)
+	if !ok {
+		return
+	}
+
+	var err error
+	var id ids.ID
+	id, err = ids.ToID(hashing.ComputeHash256(wp.b))
+	if err != nil {
+		wb.sc.Log.Warn("Error writing to db:", err)
+		return
+	}
+	txPool := &services.TxPool{
+		NetworkID:     wb.networkID,
+		ChainID:       wb.chainID,
+		MsgKey:        id.String(),
+		Serialization: wp.b,
+		Processed:     0,
+		Topic:         wb.topic,
+		CreatedAt:     time.Now(),
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		wb.sc.Log.Warn("Error writing to db:", err)
+		return
+	}
+	for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+		err = wm(txPool)
+		if err == nil {
+			break
+		}
+		wb.sc.Log.Warn("Error writing to db (retry):", err)
+		time.Sleep(defaultWriteRetrySleep)
+	}
 }
