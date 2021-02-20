@@ -156,7 +156,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 			if err != nil {
 				collectors.Error()
-				wb.sc.Log.Error("Error writing to kafka:", err)
+				wb.sc.Log.Error("Error writing to db:", err)
 			}
 
 			bufferSize = 0
@@ -277,7 +277,7 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 	var id ids.ID
 	id, err = ids.ToID(hashing.ComputeHash256(wp.b.b))
 	if err != nil {
-		wb.sc.Log.Warn("Error writing to db:", err)
+		wp.errs.SetValue(err)
 		return
 	}
 	txPool := &services.TxPool{
@@ -291,7 +291,7 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 	}
 	err = txPool.ComputeID()
 	if err != nil {
-		wb.sc.Log.Warn("Error writing to db:", err)
+		wp.errs.SetValue(err)
 		return
 	}
 	for icnt := 0; icnt < defaultWriteRetry; icnt++ {
