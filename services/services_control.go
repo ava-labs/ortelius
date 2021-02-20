@@ -80,16 +80,6 @@ func (s *Control) DatabaseOnly() (*Connections, error) {
 	return c, nil
 }
 
-func (s *Control) Database() (*Connections, error) {
-	c, err := NewConnectionsFromConfig(s.Services, false)
-	if err != nil {
-		return nil, err
-	}
-	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(10 * time.Second)
-	return c, nil
-}
-
 func (s *Control) DatabaseRO() (*Connections, error) {
 	c, err := NewConnectionsFromConfig(s.Services, true)
 	if err != nil {

@@ -196,7 +196,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				p.processWork(part, v)
 			}
 
-			if len(localBlocks) < 2 {
+			if true || len(localBlocks) < 2 {
 				for _, bl := range localBlocks {
 					wp := &WorkPacketCChain{bl: bl, errs: &errs}
 					p.processWork(0, wp)

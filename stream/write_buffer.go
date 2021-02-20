@@ -137,7 +137,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 			errs := &avlancheGoUtils.AtomicInterface{}
 
-			if bufferSize < 2 {
+			if true || bufferSize < 2 {
 				for _, b := range buffer[:bufferSize] {
 					wp := &WorkPacket{b: b, errs: errs}
 					wb.processWork(0, wp)
