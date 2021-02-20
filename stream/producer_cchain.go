@@ -198,6 +198,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				for _, bl := range localBlocks {
 					wp := &WorkPacketCChain{bl: bl, errs: &errs}
 					p.processWork(0, wp)
+
+					blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
 				}
 			} else {
 				worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
