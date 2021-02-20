@@ -27,7 +27,7 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 	defaultWriteRetry                 = 10
 	defaultWriteRetrySleep            = 1 * time.Second
-	defaultWorkerSize                 = 4
+	defaultWorkerSize                 = 2
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second

@@ -48,7 +48,7 @@ const (
 
 	blocksToQueue = 25
 
-	defaultWorkerCChainSize = 4
+	defaultWorkerCChainSize = 2
 )
 
 type ProducerCChain struct {
