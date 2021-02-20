@@ -348,7 +348,7 @@ func TestTransactionNext(t *testing.T) {
 	if len(tl.Transactions) != 2 {
 		t.Fatal("invalid transactions")
 	}
-	if tl.Transactions[0].ID != "1" && tl.Transactions[1].ID != "2" {
+	if !(tl.Transactions[0].ID == "1" && tl.Transactions[1].ID == "2") {
 		t.Fatal("invalid transactions")
 	}
 
@@ -379,7 +379,7 @@ func TestTransactionNext(t *testing.T) {
 	if len(tl.Transactions) != 2 {
 		t.Fatal("invalid transactions")
 	}
-	if tl.Transactions[0].ID != "4" && tl.Transactions[1].ID != "3" {
+	if !(tl.Transactions[0].ID == "4" && tl.Transactions[1].ID == "3") {
 		t.Fatal("invalid transactions")
 	}
 
