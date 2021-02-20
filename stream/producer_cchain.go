@@ -281,12 +281,12 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 
 		lblocknext := big.NewInt(0).SetUint64(lblock)
-		if lblocknext.Cmp(p.block) <= 0 {
+		if lblocknext.Cmp(current) <= 0 {
 			time.Sleep(readRPCTimeout)
 			return ErrNoMessage
 		}
 
-		for !p.isStopping() && lblocknext.Cmp(p.block) > 0 {
+		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
 			bl, err := p.readBlockFromRPC(current)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
@@ -305,6 +305,11 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			}
 
 			current = current.Add(current, big.NewInt(1))
+		}
+
+		err = consumeBlock()
+		if err != nil {
+			return err
 		}
 	}
 
