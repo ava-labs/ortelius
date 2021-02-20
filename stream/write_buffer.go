@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -133,11 +135,24 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 				wb.processWork(part, v)
 			}
 
-			worker := utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
-			for _, b := range buffer[:bufferSize] {
-				worker.Enque(&WorkPacket{b: b})
+			errs := &avlancheGoUtils.AtomicInterface{}
+
+			if bufferSize < 2 {
+				for _, b := range buffer[:bufferSize] {
+					wp := &WorkPacket{b: b, errs: errs}
+					wb.processWork(0, wp)
+				}
+			} else {
+				worker := utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
+				for _, b := range buffer[:bufferSize] {
+					worker.Enque(&WorkPacket{b: b, errs: errs})
+				}
+				worker.Finish(time.Millisecond)
 			}
-			worker.Finish(time.Millisecond)
+
+			if errs.GetValue() != nil {
+				err = errs.GetValue().(error)
+			}
 
 			if err != nil {
 				collectors.Error()
@@ -238,10 +253,16 @@ func (wb *bufferedWriter) close() error {
 }
 
 type WorkPacket struct {
-	b *BufferContainer
+	b    *BufferContainer
+	errs *avlancheGoUtils.AtomicInterface
 }
 
 func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
+	wp, ok := workPacketI.(*WorkPacket)
+	if !ok {
+		return
+	}
+
 	job := wb.conns.Stream().NewJob("write-buffer")
 	sess := wb.conns.DB().NewSessionForEventReceiver(job)
 
@@ -250,11 +271,6 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 		defer cancelFn()
 
 		return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
-	}
-
-	wp, ok := workPacketI.(*WorkPacket)
-	if !ok {
-		return
 	}
 
 	var err error
@@ -285,5 +301,9 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 		}
 		wb.sc.Log.Warn("Error writing to db (retry):", err)
 		time.Sleep(defaultWriteRetrySleep)
+	}
+
+	if err != nil {
+		wp.errs.SetValue(err)
 	}
 }

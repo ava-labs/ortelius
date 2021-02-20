@@ -16,7 +16,6 @@ import (
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
-
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -195,13 +194,20 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				p.processWork(part, v)
 			}
 
-			worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
-			for _, bl := range localBlocks {
-				worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
+			if len(localBlocks) < 2 {
+				for _, bl := range localBlocks {
+					wp := &WorkPacketCChain{bl: bl, errs: &errs}
+					p.processWork(0, wp)
+				}
+			} else {
+				worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
+				for _, bl := range localBlocks {
+					worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
 
-				blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+					blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+				}
+				worker.Finish(time.Millisecond)
 			}
-			worker.Finish(time.Millisecond)
 
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
