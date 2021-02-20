@@ -178,6 +178,8 @@ type localBlockObject struct {
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
+	current := big.NewInt(0).Set(p.block)
+
 	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
 	consumeBlock := func() error {
@@ -270,8 +272,6 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			p.sc.Log.Warn("consume block error %v", err)
 		}
 	}()
-
-	current := big.NewInt(0).Set(p.block)
 
 	for !p.isStopping() {
 		lblock, err := p.fetchLatest()
