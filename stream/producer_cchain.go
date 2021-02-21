@@ -14,14 +14,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/services/db"
 
 	"github.com/ava-labs/coreth/core/types"
 
@@ -141,33 +138,27 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 }
 
 func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
-	dbRunner, err := p.conns.DB().NewSession("updateTxPool", dbWriteTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("update-tx-pool")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	return p.sc.Persist.InsertTxPool(ctx, dbRunner, txPool)
+	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
-	dbRunner, err := p.conns.DB().NewSession("updateBlock", dbWriteTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("update-block")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	_, err = dbRunner.ExecContext(ctx,
-		"insert into cvm_blocks (block,created_at) values ("+blockNumber.String()+",?)",
-		updateTime)
-	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return err
+	cvmBlocks := &services.CvmBlocks{
+		Block:     blockNumber.String(),
+		CreatedAt: updateTime,
 	}
-	return nil
+	return p.sc.Persist.InsertCvmBlocks(ctx, sess, cvmBlocks)
 }
 
 func (p *ProducerCChain) fetchLatest() (uint64, error) {
@@ -176,14 +167,13 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 	return p.ethClient.BlockNumber(ctx)
 }
 
+type localBlockObject struct {
+	block *types.Block
+	time  time.Time
+}
+
 func (p *ProducerCChain) ProcessNextMessage() error {
 	current := big.NewInt(0).Set(p.block)
-
-	type localBlockObject struct {
-		block       *types.Block
-		blockNumber *big.Int
-		time        time.Time
-	}
 
 	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
 
@@ -192,78 +182,54 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return nil
 		}
 
-		var blockNumberUpdates []*big.Int
+		defer func() {
+			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
+		}()
 
-		var kafkaMessages []kafka.Message
-
-		for _, bl := range localBlocks {
-			cblk, err := cblock.New(bl.block)
-			if err != nil {
-				return err
+		if p.sc.IsDBPoll {
+			for _, bl := range localBlocks {
+				wp := &WorkPacketCChain{bl: bl}
+				err := p.processWork(wp)
+				if err != nil {
+					return err
+				}
 			}
-			if cblk == nil {
-				return fmt.Errorf("invalid block")
+		} else {
+			var kafkaMessages []kafka.Message
+
+			for _, bl := range localBlocks {
+				cblk, err := cblock.New(bl.block)
+				if err != nil {
+					return err
+				}
+				if cblk == nil {
+					return fmt.Errorf("invalid block")
+				}
+				// wipe before re-encoding
+				cblk.Txs = nil
+				block, err := json.Marshal(cblk)
+				if err != nil {
+					return err
+				}
+
+				kafkaMessages = append(kafkaMessages,
+					kafka.Message{Value: block, Key: hashing.ComputeHash256(block)},
+				)
 			}
-			// wipe before re-encoding
-			cblk.Txs = nil
-			block, err := json.Marshal(cblk)
-			if err != nil {
-				return err
-			}
 
-			kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
-			kafkaMessages = append(kafkaMessages, kafkaMessage)
-
-			blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
-		}
-
-		localBlocks = make([]*localBlockObject, 0, blocksToQueue)
-
-		if !p.sc.IsDBPoll {
 			err := p.writeMessagesToKafka(kafkaMessages...)
 			if err != nil {
 				return err
 			}
 		}
 
-		for ipos, blockNumber := range blockNumberUpdates {
-			if p.sc.IsDBPoll {
-				kafkaMessage := kafkaMessages[ipos]
-				id, err := ids.ToID(kafkaMessage.Key)
-				if err != nil {
-					return err
-				}
-
-				txPool := &services.TxPool{
-					NetworkID:     p.conf.NetworkID,
-					ChainID:       p.conf.CchainID,
-					MsgKey:        id.String(),
-					Serialization: kafkaMessage.Value,
-					Processed:     0,
-					Topic:         p.topic,
-					CreatedAt:     time.Now(),
-				}
-				err = txPool.ComputeID()
-				if err != nil {
-					return err
-				}
-				err = p.updateTxPool(txPool)
-				if err != nil {
-					return err
-				}
-			}
-
-			err := p.updateBlock(blockNumber, time.Now().UTC())
+		for _, bl := range localBlocks {
+			err := p.updateBlock(bl.block.Number(), time.Now().UTC())
 			if err != nil {
 				return err
 			}
-
-			p.block.Set(blockNumber)
-			if p.block.Uint64()%1000 == 0 {
-				p.sc.Log.Info("current block %s", p.block.String())
-			}
+			p.block.Set(bl.block.Number())
 		}
-		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 
 		return nil
 	}
@@ -283,13 +249,14 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 
 		lblocknext := big.NewInt(0).SetUint64(lblock)
-		if lblocknext.Cmp(p.block) <= 0 {
+		if lblocknext.Cmp(current) <= 0 {
 			time.Sleep(readRPCTimeout)
 			return ErrNoMessage
 		}
 
-		for !p.isStopping() && lblocknext.Cmp(p.block) > 0 {
-			bl, err := p.readBlockFromRPC(current)
+		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
+			ncurrent := big.NewInt(0).Add(current, big.NewInt(1))
+			bl, err := p.readBlockFromRPC(ncurrent)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
 				return err
@@ -297,8 +264,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-			ncurrent := big.NewInt(0).Set(current)
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, time: time.Now().UTC()})
 			if len(localBlocks) > blocksToQueue {
 				err = consumeBlock()
 				if err != nil {
@@ -306,7 +272,12 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				}
 			}
 
-			current = current.Add(current, big.NewInt(1))
+			current = big.NewInt(0).Add(current, big.NewInt(1))
+		}
+
+		err = consumeBlock()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -326,15 +297,14 @@ func (p *ProducerCChain) Success() {
 func (p *ProducerCChain) getBlock() error {
 	var err error
 
-	dbRunner, err := p.conns.DB().NewSession("getBlock", dbReadTimeout)
-	if err != nil {
-		return err
-	}
+	job := p.conns.Stream().NewJob("get-block")
+	sess := p.conns.DB().NewSessionForEventReceiver(job)
+
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
 	var block string
-	_, err = dbRunner.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
+	_, err = sess.Select("cast(case when max(block) is null then -1 else max(block) end as char) as block").
 		From("cvm_blocks").
 		LoadContext(ctx, &block)
 	if err != nil {
@@ -346,9 +316,6 @@ func (p *ProducerCChain) getBlock() error {
 		return fmt.Errorf("invalid block %s", block)
 	}
 	p.block = n
-	if p.block.String() != "0" {
-		p.block = p.block.Add(p.block, big.NewInt(1))
-	}
 	p.sc.Log.Info("starting processing block %s", p.block.String())
 	return nil
 }
@@ -544,4 +511,44 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	return nil
+}
+
+type WorkPacketCChain struct {
+	bl *localBlockObject
+}
+
+func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
+	cblk, err := cblock.New(wp.bl.block)
+	if err != nil {
+		return err
+	}
+	if cblk == nil {
+		return fmt.Errorf("cblock is nil")
+	}
+	// wipe before re-encoding
+	cblk.Txs = nil
+	block, err := json.Marshal(cblk)
+	if err != nil {
+		return err
+	}
+
+	id, err := ids.ToID(hashing.ComputeHash256(block))
+	if err != nil {
+		return err
+	}
+
+	txPool := &services.TxPool{
+		NetworkID:     p.conf.NetworkID,
+		ChainID:       p.conf.CchainID,
+		MsgKey:        id.String(),
+		Serialization: block,
+		Processed:     0,
+		Topic:         p.topic,
+		CreatedAt:     wp.bl.time,
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		return err
+	}
+	return p.updateTxPool(txPool)
 }

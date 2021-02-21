@@ -24,6 +24,7 @@ const (
 	TableOutputAddresses                  = "avm_output_addresses"
 	TableTransactionsEpochs               = "transactions_epoch"
 	TableCvmAddresses                     = "cvm_addresses"
+	TableCvmBlocks                        = "cvm_blocks"
 	TableCvmTransactions                  = "cvm_transactions"
 	TableCvmTransactionsTxdata            = "cvm_transactions_txdata"
 	TablePvmBlocks                        = "pvm_blocks"
@@ -143,6 +144,17 @@ type Persist interface {
 		dbr.SessionRunner,
 		*TransactionsEpoch,
 		bool,
+	) error
+
+	QueryCvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmBlocks,
+	) (*CvmBlocks, error)
+	InsertCvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmBlocks,
 	) error
 
 	QueryCvmAddresses(
@@ -910,6 +922,42 @@ func (p *persist) InsertTransactionsEpoch(
 		}
 	}
 
+	return nil
+}
+
+type CvmBlocks struct {
+	Block     string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryCvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmBlocks,
+) (*CvmBlocks, error) {
+	v := &CvmBlocks{}
+	err := sess.Select(
+		"block",
+		"created_at",
+	).From(TableCvmBlocks).
+		Where("block="+q.Block).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmBlocks,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmBlocks+" (block,created_at) values("+v.Block+",?)",
+			v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmBlocks, false, err)
+	}
 	return nil
 }
 

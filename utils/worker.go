@@ -60,14 +60,14 @@ func (w *worker) Enque(job interface{}) {
 }
 
 func (w *worker) Finish(sleepTime time.Duration) {
-	for {
-		if atomic.LoadInt64(w.jobCnt) <= 0 {
-			break
-		}
+	for !w.IsFinished() {
 		time.Sleep(sleepTime)
 	}
-	close(w.doneCh)
+	w.Close()
+}
 
+func (w *worker) Close() {
+	close(w.doneCh)
 	w.wgWorker.Wait()
 }
 

@@ -76,19 +76,7 @@ func (s *Control) DatabaseOnly() (*Connections, error) {
 		return nil, err
 	}
 	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
-	return c, nil
-}
-
-func (s *Control) Database() (*Connections, error) {
-	c, err := NewConnectionsFromConfig(s.Services, false)
-	if err != nil {
-		return nil, err
-	}
-	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	c.DB().SetConnMaxIdleTime(10 * time.Second)
 	return c, nil
 }
 
@@ -98,7 +86,6 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 		return nil, err
 	}
 	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	c.DB().SetConnMaxIdleTime(10 * time.Second)
 	return c, nil
 }

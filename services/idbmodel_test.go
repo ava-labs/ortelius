@@ -520,6 +520,36 @@ func TestTransactionsEpoch(t *testing.T) {
 	}
 }
 
+func TestCvmBlocks(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmBlocks{}
+	v.Block = "1"
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmBlocks).Exec()
+
+	err = p.InsertCvmBlocks(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmBlocks(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
 func TestCvmAddresses(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()

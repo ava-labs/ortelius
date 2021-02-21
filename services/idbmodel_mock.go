@@ -14,6 +14,7 @@ type MockPersist struct {
 	OutputsRedeeming                 map[string]*OutputsRedeeming
 	CvmTransactions                  map[string]*CvmTransactions
 	CvmTransactionsTxdata            map[string]*CvmTransactionsTxdata
+	CvmBlocks                        map[string]*CvmBlocks
 	CvmAddresses                     map[string]*CvmAddresses
 	TransactionsValidator            map[string]*TransactionsValidator
 	TransactionsBlock                map[string]*TransactionsBlock
@@ -43,6 +44,7 @@ func NewPersistMock() *MockPersist {
 		OutputsRedeeming:                 make(map[string]*OutputsRedeeming),
 		CvmTransactions:                  make(map[string]*CvmTransactions),
 		CvmTransactionsTxdata:            make(map[string]*CvmTransactionsTxdata),
+		CvmBlocks:                        make(map[string]*CvmBlocks),
 		CvmAddresses:                     make(map[string]*CvmAddresses),
 		TransactionsValidator:            make(map[string]*TransactionsValidator),
 		TransactionsBlock:                make(map[string]*TransactionsBlock),
@@ -216,6 +218,24 @@ func (m *MockPersist) InsertTransactionsEpoch(ctx context.Context, runner dbr.Se
 	nv := &TransactionsEpoch{}
 	*nv = *v
 	m.TransactionsEpoch[v.ID] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryCvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *CvmBlocks) (*CvmBlocks, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.CvmBlocks[v.Block]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertCvmBlocks(ctx context.Context, runner dbr.SessionRunner, v *CvmBlocks) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &CvmBlocks{}
+	*nv = *v
+	m.CvmBlocks[v.Block] = nv
 	return nil
 }
 
