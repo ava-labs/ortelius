@@ -270,7 +270,10 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 
 		ctx := context.Background()
 		var txPools []services.TxPool
-		_, err := sess.Select("id").From(services.TableTxPool).LoadContext(ctx, &txPools)
+		_, err := sess.Select("id").
+			From(services.TableTxPool).
+			Where("topic=?", tn).
+			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)
 			return
@@ -340,7 +343,10 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 
 		ctx := context.Background()
 		var txPools []services.TxPool
-		_, err := sess.Select("id").From(services.TableTxPool).LoadContext(ctx, &txPools)
+		_, err := sess.Select("id").
+			From(services.TableTxPool).
+			Where("topic=?", tn).
+			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)
 			return
@@ -400,7 +406,10 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 
 		ctx := context.Background()
 		var txPools []services.TxPool
-		_, err := sess.Select("id").From(services.TableTxPool).LoadContext(ctx, &txPools)
+		_, err := sess.Select("id").
+			From(services.TableTxPool).
+			Where("topic=?", tn).
+			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)
 			return
