@@ -47,8 +47,6 @@ const (
 	readRPCTimeout = 500 * time.Millisecond
 
 	blocksToQueue = 25
-
-	defaultWorkerCChainSize = 2
 )
 
 type ProducerCChain struct {
@@ -191,25 +189,11 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		if p.sc.IsDBPoll {
 			errs := avlancheGoUtils.AtomicInterface{}
 
-			accumfunc := func(part int, v interface{}) {
-				p.processWork(part, v)
-			}
+			for _, bl := range localBlocks {
+				wp := &WorkPacketCChain{bl: bl, errs: &errs}
+				p.processWork(0, wp)
 
-			if true || len(localBlocks) < 2 {
-				for _, bl := range localBlocks {
-					wp := &WorkPacketCChain{bl: bl, errs: &errs}
-					p.processWork(0, wp)
-
-					blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
-				}
-			} else {
-				worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
-				for _, bl := range localBlocks {
-					worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
-
-					blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
-				}
-				worker.Finish(time.Millisecond)
+				blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
 			}
 
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)

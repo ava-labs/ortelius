@@ -7,10 +7,6 @@ import (
 	"context"
 	"time"
 
-	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
-	"github.com/ava-labs/ortelius/utils"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services"
@@ -27,7 +23,6 @@ const (
 	defaultWriteTimeout               = 1 * time.Minute
 	defaultWriteRetry                 = 10
 	defaultWriteRetrySleep            = 1 * time.Second
-	defaultWorkerSize                 = 2
 )
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
@@ -110,66 +105,11 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		buffer2    = make([]kafka.Message, size)
 	)
 
-	var err error
-
 	flush := func() error {
 		defer func() { lastFlush = time.Now() }()
 
 		if bufferSize == 0 {
 			return nil
-		}
-
-		if wb.sc.IsDBPoll {
-			collectors := metrics.NewCollectors(
-				metrics.NewCounterObserveMillisCollect(wb.metricProcessMillisCountKey),
-				metrics.NewSuccessFailCounterAdd(wb.metricSuccessCountKey, wb.metricFailureCountKey, float64(bufferSize)),
-			)
-			defer func() {
-				err := collectors.Collect()
-				if err != nil {
-					wb.sc.Log.Error("collectors.Collect: %s", err)
-				}
-			}()
-
-			accumfunc := func(part int, v interface{}) {
-				wb.processWork(part, v)
-			}
-
-			errs := &avlancheGoUtils.AtomicInterface{}
-
-			if true || bufferSize < 2 {
-				for _, b := range buffer[:bufferSize] {
-					wp := &WorkPacket{b: b, errs: errs}
-					wb.processWork(0, wp)
-				}
-			} else {
-				worker := utils.NewWorker(defaultWorkerSize, defaultBufferedWriterMsgQueueSize, accumfunc)
-				for _, b := range buffer[:bufferSize] {
-					worker.Enque(&WorkPacket{b: b, errs: errs})
-				}
-				worker.Finish(time.Millisecond)
-			}
-
-			if errs.GetValue() != nil {
-				err = errs.GetValue().(error)
-			}
-
-			if err != nil {
-				collectors.Error()
-				wb.sc.Log.Error("Error writing to db:", err)
-			}
-
-			bufferSize = 0
-
-			return err
-		}
-
-		for bpos, b := range buffer[:bufferSize] {
-			// reset the message..
-			buffer2[bpos] = kafka.Message{}
-			buffer2[bpos].Value = b.b
-			// compute hash before processing.
-			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
 		}
 
 		collectors := metrics.NewCollectors(
@@ -183,20 +123,40 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			}
 		}()
 
-		wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
-			ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-			defer cancelFn()
+		var err error
 
-			return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
-		}
-
-		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
-			err = wm(buffer2, bufferSize)
-			if err == nil {
-				break
+		if wb.sc.IsDBPoll {
+			for _, b := range buffer[:bufferSize] {
+				wp := &WorkPacket{b: b}
+				err = wb.processWork(0, wp)
+				if err != nil {
+					break
+				}
 			}
-			wb.sc.Log.Warn("Error writing to kafka (retry):", err)
-			time.Sleep(defaultWriteRetrySleep)
+		} else {
+			for bpos, b := range buffer[:bufferSize] {
+				// reset the message..
+				buffer2[bpos] = kafka.Message{}
+				buffer2[bpos].Value = b.b
+				// compute hash before processing.
+				buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
+			}
+
+			wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
+				ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+				defer cancelFn()
+
+				return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
+			}
+
+			for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+				err = wm(buffer2, bufferSize)
+				if err == nil {
+					break
+				}
+				wb.sc.Log.Warn("Error writing to kafka (retry):", err)
+				time.Sleep(defaultWriteRetrySleep)
+			}
 		}
 
 		if err != nil {
@@ -253,33 +213,22 @@ func (wb *bufferedWriter) close() error {
 }
 
 type WorkPacket struct {
-	b    *BufferContainer
-	errs *avlancheGoUtils.AtomicInterface
+	b *BufferContainer
 }
 
-func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
+func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) error {
 	wp, ok := workPacketI.(*WorkPacket)
 	if !ok {
-		return
-	}
-
-	job := wb.conns.Stream().NewJob("write-buffer")
-	sess := wb.conns.DB().NewSessionForEventReceiver(job)
-
-	wm := func(txPool *services.TxPool) error {
-		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-		defer cancelFn()
-
-		return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+		return nil
 	}
 
 	var err error
 	var id ids.ID
 	id, err = ids.ToID(hashing.ComputeHash256(wp.b.b))
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
+
 	txPool := &services.TxPool{
 		NetworkID:     wb.networkID,
 		ChainID:       wb.chainID,
@@ -291,9 +240,19 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 	}
 	err = txPool.ComputeID()
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
+
+	wm := func(txPool *services.TxPool) error {
+		job := wb.conns.Stream().NewJob("write-buffer")
+		sess := wb.conns.DB().NewSessionForEventReceiver(job)
+
+		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+		defer cancelFn()
+
+		return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+	}
+
 	for icnt := 0; icnt < defaultWriteRetry; icnt++ {
 		err = wm(txPool)
 		if err == nil {
@@ -303,7 +262,5 @@ func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) {
 		time.Sleep(defaultWriteRetrySleep)
 	}
 
-	if err != nil {
-		wp.errs.SetValue(err)
-	}
+	return err
 }
