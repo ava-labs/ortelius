@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,29 +24,24 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
-	"github.com/segmentio/kafka-go"
 )
 
-type ReplayDB interface {
+type DBReplay interface {
 	Start() error
 }
 
 func NewDB(sc *services.Control, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
-	return &replayDB{
+	return &dbReplay{
 		sc:           sc,
 		config:       config,
 		counterAdded: utils.NewCounterID(),
 		counterWaits: utils.NewCounterID(),
-		uniqueID:     make(map[string]utils.UniqueID),
 		queueSize:    replayqueuesize,
 		queueTheads:  replayqueuethreads,
 	}
 }
 
-type replayDB struct {
-	uniqueIDLock sync.RWMutex
-	uniqueID     map[string]utils.UniqueID
-
+type dbReplay struct {
 	errs   *avlancheGoUtils.AtomicInterface
 	sc     *services.Control
 	config *cfg.Config
@@ -62,15 +56,14 @@ type replayDB struct {
 	persist services.Persist
 }
 
-func (replay *replayDB) Start() error {
+func (replay *dbReplay) Start() error {
 	cfg.PerformUpdates = true
 	replay.persist = services.NewPersist()
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
 	worker := utils.NewWorker(replay.queueSize, replay.queueTheads, replay.workerProcessor())
-	// stop when you see messages after this time.
-	replayEndTime := time.Now().UTC().Add(time.Minute)
+
 	waitGroup := new(int64)
 
 	conns, err := replay.sc.DatabaseOnly()
@@ -81,14 +74,14 @@ func (replay *replayDB) Start() error {
 	replay.conns = conns
 
 	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID, replayEndTime, waitGroup, worker, conns)
+		err := replay.handleReader(chainID, waitGroup, worker, conns)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
 		}
 	}
 
-	err = replay.handleCReader(replay.config.CchainID, replayEndTime, waitGroup, worker)
+	err = replay.handleCReader(replay.config.CchainID, waitGroup, worker)
 	if err != nil {
 		log.Fatalln("reader failed", replay.config.CchainID, ":", err.Error())
 		return err
@@ -158,7 +151,7 @@ func (replay *replayDB) Start() error {
 	return nil
 }
 
-func (replay *replayDB) handleCReader(chain string, replayEndTime time.Time, waitGroup *int64, worker utils.Worker) error {
+func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker utils.Worker) error {
 	writer, err := cvm.NewWriter(replay.config.NetworkID, chain)
 	if err != nil {
 		return err
@@ -172,7 +165,7 @@ func (replay *replayDB) handleCReader(chain string, replayEndTime time.Time, wai
 	return nil
 }
 
-func (replay *replayDB) handleReader(chain cfg.Chain, replayEndTime time.Time, waitGroup *int64, worker utils.Worker, conns *services.Connections) error {
+func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *services.Connections) error {
 	var err error
 	var writer services.Consumer
 	switch chain.VMType {
@@ -214,37 +207,7 @@ func (replay *replayDB) handleReader(chain cfg.Chain, replayEndTime time.Time, w
 	return nil
 }
 
-func (replay *replayDB) isPresent(uidkey string, id string) (bool, error) {
-	replay.uniqueIDLock.RLock()
-	present, err := replay.uniqueID[uidkey].Get(id)
-	replay.uniqueIDLock.RUnlock()
-	if err != nil {
-		return false, err
-	}
-	if present {
-		return present, nil
-	}
-
-	replay.uniqueIDLock.Lock()
-	present, err = replay.uniqueID[uidkey].Get(id)
-	if err == nil && !present {
-		present = false
-		err = replay.uniqueID[uidkey].Put(id)
-	}
-	replay.uniqueIDLock.Unlock()
-	if err != nil {
-		return false, err
-	}
-	return present, nil
-}
-
-func (replay *replayDB) readMessage(duration time.Duration, reader *kafka.Reader) (kafka.Message, error) {
-	ctx, cancelFn := context.WithTimeout(context.Background(), duration)
-	defer cancelFn()
-	return reader.ReadMessage(ctx)
-}
-
-func (replay *replayDB) workerProcessor() func(int, interface{}) {
+func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 	return func(_ int, valuei interface{}) {
 		switch value := valuei.(type) {
 		case *WorkerPacket:
@@ -289,7 +252,7 @@ func (replay *replayDB) workerProcessor() func(int, interface{}) {
 	}
 }
 
-func (replay *replayDB) startCchain(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
 	tn := fmt.Sprintf("%d-%s-cchain", replay.config.NetworkID, chain)
 
 	replay.counterWaits.Inc(tn)
@@ -317,7 +280,10 @@ func (replay *replayDB) startCchain(chain string, waitGroup *int64, worker utils
 				return
 			}
 
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPool)
+			txPoolQ := services.TxPool{
+				ID: txPool.ID,
+			}
+			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -356,7 +322,7 @@ func (replay *replayDB) startCchain(chain string, waitGroup *int64, worker utils
 	return nil
 }
 
-func (replay *replayDB) startConsensus(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
 
 	replay.counterWaits.Inc(tn)
@@ -384,7 +350,10 @@ func (replay *replayDB) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				return
 			}
 
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPool)
+			txPoolQ := services.TxPool{
+				ID: txPool.ID,
+			}
+			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -413,7 +382,7 @@ func (replay *replayDB) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 	return nil
 }
 
-func (replay *replayDB) startDecision(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 	replay.counterWaits.Inc(tn)
@@ -441,7 +410,10 @@ func (replay *replayDB) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				return
 			}
 
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPool)
+			txPoolQ := services.TxPool{
+				ID: txPool.ID,
+			}
+			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
