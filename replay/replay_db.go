@@ -209,13 +209,15 @@ func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker u
 
 func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 	return func(_ int, valuei interface{}) {
+		ctx := context.Background()
+
 		switch value := valuei.(type) {
 		case *WorkerPacket:
 			var consumererr error
 			switch value.consumeType {
 			case CONSUME:
 				for {
-					consumererr = value.writer.Consume(context.Background(), replay.conns, value.message, replay.persist)
+					consumererr = value.writer.Consume(ctx, replay.conns, value.message, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
@@ -226,7 +228,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMECONSENSUS:
 				for {
-					consumererr = value.writer.ConsumeConsensus(context.Background(), replay.conns, value.message, replay.persist)
+					consumererr = value.writer.ConsumeConsensus(ctx, replay.conns, value.message, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
@@ -237,7 +239,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				}
 			case CONSUMEC:
 				for {
-					consumererr = value.cwriter.Consume(context.Background(), replay.conns, value.message, value.block, replay.persist)
+					consumererr = value.cwriter.Consume(ctx, replay.conns, value.message, value.block, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
