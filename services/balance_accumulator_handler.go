@@ -31,40 +31,47 @@ type BalanceAccumulatorManager struct {
 	sc         *Control
 	persist    Persist
 	tickerOnce sync.Once
-	conns      *Connections
 }
 
 func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
-	conns, err := sc.DatabaseOnly()
-	if err != nil {
-		return nil, err
-	}
-
 	bmanager := &BalanceAccumulatorManager{
-		handler: &BalancerAccumulateHandler{conns: conns},
+		handler: &BalancerAccumulateHandler{sc: sc},
 		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
-		conns:   conns,
 	}
 	return bmanager, nil
 }
 
-func (a *BalanceAccumulatorManager) RunTicker() {
+func (a *BalanceAccumulatorManager) RunTicker() error {
+	if !a.sc.IsAccumulateBalanceIndexer {
+		return nil
+	}
+
+	conns, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+
 	a.tickerOnce.Do(func() {
-		a.runTicker()
+		a.runTicker(conns)
 	})
+
+	return nil
 }
 
-func (a *BalanceAccumulatorManager) runTicker() {
-	if !a.sc.IsAccumulateBalanceIndexer {
-		return
-	}
+func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
+	defer func() {
+		err := conns.Close()
+		if err != nil {
+			a.sc.Log.Warn("connection close %v", err)
+		}
+	}()
 
 	runEvent := func() {
 		icnt := 0
 		for ; icnt < 10; icnt++ {
-			cnt, err := a.handler.processOutputs(false, processTypeIn, a.conns, a.persist)
+			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
 			if db.ErrIsLockError(err) {
 				icnt = 0
 				continue
@@ -101,7 +108,7 @@ type BalancerAccumulateHandler struct {
 	runcntOuts  int64
 	runcntTrans int64
 	lock        sync.Mutex
-	conns       *Connections
+	sc          *Control
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
@@ -123,9 +130,23 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 			defer func() {
 				atomic.AddInt64(runcnt, -1)
 			}()
+
+			conns, err := a.sc.DatabaseOnly()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+				return
+			}
+
+			defer func() {
+				err := conns.Close()
+				if err != nil {
+					a.sc.Log.Warn("connection close %v", err)
+				}
+			}()
+
 			icnt := 0
 			for ; icnt < 10; icnt++ {
-				cnt, err := f(a.conns, persist)
+				cnt, err := f(conns, persist)
 				if db.ErrIsLockError(err) {
 					icnt = 0
 					continue
