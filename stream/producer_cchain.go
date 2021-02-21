@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
 	"github.com/ava-labs/avalanchego/ids"
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -184,22 +182,17 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			return nil
 		}
 
-		blockNumberUpdates := make([]*big.Int, 0, len(localBlocks))
+		defer func() {
+			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
+		}()
 
 		if p.sc.IsDBPoll {
-			errs := avlancheGoUtils.AtomicInterface{}
-
 			for _, bl := range localBlocks {
-				wp := &WorkPacketCChain{bl: bl, errs: &errs}
-				p.processWork(0, wp)
-
-				blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
-			}
-
-			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
-
-			if errs.GetValue() != nil {
-				return errs.GetValue().(error)
+				wp := &WorkPacketCChain{bl: bl}
+				err := p.processWork(wp)
+				if err != nil {
+					return err
+				}
 			}
 		} else {
 			var kafkaMessages []kafka.Message
@@ -219,13 +212,10 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 					return err
 				}
 
-				kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
-				kafkaMessages = append(kafkaMessages, kafkaMessage)
-
-				blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
+				kafkaMessages = append(kafkaMessages,
+					kafka.Message{Value: block, Key: hashing.ComputeHash256(block)},
+				)
 			}
-
-			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 
 			err := p.writeMessagesToKafka(kafkaMessages...)
 			if err != nil {
@@ -233,13 +223,13 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			}
 		}
 
-		for _, blockNumber := range blockNumberUpdates {
-			err := p.updateBlock(blockNumber, time.Now().UTC())
+		for _, bl := range localBlocks {
+			err := p.updateBlock(bl.block.Number(), time.Now().UTC())
 			if err != nil {
 				return err
 			}
 
-			p.block.Set(blockNumber)
+			p.block.Set(bl.block.Number())
 			if p.block.Uint64()%1000 == 0 {
 				p.sc.Log.Info("current block %s", p.block.String())
 			}
@@ -528,38 +518,27 @@ func (p *ProducerCChain) runProcessor() error {
 }
 
 type WorkPacketCChain struct {
-	bl   *localBlockObject
-	errs *avlancheGoUtils.AtomicInterface
+	bl *localBlockObject
 }
 
-func (p *ProducerCChain) processWork(_ int, workPacketI interface{}) {
-	wp, ok := workPacketI.(*WorkPacketCChain)
-	if !ok {
-		return
-	}
-
+func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 	cblk, err := cblock.New(wp.bl.block)
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
 	if cblk == nil {
-		return
+		return fmt.Errorf("cblock is nil")
 	}
 	// wipe before re-encoding
 	cblk.Txs = nil
 	block, err := json.Marshal(cblk)
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
 
-	key := hashing.ComputeHash256(block)
-
-	id, err := ids.ToID(key)
+	id, err := ids.ToID(hashing.ComputeHash256(block))
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
 
 	txPool := &services.TxPool{
@@ -569,16 +548,11 @@ func (p *ProducerCChain) processWork(_ int, workPacketI interface{}) {
 		Serialization: block,
 		Processed:     0,
 		Topic:         p.topic,
-		CreatedAt:     time.Now(),
+		CreatedAt:     wp.bl.time,
 	}
 	err = txPool.ComputeID()
 	if err != nil {
-		wp.errs.SetValue(err)
-		return
+		return err
 	}
-	err = p.updateTxPool(txPool)
-	if err != nil {
-		wp.errs.SetValue(err)
-		return
-	}
+	return p.updateTxPool(txPool)
 }

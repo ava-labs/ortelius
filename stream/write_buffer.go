@@ -128,7 +128,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		if wb.sc.IsDBPoll {
 			for _, b := range buffer[:bufferSize] {
 				wp := &WorkPacket{b: b}
-				err = wb.processWork(0, wp)
+				err = wb.processWork(wp)
 				if err != nil {
 					break
 				}
@@ -216,12 +216,7 @@ type WorkPacket struct {
 	b *BufferContainer
 }
 
-func (wb *bufferedWriter) processWork(_ int, workPacketI interface{}) error {
-	wp, ok := workPacketI.(*WorkPacket)
-	if !ok {
-		return nil
-	}
-
+func (wb *bufferedWriter) processWork(wp *WorkPacket) error {
 	var err error
 	var id ids.ID
 	id, err = ids.ToID(hashing.ComputeHash256(wp.b.b))
