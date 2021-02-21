@@ -172,9 +172,8 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 }
 
 type localBlockObject struct {
-	block       *types.Block
-	blockNumber *big.Int
-	time        time.Time
+	block *types.Block
+	time  time.Time
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
@@ -201,14 +200,14 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 					wp := &WorkPacketCChain{bl: bl, errs: &errs}
 					p.processWork(0, wp)
 
-					blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+					blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
 				}
 			} else {
 				worker := utils.NewWorker(defaultWorkerCChainSize, defaultBufferedWriterMsgQueueSize, accumfunc)
 				for _, bl := range localBlocks {
 					worker.Enque(&WorkPacketCChain{bl: bl, errs: &errs})
 
-					blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+					blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
 				}
 				worker.Finish(time.Millisecond)
 			}
@@ -239,7 +238,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				kafkaMessage := kafka.Message{Value: block, Key: hashing.ComputeHash256(block)}
 				kafkaMessages = append(kafkaMessages, kafkaMessage)
 
-				blockNumberUpdates = append(blockNumberUpdates, bl.blockNumber)
+				blockNumberUpdates = append(blockNumberUpdates, bl.block.Header().Number)
 			}
 
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
@@ -261,7 +260,6 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				p.sc.Log.Info("current block %s", p.block.String())
 			}
 		}
-		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 
 		return nil
 	}
@@ -287,7 +285,8 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 		}
 
 		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
-			bl, err := p.readBlockFromRPC(current)
+			ncurrent := big.NewInt(0).Add(current, big.NewInt(1))
+			bl, err := p.readBlockFromRPC(ncurrent)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
 				return err
@@ -295,8 +294,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-			ncurrent := big.NewInt(0).Set(current)
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, blockNumber: ncurrent, time: time.Now().UTC()})
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, time: time.Now().UTC()})
 			if len(localBlocks) > blocksToQueue {
 				err = consumeBlock()
 				if err != nil {
@@ -304,7 +302,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 				}
 			}
 
-			current = current.Add(current, big.NewInt(1))
+			current = big.NewInt(0).Add(current, big.NewInt(1))
 		}
 
 		err = consumeBlock()
@@ -336,7 +334,7 @@ func (p *ProducerCChain) getBlock() error {
 	defer cancelCtx()
 
 	var block string
-	_, err = sess.Select("cast(case when max(block) is null then 0 else max(block) end as char) as block").
+	_, err = sess.Select("cast(case when max(block) is null then -1 else max(block) end as char) as block").
 		From("cvm_blocks").
 		LoadContext(ctx, &block)
 	if err != nil {
@@ -348,9 +346,6 @@ func (p *ProducerCChain) getBlock() error {
 		return fmt.Errorf("invalid block %s", block)
 	}
 	p.block = n
-	if p.block.String() != "0" {
-		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
-	}
 	p.sc.Log.Info("starting processing block %s", p.block.String())
 	return nil
 }
