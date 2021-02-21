@@ -279,22 +279,22 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 			return
 		}
 
-		for _, txPool := range txPools {
+		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
 				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
 				return
 			}
 
 			txPoolQ := services.TxPool{
-				ID: txPool.ID,
+				ID: txPoolID.ID,
 			}
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
 			}
 
-			id, err := ids.FromString(txPoolres.MsgKey)
+			id, err := ids.FromString(txPool.MsgKey)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -302,7 +302,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 
 			replay.counterAdded.Inc(tn)
 
-			block, err := cblock.Unmarshal(txPoolres.Serialization)
+			block, err := cblock.Unmarshal(txPool.Serialization)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -316,8 +316,8 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				id.String(),
 				chain,
 				block.BlockExtraData,
-				txPoolres.CreatedAt.UTC().Unix(),
-				int64(txPoolres.CreatedAt.UTC().Nanosecond()),
+				txPool.CreatedAt.UTC().Unix(),
+				int64(txPool.CreatedAt.UTC().Nanosecond()),
 			)
 
 			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMEC})
@@ -352,22 +352,22 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 			return
 		}
 
-		for _, txPool := range txPools {
+		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
 				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
 				return
 			}
 
 			txPoolQ := services.TxPool{
-				ID: txPool.ID,
+				ID: txPoolID.ID,
 			}
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
 			}
 
-			id, err := ids.FromString(txPoolres.MsgKey)
+			id, err := ids.FromString(txPool.MsgKey)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -415,22 +415,22 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 			return
 		}
 
-		for _, txPool := range txPools {
+		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
 				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
 				return
 			}
 
 			txPoolQ := services.TxPool{
-				ID: txPool.ID,
+				ID: txPoolID.ID,
 			}
-			txPoolres, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
 			}
 
-			id, err := ids.FromString(txPoolres.MsgKey)
+			id, err := ids.FromString(txPool.MsgKey)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
