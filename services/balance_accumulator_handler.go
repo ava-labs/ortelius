@@ -61,14 +61,7 @@ func (a *BalanceAccumulatorManager) RunTicker() error {
 }
 
 func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
-	defer func() {
-		err := conns.Close()
-		if err != nil {
-			a.sc.Log.Warn("connection close %v", err)
-		}
-	}()
-
-	runEvent := func() {
+	runEvent := func(conns *Connections) {
 		icnt := 0
 		for ; icnt < 10; icnt++ {
 			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
@@ -90,8 +83,15 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 	go func() {
 		defer a.ticker.Stop()
 
+		defer func() {
+			err := conns.Close()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+			}
+		}()
+
 		for range a.ticker.C {
-			runEvent()
+			runEvent(conns)
 		}
 	}()
 }
