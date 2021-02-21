@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -577,18 +578,20 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
-	if len(txs) < listParams.Limit {
+	if len(txs) == 0 || len(txs) < listParams.Limit {
 		return nil
 	}
+
+	lasttxCreated := txs[len(txs)-1].CreatedAt
+
 	next := ""
 	switch transactionsParams.Sort {
 	case params.TransactionSortTimestampAsc:
-		firsttx := txs[0]
-		next = fmt.Sprintf("%s=%d", params.KeyStartTime, firsttx.CreatedAt.Unix())
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, lasttxCreated.Add(time.Second).Unix())
 	case params.TransactionSortTimestampDesc:
-		lasttx := txs[len(txs)-1]
-		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttx.CreatedAt.Unix()+1)
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttxCreated.Unix())
 	}
+
 	for k, vs := range listParams.Values {
 		switch k {
 		case params.KeyLimit:
@@ -1180,7 +1183,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_addresses.transaction_id",
 		"cvm_addresses.address",
 		"cvm_addresses.asset_id",
-		"cvm_addresses.created_at as timestamp",
+		"cvm_addresses.created_at",
 		"cvm_transactions.blockchain_id as chain_id",
 		"cvm_transactions.block",
 	).
@@ -1496,14 +1499,45 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	type Row struct {
 		Serialization []byte
 	}
+
 	rows := []Row{}
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+
+	iv, res := big.NewInt(0).SetString(p.ID, 10)
+	if iv != nil && res {
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("block="+p.ID).
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		h := p.ID
+		if !strings.HasPrefix(p.ID, "0x") {
+			h = "0x" + h
+		}
+
+		sq := dbRunner.
+			Select("block").
+			From("cvm_transactions_txdata").
+			Where("hash=? or rcpt=?", h, h)
+
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("hash=? or parent_hash=? or block in ?",
+				h,
+				h,
+				dbRunner.Select("block").From(sq.As("sq")),
+			).
+			OrderDesc("block").
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
