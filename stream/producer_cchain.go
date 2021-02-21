@@ -228,11 +228,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			if err != nil {
 				return err
 			}
-
 			p.block.Set(bl.block.Number())
-			if p.block.Uint64()%1000 == 0 {
-				p.sc.Log.Info("current block %s", p.block.String())
-			}
 		}
 
 		return nil
