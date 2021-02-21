@@ -286,8 +286,8 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			config,
 			runErr,
 			[]ProcessorFactoryControl{
-				{Factory: consumers.Indexer, Instances: 4},
-				{Factory: consumers.IndexerConsensus, Instances: 4},
+				{Factory: consumers.Indexer, Instances: 2},
+				{Factory: consumers.IndexerConsensus, Instances: 2},
 			},
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
@@ -303,7 +303,7 @@ func indexerFactories(_ *cfg.Config) []ListenCloserFactoryControl {
 	var factories []ListenCloserFactoryControl
 	factories = append(
 		factories,
-		ListenCloserFactoryControl{Factory: consumers.IndexerCChain(), Instances: 4},
+		ListenCloserFactoryControl{Factory: consumers.IndexerCChain(), Instances: 2},
 	)
 	return factories
 }
