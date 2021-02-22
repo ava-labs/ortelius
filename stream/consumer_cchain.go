@@ -109,7 +109,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			return err
 		}
 		if len(rowdata) == 0 {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(pollSleep)
 			return nil
 		}
 
