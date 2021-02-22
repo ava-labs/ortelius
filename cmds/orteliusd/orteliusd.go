@@ -164,6 +164,8 @@ func execute() error {
 		createAPICmds(serviceControl, config, &runErr),
 		createEnvCmds(config, &runErr))
 
+	serviceControl.BalanceAccumulatorManager.Close()
+
 	// Execute the command and return the runErr to the caller
 	if err := cmd.Execute(); err != nil {
 		return err

@@ -116,6 +116,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 }
 
 func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
+	a.sc.Log.Info("start ticker")
 	go func() {
 		runEvent := func(conns *Connections) {
 			icnt := 0
@@ -142,6 +143,7 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 			if err != nil {
 				a.sc.Log.Warn("connection close %v", err)
 			}
+			a.sc.Log.Info("stop ticker")
 		}()
 
 		for {
@@ -156,12 +158,14 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 }
 
 func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
+	a.sc.Log.Info("start processing %v", id)
 	go func() {
 		defer func() {
 			err := conns.Close()
 			if err != nil {
 				a.sc.Log.Warn("connection close %v", err)
 			}
+			a.sc.Log.Info("stop processing %v", id)
 		}()
 
 		for {
