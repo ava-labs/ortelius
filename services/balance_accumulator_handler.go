@@ -14,7 +14,6 @@ import (
 var RowLimitValueBase = 5000
 var RowLimitValue = uint64(RowLimitValueBase)
 var LockSize = 5
-var Threads = int64(2)
 
 var retryProcessing = 3
 
@@ -52,7 +51,7 @@ type BalanceAccumulatorManager struct {
 
 func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
 	bmanager := &BalanceAccumulatorManager{
-		handler: &BalancerAccumulateHandler{sc: sc},
+		handler: &BalancerAccumulateHandler{},
 		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
@@ -191,7 +190,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 	}()
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
+func (a *BalanceAccumulatorManager) Run(sc *Control) {
 	if !sc.IsAccumulateBalanceIndexer {
 		return
 	}
@@ -213,7 +212,6 @@ func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
 }
 
 type BalancerAccumulateHandler struct {
-	sc *Control
 }
 
 type OutputAddressAccumulateWithTrID struct {

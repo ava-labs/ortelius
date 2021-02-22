@@ -198,7 +198,7 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 
-				err = w.InsertOutputAddress(ctx, false, inputID, publicKey.Address(), sig[:])
+				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
 				if err != nil {
 					return 0, err
 				}
@@ -269,7 +269,7 @@ func (w *Writer) InsertOutput(
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
 		addrid := ids.ShortID(addrBytes)
-		err = w.InsertOutputAddress(ctx, true, outputID, addrid, nil)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil)
 		if err != nil {
 			return err
 		}
@@ -329,7 +329,6 @@ func (w *Writer) InsertAddressFromPublicKey(
 
 func (w *Writer) InsertOutputAddress(
 	ctx services.ConsumerCtx,
-	outs bool,
 	outputID ids.ID,
 	address ids.ShortID,
 	sig []byte,
@@ -367,16 +366,13 @@ func (w *Writer) InsertOutputAddress(
 	if err != nil {
 		return err
 	}
-	if outs {
-		err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
-		if err != nil {
-			return err
-		}
+	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return err
+	}
+	err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	if err != nil {
+		return err
 	}
 
 	outputAddresses := &services.OutputAddresses{
