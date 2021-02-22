@@ -392,10 +392,10 @@ func runStreamProcessorManagers(
 		}
 
 		wg := &sync.WaitGroup{}
-		wg.Add(len(factories))
 
 		for _, factory := range factories {
 			for instpos := 0; instpos < factory.Instances; instpos++ {
+				wg.Add(1)
 				go func(factory stream.ProcessorFactory, idx int, maxidx int) {
 					defer wg.Done()
 
@@ -406,9 +406,9 @@ func runStreamProcessorManagers(
 			}
 		}
 
-		wg.Add(len(listenCloseFactories))
 		for _, listenCloseFactory := range listenCloseFactories {
 			for instpos := 0; instpos < listenCloseFactory.Instances; instpos++ {
+				wg.Add(1)
 				go func(listenCloserFactory utils.ListenCloserFactory, idx int, maxidx int) {
 					defer wg.Done()
 
