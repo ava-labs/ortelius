@@ -25,15 +25,29 @@ type processType uint32
 var processTypeIn processType = 1
 var processTypeOut processType = 2
 
+type managerChannels struct {
+	ins  chan struct{}
+	outs chan struct{}
+	txs  chan struct{}
+}
+
+func newManagerChannels() *managerChannels {
+	return &managerChannels{
+		ins:  make(chan struct{}, 1),
+		outs: make(chan struct{}, 1),
+		txs:  make(chan struct{}, 1),
+	}
+}
+
 type BalanceAccumulatorManager struct {
 	handler *BalancerAccumulateHandler
 	ticker  *time.Ticker
 	sc      *Control
 	persist Persist
-	ins     chan struct{}
-	outs    chan struct{}
-	txs     chan struct{}
-	doneCh  chan struct{}
+
+	managerChannelsList []*managerChannels
+
+	doneCh chan struct{}
 }
 
 func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
@@ -63,32 +77,41 @@ func (a *BalanceAccumulatorManager) RunTicker() error {
 
 	a.runTicker(connsTicker)
 
-	connsOuts, err := a.sc.DatabaseOnly()
-	if err != nil {
-		return err
-	}
-	a.ins = make(chan struct{}, 1)
-	a.runProcessing("out", connsOuts, func(conns *Connections) (uint64, error) {
-		return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
-	}, a.ins)
+	processingFunc := func(id string, managerChannel *managerChannels) error {
+		connsOuts, err := a.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		a.runProcessing("out_"+id, connsOuts, func(conns *Connections) (uint64, error) {
+			return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
+		}, managerChannel.ins)
 
-	connsIns, err := a.sc.DatabaseOnly()
-	if err != nil {
-		return err
-	}
-	a.outs = make(chan struct{}, 1)
-	a.runProcessing("in", connsIns, func(conns *Connections) (uint64, error) {
-		return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
-	}, a.outs)
+		connsIns, err := a.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		a.runProcessing("in_"+id, connsIns, func(conns *Connections) (uint64, error) {
+			return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
+		}, managerChannel.outs)
 
-	connsTxs, err := a.sc.DatabaseOnly()
-	if err != nil {
-		return err
+		connsTxs, err := a.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		a.runProcessing("tx_"+id, connsTxs, func(conns *Connections) (uint64, error) {
+			return a.handler.processTransactions(conns, a.persist)
+		}, managerChannel.txs)
+		return nil
 	}
-	a.txs = make(chan struct{}, 1)
-	a.runProcessing("tx", connsTxs, func(conns *Connections) (uint64, error) {
-		return a.handler.processTransactions(conns, a.persist)
-	}, a.txs)
+
+	for ipos := 0; ipos < 2; ipos++ {
+		managerChannels := newManagerChannels()
+		a.managerChannelsList = append(a.managerChannelsList, managerChannels)
+		err = processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -173,17 +196,19 @@ func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
 		return
 	}
 
-	select {
-	case a.ins <- struct{}{}:
-	default:
-	}
-	select {
-	case a.outs <- struct{}{}:
-	default:
-	}
-	select {
-	case a.txs <- struct{}{}:
-	default:
+	for _, managerChannels := range a.managerChannelsList {
+		select {
+		case managerChannels.ins <- struct{}{}:
+		default:
+		}
+		select {
+		case managerChannels.outs <- struct{}{}:
+		default:
+		}
+		select {
+		case managerChannels.txs <- struct{}{}:
+		default:
+		}
 	}
 }
 
