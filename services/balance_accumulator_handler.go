@@ -61,29 +61,28 @@ func (a *BalanceAccumulatorManager) RunTicker() error {
 }
 
 func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
-	runEvent := func(conns *Connections) {
-		icnt := 0
-		for ; icnt < 10; icnt++ {
-			cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
-			if db.ErrIsLockError(err) {
-				icnt = 0
-				continue
-			}
-			if err != nil {
-				a.sc.Log.Error("accumulate ticker error %v", err)
-				return
-			}
-			if cnt < RowLimitValue {
-				break
-			}
-			icnt = 0
-		}
-	}
-
 	go func() {
-		defer a.ticker.Stop()
+		runEvent := func(conns *Connections) {
+			icnt := 0
+			for ; icnt < 10; icnt++ {
+				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error %v", err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
+				icnt = 0
+			}
+		}
 
 		defer func() {
+			a.ticker.Stop()
 			err := conns.Close()
 			if err != nil {
 				a.sc.Log.Warn("connection close %v", err)
@@ -112,66 +111,66 @@ type BalancerAccumulateHandler struct {
 }
 
 func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
-	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
-		if atomic.LoadInt64(runcnt) >= Threads {
-			return
-		}
+	a.runInternal(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processOutputs(true, processTypeOut, conns, persist)
+	}, persist)
+	a.runInternal(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processOutputs(true, processTypeIn, conns, persist)
+	}, persist)
+	a.runInternal(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
+		return a.processTransactions(conns, persist)
+	}, persist)
+}
 
-		a.lock.Lock()
-		defer a.lock.Unlock()
-
-		if atomic.LoadInt64(runcnt) >= Threads {
-			return
-		}
-
-		atomic.AddInt64(runcnt, 1)
-
-		go func() {
-			defer func() {
-				atomic.AddInt64(runcnt, -1)
-			}()
-
-			conns, err := a.sc.DatabaseOnly()
-			if err != nil {
-				a.sc.Log.Warn("connection close %v", err)
-				return
-			}
-
-			defer func() {
-				err := conns.Close()
-				if err != nil {
-					a.sc.Log.Warn("connection close %v", err)
-				}
-			}()
-
-			icnt := 0
-			for ; icnt < 10; icnt++ {
-				cnt, err := f(conns, persist)
-				if db.ErrIsLockError(err) {
-					icnt = 0
-					continue
-				}
-				if err != nil {
-					sc.Log.Error("accumulate error %s %v", id, err)
-					return
-				}
-				if cnt < RowLimitValue {
-					break
-				}
-				icnt = 0
-			}
-		}()
+func (a *BalancerAccumulateHandler) runInternal(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error), persist Persist) {
+	if atomic.LoadInt64(runcnt) >= Threads {
+		return
 	}
 
-	frun(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeOut, conns, persist)
-	})
-	frun(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeIn, conns, persist)
-	})
-	frun(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processTransactions(conns, persist)
-	})
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if atomic.LoadInt64(runcnt) >= Threads {
+		return
+	}
+
+	atomic.AddInt64(runcnt, 1)
+
+	go func() {
+		defer func() {
+			atomic.AddInt64(runcnt, -1)
+		}()
+
+		conns, err := a.sc.DatabaseOnly()
+		if err != nil {
+			a.sc.Log.Warn("connection close %v", err)
+			return
+		}
+
+		defer func() {
+			err := conns.Close()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+			}
+		}()
+
+		icnt := 0
+		for ; icnt < 10; icnt++ {
+			cnt, err := f(conns, persist)
+			if db.ErrIsLockError(err) {
+				icnt = 0
+				continue
+			}
+			if err != nil {
+				a.sc.Log.Error("accumulate error %s %v", id, err)
+				return
+			}
+			if cnt < RowLimitValue {
+				break
+			}
+			icnt = 0
+		}
+	}()
 }
 
 type OutputAddressAccumulateWithTrID struct {
