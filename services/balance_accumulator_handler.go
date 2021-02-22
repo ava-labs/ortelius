@@ -62,6 +62,7 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumul
 
 func (a *BalanceAccumulatorManager) Close() {
 	close(a.doneCh)
+	a.ticker.Stop()
 }
 
 func (a *BalanceAccumulatorManager) Start() error {
