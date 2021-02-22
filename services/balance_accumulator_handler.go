@@ -65,7 +65,7 @@ func (a *BalanceAccumulatorManager) Close() {
 	close(a.doneCh)
 }
 
-func (a *BalanceAccumulatorManager) RunTicker() error {
+func (a *BalanceAccumulatorManager) Start() error {
 	if !a.sc.IsAccumulateBalanceIndexer {
 		return nil
 	}

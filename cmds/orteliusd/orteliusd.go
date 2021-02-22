@@ -364,7 +364,7 @@ func runStreamProcessorManagers(
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
-			err := sc.BalanceAccumulatorManager.RunTicker()
+			err := sc.BalanceAccumulatorManager.Start()
 			if err != nil {
 				sc.BalanceAccumulatorManager.Close()
 				*runError = err
