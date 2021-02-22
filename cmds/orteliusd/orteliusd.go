@@ -377,7 +377,6 @@ func runStreamProcessorManagers(
 		if indexer {
 			err := sc.BalanceAccumulatorManager.Start()
 			if err != nil {
-				sc.BalanceAccumulatorManager.Close()
 				*runError = err
 				return
 			}
