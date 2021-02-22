@@ -179,7 +179,7 @@ func (c *consumerconsensus) ProcessNextMessage() error {
 		}
 
 		if len(rowdata) == 0 {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(pollSleep)
 			return nil
 		}
 

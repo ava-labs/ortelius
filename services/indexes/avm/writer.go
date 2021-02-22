@@ -185,7 +185,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 		transactionsEpoch := &services.TransactionsEpoch{
 			ID:        txID.String(),
 			Epoch:     vert.Epoch(),
-			VertexID:  c.ID(),
+			VertexID:  vert.ID().String(),
 			CreatedAt: cCtx.Time(),
 		}
 		err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)

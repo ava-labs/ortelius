@@ -195,10 +195,18 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
-			err := replay.Start()
-			if err != nil {
-				*runErr = err
+			if sc.IsDBPoll {
+				replay := replay.NewDB(sc, config, *replayqueuesize, *replayqueuethreads)
+				err := replay.Start()
+				if err != nil {
+					*runErr = err
+				}
+			} else {
+				replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
+				err := replay.Start()
+				if err != nil {
+					*runErr = err
+				}
 			}
 		},
 	}

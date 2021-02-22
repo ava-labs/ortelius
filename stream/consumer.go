@@ -27,6 +27,7 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 
 	pollLimit = 100
+	pollSleep = 250 * time.Millisecond
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -190,7 +191,7 @@ func (c *consumer) ProcessNextMessage() error {
 		}
 
 		if len(rowdata) == 0 {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(pollSleep)
 			return nil
 		}
 
