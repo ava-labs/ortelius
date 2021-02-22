@@ -2,3 +2,4 @@ drop index `output_addresses_accumulate_in_output_processed` on `output_addresse
 drop index `output_addresses_accumulate_in_output_id` on `output_addresses_accumulate_in`;
 drop index `output_addresses_accumulate_out_output_id` on `output_addresses_accumulate_out`;
 alter table `output_addresses_accumulate_in` drop COLUMN `output_procesed`;
+drop table transactions_rewards_owners_outputs;

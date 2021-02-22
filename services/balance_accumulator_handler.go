@@ -279,8 +279,10 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	}
 
 	sb := b.
-		OrderAsc(tbl + ".processed").
-		OrderAsc(tbl + ".created_at").
+		OrderAsc(tbl+".processed").
+		OrderAsc(tbl+".created_at").
+		LeftJoin(TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+		Where(TableTransactionsRewardsOwnersOutputs + " is null").
 		Limit(RowLimitValue)
 
 	sc := session.Select(

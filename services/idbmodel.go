@@ -40,6 +40,7 @@ const (
 	TableAccumulateBalancesTransactions   = "accumulate_balances_transactions"
 	TableTransactionsRewardsOwners        = "transactions_rewards_owners"
 	TableTransactionsRewardsOwnersAddress = "transactions_rewards_owners_address"
+	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
 	TableTxPool                           = "tx_pool"
 )
 
@@ -334,6 +335,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*TransactionsRewardsOwnersAddress,
+		bool,
+	) error
+
+	QueryTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
+	) (*TransactionsRewardsOwnersOutputs, error)
+	InsertTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
 		bool,
 	) error
 
@@ -1825,6 +1838,61 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableTransactionsRewardsOwnersAddress, true, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsRewardsOwnersOutputs struct {
+	ID            string
+	TransactionID string
+	OutputIndex   uint32
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwnersOutputs,
+) (*TransactionsRewardsOwnersOutputs, error) {
+	v := &TransactionsRewardsOwnersOutputs{}
+	err := sess.Select(
+		"id",
+		"transaction_id",
+		"output_index",
+		"created_at",
+	).From(TableTransactionsRewardsOwnersOutputs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwnersOutputs,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwnersOutputs).
+		Pair("id", v.ID).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwnersOutputs, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwnersOutputs).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwnersOutputs, true, err)
 		}
 	}
 	return nil
