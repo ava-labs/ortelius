@@ -362,7 +362,7 @@ func (w *Writer) InsertOutputAddress(
 	outputAddressAccumulate := &services.OutputAddressAccumulate{
 		OutputID:      outputID.String(),
 		Address:       address.String(),
-		TransactionId: txID.String(),
+		TransactionID: txID.String(),
 		OutputIndex:   idx,
 		CreatedAt:     time.Now(),
 	}
