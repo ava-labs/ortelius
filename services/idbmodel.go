@@ -1462,6 +1462,8 @@ type OutputAddressAccumulate struct {
 	Address         string
 	Processed       int
 	OutputProcessed int
+	TransactionID   string
+	OutputIndex     uint32
 	CreatedAt       time.Time
 }
 
@@ -1486,6 +1488,8 @@ func (p *persist) QueryOutputAddressAccumulateOut(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateOut).
 		Where("id=?", q.ID).
@@ -1504,6 +1508,8 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
@@ -1524,6 +1530,8 @@ func (p *persist) QueryOutputAddressAccumulateIn(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateIn).
 		Where("id=?", q.ID).
@@ -1542,6 +1550,8 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {

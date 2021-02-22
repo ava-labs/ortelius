@@ -1009,6 +1009,8 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	v := &OutputAddressAccumulate{}
 	v.OutputID = "out1"
 	v.Address = "adr1"
+	v.TransactionID = "txid1"
+	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
 
 	err := v.ComputeID()
@@ -1044,6 +1046,8 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	v := &OutputAddressAccumulate{}
 	v.OutputID = "out1"
 	v.Address = "adr1"
+	v.TransactionID = "txid1"
+	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
 
 	err := v.ComputeID()
