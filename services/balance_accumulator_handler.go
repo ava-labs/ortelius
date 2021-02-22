@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -18,6 +16,8 @@ var RowLimitValue = uint64(RowLimitValueBase)
 var LockSize = 5
 var Threads = int64(2)
 
+var retryProcessing = 3
+
 var updTimeout = 1 * time.Minute
 
 type processType uint32
@@ -26,11 +26,14 @@ var processTypeIn processType = 1
 var processTypeOut processType = 2
 
 type BalanceAccumulatorManager struct {
-	handler    *BalancerAccumulateHandler
-	ticker     *time.Ticker
-	sc         *Control
-	persist    Persist
-	tickerOnce sync.Once
+	handler *BalancerAccumulateHandler
+	ticker  *time.Ticker
+	sc      *Control
+	persist Persist
+	ins     chan struct{}
+	outs    chan struct{}
+	txs     chan struct{}
+	doneCh  chan struct{}
 }
 
 func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
@@ -39,8 +42,13 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumul
 		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
+		doneCh:  make(chan struct{}),
 	}
 	return bmanager, nil
+}
+
+func (a *BalanceAccumulatorManager) Close() {
+	close(a.doneCh)
 }
 
 func (a *BalanceAccumulatorManager) RunTicker() error {
@@ -48,14 +56,39 @@ func (a *BalanceAccumulatorManager) RunTicker() error {
 		return nil
 	}
 
-	conns, err := a.sc.DatabaseOnly()
+	connsTicker, err := a.sc.DatabaseOnly()
 	if err != nil {
 		return err
 	}
 
-	a.tickerOnce.Do(func() {
-		a.runTicker(conns)
-	})
+	a.runTicker(connsTicker)
+
+	connsOuts, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+	a.ins = make(chan struct{}, 1)
+	a.runProcessing("out", connsOuts, func(conns *Connections) (uint64, error) {
+		return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
+	}, a.ins)
+
+	connsIns, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+	a.outs = make(chan struct{}, 1)
+	a.runProcessing("in", connsIns, func(conns *Connections) (uint64, error) {
+		return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
+	}, a.outs)
+
+	connsTxs, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+	a.txs = make(chan struct{}, 1)
+	a.runProcessing("tx", connsTxs, func(conns *Connections) (uint64, error) {
+		return a.handler.processTransactions(conns, a.persist)
+	}, a.txs)
 
 	return nil
 }
@@ -64,7 +97,7 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 	go func() {
 		runEvent := func(conns *Connections) {
 			icnt := 0
-			for ; icnt < 10; icnt++ {
+			for ; icnt < retryProcessing; icnt++ {
 				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
 				if db.ErrIsLockError(err) {
 					icnt = 0
@@ -89,8 +122,48 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 			}
 		}()
 
-		for range a.ticker.C {
-			runEvent(conns)
+		for {
+			select {
+			case <-a.ticker.C:
+				runEvent(conns)
+			case <-a.doneCh:
+				return
+			}
+		}
+	}()
+}
+
+func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
+	go func() {
+		defer func() {
+			err := conns.Close()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+			}
+		}()
+
+		for {
+			select {
+			case <-trigger:
+				icnt := 0
+				for ; icnt < retryProcessing; icnt++ {
+					cnt, err := f(conns)
+					if db.ErrIsLockError(err) {
+						icnt = 0
+						continue
+					}
+					if err != nil {
+						a.sc.Log.Error("accumulate error %s %v", id, err)
+						return
+					}
+					if cnt < RowLimitValue {
+						break
+					}
+					icnt = 0
+				}
+			case <-a.doneCh:
+				return
+			}
 		}
 	}()
 }
@@ -99,78 +172,23 @@ func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
 	if !sc.IsAccumulateBalanceIndexer {
 		return
 	}
-	a.handler.Run(persist, sc)
+
+	select {
+	case a.ins <- struct{}{}:
+	default:
+	}
+	select {
+	case a.outs <- struct{}{}:
+	default:
+	}
+	select {
+	case a.txs <- struct{}{}:
+	default:
+	}
 }
 
 type BalancerAccumulateHandler struct {
-	runcntIns   int64
-	runcntOuts  int64
-	runcntTrans int64
-	lock        sync.Mutex
-	sc          *Control
-}
-
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
-	a.runInternal(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeOut, conns, persist)
-	}, persist)
-	a.runInternal(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(true, processTypeIn, conns, persist)
-	}, persist)
-	a.runInternal(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processTransactions(conns, persist)
-	}, persist)
-}
-
-func (a *BalancerAccumulateHandler) runInternal(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error), persist Persist) {
-	if atomic.LoadInt64(runcnt) >= Threads {
-		return
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	if atomic.LoadInt64(runcnt) >= Threads {
-		return
-	}
-
-	atomic.AddInt64(runcnt, 1)
-
-	go func() {
-		defer func() {
-			atomic.AddInt64(runcnt, -1)
-		}()
-
-		conns, err := a.sc.DatabaseOnly()
-		if err != nil {
-			a.sc.Log.Warn("connection close %v", err)
-			return
-		}
-
-		defer func() {
-			err := conns.Close()
-			if err != nil {
-				a.sc.Log.Warn("connection close %v", err)
-			}
-		}()
-
-		icnt := 0
-		for ; icnt < 10; icnt++ {
-			cnt, err := f(conns, persist)
-			if db.ErrIsLockError(err) {
-				icnt = 0
-				continue
-			}
-			if err != nil {
-				a.sc.Log.Error("accumulate error %s %v", id, err)
-				return
-			}
-			if cnt < RowLimitValue {
-				break
-			}
-			icnt = 0
-		}
-	}()
+	sc *Control
 }
 
 type OutputAddressAccumulateWithTrID struct {
