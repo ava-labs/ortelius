@@ -666,7 +666,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 
 	var dataList []*services.CvmTransactionsTxdata
 
-	sq := p.Apply(dbRunner.Select(
+	sq := dbRunner.Select(
 		"hash",
 		"block",
 		"idx",
@@ -674,12 +674,20 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"nonce",
 		"serialization",
 		"created_at",
-	).From(services.TableCvmTransactionsTxdata).
-		Where("rcpt in ?", p.CAddresses))
+	).From(services.TableCvmTransactionsTxdata)
 
-	err = sq.
+	if len(p.CAddresses) > 0 {
+		sq.
+			Where("rcpt in ?", p.CAddresses)
+	}
+	if len(p.Hashes) > 0 {
+		sq.
+			Where("hash in ?", p.Hashes)
+	}
+
+	_, err = p.Apply(sq).
 		OrderDesc("created_at").
-		LoadOneContext(ctx, &dataList)
+		LoadContext(ctx, &dataList)
 	if err != nil {
 		return nil, err
 	}

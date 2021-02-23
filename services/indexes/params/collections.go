@@ -299,6 +299,7 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 type ListCTransactionsParams struct {
 	ListParams ListParams
 	CAddresses []string
+	Hashes     []string
 	Sort       TransactionSort
 }
 
@@ -322,6 +323,14 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 			addressStr = "0x" + addressStr
 		}
 		p.CAddresses = append(p.CAddresses, addressStr)
+	}
+
+	hashStrs := q[KeyHash]
+	for _, hashStr := range hashStrs {
+		if !strings.HasPrefix(hashStr, "0x") {
+			hashStr = "0x" + hashStr
+		}
+		p.Hashes = append(p.Hashes, hashStr)
 	}
 
 	return nil
