@@ -161,6 +161,25 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
 	a.sc.Log.Info("start processing %v", id)
 	go func() {
+		runEvent := func(conns *Connections) {
+			icnt := 0
+			for ; icnt < retryProcessing; icnt++ {
+				cnt, err := f(conns)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					a.sc.Log.Error("accumulate error %s %v", id, err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
+				icnt = 0
+			}
+		}
+
 		defer func() {
 			err := conns.Close()
 			if err != nil {
@@ -172,22 +191,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 		for {
 			select {
 			case <-trigger:
-				icnt := 0
-				for ; icnt < retryProcessing; icnt++ {
-					cnt, err := f(conns)
-					if db.ErrIsLockError(err) {
-						icnt = 0
-						continue
-					}
-					if err != nil {
-						a.sc.Log.Error("accumulate error %s %v", id, err)
-						continue
-					}
-					if cnt < RowLimitValue {
-						break
-					}
-					icnt = 0
-				}
+				runEvent(conns)
 			case <-a.doneCh:
 				return
 			}
