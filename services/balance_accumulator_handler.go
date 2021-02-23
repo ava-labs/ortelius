@@ -181,7 +181,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 					}
 					if err != nil {
 						a.sc.Log.Error("accumulate error %s %v", id, err)
-						return
+						continue
 					}
 					if cnt < RowLimitValue {
 						break
