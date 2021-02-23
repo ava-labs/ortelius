@@ -1009,6 +1009,8 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	v := &OutputAddressAccumulate{}
 	v.OutputID = "out1"
 	v.Address = "adr1"
+	v.TransactionID = "txid1"
+	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
 
 	err := v.ComputeID()
@@ -1024,13 +1026,31 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateOut).Exec()
 
-	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
 	fv, err := p.QueryOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputIndex = 3
+	v.TransactionID = "tr3"
+
+	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.OutputIndex != 3 {
+		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
@@ -1044,6 +1064,8 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	v := &OutputAddressAccumulate{}
 	v.OutputID = "out1"
 	v.Address = "adr1"
+	v.TransactionID = "txid1"
+	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
 
 	err := v.ComputeID()
@@ -1059,13 +1081,31 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateIn).Exec()
 
-	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
 	fv, err := p.QueryOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputIndex = 3
+	v.TransactionID = "tr3"
+
+	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.OutputIndex != 3 {
+		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
@@ -1214,6 +1254,37 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 		t.Fatal("insert fail", err)
 	}
 	fv, err := p.QueryAccumulateBalancesTransactions(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
+func TestTransactionsRewardsOwnersOutputs(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &TransactionsRewardsOwnersOutputs{}
+	v.ID = "txid1"
+	v.TransactionID = "addr1"
+	v.OutputIndex = 1
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsRewardsOwnersOutputs).Exec()
+
+	err = p.InsertTransactionsRewardsOwnersOutputs(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsRewardsOwnersOutputs(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
 	}

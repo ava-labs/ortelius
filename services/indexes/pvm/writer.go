@@ -263,7 +263,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx, castTx.Stake)
 			if err != nil {
 				return err
 			}
@@ -292,7 +292,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx.ID())
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx, castTx.Stake)
 			if err != nil {
 				return err
 			}
@@ -360,7 +360,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	)
 }
 
-func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, txID ids.ID) error {
+func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, baseTx avax.BaseTx, stakeOuts []*avax.TransferableOutput) error {
 	var err error
 
 	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
@@ -373,7 +373,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 		addrid := ids.ShortID{}
 		copy(addrid[:], addr)
 		txRewardsOwnerAddress := &services.TransactionsRewardsOwnersAddress{
-			ID:          txID.String(),
+			ID:          baseTx.ID().String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
 		}
@@ -384,8 +384,26 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 		}
 	}
 
+	// write out outputs in the len(outs) and len(outs)+1 positions to identify these rewards
+	outcnt := len(baseTx.Outs) + len(stakeOuts)
+	for ipos := outcnt; ipos < outcnt+2; ipos++ {
+		outputID := baseTx.ID().Prefix(uint64(ipos))
+
+		txRewardsOutputs := &services.TransactionsRewardsOwnersOutputs{
+			ID:            outputID.String(),
+			TransactionID: baseTx.ID().String(),
+			OutputIndex:   uint32(ipos),
+			CreatedAt:     ctx.Time(),
+		}
+
+		err = ctx.Persist().InsertTransactionsRewardsOwnersOutputs(ctx.Ctx(), ctx.DB(), txRewardsOutputs, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+
 	txRewardsOwner := &services.TransactionsRewardsOwners{
-		ID:        txID.String(),
+		ID:        baseTx.ID().String(),
 		ChainID:   w.chainID,
 		Threshold: owner.Threshold,
 		Locktime:  owner.Locktime,

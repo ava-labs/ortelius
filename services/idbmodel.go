@@ -40,6 +40,7 @@ const (
 	TableAccumulateBalancesTransactions   = "accumulate_balances_transactions"
 	TableTransactionsRewardsOwners        = "transactions_rewards_owners"
 	TableTransactionsRewardsOwnersAddress = "transactions_rewards_owners_address"
+	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
 	TableTxPool                           = "tx_pool"
 )
 
@@ -263,6 +264,7 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
 	) error
 
 	QueryOutputAddressAccumulateIn(
@@ -274,6 +276,12 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
+	) error
+	UpdateOutputAddressAccumulateInOutputsProcessed(
+		context.Context,
+		dbr.SessionRunner,
+		string,
 	) error
 
 	QueryOutputTxsAccumulate(
@@ -329,6 +337,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*TransactionsRewardsOwnersAddress,
+		bool,
+	) error
+
+	QueryTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
+	) (*TransactionsRewardsOwnersOutputs, error)
+	InsertTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
 		bool,
 	) error
 
@@ -1439,11 +1459,14 @@ func (p *persist) InsertAddressBech32(
 }
 
 type OutputAddressAccumulate struct {
-	ID        string
-	OutputID  string
-	Address   string
-	Processed int
-	CreatedAt time.Time
+	ID              string
+	OutputID        string
+	Address         string
+	Processed       int
+	OutputProcessed int
+	TransactionID   string
+	OutputIndex     uint32
+	CreatedAt       time.Time
 }
 
 func (b *OutputAddressAccumulate) ComputeID() error {
@@ -1467,6 +1490,8 @@ func (p *persist) QueryOutputAddressAccumulateOut(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateOut).
 		Where("id=?", q.ID).
@@ -1478,6 +1503,7 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1485,10 +1511,26 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateOut, false, err)
+	}
+
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateOut).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
 	}
 
 	return nil
@@ -1505,6 +1547,8 @@ func (p *persist) QueryOutputAddressAccumulateIn(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateIn).
 		Where("id=?", q.ID).
@@ -1516,6 +1560,7 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1523,7 +1568,39 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputAddressAccumulateIn, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateIn).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateOutputAddressAccumulateInOutputsProcessed(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	id string,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableOutputAddressAccumulateIn).
+		Set("output_processed", 1).
+		Where("output_id=? and output_processed <> ?", id, 1).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateIn, false, err)
@@ -1801,6 +1878,61 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableTransactionsRewardsOwnersAddress, true, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsRewardsOwnersOutputs struct {
+	ID            string
+	TransactionID string
+	OutputIndex   uint32
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwnersOutputs,
+) (*TransactionsRewardsOwnersOutputs, error) {
+	v := &TransactionsRewardsOwnersOutputs{}
+	err := sess.Select(
+		"id",
+		"transaction_id",
+		"output_index",
+		"created_at",
+	).From(TableTransactionsRewardsOwnersOutputs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwnersOutputs,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwnersOutputs).
+		Pair("id", v.ID).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwnersOutputs, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwnersOutputs).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwnersOutputs, true, err)
 		}
 	}
 	return nil

@@ -168,6 +168,9 @@ func execute() error {
 	if err := cmd.Execute(); err != nil {
 		return err
 	}
+
+	serviceControl.BalanceAccumulatorManager.Close()
+
 	return runErr
 }
 
@@ -372,14 +375,19 @@ func runStreamProcessorManagers(
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
-			err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+			err := sc.BalanceAccumulatorManager.Start()
+			if err != nil {
+				*runError = err
+				return
+			}
+			err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 			if err != nil {
 				*runError = err
 				return
 			}
 
 			// start the accumulator at startup
-			sc.BalanceAccumulatorManager.Run(sc.Persist, sc)
+			sc.BalanceAccumulatorManager.Run(sc)
 		}
 
 		wg := &sync.WaitGroup{}
