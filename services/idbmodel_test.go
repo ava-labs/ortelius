@@ -1037,6 +1037,24 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
+
+	v.OutputIndex = 3
+	v.TransactionID = "tr3"
+
+	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.OutputIndex != 3 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
 }
 
 func TestOutputAddressAccumulateIn(t *testing.T) {
@@ -1070,6 +1088,24 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	fv, err := p.QueryOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.OutputIndex = 3
+	v.TransactionID = "tr3"
+
+	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if v.OutputIndex != 3 {
+		t.Fatal("compare fail")
 	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
