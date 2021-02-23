@@ -1226,6 +1226,37 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 	}
 }
 
+func TestTransactionsRewardsOwnersOutputs(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &TransactionsRewardsOwnersOutputs{}
+	v.ID = "txid1"
+	v.TransactionID = "addr1"
+	v.OutputIndex = 1
+	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableTransactionsRewardsOwnersOutputs).Exec()
+
+	err = p.InsertTransactionsRewardsOwnersOutputs(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryTransactionsRewardsOwnersOutputs(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
+
 func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
