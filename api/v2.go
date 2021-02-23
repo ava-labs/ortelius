@@ -286,7 +286,6 @@ func (c *V2Context) GetTransaction(w web.ResponseWriter, r *web.Request) {
 	})
 }
 
-
 func (c *V2Context) ListCTransactions(w web.ResponseWriter, r *web.Request) {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterObserveMillisCollect(MetricMillis),
@@ -311,9 +310,9 @@ func (c *V2Context) ListCTransactions(w web.ResponseWriter, r *web.Request) {
 
 	c.WriteCacheable(w, Cacheable{
 		TTL: 5 * time.Second,
-		Key: c.cacheKeyForParams("list_transactions", p),
+		Key: c.cacheKeyForParams("list_ctransactions", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.ListCTransactions(ctx, p, c.avaxAssetID)
+			return c.avaxReader.ListCTransactions(ctx, p)
 		},
 	})
 }

@@ -622,7 +622,7 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 	return &next
 }
 
-func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams, avaxAssetID ids.ID) (*models.CTransactionList, error) {
+func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams) (*models.CTransactionList, error) {
 	toCTransactionData := func(t *types.Transaction) *models.CTransactionData {
 		res := &models.CTransactionData{}
 		res.Nonce = t.Nonce()
@@ -632,7 +632,8 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		}
 		res.GasLimit = t.Gas()
 		if t.To() != nil {
-			res.Recipient = t.To().Hex()
+			str := t.To().Hex()
+			res.Recipient = &str
 		}
 		if t.Value() != nil {
 			str := t.Value().String()

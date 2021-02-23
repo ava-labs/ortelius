@@ -29,15 +29,15 @@ type TransactionList struct {
 
 type CTransactionData struct {
 	Nonce     uint64  `json:"nonce"`
-	GasPrice  *string `json:"gasPrice"`
+	GasPrice  *string `json:"gasPrice,omitempty"`
 	GasLimit  uint64  `json:"gasLimit"`
-	Recipient string  `json:"recipient"`
-	Amount    *string `json:"value"`
-	Payload   []byte  `json:"input"`
+	Recipient *string `json:"recipient,omitempty"`
+	Amount    *string `json:"value,omitempty"`
+	Payload   []byte  `json:"input,omitempty"`
 	// Signature values
-	V *string `json:"v"`
-	R *string `json:"r"`
-	S *string `json:"s"`
+	V *string `json:"v,omitempty"`
+	R *string `json:"r,omitempty"`
+	S *string `json:"s,omitempty"`
 }
 
 type CTransactionList struct {
