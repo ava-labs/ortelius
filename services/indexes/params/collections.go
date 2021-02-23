@@ -308,6 +308,8 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		return err
 	}
 
+	p.ListParams.ObserveTimeProvided = true
+
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {

@@ -661,8 +661,6 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		return nil, err
 	}
 
-	p.ListParams.ObserveTimeProvided = true
-
 	var dataList []*services.CvmTransactionsTxdata
 
 	sq := p.Apply(dbRunner.Select(
