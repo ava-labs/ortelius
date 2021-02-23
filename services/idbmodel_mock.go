@@ -394,7 +394,7 @@ func (m *MockPersist) QueryOutputAddressAccumulateOut(ctx context.Context, runne
 	return nil, nil
 }
 
-func (m *MockPersist) InsertOutputAddressAccumulateOut(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
+func (m *MockPersist) InsertOutputAddressAccumulateOut(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}
@@ -412,7 +412,7 @@ func (m *MockPersist) QueryOutputAddressAccumulateIn(ctx context.Context, runner
 	return nil, nil
 }
 
-func (m *MockPersist) InsertOutputAddressAccumulateIn(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate) error {
+func (m *MockPersist) InsertOutputAddressAccumulateIn(ctx context.Context, runner dbr.SessionRunner, v *OutputAddressAccumulate, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &OutputAddressAccumulate{}

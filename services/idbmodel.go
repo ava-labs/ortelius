@@ -264,6 +264,7 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
 	) error
 
 	QueryOutputAddressAccumulateIn(
@@ -275,6 +276,7 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
 	) error
 	UpdateOutputAddressAccumulateInOutputsProcessed(
 		context.Context,
@@ -1501,6 +1503,7 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1514,6 +1517,20 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateOut, false, err)
+	}
+
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateOut).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
 	}
 
 	return nil
@@ -1543,6 +1560,7 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1557,7 +1575,19 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateIn, false, err)
 	}
-
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateIn).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
+	}
 	return nil
 }
 

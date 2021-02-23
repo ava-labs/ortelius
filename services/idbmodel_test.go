@@ -1026,7 +1026,7 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateOut).Exec()
 
-	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v)
+	err = p.InsertOutputAddressAccumulateOut(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
@@ -1063,7 +1063,7 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	}
 	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableOutputAddressAccumulateIn).Exec()
 
-	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v)
+	err = p.InsertOutputAddressAccumulateIn(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
 		t.Fatal("insert fail", err)
 	}
