@@ -633,6 +633,9 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		res.GasLimit = t.Gas()
 		if t.To() != nil {
 			str := t.To().Hex()
+			if !strings.HasPrefix(str, "0x") {
+				str = "0x" + str
+			}
 			res.Recipient = &str
 		}
 		if t.Value() != nil {
