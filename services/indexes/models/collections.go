@@ -27,6 +27,30 @@ type TransactionList struct {
 	Next *string `json:"next,omitempty"`
 }
 
+type CTransactionData struct {
+	Nonce     uint64  `json:"nonce"`
+	GasPrice  *string `json:"gasPrice"`
+	GasLimit  uint64  `json:"gasLimit"`
+	Recipient string  `json:"recipient"`
+	Amount    *string `json:"value"`
+	Payload   []byte  `json:"input"`
+	// Signature values
+	V *string `json:"v"`
+	R *string `json:"r"`
+	S *string `json:"s"`
+}
+
+type CTransactionList struct {
+	Transactions []*CTransactionData
+	// StartTime is the calculated start time rounded to the nearest
+	// TransactionRoundDuration.
+	StartTime time.Time `json:"startTime"`
+
+	// EndTime is the calculated end time rounded to the nearest
+	// TransactionRoundDuration.
+	EndTime time.Time `json:"endTime"`
+}
+
 type AssetList struct {
 	ListMetadata
 	Assets []*Asset `json:"assets"`

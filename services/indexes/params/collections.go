@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
@@ -290,6 +292,102 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 	} else if dosq {
 		b.Where("avm_transactions.id in ?", subquery)
 	}
+
+	return b
+}
+
+type ListCTransactionsParams struct {
+	ListParams ListParams
+	CAddresses []string
+	Sort       TransactionSort
+}
+
+func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
+	err := p.ListParams.ForValues(v, q)
+	if err != nil {
+		return err
+	}
+
+	p.Sort = TransactionSortDefault
+	sortBys, ok := q[KeySortBy]
+	if ok && len(sortBys) >= 1 {
+		p.Sort, _ = toTransactionSort(sortBys[0])
+	}
+
+	addressStrs := q[KeyAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddresses = append(p.CAddresses, addressStr)
+	}
+
+	return nil
+}
+
+func (p *ListCTransactionsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+	k = append(k, CacheKey(KeySortBy, p.Sort))
+
+	for _, address := range p.CAddresses {
+		k = append(k, CacheKey(KeyAddress, address))
+	}
+
+	return k
+}
+
+func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	p.ListParams.Apply(services.TableCvmTransactionsTxdata, b)
+
+	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
+	} else if !p.ListParams.StartTime.IsZero() {
+		b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
+	}
+	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
+	} else if !p.ListParams.EndTime.IsZero() {
+		b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
+	}
+
+	// var dosq bool
+	// var dosqRedeem bool
+	// subquery := dbr.Select("avm_outputs.transaction_id").
+	// 	From("avm_outputs").
+	// 	LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
+	// subqueryRedeem := dbr.Select("avm_outputs_redeeming.redeeming_transaction_id as transaction_id").
+	// 	From("avm_outputs_redeeming").
+	// 	LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
+	// 	Where("avm_outputs_redeeming.redeeming_transaction_id is not null")
+	//
+	// if len(p.Addresses) > 0 {
+	// 	dosq = true
+	// 	dosqRedeem = true
+	// 	addrs := make([]string, len(p.Addresses))
+	// 	for i, id := range p.Addresses {
+	// 		addrs[i] = id.String()
+	// 	}
+	// 	subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
+	// 	subqueryRedeem = subqueryRedeem.Where("avm_output_addresses.address IN ?", addrs)
+	// }
+	//
+	// if p.AssetID != nil {
+	// 	dosq = true
+	// 	subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+	// 	if len(p.OutputOutputTypes) != 0 {
+	// 		subquery = subquery.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
+	// 	}
+	// 	if len(p.OutputGroupIDs) != 0 {
+	// 		subquery = subquery.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
+	// 	}
+	// }
+	//
+	// if dosq && dosqRedeem {
+	// 	uq := dbr.Union(subquery, subqueryRedeem).As("union_q")
+	// 	b.Where("avm_transactions.id in ?",
+	// 		dbr.Select("union_q.transaction_id").From(uq),
+	// 	)
+	// } else if dosq {
+	// 	b.Where("avm_transactions.id in ?", subquery)
+	// }
 
 	return b
 }

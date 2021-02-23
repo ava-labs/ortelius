@@ -104,7 +104,8 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/atxdata/:id", (*V2Context).ATxData).
 		Get("/ptxdata/:id", (*V2Context).PTxData).
 		Get("/ctxdata/:id", (*V2Context).CTxData).
-		Get("/etxdata/:id", (*V2Context).ETxData)
+		Get("/etxdata/:id", (*V2Context).ETxData).
+		Get("/ctransactions", (*V2Context).ListCTransactions)
 }
 
 //
@@ -281,6 +282,38 @@ func (c *V2Context) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.GetTransaction(ctx, id, c.avaxAssetID)
+		},
+	})
+}
+
+
+func (c *V2Context) ListCTransactions(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+		metrics.NewCounterObserveMillisCollect(MetricTransactionsMillis),
+		metrics.NewCounterIncCollect(MetricTransactionsCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
+	p := &params.ListCTransactionsParams{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	if p.ListParams.Offset > DefaultOffsetLimit {
+		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("list_transactions", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.ListCTransactions(ctx, p, c.avaxAssetID)
 		},
 	})
 }

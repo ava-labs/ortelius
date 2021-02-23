@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -618,6 +620,85 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 	}
 	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
 	return &next
+}
+
+func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams, avaxAssetID ids.ID) (*models.CTransactionList, error) {
+	dbRunner, err := r.conns.DB().NewSession("list_ctransactions", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	p.ListParams.ObserveTimeProvided = true
+
+	var dataList []*services.CvmTransactionsTxdata
+
+	sq := p.Apply(dbRunner.Select(
+		"hash",
+		"block",
+		"idx",
+		"rcpt",
+		"nonce",
+		"serialization",
+		"created_at",
+	).From(services.TableCvmTransactionsTxdata).
+		Where("rcpt in ?", p.CAddresses))
+
+	err = sq.
+		OrderDesc("created_at").
+		LoadOneContext(ctx, &dataList)
+	if err != nil {
+		return nil, err
+	}
+
+	var trItems []*models.CTransactionData
+	for _, txdata := range dataList {
+		var tr types.Transaction
+		err := tr.UnmarshalJSON(txdata.Serialization)
+		if err != nil {
+			return nil, err
+		}
+		trItems = append(trItems, toCTransactionData(&tr))
+	}
+
+	listParamsOriginal := p.ListParams
+
+	return &models.CTransactionList{
+		Transactions: trItems,
+		StartTime:    listParamsOriginal.StartTime,
+		EndTime:      listParamsOriginal.EndTime,
+	}, nil
+}
+
+func toCTransactionData(t *types.Transaction) *models.CTransactionData {
+	res := &models.CTransactionData{}
+	res.Nonce = t.Nonce()
+	if t.GasPrice() != nil {
+		str := t.GasPrice().String()
+		res.GasPrice = &str
+	}
+	res.GasLimit = t.Gas()
+	if t.To() != nil {
+		res.Recipient = t.To().Hex()
+	}
+	if t.Value() != nil {
+		str := t.Value().String()
+		res.Amount = &str
+	}
+	res.Payload = t.Data()
+	v, s, r := t.RawSignatureValues()
+	if v != nil {
+		str := v.String()
+		res.V = &str
+	}
+	if s != nil {
+		str := s.String()
+		res.S = &str
+	}
+	if r != nil {
+		str := r.String()
+		res.R = &str
+	}
+	return res
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
