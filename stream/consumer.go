@@ -26,7 +26,7 @@ const (
 	ConsumerEventTypeDefault = EventTypeDecisions
 	ConsumerMaxBytesDefault  = 10e8
 
-	pollLimit = 100
+	pollLimit = 500
 	pollSleep = 250 * time.Millisecond
 )
 
