@@ -684,14 +684,16 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		return nil, err
 	}
 
-	var trItems []*models.CTransactionData
+	trItems := make([]*models.CTransactionData, 0, len(dataList))
 	for _, txdata := range dataList {
 		var tr types.Transaction
 		err := tr.UnmarshalJSON(txdata.Serialization)
 		if err != nil {
 			return nil, err
 		}
-		trItems = append(trItems, toCTransactionData(&tr))
+		ctr := toCTransactionData(&tr)
+		ctr.Block = txdata.Block
+		trItems = append(trItems, ctr)
 	}
 
 	listParamsOriginal := p.ListParams

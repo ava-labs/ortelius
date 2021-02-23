@@ -28,6 +28,7 @@ type TransactionList struct {
 }
 
 type CTransactionData struct {
+	Block string `json:"block"`
 	Nonce     uint64  `json:"nonce"`
 	GasPrice  *string `json:"gasPrice,omitempty"`
 	GasLimit  uint64  `json:"gasLimit"`
@@ -35,9 +36,9 @@ type CTransactionData struct {
 	Amount    *string `json:"value,omitempty"`
 	Payload   []byte  `json:"input,omitempty"`
 	// Signature values
-	V *string `json:"v,omitempty"`
-	R *string `json:"r,omitempty"`
-	S *string `json:"s,omitempty"`
+	V     *string `json:"v,omitempty"`
+	R     *string `json:"r,omitempty"`
+	S     *string `json:"s,omitempty"`
 }
 
 type CTransactionList struct {
