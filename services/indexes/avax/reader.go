@@ -693,6 +693,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		}
 		ctr := toCTransactionData(&tr)
 		ctr.Block = txdata.Block
+		ctr.CreatedAt = txdata.CreatedAt
 		trItems = append(trItems, ctr)
 	}
 
