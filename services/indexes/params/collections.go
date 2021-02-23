@@ -348,47 +348,6 @@ func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder
 		b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
 	}
 
-	// var dosq bool
-	// var dosqRedeem bool
-	// subquery := dbr.Select("avm_outputs.transaction_id").
-	// 	From("avm_outputs").
-	// 	LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
-	// subqueryRedeem := dbr.Select("avm_outputs_redeeming.redeeming_transaction_id as transaction_id").
-	// 	From("avm_outputs_redeeming").
-	// 	LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
-	// 	Where("avm_outputs_redeeming.redeeming_transaction_id is not null")
-	//
-	// if len(p.Addresses) > 0 {
-	// 	dosq = true
-	// 	dosqRedeem = true
-	// 	addrs := make([]string, len(p.Addresses))
-	// 	for i, id := range p.Addresses {
-	// 		addrs[i] = id.String()
-	// 	}
-	// 	subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
-	// 	subqueryRedeem = subqueryRedeem.Where("avm_output_addresses.address IN ?", addrs)
-	// }
-	//
-	// if p.AssetID != nil {
-	// 	dosq = true
-	// 	subquery = subquery.Where("avm_outputs.asset_id = ?", p.AssetID.String())
-	// 	if len(p.OutputOutputTypes) != 0 {
-	// 		subquery = subquery.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
-	// 	}
-	// 	if len(p.OutputGroupIDs) != 0 {
-	// 		subquery = subquery.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
-	// 	}
-	// }
-	//
-	// if dosq && dosqRedeem {
-	// 	uq := dbr.Union(subquery, subqueryRedeem).As("union_q")
-	// 	b.Where("avm_transactions.id in ?",
-	// 		dbr.Select("union_q.transaction_id").From(uq),
-	// 	)
-	// } else if dosq {
-	// 	b.Where("avm_transactions.id in ?", subquery)
-	// }
-
 	return b
 }
 

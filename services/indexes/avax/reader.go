@@ -623,6 +623,38 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 }
 
 func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams, avaxAssetID ids.ID) (*models.CTransactionList, error) {
+	toCTransactionData := func(t *types.Transaction) *models.CTransactionData {
+		res := &models.CTransactionData{}
+		res.Nonce = t.Nonce()
+		if t.GasPrice() != nil {
+			str := t.GasPrice().String()
+			res.GasPrice = &str
+		}
+		res.GasLimit = t.Gas()
+		if t.To() != nil {
+			res.Recipient = t.To().Hex()
+		}
+		if t.Value() != nil {
+			str := t.Value().String()
+			res.Amount = &str
+		}
+		res.Payload = t.Data()
+		v, s, r := t.RawSignatureValues()
+		if v != nil {
+			str := v.String()
+			res.V = &str
+		}
+		if s != nil {
+			str := s.String()
+			res.S = &str
+		}
+		if r != nil {
+			str := r.String()
+			res.R = &str
+		}
+		return res
+	}
+
 	dbRunner, err := r.conns.DB().NewSession("list_ctransactions", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
@@ -667,38 +699,6 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		StartTime:    listParamsOriginal.StartTime,
 		EndTime:      listParamsOriginal.EndTime,
 	}, nil
-}
-
-func toCTransactionData(t *types.Transaction) *models.CTransactionData {
-	res := &models.CTransactionData{}
-	res.Nonce = t.Nonce()
-	if t.GasPrice() != nil {
-		str := t.GasPrice().String()
-		res.GasPrice = &str
-	}
-	res.GasLimit = t.Gas()
-	if t.To() != nil {
-		res.Recipient = t.To().Hex()
-	}
-	if t.Value() != nil {
-		str := t.Value().String()
-		res.Amount = &str
-	}
-	res.Payload = t.Data()
-	v, s, r := t.RawSignatureValues()
-	if v != nil {
-		str := v.String()
-		res.V = &str
-	}
-	if s != nil {
-		str := s.String()
-		res.S = &str
-	}
-	if r != nil {
-		str := r.String()
-		res.R = &str
-	}
-	return res
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {
