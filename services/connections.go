@@ -20,7 +20,8 @@ import (
 )
 
 type Connections struct {
-	stream *health.Stream
+	stream      *health.Stream
+	quietStream *health.Stream
 
 	db    *db.Conn
 	redis *redis.Client
@@ -30,6 +31,7 @@ type Connections struct {
 func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
+	quietStream := NewQuietStream()
 
 	// Create db and redis connections if configured
 	var (
@@ -73,12 +75,13 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 		stream.Event("connect.db.skip")
 	}
 
-	return NewConnections(stream, dbConn, redisClient), nil
+	return NewConnections(stream, quietStream, dbConn, redisClient), nil
 }
 
 func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
+	quietStream := NewQuietStream()
 
 	// Create db and redis connections if configured
 	var (
@@ -97,17 +100,18 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 		return nil, fmt.Errorf("invalid databas")
 	}
 
-	return NewConnections(stream, dbConn, nil), nil
+	return NewConnections(stream, quietStream, dbConn, nil), nil
 }
 
-func NewConnections(s *health.Stream, db *db.Conn, r *redis.Client) *Connections {
+func NewConnections(s *health.Stream, quietStream *health.Stream, db *db.Conn, r *redis.Client) *Connections {
 	var c *cache.Cache
 	if r != nil {
 		c = cache.New(r)
 	}
 
 	return &Connections{
-		stream: s,
+		stream:      s,
+		quietStream: quietStream,
 
 		db:    db,
 		redis: r,
@@ -115,10 +119,11 @@ func NewConnections(s *health.Stream, db *db.Conn, r *redis.Client) *Connections
 	}
 }
 
-func (c Connections) Stream() *health.Stream { return c.stream }
-func (c Connections) DB() *db.Conn           { return c.db }
-func (c Connections) Redis() *redis.Client   { return c.redis }
-func (c Connections) Cache() *cache.Cache    { return c.cache }
+func (c Connections) Stream() *health.Stream      { return c.stream }
+func (c Connections) QuietStream() *health.Stream { return c.quietStream }
+func (c Connections) DB() *db.Conn                { return c.db }
+func (c Connections) Redis() *redis.Client        { return c.redis }
+func (c Connections) Cache() *cache.Cache         { return c.cache }
 
 func (c Connections) Close() error {
 	errs := wrappers.Errs{}
@@ -133,6 +138,10 @@ func NewStream() *health.Stream {
 	s := health.NewStream()
 	s.AddSink(&health.WriterSink{Writer: os.Stdout})
 	return s
+}
+
+func NewQuietStream() *health.Stream {
+	return health.NewStream()
 }
 
 func NewRedisConn(opts *redis.Options) (*redis.Client, error) {
