@@ -348,7 +348,7 @@ func (p *ListCTransactionsParams) CacheKey() []string {
 }
 
 func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.Apply(services.TableCvmTransactionsTxdata, b)
+	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
 
 	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
 	} else if !p.ListParams.StartTime.IsZero() {

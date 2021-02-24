@@ -159,7 +159,7 @@ func (p *ListParams) CacheKey() []string {
 }
 
 func (p ListParams) Apply(listTable string, b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	return p.ApplyPk(listTable, b, "hash", true)
+	return p.ApplyPk(listTable, b, "id", true)
 }
 
 func (p ListParams) ApplyPk(listTable string, b *dbr.SelectBuilder, primaryKey string, pk bool) *dbr.SelectBuilder {
