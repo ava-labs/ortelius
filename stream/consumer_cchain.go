@@ -95,7 +95,7 @@ func (c *ConsumerCChain) ID() string {
 
 func (c *ConsumerCChain) ProcessNextMessage() error {
 	if c.sc.IsDBPoll {
-		job := c.conns.Stream().NewJob("query-txpoll")
+		job := c.conns.QuietStream().NewJob("query-txpoll")
 		sess := c.conns.DB().NewSessionForEventReceiver(job)
 
 		updateStatus := func(txPoll *services.TxPool) error {
