@@ -194,7 +194,7 @@ func (s *WriterSinkExcludeDBDups) EmitEvent(job string, event string, kvs map[st
 	b.WriteString(event)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	s.Writer.Write(b.Bytes())
+	_, _ = s.Writer.Write(b.Bytes())
 }
 
 func (s *WriterSinkExcludeDBDups) EmitEventErr(job string, event string, inputErr error, kvs map[string]string) {
@@ -214,7 +214,7 @@ func (s *WriterSinkExcludeDBDups) EmitEventErr(job string, event string, inputEr
 	b.WriteString(inputErr.Error())
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	s.Writer.Write(b.Bytes())
+	_, _ = s.Writer.Write(b.Bytes())
 }
 
 func (s *WriterSinkExcludeDBDups) EmitTiming(job string, event string, nanos int64, kvs map[string]string) {
@@ -229,7 +229,7 @@ func (s *WriterSinkExcludeDBDups) EmitTiming(job string, event string, nanos int
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	s.Writer.Write(b.Bytes())
+	_, _ = s.Writer.Write(b.Bytes())
 }
 
 func (s *WriterSinkExcludeDBDups) EmitGauge(job string, event string, value float64, kvs map[string]string) {
@@ -244,7 +244,7 @@ func (s *WriterSinkExcludeDBDups) EmitGauge(job string, event string, value floa
 	fmt.Fprintf(&b, "%g", value)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	s.Writer.Write(b.Bytes())
+	_, _ = s.Writer.Write(b.Bytes())
 }
 
 func (s *WriterSinkExcludeDBDups) EmitComplete(job string, status health.CompletionStatus, nanos int64, kvs map[string]string) {
@@ -259,7 +259,7 @@ func (s *WriterSinkExcludeDBDups) EmitComplete(job string, status health.Complet
 	writeNanoseconds(&b, nanos)
 	writeMapConsistently(&b, kvs)
 	b.WriteRune('\n')
-	s.Writer.Write(b.Bytes())
+	_, _ = s.Writer.Write(b.Bytes())
 }
 
 func writeMapConsistently(b *bytes.Buffer, kvs map[string]string) {
