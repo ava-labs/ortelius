@@ -72,7 +72,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 }
 
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
-	job := conns.Stream().NewJob("cvm-index")
+	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
