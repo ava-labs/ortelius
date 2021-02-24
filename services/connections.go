@@ -141,9 +141,7 @@ func NewStream() *health.Stream {
 }
 
 func NewQuietStream() *health.Stream {
-	s := health.NewStream()
-	s.AddSink(&health.WriterSink{})
-	return s
+	return health.NewStream()
 }
 
 func NewRedisConn(opts *redis.Options) (*redis.Client, error) {
