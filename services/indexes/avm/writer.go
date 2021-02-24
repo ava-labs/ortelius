@@ -91,7 +91,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = conns.Stream().NewJob("bootstrap")
+		job                  = conns.QuietStream().NewJob("bootstrap")
 	)
 	job.KeyValue("chain_id", w.chainID)
 
@@ -143,7 +143,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 
 func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	var (
-		job  = conns.Stream().NewJob("index-consensus")
+		job  = conns.StreamDBDedup().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", c.ID())
@@ -199,7 +199,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
-		job  = conns.Stream().NewJob("avm-index")
+		job  = conns.StreamDBDedup().NewJob("avm-index")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", i.ID())

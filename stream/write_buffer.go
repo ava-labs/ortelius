@@ -239,7 +239,7 @@ func (wb *bufferedWriter) processWork(wp *WorkPacket) error {
 	}
 
 	wm := func(txPool *services.TxPool) error {
-		job := wb.conns.Stream().NewJob("write-buffer")
+		job := wb.conns.StreamDBDedup().NewJob("write-buffer")
 		sess := wb.conns.DB().NewSessionForEventReceiver(job)
 
 		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
