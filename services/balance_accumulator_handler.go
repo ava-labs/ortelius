@@ -316,7 +316,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 }
 
 func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *Connections, persist Persist) (uint64, error) {
-	job := conns.Stream().NewJob("accumulate")
+	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
@@ -325,6 +325,9 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 	if err != nil {
 		return 0, err
 	}
+
+	job = conns.Stream().NewJob("accumulate")
+	session = conns.DB().NewSessionForEventReceiver(job)
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
@@ -542,7 +545,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 }
 
 func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
-	job := conns.Stream().NewJob("accumulate")
+	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
@@ -551,6 +554,10 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 	if err != nil {
 		return 0, err
 	}
+
+	job = conns.Stream().NewJob("accumulate")
+	session = conns.DB().NewSessionForEventReceiver(job)
+
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
 		trows := make(map[string]*OutputTxsAccumulate)

@@ -99,7 +99,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
-	job := conns.Stream().NewJob("bootstrap")
+	job := conns.QuietStream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
 	if err != nil {

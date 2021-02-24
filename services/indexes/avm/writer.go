@@ -91,7 +91,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = conns.Stream().NewJob("bootstrap")
+		job                  = conns.QuietStream().NewJob("bootstrap")
 	)
 	job.KeyValue("chain_id", w.chainID)
 
