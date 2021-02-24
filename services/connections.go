@@ -182,7 +182,7 @@ type WriterSinkExcludeDBDups struct {
 }
 
 func (s *WriterSinkExcludeDBDups) EmitEvent(job string, event string, kvs map[string]string) {
-	if (event == "dbr.begin" || event == "dbr.commit") && len(kvs) == 0 {
+	if event == "dbr.begin" || event == "dbr.commit" {
 		return
 	}
 	var b bytes.Buffer
