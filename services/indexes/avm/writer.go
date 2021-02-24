@@ -224,7 +224,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 	// Ingest the tx and commit
 	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to insert tx")
+		return err
 	}
 
 	return dbTx.Commit()
