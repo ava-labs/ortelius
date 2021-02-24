@@ -326,7 +326,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 		return 0, err
 	}
 
-	job = conns.Stream().NewJob("accumulate")
+	job = conns.StreamDBDedup().NewJob("accumulate")
 	session = conns.DB().NewSessionForEventReceiver(job)
 
 	if len(rowdataAvail) > 0 {
@@ -555,7 +555,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 		return 0, err
 	}
 
-	job = conns.Stream().NewJob("accumulate")
+	job = conns.StreamDBDedup().NewJob("accumulate")
 	session = conns.DB().NewSessionForEventReceiver(job)
 
 	if len(rowdataAvail) > 0 {
