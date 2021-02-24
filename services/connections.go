@@ -37,7 +37,7 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 	// Always create a stream and log
 	stream := NewStream()
 	quietStream := NewQuietStream()
-	streamDBDedup := NewDBDedupStream()
+	streamDBDedup := NewStreamDBDups()
 
 	// Create db and redis connections if configured
 	var (
@@ -88,7 +88,7 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	// Always create a stream and log
 	stream := NewStream()
 	quietStream := NewQuietStream()
-	streamDBDedup := NewDBDedupStream()
+	streamDBDedup := NewStreamDBDups()
 
 	// Create db and redis connections if configured
 	var (
@@ -150,7 +150,7 @@ func NewStream() *health.Stream {
 	return s
 }
 
-func NewDBDedupStream() *health.Stream {
+func NewStreamDBDups() *health.Stream {
 	s := health.NewStream()
 	s.AddSink(&WriterSinkExcludeDBDups{Writer: os.Stdout})
 	return s
