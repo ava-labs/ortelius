@@ -138,7 +138,7 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 }
 
 func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
-	job := p.conns.Stream().NewJob("update-tx-pool")
+	job := p.conns.StreamDBDedup().NewJob("update-tx-pool")
 	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
