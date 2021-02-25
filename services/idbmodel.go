@@ -2108,7 +2108,7 @@ func (p *persist) QueryKeyValueStore(
 		"k",
 		"v",
 	).From(TableKeyValueStore).
-		Where("id=?", q.K).
+		Where("k=?", q.K).
 		LoadOneContext(ctx, v)
 	return v, err
 }
