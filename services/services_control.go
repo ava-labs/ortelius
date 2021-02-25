@@ -26,10 +26,10 @@ type Control struct {
 	Persist                    Persist
 	Features                   map[string]struct{}
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
+	GenesisContainer           *GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
 	IsDBPoll                   bool
-	GenesisContainer           *GenesisContainer
 	IsDisableBootstrap         bool
 }
 
