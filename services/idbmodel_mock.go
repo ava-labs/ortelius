@@ -36,6 +36,7 @@ type MockPersist struct {
 	TransactionsRewardsOwnersOutputs map[string]*TransactionsRewardsOwnersOutputs
 	TransactionsRewardsOwners        map[string]*TransactionsRewardsOwners
 	TxPool                           map[string]*TxPool
+	KeyValueStore                    map[string]*KeyValueStore
 }
 
 func NewPersistMock() *MockPersist {
@@ -67,6 +68,7 @@ func NewPersistMock() *MockPersist {
 		TransactionsRewardsOwnersAddress: make(map[string]*TransactionsRewardsOwnersAddress),
 		TransactionsRewardsOwnersOutputs: make(map[string]*TransactionsRewardsOwnersOutputs),
 		TxPool:                           make(map[string]*TxPool),
+		KeyValueStore:                    make(map[string]*KeyValueStore),
 	}
 }
 
@@ -582,5 +584,23 @@ func (m *MockPersist) UpdateTxPoolStatus(ctx context.Context, runner dbr.Session
 	if fv, present := m.TxPool[v.ID]; present {
 		fv.Processed = v.Processed
 	}
+	return nil
+}
+
+func (m *MockPersist) QueryKeyValueStore(ctx context.Context, runner dbr.SessionRunner, v *KeyValueStore) (*KeyValueStore, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.KeyValueStore[v.K]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertKeyValueStore(ctx context.Context, runner dbr.SessionRunner, v *KeyValueStore) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &KeyValueStore{}
+	*nv = *v
+	m.KeyValueStore[v.K] = nv
 	return nil
 }

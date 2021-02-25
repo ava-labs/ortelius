@@ -1429,3 +1429,32 @@ func TestTxPool(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestKeyValueStore(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &KeyValueStore{}
+	v.K = "k"
+	v.V = "v"
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableKeyValueStore).Exec()
+
+	err = p.InsertKeyValueStore(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryKeyValueStore(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
