@@ -2146,7 +2146,7 @@ func (p *persist) InsertKeyValueStore(
 
 type CvmTransactionsTxdataDebug struct {
 	Hash          string
-	Idx           uint64
+	Idx           uint32
 	ToAddr        string
 	FromAddr      string
 	CallType      string

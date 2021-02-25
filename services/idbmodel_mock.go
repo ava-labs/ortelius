@@ -608,7 +608,7 @@ func (m *MockPersist) InsertKeyValueStore(ctx context.Context, runner dbr.Sessio
 	return nil
 }
 
-func (m *MockPersist) QueryCvmTransactionsTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug, _ bool) (*CvmTransactionsTxdataDebug, error) {
+func (m *MockPersist) QueryCvmTransactionsTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug) (*CvmTransactionsTxdataDebug, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	if v, present := m.CvmTransactionsTxdataDebug[fmt.Sprintf("%s:%v", v.Hash, v.Idx)]; present {
@@ -617,7 +617,7 @@ func (m *MockPersist) QueryCvmTransactionsTxdataDebug(ctx context.Context, runne
 	return nil, nil
 }
 
-func (m *MockPersist) InsertCvmTransactionTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug) error {
+func (m *MockPersist) InsertCvmTransactionsTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	nv := &CvmTransactionsTxdataDebug{}

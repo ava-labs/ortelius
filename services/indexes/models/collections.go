@@ -161,7 +161,7 @@ type AddressChains struct {
 
 type CvmTransactionsTxDataDebug struct {
 	Hash     string `json:"hash"`
-	Idx      uint64 `json:"idx"`
+	Idx      uint32 `json:"idx"`
 	CallType string `json:"callType"`
 	ToAddr   string `json:"to"`
 	FromAddr string `json:"from"`

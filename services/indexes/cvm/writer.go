@@ -38,7 +38,6 @@ type Writer struct {
 	avax  *avaxIndexer.Writer
 }
 
-
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
@@ -91,18 +90,21 @@ func (w *Writer) ConsumeTx(ctx context.Context, conns *services.Connections, c s
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	txDataDebugs := &services.CvmTransactionsTxdataDebug{
-		Hash: txDebug.Hash,
-		Idx: txDebug.Idx,
-		ToAddr: modelsTxDataDebugs.ToAddr,
-		FromAddr: modelsTxDataDebugs.FromAddr,
-		CallType: modelsTxDataDebugs.CallType,
-		Type: modelsTxDataDebugs.Type,
+		Hash:          txDebug.Hash,
+		Idx:           txDebug.Idx,
+		ToAddr:        modelsTxDataDebugs.ToAddr,
+		FromAddr:      modelsTxDataDebugs.FromAddr,
+		CallType:      modelsTxDataDebugs.CallType,
+		Type:          modelsTxDataDebugs.Type,
 		Serialization: txDebug.Debug,
-		CreatedAt: cCtx.Time(),
+		CreatedAt:     cCtx.Time(),
 	}
 
-	persist.InsertCvmTransactionsTxdataDebug(ctx, dbTx, txDataDebugs, cfg.PerformUpdates)
-	
+	err = persist.InsertCvmTransactionsTxdataDebug(ctx, dbTx, txDataDebugs, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
 	return dbTx.Commit()
 }
 
