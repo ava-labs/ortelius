@@ -62,15 +62,20 @@ https://docs.docker.com/compose/install/
 {container-id} of the mysql container can be found using `docker ps -a`
 
 ```
-# docker exec -i -t {container-id}}  mysql -uroot -ppassword ortelius -e "select processed,count(*) from tx_pool group by processed"
-mysql: [Warning] Using a password on the command line interface can be insecure.
-+-----------+----------+
-| processed | count(*) |
-+-----------+----------+
-|         0 |   167188 |
-+-----------+----------+
-
+# docker exec -i -t {container-id}  mysql -uroot -ppassword ortelius -e "select topic,processed,count(*) from tx_pool group by topic,processed"
++---------------------------------------------------+-----------+----------+
+| topic                                             | processed | count(*) |
++---------------------------------------------------+-----------+----------+
+| 1-11111111111111111111111111111111LpoYY-consensus |         0 |     8607 |
+| 1-11111111111111111111111111111111LpoYY-consensus |         1 |   207057 |
+| 1-11111111111111111111111111111111LpoYY-decisions |         0 |   120708 |
+| 1-11111111111111111111111111111111LpoYY-decisions |         1 |    94998 |
++---------------------------------------------------+-----------+----------+
 ```
+
+Processed:
+0 - unprocessed transactions
+1 - processed transactions
 
 ## docker containers
 
