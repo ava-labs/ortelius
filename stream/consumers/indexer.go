@@ -82,11 +82,8 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	keyValueStore := &services.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 	}
-	keyValueStore, err = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
-	if err != nil {
-		return err
-	}
-	if keyValueStore.V != bootstrapValue {
+	keyValueStore, _ = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
+	if keyValueStore.V == bootstrapValue {
 		sc.Log.Info("skipping bootstrap")
 		return nil
 	}
