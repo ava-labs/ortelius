@@ -130,6 +130,7 @@ services:
       - kafkatopics
     volumes:
       - avalanche-ipcs:/tmp
+      - ./../config.cnf:/opt/config.json
     restart: on-failure
   indexer:
     <<: *ortelius-app
