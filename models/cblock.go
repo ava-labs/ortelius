@@ -75,6 +75,6 @@ func Unmarshal(data []byte) (*Block, error) {
 
 type TransactionDebug struct {
 	Hash  string `json:"hash"`
-	Idx   uint32 `json:"idx"`
+	Idx   uint64 `json:"idx"`
 	Debug []byte `json:"debug"`
 }

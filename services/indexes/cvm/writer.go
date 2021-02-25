@@ -38,6 +38,7 @@ type Writer struct {
 	avax  *avaxIndexer.Writer
 }
 
+
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
@@ -69,6 +70,40 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	}
 
 	return json.Marshal(atomicTX)
+}
+
+func (w *Writer) ConsumeTx(ctx context.Context, conns *services.Connections, c services.Consumable, txDebug *cblock.TransactionDebug, persist services.Persist) error {
+	job := conns.StreamDBDedup().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
+	dbTx, err := sess.Begin()
+	if err != nil {
+		return err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	modelsTxDataDebugs := &models.CvmTransactionsTxDataDebug{}
+	err = json.Unmarshal(txDebug.Debug, modelsTxDataDebugs)
+	if err != nil {
+		return err
+	}
+
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+
+	txDataDebugs := &services.CvmTransactionsTxdataDebug{
+		Hash: txDebug.Hash,
+		Idx: txDebug.Idx,
+		ToAddr: modelsTxDataDebugs.ToAddr,
+		FromAddr: modelsTxDataDebugs.FromAddr,
+		CallType: modelsTxDataDebugs.CallType,
+		Type: modelsTxDataDebugs.Type,
+		Serialization: txDebug.Debug,
+		CreatedAt: cCtx.Time(),
+	}
+
+	persist.InsertCvmTransactionsTxdataDebug(ctx, dbTx, txDataDebugs, cfg.PerformUpdates)
+	
+	return dbTx.Commit()
 }
 
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {

@@ -5,6 +5,7 @@ package stream
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -49,8 +50,9 @@ type ConsumerCChain struct {
 	doneCh   chan struct{}
 	consumer *cvm.Writer
 
-	groupName string
-	topicName string
+	groupName   string
+	topicName   string
+	topicTxName string
 
 	idx    int
 	maxIdx int
@@ -108,28 +110,56 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 		if err != nil {
 			return err
 		}
-		if len(rowdata) == 0 {
-			time.Sleep(pollSleep)
-			return nil
+
+		if len(rowdata) != 0 {
+			for _, row := range rowdata {
+				msg := &Message{
+					id:         row.MsgKey,
+					chainID:    c.conf.CchainID,
+					body:       row.Serialization,
+					timestamp:  row.CreatedAt.UTC().Unix(),
+					nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+				}
+				err = c.Consume(msg)
+				if err != nil {
+					return err
+				}
+				row.Processed = 1
+				err = updateStatus(row)
+				if err != nil {
+					return err
+				}
+			}
 		}
 
-		for _, row := range rowdata {
-			msg := &Message{
-				id:         row.MsgKey,
-				chainID:    c.conf.CchainID,
-				body:       row.Serialization,
-				timestamp:  row.CreatedAt.UTC().Unix(),
-				nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+		rowdataTx, err := fetchPollForTopic(sess, c.topicTxName, &c.idx, c.maxIdx)
+		if err != nil {
+			return err
+		}
+
+		if len(rowdataTx) != 0 {
+			for _, row := range rowdataTx {
+				msg := &Message{
+					id:         row.MsgKey,
+					chainID:    c.conf.CchainID,
+					body:       row.Serialization,
+					timestamp:  row.CreatedAt.UTC().Unix(),
+					nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+				}
+				err = c.Consume(msg)
+				if err != nil {
+					return err
+				}
+				row.Processed = 1
+				err = updateStatus(row)
+				if err != nil {
+					return err
+				}
 			}
-			err = c.Consume(msg)
-			if err != nil {
-				return err
-			}
-			row.Processed = 1
-			err = updateStatus(row)
-			if err != nil {
-				return err
-			}
+		}
+
+		if len(rowdata) == 0 && len(rowdataTx) == 0 {
+			time.Sleep(pollSleep)
 		}
 
 		return nil
@@ -144,6 +174,45 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 	}
 
 	return c.Consume(msg)
+}
+
+func (c *ConsumerCChain) ConsumeTx(msg services.Consumable) error {
+	txDebug := &cblock.TransactionDebug{}
+	err := json.Unmarshal(msg.Body(), txDebug)
+	if err != nil {
+		return err
+	}
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			c.sc.Log.Error("collectors.Collect: %s", err)
+		}
+	}()
+
+	id := hashing.ComputeHash256(txDebug.Debug)
+
+	nmsg := NewMessage(string(id), msg.ChainID(), txDebug.Debug, msg.Timestamp(), msg.Nanosecond())
+
+	for {
+		err = c.persistConsumeTx(nmsg, txDebug)
+		if !db.ErrIsLockError(err) {
+			break
+		}
+	}
+
+	if err != nil {
+		collectors.Error()
+		c.sc.Log.Error("consumer.Consume: %s", err)
+		return err
+	}
+
+	return nil
 }
 
 func (c *ConsumerCChain) Consume(msg services.Consumable) error {
@@ -177,6 +246,7 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 			break
 		}
 	}
+
 	if err != nil {
 		collectors.Error()
 		c.sc.Log.Error("consumer.Consume: %s", err)
@@ -186,6 +256,12 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	c.sc.BalanceAccumulatorManager.Run(c.sc)
 
 	return c.commitMessage(msg)
+}
+
+func (c *ConsumerCChain) persistConsumeTx(msg services.Consumable, txDebug *cblock.TransactionDebug) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.ConsumeTx(ctx, c.conns, msg, txDebug, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
@@ -352,6 +428,7 @@ func (c *ConsumerCChain) runProcessor() error {
 	}
 
 	c.topicName = fmt.Sprintf("%d-%s-cchain", c.conf.NetworkID, c.conf.CchainID)
+	c.topicTxName = fmt.Sprintf("%d-%s-cchain-tx", c.conf.NetworkID, c.conf.CchainID)
 	c.reader = kafka.NewReader(kafka.ReaderConfig{
 		Topic:       c.topicName,
 		Brokers:     c.conf.Kafka.Brokers,

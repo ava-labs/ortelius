@@ -158,3 +158,12 @@ type Aggregates struct {
 type AddressChains struct {
 	AddressChains map[string][]StringID `json:"addressChains"`
 }
+
+type CvmTransactionsTxDataDebug struct {
+	Hash     string `json:"hash"`
+	Idx      uint64 `json:"idx"`
+	CallType string `json:"callType"`
+	ToAddr   string `json:"to"`
+	FromAddr string `json:"from"`
+	Type     string `json:"type"`
+}
