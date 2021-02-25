@@ -37,10 +37,10 @@ import (
 )
 
 const (
-	rpcTimeout        = 10 * time.Second
+	rpcTimeout        = time.Minute
 	kafkaWriteTimeout = 10 * time.Second
 	dbReadTimeout     = 10 * time.Second
-	dbWriteTimeout    = 10 * time.Second
+	dbWriteTimeout    = time.Minute
 
 	readRPCTimeout = 500 * time.Millisecond
 
@@ -64,14 +64,16 @@ type ProducerCChain struct {
 	conf      cfg.Config
 
 	// Concurrency control
-	quitCh chan struct{}
-	doneCh chan struct{}
-	topic  string
+	quitCh  chan struct{}
+	doneCh  chan struct{}
+	topic   string
+	topicTx string
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
 	return func(sc *services.Control, conf cfg.Config, _ int, _ int) utils.ListenCloser {
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
+		topicTxName := fmt.Sprintf("%d-%s-cchain-tx", conf.NetworkID, conf.CchainID)
 
 		writer := kafka.NewWriter(kafka.WriterConfig{
 			Brokers:      conf.Brokers,
@@ -85,6 +87,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 
 		p := &ProducerCChain{
 			topic:                   topicName,
+			topicTx:                 topicTxName,
 			conf:                    conf,
 			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
@@ -115,19 +118,49 @@ func (p *ProducerCChain) ID() string {
 	return p.id
 }
 
-func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, error) {
+type TracerParam struct {
+	Tracer string `json:"tracer"`
+}
+
+func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionDebug, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancelCTX()
 
 	bl, err := p.ethClient.BlockByNumber(ctx, blockNumber)
 	if err == coreth.NotFound {
-		return nil, ErrNoMessage
+		return nil, nil, ErrNoMessage
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return bl, nil
+	debugs := make([]*cblock.TransactionDebug, 0, len(bl.Transactions()))
+	for _, tx := range bl.Transactions() {
+		txh := tx.Hash().Hex()
+		if !strings.HasPrefix(txh, "0x") {
+			txh = "0x" + txh
+		}
+		var results []interface{}
+		err = p.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: utils.Tracer})
+		if err != nil {
+			return nil, nil, err
+		}
+		for ipos, result := range results {
+			debugBits, err := json.Marshal(result)
+			if err != nil {
+				return nil, nil, err
+			}
+			debugs = append(debugs,
+				&cblock.TransactionDebug{
+					Hash:  txh,
+					Idx:   uint32(ipos),
+					Debug: debugBits,
+				},
+			)
+		}
+	}
+
+	return bl, debugs, nil
 }
 
 func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
@@ -168,8 +201,9 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 }
 
 type localBlockObject struct {
-	block *types.Block
-	time  time.Time
+	block  *types.Block
+	time   time.Time
+	debugs []*cblock.TransactionDebug
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
@@ -256,7 +290,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
 			ncurrent := big.NewInt(0).Add(current, big.NewInt(1))
-			bl, err := p.readBlockFromRPC(ncurrent)
+			bl, debugs, err := p.readBlockFromRPC(ncurrent)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
 				return err
@@ -264,7 +298,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, time: time.Now().UTC()})
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, debugs: debugs, time: time.Now().UTC()})
 			if len(localBlocks) > blocksToQueue {
 				err = consumeBlock()
 				if err != nil {
@@ -550,5 +584,39 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 	if err != nil {
 		return err
 	}
-	return p.updateTxPool(txPool)
+	err = p.updateTxPool(txPool)
+	if err != nil {
+		return err
+	}
+
+	for _, txDebug := range wp.bl.debugs {
+		txDebugBits, err := json.Marshal(txDebug)
+		if err != nil {
+			return err
+		}
+
+		id, err := ids.ToID(hashing.ComputeHash256(txDebugBits))
+		if err != nil {
+			return err
+		}
+
+		txPool := &services.TxPool{
+			NetworkID:     p.conf.NetworkID,
+			ChainID:       p.conf.CchainID,
+			MsgKey:        id.String(),
+			Serialization: txDebugBits,
+			Processed:     0,
+			Topic:         p.topicTx,
+			CreatedAt:     wp.bl.time,
+		}
+		err = txPool.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = p.updateTxPool(txPool)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
