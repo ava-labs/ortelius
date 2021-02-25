@@ -30,6 +30,7 @@ type Control struct {
 	IsAccumulateBalanceReader  bool
 	IsDBPoll                   bool
 	GenesisContainer           *GenesisContainer
+	IsDisableBootstrap         bool
 }
 
 func (s *Control) Init(networkID uint32) error {
@@ -45,6 +46,9 @@ func (s *Control) Init(networkID uint32) error {
 	}
 	if _, ok := s.Features["db_poll"]; ok {
 		s.IsDBPoll = true
+	}
+	if _, ok := s.Features["disable_bootstrap"]; ok {
+		s.IsDisableBootstrap = true
 	}
 	var err error
 	persist := NewPersist()

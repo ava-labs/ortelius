@@ -57,6 +57,10 @@ var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer serv
 var IndexerCChain = stream.NewConsumerCChain
 
 func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
+	if sc.IsDisableBootstrap {
+		return nil
+	}
+
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return err
