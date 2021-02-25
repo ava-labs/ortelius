@@ -29,6 +29,7 @@ type TransactionList struct {
 
 type CTransactionData struct {
 	Block     string    `json:"block"`
+	Hash      string    `json:"hash"`
 	CreatedAt time.Time `json:"createdAt"`
 	Nonce     uint64    `json:"nonce"`
 	GasPrice  *string   `json:"gasPrice,omitempty"`
