@@ -7,6 +7,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -69,7 +71,25 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 		_ = conns.Close()
 	}()
 
+	persist := services.NewPersist()
 	ctx := context.Background()
+	job := conns.QuietStream().NewJob("bootstrap-key-value")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
+	bootstrapValue := "true"
+
+	// check if we have bootstrapped..
+	keyValueStore := &services.KeyValueStore{
+		K: utils.KeyValueBootstrap,
+	}
+	keyValueStore, err = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
+	if err != nil {
+		return err
+	}
+	if keyValueStore.V != bootstrapValue {
+		sc.Log.Info("skipping bootstrap")
+		return nil
+	}
 
 	errs := avlancheGoUtils.AtomicInterface{}
 
@@ -99,5 +119,10 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 		return errs.GetValue().(error)
 	}
 
-	return nil
+	// write a complete row.
+	keyValueStore = &services.KeyValueStore{
+		K: utils.KeyValueBootstrap,
+		V: bootstrapValue,
+	}
+	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }

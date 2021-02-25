@@ -42,6 +42,7 @@ const (
 	TableTransactionsRewardsOwnersAddress = "transactions_rewards_owners_address"
 	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
 	TableTxPool                           = "tx_pool"
+	TableKeyValueStore                    = "key_value_store"
 )
 
 type Persist interface {
@@ -378,6 +379,17 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*TxPool,
+	) error
+
+	QueryKeyValueStore(
+		context.Context,
+		dbr.SessionRunner,
+		*KeyValueStore,
+	) (*KeyValueStore, error)
+	InsertKeyValueStore(
+		context.Context,
+		dbr.SessionRunner,
+		*KeyValueStore,
 	) error
 }
 
@@ -2076,6 +2088,44 @@ func (p *persist) UpdateTxPoolStatus(
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableTxPool, false, err)
+	}
+
+	return nil
+}
+
+type KeyValueStore struct {
+	K string
+	V string
+}
+
+func (p *persist) QueryKeyValueStore(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *KeyValueStore,
+) (*KeyValueStore, error) {
+	v := &KeyValueStore{}
+	err := sess.Select(
+		"k",
+		"v",
+	).From(TableKeyValueStore).
+		Where("id=?", q.K).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertKeyValueStore(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *KeyValueStore,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableKeyValueStore).
+		Pair("k", v.K).
+		Pair("v", v.V).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableKeyValueStore, false, err)
 	}
 
 	return nil
