@@ -148,7 +148,7 @@ func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
-	job := p.conns.Stream().NewJob("update-block")
+	job := p.conns.StreamDBDedup().NewJob("update-block")
 	sess := p.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
