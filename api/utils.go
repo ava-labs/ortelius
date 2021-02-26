@@ -22,18 +22,9 @@ type ErrorResponse struct {
 
 // WriteJSON writes the given bytes to the http response as JSON
 func WriteJSON(w http.ResponseWriter, msg []byte) {
+	w.Header().Add("Cache-Control", "max-age=5")
 	w.WriteHeader(200)
 	_, _ = w.Write(msg)
-}
-
-// WriteObject writes the given object to the http response as JSON
-func WriteObject(w http.ResponseWriter, obj interface{}) {
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		WriteErr(w, 400, err.Error())
-		return
-	}
-	WriteJSON(w, bytes)
 }
 
 // WriteErr writes the given error message to the http response
