@@ -67,7 +67,7 @@ type ProducerCChain struct {
 	quitCh     chan struct{}
 	doneCh     chan struct{}
 	topic      string
-	topicTx    string
+	topicTrc   string
 	blockCount *big.Int
 
 	ethClientLock sync.Mutex
@@ -90,7 +90,7 @@ func NewProducerCChain() utils.ListenCloserFactory {
 
 		p := &ProducerCChain{
 			topic:                   topicName,
-			topicTx:                 topicTrcName,
+			topicTrc:                topicTrcName,
 			conf:                    conf,
 			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
@@ -627,7 +627,7 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 			MsgKey:        id.String(),
 			Serialization: txTransactionTracesBits,
 			Processed:     0,
-			Topic:         p.topicTx,
+			Topic:         p.topicTrc,
 			CreatedAt:     wp.localBlock.time,
 		}
 		err = txPool.ComputeID()
