@@ -125,7 +125,7 @@ type TracerParam struct {
 	Tracer string `json:"tracer"`
 }
 
-func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionDebug, error) {
+func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionTrace, error) {
 	p.ethClientLock.Lock()
 	defer p.ethClientLock.Unlock()
 
@@ -140,7 +140,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 		return nil, nil, err
 	}
 
-	debugs := make([]*cblock.TransactionDebug, 0, len(bl.Transactions()))
+	debugs := make([]*cblock.TransactionTrace, 0, len(bl.Transactions()))
 	for _, tx := range bl.Transactions() {
 		txh := tx.Hash().Hex()
 		if !strings.HasPrefix(txh, "0x") {
@@ -157,10 +157,10 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 				return nil, nil, err
 			}
 			debugs = append(debugs,
-				&cblock.TransactionDebug{
+				&cblock.TransactionTrace{
 					Hash:  txh,
 					Idx:   uint32(ipos),
-					Debug: debugBits,
+					Trace: debugBits,
 				},
 			)
 		}
@@ -207,7 +207,7 @@ func (p *ProducerCChain) fetchLatest() (uint64, error) {
 type localBlockObject struct {
 	block  *types.Block
 	time   time.Time
-	debugs []*cblock.TransactionDebug
+	traces []*cblock.TransactionTrace
 }
 
 func (p *ProducerCChain) ProcessNextMessage() error {
@@ -226,7 +226,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		if p.sc.IsDBPoll {
 			for _, bl := range localBlocks {
-				wp := &WorkPacketCChain{bl: bl}
+				wp := &WorkPacketCChain{localBlock: bl}
 				err := p.processWork(wp)
 				if err != nil {
 					return err
@@ -302,7 +302,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, debugs: debugs, time: time.Now().UTC()})
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, traces: debugs, time: time.Now().UTC()})
 			if len(localBlocks) > blocksToQueue {
 				err = consumeBlock()
 				if err != nil {
@@ -569,11 +569,11 @@ func (p *ProducerCChain) runProcessor() error {
 }
 
 type WorkPacketCChain struct {
-	bl *localBlockObject
+	localBlock *localBlockObject
 }
 
 func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
-	cblk, err := cblock.New(wp.bl.block)
+	cblk, err := cblock.New(wp.localBlock.block)
 	if err != nil {
 		return err
 	}
@@ -599,7 +599,7 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 		Serialization: block,
 		Processed:     0,
 		Topic:         p.topic,
-		CreatedAt:     wp.bl.time,
+		CreatedAt:     wp.localBlock.time,
 	}
 	err = txPool.ComputeID()
 	if err != nil {
@@ -610,13 +610,13 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 		return err
 	}
 
-	for _, txDebug := range wp.bl.debugs {
-		txDebugBits, err := json.Marshal(txDebug)
+	for _, txTranactionTraces := range wp.localBlock.traces {
+		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
 		if err != nil {
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(txDebugBits))
+		id, err := ids.ToID(hashing.ComputeHash256(txTransactionTracesBits))
 		if err != nil {
 			return err
 		}
@@ -625,10 +625,10 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
-			Serialization: txDebugBits,
+			Serialization: txTransactionTracesBits,
 			Processed:     0,
 			Topic:         p.topicTx,
-			CreatedAt:     wp.bl.time,
+			CreatedAt:     wp.localBlock.time,
 		}
 		err = txPool.ComputeID()
 		if err != nil {
@@ -687,9 +687,9 @@ func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
 					return
 				}
 
-				localBlockObject := &localBlockObject{block: bl, debugs: debugs, time: time.Now().UTC()}
+				localBlockObject := &localBlockObject{block: bl, traces: debugs, time: time.Now().UTC()}
 
-				wp := &WorkPacketCChain{bl: localBlockObject}
+				wp := &WorkPacketCChain{localBlock: localBlockObject}
 				err = p.processWork(wp)
 				if err != nil {
 					p.sc.Log.Warn("catchupBock %v", err)

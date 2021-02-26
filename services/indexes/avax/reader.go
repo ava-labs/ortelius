@@ -716,7 +716,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		hashes = append(hashes, ctr.Hash)
 	}
 
-	var vdebugs []*services.CvmTransactionsTxdataDebug
+	var txTransactionTraceServices []*services.CvmTransactionsTxdataTrace
 	_, err = dbRunner.Select(
 		"hash",
 		"idx",
@@ -726,22 +726,22 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"type",
 		"serialization",
 		"created_at",
-	).From(services.TableCvmTransactionsTxdataDebug).
+	).From(services.TableCvmTransactionsTxdataTrace).
 		Where("hash in ?", hashes).
-		LoadContext(ctx, &vdebugs)
+		LoadContext(ctx, &txTransactionTraceServices)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, vdebug := range vdebugs {
-		txDebugModel := &models.CvmTransactionsTxDataDebug{}
-		err = json.Unmarshal(vdebug.Serialization, txDebugModel)
+	for _, txTransactionTraceService := range txTransactionTraceServices {
+		txTransactionTraceModel := &models.CvmTransactionsTxDataTrace{}
+		err = json.Unmarshal(txTransactionTraceService.Serialization, txTransactionTraceModel)
 		if err != nil {
 			return nil, err
 		}
-		if vdebug.Idx == 0 {
-			trItemsByHash[vdebug.Hash].ToAddr = txDebugModel.ToAddr
-			trItemsByHash[vdebug.Hash].FromAddr = txDebugModel.FromAddr
+		if txTransactionTraceService.Idx == 0 {
+			trItemsByHash[txTransactionTraceService.Hash].ToAddr = txTransactionTraceModel.ToAddr
+			trItemsByHash[txTransactionTraceService.Hash].FromAddr = txTransactionTraceModel.FromAddr
 		}
 
 		toDecimal := func(v *string) {
@@ -751,9 +751,9 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 				*v = vInt.String()
 			}
 		}
-		toDecimal(&txDebugModel.Value)
-		toDecimal(&txDebugModel.Gas)
-		toDecimal(&txDebugModel.GasUsed)
+		toDecimal(&txTransactionTraceModel.Value)
+		toDecimal(&txTransactionTraceModel.Gas)
+		toDecimal(&txTransactionTraceModel.GasUsed)
 
 		nilEmpty := func(v *string, def string) *string {
 			if v != nil && *v == def {
@@ -761,27 +761,27 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			}
 			return v
 		}
-		txDebugModel.CreatedContractAddressHash = nilEmpty(txDebugModel.CreatedContractAddressHash, "")
-		txDebugModel.Init = nilEmpty(txDebugModel.Init, "")
-		txDebugModel.CreatedContractCode = nilEmpty(txDebugModel.CreatedContractCode, "")
-		txDebugModel.Error = nilEmpty(txDebugModel.Error, "")
-		txDebugModel.Input = nilEmpty(txDebugModel.Input, "0x")
-		txDebugModel.Output = nilEmpty(txDebugModel.Output, "0x")
+		txTransactionTraceModel.CreatedContractAddressHash = nilEmpty(txTransactionTraceModel.CreatedContractAddressHash, "")
+		txTransactionTraceModel.Init = nilEmpty(txTransactionTraceModel.Init, "")
+		txTransactionTraceModel.CreatedContractCode = nilEmpty(txTransactionTraceModel.CreatedContractCode, "")
+		txTransactionTraceModel.Error = nilEmpty(txTransactionTraceModel.Error, "")
+		txTransactionTraceModel.Input = nilEmpty(txTransactionTraceModel.Input, "0x")
+		txTransactionTraceModel.Output = nilEmpty(txTransactionTraceModel.Output, "0x")
 
-		if trItemsByHash[vdebug.Hash].TracesMap == nil {
-			trItemsByHash[vdebug.Hash].TracesMap = make(map[uint32]*models.CvmTransactionsTxDataDebug)
+		if trItemsByHash[txTransactionTraceService.Hash].TracesMap == nil {
+			trItemsByHash[txTransactionTraceService.Hash].TracesMap = make(map[uint32]*models.CvmTransactionsTxDataTrace)
 		}
-		if vdebug.Idx+1 > trItemsByHash[vdebug.Hash].TracesMax {
-			trItemsByHash[vdebug.Hash].TracesMax = vdebug.Idx + 1
+		if txTransactionTraceService.Idx+1 > trItemsByHash[txTransactionTraceService.Hash].TracesMax {
+			trItemsByHash[txTransactionTraceService.Hash].TracesMax = txTransactionTraceService.Idx + 1
 		}
-		trItemsByHash[vdebug.Hash].TracesMap[vdebug.Idx] = txDebugModel
+		trItemsByHash[txTransactionTraceService.Hash].TracesMap[txTransactionTraceService.Idx] = txTransactionTraceModel
 	}
 
 	for _, trItem := range trItemsByHash {
 		if trItem.TracesMax == 0 {
 			continue
 		}
-		trItem.Traces = make([]*models.CvmTransactionsTxDataDebug, trItem.TracesMax)
+		trItem.Traces = make([]*models.CvmTransactionsTxDataTrace, trItem.TracesMax)
 		for k, v := range trItem.TracesMap {
 			v.Idx = nil
 			trItem.Traces[k] = v

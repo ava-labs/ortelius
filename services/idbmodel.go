@@ -43,7 +43,7 @@ const (
 	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
 	TableTxPool                           = "tx_pool"
 	TableKeyValueStore                    = "key_value_store"
-	TableCvmTransactionsTxdataDebug       = "cvm_transactions_txdata_debug"
+	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
 )
 
 type Persist interface {
@@ -393,15 +393,15 @@ type Persist interface {
 		*KeyValueStore,
 	) error
 
-	QueryCvmTransactionsTxdataDebug(
+	QueryCvmTransactionsTxdataTrace(
 		context.Context,
 		dbr.SessionRunner,
-		*CvmTransactionsTxdataDebug,
-	) (*CvmTransactionsTxdataDebug, error)
-	InsertCvmTransactionsTxdataDebug(
+		*CvmTransactionsTxdataTrace,
+	) (*CvmTransactionsTxdataTrace, error)
+	InsertCvmTransactionsTxdataTrace(
 		context.Context,
 		dbr.SessionRunner,
-		*CvmTransactionsTxdataDebug,
+		*CvmTransactionsTxdataTrace,
 		bool,
 	) error
 }
@@ -2144,7 +2144,7 @@ func (p *persist) InsertKeyValueStore(
 	return nil
 }
 
-type CvmTransactionsTxdataDebug struct {
+type CvmTransactionsTxdataTrace struct {
 	Hash          string
 	Idx           uint32
 	ToAddr        string
@@ -2155,12 +2155,12 @@ type CvmTransactionsTxdataDebug struct {
 	CreatedAt     time.Time
 }
 
-func (p *persist) QueryCvmTransactionsTxdataDebug(
+func (p *persist) QueryCvmTransactionsTxdataTrace(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	q *CvmTransactionsTxdataDebug,
-) (*CvmTransactionsTxdataDebug, error) {
-	v := &CvmTransactionsTxdataDebug{}
+	q *CvmTransactionsTxdataTrace,
+) (*CvmTransactionsTxdataTrace, error) {
+	v := &CvmTransactionsTxdataTrace{}
 	err := sess.Select(
 		"hash",
 		"idx",
@@ -2170,21 +2170,21 @@ func (p *persist) QueryCvmTransactionsTxdataDebug(
 		"type",
 		"serialization",
 		"created_at",
-	).From(TableCvmTransactionsTxdataDebug).
+	).From(TableCvmTransactionsTxdataTrace).
 		Where("hash=? and idx=?", q.Hash, q.Idx).
 		LoadOneContext(ctx, v)
 	return v, err
 }
 
-func (p *persist) InsertCvmTransactionsTxdataDebug(
+func (p *persist) InsertCvmTransactionsTxdataTrace(
 	ctx context.Context,
 	sess dbr.SessionRunner,
-	v *CvmTransactionsTxdataDebug,
+	v *CvmTransactionsTxdataTrace,
 	upd bool,
 ) error {
 	var err error
 	_, err = sess.
-		InsertInto(TableCvmTransactionsTxdataDebug).
+		InsertInto(TableCvmTransactionsTxdataTrace).
 		Pair("hash", v.Hash).
 		Pair("idx", v.Idx).
 		Pair("to_addr", v.ToAddr).
@@ -2195,11 +2195,11 @@ func (p *persist) InsertCvmTransactionsTxdataDebug(
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
-		return EventErr(TableCvmTransactionsTxdataDebug, false, err)
+		return EventErr(TableCvmTransactionsTxdataTrace, false, err)
 	}
 	if upd {
 		_, err = sess.
-			Update(TableCvmTransactionsTxdataDebug).
+			Update(TableCvmTransactionsTxdataTrace).
 			Set("to_addr", v.ToAddr).
 			Set("from_addr", v.FromAddr).
 			Set("call_type", v.CallType).
@@ -2209,7 +2209,7 @@ func (p *persist) InsertCvmTransactionsTxdataDebug(
 			Where("hash=? and idx=?", v.Hash, v.Idx).
 			ExecContext(ctx)
 		if err != nil {
-			return EventErr(TableCvmTransactionsTxdataDebug, true, err)
+			return EventErr(TableCvmTransactionsTxdataTrace, true, err)
 		}
 	}
 	return nil

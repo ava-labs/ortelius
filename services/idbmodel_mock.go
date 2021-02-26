@@ -38,7 +38,7 @@ type MockPersist struct {
 	TransactionsRewardsOwners        map[string]*TransactionsRewardsOwners
 	TxPool                           map[string]*TxPool
 	KeyValueStore                    map[string]*KeyValueStore
-	CvmTransactionsTxdataDebug       map[string]*CvmTransactionsTxdataDebug
+	CvmTransactionsTxdataTrace       map[string]*CvmTransactionsTxdataTrace
 }
 
 func NewPersistMock() *MockPersist {
@@ -71,7 +71,7 @@ func NewPersistMock() *MockPersist {
 		TransactionsRewardsOwnersOutputs: make(map[string]*TransactionsRewardsOwnersOutputs),
 		TxPool:                           make(map[string]*TxPool),
 		KeyValueStore:                    make(map[string]*KeyValueStore),
-		CvmTransactionsTxdataDebug:       make(map[string]*CvmTransactionsTxdataDebug),
+		CvmTransactionsTxdataTrace:       make(map[string]*CvmTransactionsTxdataTrace),
 	}
 }
 
@@ -608,20 +608,20 @@ func (m *MockPersist) InsertKeyValueStore(ctx context.Context, runner dbr.Sessio
 	return nil
 }
 
-func (m *MockPersist) QueryCvmTransactionsTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug) (*CvmTransactionsTxdataDebug, error) {
+func (m *MockPersist) QueryCvmTransactionsTxdataTrace(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataTrace) (*CvmTransactionsTxdataTrace, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if v, present := m.CvmTransactionsTxdataDebug[fmt.Sprintf("%s:%v", v.Hash, v.Idx)]; present {
+	if v, present := m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)]; present {
 		return v, nil
 	}
 	return nil, nil
 }
 
-func (m *MockPersist) InsertCvmTransactionsTxdataDebug(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataDebug, _ bool) error {
+func (m *MockPersist) InsertCvmTransactionsTxdataTrace(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataTrace, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	nv := &CvmTransactionsTxdataDebug{}
+	nv := &CvmTransactionsTxdataTrace{}
 	*nv = *v
-	m.CvmTransactionsTxdataDebug[fmt.Sprintf("%s:%v", v.Hash, v.Idx)] = nv
+	m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)] = nv
 	return nil
 }

@@ -177,8 +177,8 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 }
 
 func (c *ConsumerCChain) ConsumeTx(msg services.Consumable) error {
-	txDebug := &cblock.TransactionDebug{}
-	err := json.Unmarshal(msg.Body(), txDebug)
+	transactionTrace := &cblock.TransactionTrace{}
+	err := json.Unmarshal(msg.Body(), transactionTrace)
 	if err != nil {
 		return err
 	}
@@ -195,12 +195,12 @@ func (c *ConsumerCChain) ConsumeTx(msg services.Consumable) error {
 		}
 	}()
 
-	id := hashing.ComputeHash256(txDebug.Debug)
+	id := hashing.ComputeHash256(transactionTrace.Trace)
 
-	nmsg := NewMessage(string(id), msg.ChainID(), txDebug.Debug, msg.Timestamp(), msg.Nanosecond())
+	nmsg := NewMessage(string(id), msg.ChainID(), transactionTrace.Trace, msg.Timestamp(), msg.Nanosecond())
 
 	for {
-		err = c.persistConsumeTrace(nmsg, txDebug)
+		err = c.persistConsumeTrace(nmsg, transactionTrace)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -258,10 +258,10 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	return c.commitMessage(msg)
 }
 
-func (c *ConsumerCChain) persistConsumeTrace(msg services.Consumable, txDebug *cblock.TransactionDebug) error {
+func (c *ConsumerCChain) persistConsumeTrace(msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.ConsumeTrace(ctx, c.conns, msg, txDebug, c.sc.Persist)
+	return c.consumer.ConsumeTrace(ctx, c.conns, msg, transactionTrace, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {

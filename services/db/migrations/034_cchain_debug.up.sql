@@ -1,4 +1,4 @@
-create table `cvm_transactions_txdata_debug`
+create table `cvm_transactions_txdata_trace`
 (
     hash           varchar(100)    not null,
     idx            bigint unsigned not null,

@@ -73,8 +73,8 @@ func Unmarshal(data []byte) (*Block, error) {
 	return &block, err
 }
 
-type TransactionDebug struct {
+type TransactionTrace struct {
 	Hash  string `json:"hash"`
 	Idx   uint32 `json:"idx"`
-	Debug []byte `json:"debug"`
+	Trace []byte `json:"trace"`
 }
