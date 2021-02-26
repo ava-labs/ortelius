@@ -152,7 +152,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 			return nil, nil, err
 		}
 		for ipos, result := range results {
-			debugBits, err := json.Marshal(result)
+			traceBits, err := json.Marshal(result)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -160,7 +160,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 				&cblock.TransactionTrace{
 					Hash:  txh,
 					Idx:   uint32(ipos),
-					Trace: debugBits,
+					Trace: traceBits,
 				},
 			)
 		}
