@@ -72,3 +72,9 @@ func Unmarshal(data []byte) (*Block, error) {
 	}
 	return &block, err
 }
+
+type TransactionTrace struct {
+	Hash  string `json:"hash"`
+	Idx   uint32 `json:"idx"`
+	Trace []byte `json:"trace"`
+}

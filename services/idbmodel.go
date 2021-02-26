@@ -43,6 +43,7 @@ const (
 	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
 	TableTxPool                           = "tx_pool"
 	TableKeyValueStore                    = "key_value_store"
+	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
 )
 
 type Persist interface {
@@ -390,6 +391,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*KeyValueStore,
+	) error
+
+	QueryCvmTransactionsTxdataTrace(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdataTrace,
+	) (*CvmTransactionsTxdataTrace, error)
+	InsertCvmTransactionsTxdataTrace(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdataTrace,
+		bool,
 	) error
 }
 
@@ -2128,5 +2141,76 @@ func (p *persist) InsertKeyValueStore(
 		return EventErr(TableKeyValueStore, false, err)
 	}
 
+	return nil
+}
+
+type CvmTransactionsTxdataTrace struct {
+	Hash          string
+	Idx           uint32
+	ToAddr        string
+	FromAddr      string
+	CallType      string
+	Type          string
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmTransactionsTxdataTrace(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactionsTxdataTrace,
+) (*CvmTransactionsTxdataTrace, error) {
+	v := &CvmTransactionsTxdataTrace{}
+	err := sess.Select(
+		"hash",
+		"idx",
+		"to_addr",
+		"from_addr",
+		"call_type",
+		"type",
+		"serialization",
+		"created_at",
+	).From(TableCvmTransactionsTxdataTrace).
+		Where("hash=? and idx=?", q.Hash, q.Idx).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactionsTxdataTrace(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmTransactionsTxdataTrace,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableCvmTransactionsTxdataTrace).
+		Pair("hash", v.Hash).
+		Pair("idx", v.Idx).
+		Pair("to_addr", v.ToAddr).
+		Pair("from_addr", v.FromAddr).
+		Pair("call_type", v.CallType).
+		Pair("type", v.Type).
+		Pair("serialization", v.Serialization).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmTransactionsTxdataTrace, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableCvmTransactionsTxdataTrace).
+			Set("to_addr", v.ToAddr).
+			Set("from_addr", v.FromAddr).
+			Set("call_type", v.CallType).
+			Set("type", v.Type).
+			Set("serialization", v.Serialization).
+			Set("created_at", v.CreatedAt).
+			Where("hash=? and idx=?", v.Hash, v.Idx).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableCvmTransactionsTxdataTrace, true, err)
+		}
+	}
 	return nil
 }
