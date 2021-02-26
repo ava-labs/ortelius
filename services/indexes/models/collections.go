@@ -28,7 +28,7 @@ type TransactionList struct {
 }
 
 type CvmTransactionsTxDataDebug struct {
-	Hash                       *string `json:"hash"`
+	Hash                       *string `json:"hash,omitempty"`
 	Idx                        uint32  `json:"idx"`
 	CallType                   string  `json:"callType"`
 	ToAddr                     string  `json:"to"`
