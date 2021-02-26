@@ -755,17 +755,18 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		toDecimal(&txDebugModel.Gas)
 		toDecimal(&txDebugModel.GasUsed)
 
-		nilEmpty := func(v *string, def string) {
-			if v == nil && *v == def {
-				v = nil
+		nilEmpty := func(v *string, def string) *string {
+			if v != nil && *v == def {
+				return nil
 			}
+			return v
 		}
-		nilEmpty(txDebugModel.CreatedContractAddressHash, "")
-		nilEmpty(txDebugModel.Init, "")
-		nilEmpty(txDebugModel.CreatedContractCode, "")
-		nilEmpty(txDebugModel.Error, "")
-		nilEmpty(txDebugModel.Input, "0x")
-		nilEmpty(txDebugModel.Output, "0x")
+		txDebugModel.CreatedContractAddressHash = nilEmpty(txDebugModel.CreatedContractAddressHash, "")
+		txDebugModel.Init = nilEmpty(txDebugModel.Init, "")
+		txDebugModel.CreatedContractCode = nilEmpty(txDebugModel.CreatedContractCode, "")
+		txDebugModel.Error = nilEmpty(txDebugModel.Error, "")
+		txDebugModel.Input = nilEmpty(txDebugModel.Input, "0x")
+		txDebugModel.Output = nilEmpty(txDebugModel.Output, "0x")
 
 		if trItemsByHash[vdebug.Hash].Debug == nil {
 			trItemsByHash[vdebug.Hash].Debug = make(map[uint32]*models.CvmTransactionsTxDataDebug)
