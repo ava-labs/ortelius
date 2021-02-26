@@ -27,7 +27,7 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 
 	pollLimit = 500
-	pollSleep = 250 * time.Millisecond
+	pollSleep = 500 * time.Millisecond
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
