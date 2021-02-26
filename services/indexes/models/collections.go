@@ -36,8 +36,8 @@ type CvmTransactionsTxDataDebug struct {
 	Type                       string  `json:"type"`
 	GasUsed                    string  `json:"gasUsed"`
 	Gas                        string  `json:"gas"`
-	Input                      *string `json:"input"`
-	Output                     *string `json:"output"`
+	Input                      *string `json:"input,omitempty"`
+	Output                     *string `json:"output,omitempty"`
 	Value                      string  `json:"value"`
 	CreatedContractAddressHash *string `json:"createdContractAddressHash,omitempty"`
 	Init                       *string `json:"init,omitempty"`
