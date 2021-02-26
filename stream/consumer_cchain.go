@@ -50,9 +50,9 @@ type ConsumerCChain struct {
 	doneCh   chan struct{}
 	consumer *cvm.Writer
 
-	groupName   string
-	topicName   string
-	topicTxName string
+	groupName    string
+	topicName    string
+	topicTrcName string
 
 	idx    int
 	maxIdx int
@@ -132,7 +132,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			}
 		}
 
-		rowdataTx, err := fetchPollForTopic(sess, c.topicTxName, &c.idx, c.maxIdx)
+		rowdataTx, err := fetchPollForTopic(sess, c.topicTrcName, &c.idx, c.maxIdx)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 					timestamp:  row.CreatedAt.UTC().Unix(),
 					nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
 				}
-				err = c.ConsumeTx(msg)
+				err = c.ConsumeTrace(msg)
 				if err != nil {
 					return err
 				}
@@ -176,7 +176,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 	return c.Consume(msg)
 }
 
-func (c *ConsumerCChain) ConsumeTx(msg services.Consumable) error {
+func (c *ConsumerCChain) ConsumeTrace(msg services.Consumable) error {
 	transactionTrace := &cblock.TransactionTrace{}
 	err := json.Unmarshal(msg.Body(), transactionTrace)
 	if err != nil {
@@ -428,7 +428,7 @@ func (c *ConsumerCChain) runProcessor() error {
 	}
 
 	c.topicName = fmt.Sprintf("%d-%s-cchain", c.conf.NetworkID, c.conf.CchainID)
-	c.topicTxName = fmt.Sprintf("%d-%s-cchain-tx", c.conf.NetworkID, c.conf.CchainID)
+	c.topicTrcName = fmt.Sprintf("%d-%s-cchain-trc", c.conf.NetworkID, c.conf.CchainID)
 	c.reader = kafka.NewReader(kafka.ReaderConfig{
 		Topic:       c.topicName,
 		Brokers:     c.conf.Kafka.Brokers,
