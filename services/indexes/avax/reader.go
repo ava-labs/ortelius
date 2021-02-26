@@ -681,10 +681,10 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 	).From(services.TableCvmTransactionsTxdata)
 
 	if len(p.CAddresses) > 0 {
-		sq := dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
+		subq := dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
 			Where("to_addr in ? or from_addr in ?", p.CAddresses, p.CAddresses)
 		sq.
-			Where("rcpt in ? or hash in ?", p.CAddresses, sq.As("a"))
+			Where("rcpt in ? or hash in ?", p.CAddresses, dbRunner.Select("hash").From(subq.As("a")))
 	}
 	if len(p.Hashes) > 0 {
 		sq.
