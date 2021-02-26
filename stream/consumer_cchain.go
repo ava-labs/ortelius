@@ -132,13 +132,13 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			}
 		}
 
-		rowdataTx, err := fetchPollForTopic(sess, c.topicTrcName, &c.idx, c.maxIdx)
+		rowdataTrc, err := fetchPollForTopic(sess, c.topicTrcName, &c.idx, c.maxIdx)
 		if err != nil {
 			return err
 		}
 
-		if len(rowdataTx) != 0 {
-			for _, row := range rowdataTx {
+		if len(rowdataTrc) != 0 {
+			for _, row := range rowdataTrc {
 				msg := &Message{
 					id:         row.MsgKey,
 					chainID:    c.conf.CchainID,
@@ -158,7 +158,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 			}
 		}
 
-		if len(rowdata) == 0 && len(rowdataTx) == 0 {
+		if len(rowdata) == 0 && len(rowdataTrc) == 0 {
 			time.Sleep(pollSleep)
 		}
 
