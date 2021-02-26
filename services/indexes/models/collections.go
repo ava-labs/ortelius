@@ -36,14 +36,14 @@ type CvmTransactionsTxDataDebug struct {
 	Type                       string  `json:"type"`
 	GasUsed                    string  `json:"gasUsed"`
 	Gas                        string  `json:"gas"`
-	Input                      string  `json:"input"`
-	Output                     string  `json:"output"`
+	Input                      *string `json:"input"`
+	Output                     *string `json:"output"`
 	Value                      string  `json:"value"`
-	CreatedContractAddressHash string  `json:"createdContractAddressHash"`
-	Init                       string  `json:"init"`
-	CreatedContractCode        string  `json:"createdContractCode"`
-	Error                      string  `json:"error"`
-	TraceAddress               []int   `json:"traceAddress"`
+	CreatedContractAddressHash *string `json:"createdContractAddressHash,omitempty"`
+	Init                       *string `json:"init,omitempty"`
+	CreatedContractCode        *string `json:"createdContractCode,omitempty"`
+	Error                      *string `json:"error,omitempty"`
+	TraceAddress               []int   `json:"traceAddress,omitempty"`
 }
 
 type CTransactionData struct {

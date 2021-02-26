@@ -744,18 +744,28 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			trItemsByHash[vdebug.Hash].FromAddr = txDebugModel.FromAddr
 		}
 
-		valueInt, okValueInt := big.NewInt(0).SetString(txDebugModel.Value, 16)
-		if okValueInt && valueInt != nil {
-			txDebugModel.Value = valueInt.String()
+		toDecimal := func(v *string) {
+			vh := strings.TrimPrefix(*v, "0x")
+			vInt, okVInt := big.NewInt(0).SetString(vh, 16)
+			if okVInt && vInt != nil {
+				*v = vInt.String()
+			}
 		}
-		gasInt, okGasInt := big.NewInt(0).SetString(txDebugModel.Gas, 16)
-		if okGasInt && gasInt != nil {
-			txDebugModel.Gas = gasInt.String()
+		toDecimal(&txDebugModel.Value)
+		toDecimal(&txDebugModel.Gas)
+		toDecimal(&txDebugModel.GasUsed)
+
+		nilEmpty := func(v *string, def string) {
+			if v == nil && *v == def {
+				v = nil
+			}
 		}
-		gasUsedInt, okGasUsedInt := big.NewInt(0).SetString(txDebugModel.GasUsed, 16)
-		if okGasUsedInt && gasUsedInt != nil {
-			txDebugModel.GasUsed = gasUsedInt.String()
-		}
+		nilEmpty(txDebugModel.CreatedContractAddressHash, "")
+		nilEmpty(txDebugModel.Init, "")
+		nilEmpty(txDebugModel.CreatedContractCode, "")
+		nilEmpty(txDebugModel.Error, "")
+		nilEmpty(txDebugModel.Input, "0x")
+		nilEmpty(txDebugModel.Output, "0x")
 
 		if trItemsByHash[vdebug.Hash].Debug == nil {
 			trItemsByHash[vdebug.Hash].Debug = make(map[uint32]*models.CvmTransactionsTxDataDebug)
