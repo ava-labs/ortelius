@@ -634,7 +634,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			str := t.GasPrice().String()
 			res.GasPrice = &str
 		}
-		res.Gas = t.Gas()
+		res.GasLimit = t.Gas()
 		if t.To() != nil {
 			str := t.To().Hex()
 			if !strings.HasPrefix(str, "0x") {
@@ -703,6 +703,9 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 	trItems := make([]*models.CTransactionData, 0, len(dataList))
 	hashes := make([]string, 0, len(dataList))
 
+	blocksMap := make(map[string]struct{})
+	blocks := make([]string, 0, len(dataList))
+
 	for _, txdata := range dataList {
 		var tr types.Transaction
 		err := tr.UnmarshalJSON(txdata.Serialization)
@@ -716,6 +719,34 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 
 		trItemsByHash[ctr.Hash] = ctr
 		hashes = append(hashes, ctr.Hash)
+
+		if _, ok := blocksMap[txdata.Block]; !ok {
+			blocksMap[txdata.Block] = struct{}{}
+			blocks = append(blocks, txdata.Block)
+		}
+	}
+
+	cblocksMap := make(map[string]*cblock.Block)
+
+	if len(blocks) > 0 {
+		var cvmTxs []*services.CvmTransactions
+		_, err = dbRunner.Select(
+			"cast(block as char) as block",
+			"serialization",
+		).From(services.TableCvmTransactions).
+			Where("block in "+strings.Join(blocks, ",")).
+			LoadContext(ctx, &cvmTxs)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, cvmTx := range cvmTxs {
+			cblock, err := cblock.Unmarshal(cvmTx.Serialization)
+			if err != nil {
+				return nil, err
+			}
+			cblocksMap[cvmTx.Block] = cblock
+		}
 	}
 
 	if len(hashes) > 0 {
@@ -779,11 +810,14 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			}
 			trItemsByHash[txTransactionTraceService.Hash].TracesMap[txTransactionTraceService.Idx] = txTransactionTraceModel
 		}
+	}
 
-		for _, trItem := range trItemsByHash {
-			if trItem.TracesMax == 0 {
-				continue
-			}
+	for _, trItem := range trItemsByHash {
+		if cblock, ok := cblocksMap[trItem.Block]; ok {
+			trItem.BlockGasUsed = cblock.Header.GasUsed
+			trItem.BlockGasLimit = cblock.Header.GasLimit
+		}
+		if trItem.TracesMax != 0 {
 			trItem.Traces = make([]*models.CvmTransactionsTxDataTrace, trItem.TracesMax)
 			for k, v := range trItem.TracesMap {
 				v.Idx = nil
