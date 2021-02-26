@@ -734,7 +734,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			"cast(block as char) as block",
 			"serialization",
 		).From(services.TableCvmTransactions).
-			Where("block in "+strings.Join(blocks, ",")).
+			Where("block in ("+strings.Join(blocks, ",")+")").
 			LoadContext(ctx, &cvmTxs)
 		if err != nil {
 			return nil, err
