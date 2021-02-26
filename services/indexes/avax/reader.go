@@ -816,6 +816,8 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		if cblock, ok := cblocksMap[trItem.Block]; ok {
 			trItem.BlockGasUsed = cblock.Header.GasUsed
 			trItem.BlockGasLimit = cblock.Header.GasLimit
+			trItem.BlockNonce = cblock.Header.Nonce.Uint64()
+			trItem.BlockHash = cblock.Header.Hash().String()
 		}
 		if trItem.TracesMax != 0 {
 			trItem.Traces = make([]*models.CvmTransactionsTxDataTrace, trItem.TracesMax)

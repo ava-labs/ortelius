@@ -55,6 +55,8 @@ type CTransactionData struct {
 	GasLimit      uint64    `json:"gasLimit"`
 	BlockGasUsed  uint64    `json:"blockGasUsed"`
 	BlockGasLimit uint64    `json:"blockGasLimit"`
+	BlockNonce    uint64    `json:"blockNonce"`
+	BlockHash     string    `json:"blockHash"`
 	Recipient     *string   `json:"recipient,omitempty"`
 	Amount        *string   `json:"value,omitempty"`
 	Payload       []byte    `json:"input,omitempty"`
