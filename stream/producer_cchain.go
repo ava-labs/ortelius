@@ -64,10 +64,13 @@ type ProducerCChain struct {
 	conf      cfg.Config
 
 	// Concurrency control
-	quitCh  chan struct{}
-	doneCh  chan struct{}
-	topic   string
-	topicTx string
+	quitCh     chan struct{}
+	doneCh     chan struct{}
+	topic      string
+	topicTx    string
+	blockCount *big.Int
+
+	ethClientLock sync.Mutex
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -123,6 +126,9 @@ type TracerParam struct {
 }
 
 func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionDebug, error) {
+	p.ethClientLock.Lock()
+	defer p.ethClientLock.Unlock()
+
 	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancelCTX()
 
@@ -171,8 +177,7 @@ func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
 }
 
 func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
-	job := p.conns.StreamDBDedup().NewJob("update-tx-pool")
-	sess := p.conns.DB().NewSessionForEventReceiver(job)
+	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("update-tx-pool"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
@@ -181,8 +186,7 @@ func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
 }
 
 func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
-	job := p.conns.StreamDBDedup().NewJob("update-block")
-	sess := p.conns.DB().NewSessionForEventReceiver(job)
+	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("update-block"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
@@ -346,18 +350,23 @@ func (p *ProducerCChain) getBlock() error {
 		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
 		"cast(count(*) as char) as block_count",
 	).
-		From("cvm_blocks").
+		From(services.TableCvmBlocks).
 		LoadContext(ctx, &maxBlock)
 	if err != nil {
 		return err
 	}
 
-	n, ok := big.NewInt(0).SetString(maxBlock.Block, 10)
+	mblock, ok := big.NewInt(0).SetString(maxBlock.Block, 10)
 	if !ok {
 		return fmt.Errorf("invalid block %s", maxBlock.Block)
 	}
-	p.block = n
-	p.sc.Log.Info("starting processing block %s", p.block.String())
+	cblock, ok := big.NewInt(0).SetString(maxBlock.BlockCount, 10)
+	if !ok {
+		return fmt.Errorf("invalid block %s", maxBlock.BlockCount)
+	}
+	p.block = mblock
+	p.blockCount = cblock
+	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
 	return nil
 }
 
@@ -462,6 +471,11 @@ func (p *ProducerCChain) runProcessor() error {
 	err := p.init()
 	if err != nil {
 		return err
+	}
+
+	pblockp1 := big.NewInt(0).Add(p.block, big.NewInt(1))
+	if p.blockCount.Cmp(pblockp1) < 0 {
+		go p.catchupBlock(pblockp1)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -626,4 +640,71 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 		}
 	}
 	return nil
+}
+
+func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
+	conns, err := p.sc.DatabaseOnly()
+	if err != nil {
+		p.sc.Log.Warn("catchupBock %v", err)
+		return
+	}
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("catchup-block"))
+
+	ctx := context.Background()
+
+	startBlock := big.NewInt(0)
+	endBlock := big.NewInt(0)
+	for endBlock.Cmp(catchupBlock) < 0 {
+		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
+		if endBlock.Cmp(catchupBlock) >= 0 {
+			endBlock.Set(catchupBlock)
+		}
+
+		var cvmBlocks []*services.CvmBlocks
+		_, err = sess.Select(
+			"block",
+		).From(services.TableCvmBlocks).
+			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
+			LoadContext(ctx, &cvmBlocks)
+		if err != nil {
+			p.sc.Log.Warn("catchupBock %v", err)
+			return
+		}
+		blockMap := make(map[string]struct{})
+		for _, bl := range cvmBlocks {
+			blockMap[bl.Block] = struct{}{}
+		}
+		for startBlock.Cmp(endBlock) < 0 {
+			if _, ok := blockMap[startBlock.String()]; !ok {
+				p.sc.Log.Info("refill %v", startBlock.String())
+				bl, debugs, err := p.readBlockFromRPC(startBlock)
+				if err != nil {
+					p.sc.Log.Warn("catchupBock %v", err)
+					return
+				}
+
+				localBlockObject := &localBlockObject{block: bl, debugs: debugs, time: time.Now().UTC()}
+
+				wp := &WorkPacketCChain{bl: localBlockObject}
+				err = p.processWork(wp)
+				if err != nil {
+					p.sc.Log.Warn("catchupBock %v", err)
+					return
+				}
+
+				err = p.updateBlock(startBlock, time.Now().UTC())
+				if err != nil {
+					p.sc.Log.Warn("catchupBock %v", err)
+					return
+				}
+			}
+			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
+		}
+	}
+
+	p.sc.Log.Info("catchup complete")
 }

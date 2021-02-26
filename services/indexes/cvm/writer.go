@@ -71,7 +71,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	return json.Marshal(atomicTX)
 }
 
-func (w *Writer) ConsumeTx(ctx context.Context, conns *services.Connections, c services.Consumable, txDebug *cblock.TransactionDebug, persist services.Persist) error {
+func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, c services.Consumable, txDebug *cblock.TransactionDebug, persist services.Persist) error {
 	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 

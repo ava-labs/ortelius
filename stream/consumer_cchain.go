@@ -200,7 +200,7 @@ func (c *ConsumerCChain) ConsumeTx(msg services.Consumable) error {
 	nmsg := NewMessage(string(id), msg.ChainID(), txDebug.Debug, msg.Timestamp(), msg.Nanosecond())
 
 	for {
-		err = c.persistConsumeTx(nmsg, txDebug)
+		err = c.persistConsumeTrace(nmsg, txDebug)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -258,10 +258,10 @@ func (c *ConsumerCChain) Consume(msg services.Consumable) error {
 	return c.commitMessage(msg)
 }
 
-func (c *ConsumerCChain) persistConsumeTx(msg services.Consumable, txDebug *cblock.TransactionDebug) error {
+func (c *ConsumerCChain) persistConsumeTrace(msg services.Consumable, txDebug *cblock.TransactionDebug) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.ConsumeTx(ctx, c.conns, msg, txDebug, c.sc.Persist)
+	return c.consumer.ConsumeTrace(ctx, c.conns, msg, txDebug, c.sc.Persist)
 }
 
 func (c *ConsumerCChain) persistConsume(msg services.Consumable, block *cblock.Block) error {
