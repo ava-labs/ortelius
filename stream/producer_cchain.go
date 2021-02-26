@@ -681,13 +681,13 @@ func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
 		for startBlock.Cmp(endBlock) < 0 {
 			if _, ok := blockMap[startBlock.String()]; !ok {
 				p.sc.Log.Info("refill %v", startBlock.String())
-				bl, debugs, err := p.readBlockFromRPC(startBlock)
+				bl, traces, err := p.readBlockFromRPC(startBlock)
 				if err != nil {
 					p.sc.Log.Warn("catchupBock %v", err)
 					return
 				}
 
-				localBlockObject := &localBlockObject{block: bl, traces: debugs, time: time.Now().UTC()}
+				localBlockObject := &localBlockObject{block: bl, traces: traces, time: time.Now().UTC()}
 
 				wp := &WorkPacketCChain{localBlock: localBlockObject}
 				err = p.processWork(wp)
