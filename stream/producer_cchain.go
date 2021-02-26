@@ -140,7 +140,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 		return nil, nil, err
 	}
 
-	debugs := make([]*cblock.TransactionTrace, 0, len(bl.Transactions()))
+	txTraces := make([]*cblock.TransactionTrace, 0, len(bl.Transactions()))
 	for _, tx := range bl.Transactions() {
 		txh := tx.Hash().Hex()
 		if !strings.HasPrefix(txh, "0x") {
@@ -156,7 +156,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 			if err != nil {
 				return nil, nil, err
 			}
-			debugs = append(debugs,
+			txTraces = append(txTraces,
 				&cblock.TransactionTrace{
 					Hash:  txh,
 					Idx:   uint32(ipos),
@@ -166,7 +166,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 		}
 	}
 
-	return bl, debugs, nil
+	return bl, txTraces, nil
 }
 
 func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
@@ -294,7 +294,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 
 		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
 			ncurrent := big.NewInt(0).Add(current, big.NewInt(1))
-			bl, debugs, err := p.readBlockFromRPC(ncurrent)
+			bl, traces, err := p.readBlockFromRPC(ncurrent)
 			if err != nil {
 				time.Sleep(readRPCTimeout)
 				return err
@@ -302,7 +302,7 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
 			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, traces: debugs, time: time.Now().UTC()})
+			localBlocks = append(localBlocks, &localBlockObject{block: bl, traces: traces, time: time.Now().UTC()})
 			if len(localBlocks) > blocksToQueue {
 				err = consumeBlock()
 				if err != nil {
