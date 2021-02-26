@@ -337,17 +337,24 @@ func (p *ProducerCChain) getBlock() error {
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
-	var block string
-	_, err = sess.Select("cast(case when max(block) is null then -1 else max(block) end as char) as block").
+	type MaxBlock struct {
+		Block      string
+		BlockCount string
+	}
+	maxBlock := MaxBlock{}
+	_, err = sess.Select(
+		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
+		"cast(count(*) as char) as block_count",
+	).
 		From("cvm_blocks").
-		LoadContext(ctx, &block)
+		LoadContext(ctx, &maxBlock)
 	if err != nil {
 		return err
 	}
 
-	n, ok := big.NewInt(0).SetString(block, 10)
+	n, ok := big.NewInt(0).SetString(maxBlock.Block, 10)
 	if !ok {
-		return fmt.Errorf("invalid block %s", block)
+		return fmt.Errorf("invalid block %s", maxBlock.Block)
 	}
 	p.block = n
 	p.sc.Log.Info("starting processing block %s", p.block.String())
