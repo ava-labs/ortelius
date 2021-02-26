@@ -52,7 +52,7 @@ type CTransactionData struct {
 	CreatedAt time.Time `json:"createdAt"`
 	Nonce     uint64    `json:"nonce"`
 	GasPrice  *string   `json:"gasPrice,omitempty"`
-	GasLimit  uint64    `json:"gasLimit"`
+	Gas       uint64    `json:"gas"`
 	Recipient *string   `json:"recipient,omitempty"`
 	Amount    *string   `json:"value,omitempty"`
 	Payload   []byte    `json:"input,omitempty"`
