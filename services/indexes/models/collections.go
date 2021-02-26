@@ -28,22 +28,22 @@ type TransactionList struct {
 }
 
 type CvmTransactionsTxDataDebug struct {
-	Hash                       string `json:"hash"`
-	Idx                        uint32 `json:"idx"`
-	CallType                   string `json:"callType"`
-	ToAddr                     string `json:"to"`
-	FromAddr                   string `json:"from"`
-	Type                       string `json:"type"`
-	GasUsed                    string `json:"gasUsed"`
-	Gas                        string `json:"gas"`
-	Input                      string `json:"input"`
-	Output                     string `json:"output"`
-	Value                      string `json:"value"`
-	CreatedContractAddressHash string `json:"createdContractAddressHash"`
-	Init                       string `json:"init"`
-	CreatedContractCode        string `json:"createdContractCode"`
-	Error                      string `json:"error"`
-	TraceAddress               []int  `json:"traceAddress"`
+	Hash                       *string `json:"hash"`
+	Idx                        uint32  `json:"idx"`
+	CallType                   string  `json:"callType"`
+	ToAddr                     string  `json:"to"`
+	FromAddr                   string  `json:"from"`
+	Type                       string  `json:"type"`
+	GasUsed                    string  `json:"gasUsed"`
+	Gas                        string  `json:"gas"`
+	Input                      string  `json:"input"`
+	Output                     string  `json:"output"`
+	Value                      string  `json:"value"`
+	CreatedContractAddressHash string  `json:"createdContractAddressHash"`
+	Init                       string  `json:"init"`
+	CreatedContractCode        string  `json:"createdContractCode"`
+	Error                      string  `json:"error"`
+	TraceAddress               []int   `json:"traceAddress"`
 }
 
 type CTransactionData struct {

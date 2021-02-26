@@ -728,7 +728,10 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"created_at",
 	).From(services.TableCvmTransactionsTxdataDebug).
 		Where("hash in ?", hashes).
-		LoadContext(ctx, vdebugs)
+		LoadContext(ctx, &vdebugs)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, vdebug := range vdebugs {
 		txDebugModel := &models.CvmTransactionsTxDataDebug{}
@@ -741,6 +744,22 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			trItemsByHash[vdebug.Hash].FromAddr = txDebugModel.FromAddr
 		}
 
+		valueInt, okValueInt := big.NewInt(0).SetString(txDebugModel.Value, 16)
+		if okValueInt && valueInt != nil {
+			txDebugModel.Value = valueInt.String()
+		}
+		gasInt, okGasInt := big.NewInt(0).SetString(txDebugModel.Gas, 16)
+		if okGasInt && gasInt != nil {
+			txDebugModel.Gas = gasInt.String()
+		}
+		gasUsedInt, okGasUsedInt := big.NewInt(0).SetString(txDebugModel.GasUsed, 16)
+		if okGasUsedInt && gasUsedInt != nil {
+			txDebugModel.GasUsed = gasUsedInt.String()
+		}
+
+		if trItemsByHash[vdebug.Hash].Debug == nil {
+			trItemsByHash[vdebug.Hash].Debug = make(map[uint32]*models.CvmTransactionsTxDataDebug)
+		}
 		trItemsByHash[vdebug.Hash].Debug[vdebug.Idx] = txDebugModel
 	}
 
