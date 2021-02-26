@@ -72,7 +72,8 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 }
 
 func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist services.Persist) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("cvm-index"))
+	job := conns.StreamDBDedup().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
 	if err != nil {
@@ -80,26 +81,26 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, 
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	modelsTxDataDebugs := &models.CvmTransactionsTxDataTrace{}
-	err = json.Unmarshal(transactionTrace.Trace, modelsTxDataDebugs)
+	txTraceModel := &models.CvmTransactionsTxDataTrace{}
+	err = json.Unmarshal(transactionTrace.Trace, txTraceModel)
 	if err != nil {
 		return err
 	}
 
-	cCtx := services.NewConsumerContext(ctx, conns.StreamDBDedup().NewJob("cvm-index"), dbTx, c.Timestamp(), c.Nanosecond(), persist)
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
-	txDataDebugs := &services.CvmTransactionsTxdataTrace{
+	txTraceService := &services.CvmTransactionsTxdataTrace{
 		Hash:          transactionTrace.Hash,
 		Idx:           transactionTrace.Idx,
-		ToAddr:        modelsTxDataDebugs.ToAddr,
-		FromAddr:      modelsTxDataDebugs.FromAddr,
-		CallType:      modelsTxDataDebugs.CallType,
-		Type:          modelsTxDataDebugs.Type,
+		ToAddr:        txTraceModel.ToAddr,
+		FromAddr:      txTraceModel.FromAddr,
+		CallType:      txTraceModel.CallType,
+		Type:          txTraceModel.Type,
 		Serialization: transactionTrace.Trace,
 		CreatedAt:     cCtx.Time(),
 	}
 
-	err = persist.InsertCvmTransactionsTxdataTrace(ctx, dbTx, txDataDebugs, cfg.PerformUpdates)
+	err = persist.InsertCvmTransactionsTxdataTrace(ctx, dbTx, txTraceService, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,8 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, 
 }
 
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("cvm-index"))
+	job := conns.StreamDBDedup().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
 	if err != nil {
@@ -117,7 +119,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, conns.StreamDBDedup().NewJob("cvm-index"), dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body(), block)
+	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body(), block)
 	if err != nil {
 		return err
 	}
