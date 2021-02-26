@@ -696,7 +696,11 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		return nil, err
 	}
 
+	trItemsByHash := make(map[string]*models.CTransactionData)
+
 	trItems := make([]*models.CTransactionData, 0, len(dataList))
+	hashes := make([]string, 0, len(dataList))
+
 	for _, txdata := range dataList {
 		var tr types.Transaction
 		err := tr.UnmarshalJSON(txdata.Serialization)
@@ -707,6 +711,37 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		ctr.Block = txdata.Block
 		ctr.CreatedAt = txdata.CreatedAt
 		trItems = append(trItems, ctr)
+
+		trItemsByHash[ctr.Hash] = ctr
+		hashes = append(hashes, ctr.Hash)
+	}
+
+	var vdebugs []*services.CvmTransactionsTxdataDebug
+	_, err = dbRunner.Select(
+		"hash",
+		"idx",
+		"to_addr",
+		"from_addr",
+		"call_type",
+		"type",
+		"serialization",
+		"created_at",
+	).From(services.TableCvmTransactionsTxdataDebug).
+		Where("hash in ?", hashes).
+		LoadContext(ctx, vdebugs)
+
+	for _, vdebug := range vdebugs {
+		txDebugModel := &models.CvmTransactionsTxDataDebug{}
+		err = json.Unmarshal(vdebug.Serialization, txDebugModel)
+		if err != nil {
+			return nil, err
+		}
+		if vdebug.Idx == 0 {
+			trItemsByHash[vdebug.Hash].ToAddr = txDebugModel.ToAddr
+			trItemsByHash[vdebug.Hash].FromAddr = txDebugModel.FromAddr
+		}
+
+		trItemsByHash[vdebug.Hash].Debug[vdebug.Idx] = txDebugModel
 	}
 
 	listParamsOriginal := p.ListParams

@@ -27,6 +27,25 @@ type TransactionList struct {
 	Next *string `json:"next,omitempty"`
 }
 
+type CvmTransactionsTxDataDebug struct {
+	Hash                       string `json:"hash"`
+	Idx                        uint32 `json:"idx"`
+	CallType                   string `json:"callType"`
+	ToAddr                     string `json:"to"`
+	FromAddr                   string `json:"from"`
+	Type                       string `json:"type"`
+	GasUsed                    string `json:"gasUsed"`
+	Gas                        string `json:"gas"`
+	Input                      string `json:"input"`
+	Output                     string `json:"output"`
+	Value                      string `json:"value"`
+	CreatedContractAddressHash string `json:"createdContractAddressHash"`
+	Init                       string `json:"init"`
+	CreatedContractCode        string `json:"createdContractCode"`
+	Error                      string `json:"error"`
+	TraceAddress               []int  `json:"traceAddress"`
+}
+
 type CTransactionData struct {
 	Block     string    `json:"block"`
 	Hash      string    `json:"hash"`
@@ -37,10 +56,15 @@ type CTransactionData struct {
 	Recipient *string   `json:"recipient,omitempty"`
 	Amount    *string   `json:"value,omitempty"`
 	Payload   []byte    `json:"input,omitempty"`
+	ToAddr    string    `json:"toAddr"`
+	FromAddr  string    `json:"fromAddr"`
+
 	// Signature values
 	V *string `json:"v,omitempty"`
 	R *string `json:"r,omitempty"`
 	S *string `json:"s,omitempty"`
+
+	Debug map[uint32]*CvmTransactionsTxDataDebug `json:"debugs"`
 }
 
 type CTransactionList struct {
@@ -157,13 +181,4 @@ type Aggregates struct {
 
 type AddressChains struct {
 	AddressChains map[string][]StringID `json:"addressChains"`
-}
-
-type CvmTransactionsTxDataDebug struct {
-	Hash     string `json:"hash"`
-	Idx      uint32 `json:"idx"`
-	CallType string `json:"callType"`
-	ToAddr   string `json:"to"`
-	FromAddr string `json:"from"`
-	Type     string `json:"type"`
 }

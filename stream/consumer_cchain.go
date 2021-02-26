@@ -146,7 +146,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 					timestamp:  row.CreatedAt.UTC().Unix(),
 					nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
 				}
-				err = c.Consume(msg)
+				err = c.ConsumeTx(msg)
 				if err != nil {
 					return err
 				}
