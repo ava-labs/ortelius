@@ -29,7 +29,7 @@ type TransactionList struct {
 
 type CvmTransactionsTxDataDebug struct {
 	Hash                       *string `json:"hash,omitempty"`
-	Idx                        uint32  `json:"idx"`
+	Idx                        *uint32 `json:"idx,omitempty"`
 	CallType                   string  `json:"callType"`
 	ToAddr                     string  `json:"to"`
 	FromAddr                   string  `json:"from"`
@@ -64,7 +64,9 @@ type CTransactionData struct {
 	R *string `json:"r,omitempty"`
 	S *string `json:"s,omitempty"`
 
-	Debug map[uint32]*CvmTransactionsTxDataDebug `json:"debugs"`
+	Traces    []*CvmTransactionsTxDataDebug          `json:"traces"`
+	TracesMax uint32                                 `json:"-"`
+	TracesMap map[uint32]*CvmTransactionsTxDataDebug `json:"-"`
 }
 
 type CTransactionList struct {

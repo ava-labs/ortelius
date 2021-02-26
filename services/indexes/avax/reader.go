@@ -768,10 +768,24 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		txDebugModel.Input = nilEmpty(txDebugModel.Input, "0x")
 		txDebugModel.Output = nilEmpty(txDebugModel.Output, "0x")
 
-		if trItemsByHash[vdebug.Hash].Debug == nil {
-			trItemsByHash[vdebug.Hash].Debug = make(map[uint32]*models.CvmTransactionsTxDataDebug)
+		if trItemsByHash[vdebug.Hash].TracesMap == nil {
+			trItemsByHash[vdebug.Hash].TracesMap = make(map[uint32]*models.CvmTransactionsTxDataDebug)
 		}
-		trItemsByHash[vdebug.Hash].Debug[vdebug.Idx] = txDebugModel
+		if vdebug.Idx+1 > trItemsByHash[vdebug.Hash].TracesMax {
+			trItemsByHash[vdebug.Hash].TracesMax = vdebug.Idx + 1
+		}
+		trItemsByHash[vdebug.Hash].TracesMap[vdebug.Idx] = txDebugModel
+	}
+
+	for _, trItem := range trItemsByHash {
+		if trItem.TracesMax == 0 {
+			continue
+		}
+		trItem.Traces = make([]*models.CvmTransactionsTxDataDebug, trItem.TracesMax)
+		for k, v := range trItem.TracesMap {
+			v.Idx = nil
+			trItem.Traces[k] = v
+		}
 	}
 
 	listParamsOriginal := p.ListParams
