@@ -1458,3 +1458,58 @@ func TestKeyValueStore(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestCvmTransactionsTxdataTrace(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmTransactionsTxdataTrace{}
+	v.Hash = "h1"
+	v.Idx = 1
+	v.ToAddr = "to1"
+	v.FromAddr = "fr1"
+	v.CallType = "ct1"
+	v.Type = "t1"
+	v.Serialization = []byte("bits1")
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmTransactionsTxdataTrace).Exec()
+
+	err = p.InsertCvmTransactionsTxdataTrace(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmTransactionsTxdataTrace(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.ToAddr = "to2"
+	v.FromAddr = "fr2"
+	v.Serialization = []byte("bits2")
+
+	err = p.InsertCvmTransactionsTxdataTrace(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmTransactionsTxdataTrace(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.ToAddr != "to2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

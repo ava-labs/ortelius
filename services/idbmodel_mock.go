@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gocraft/dbr/v2"
@@ -37,6 +38,7 @@ type MockPersist struct {
 	TransactionsRewardsOwners        map[string]*TransactionsRewardsOwners
 	TxPool                           map[string]*TxPool
 	KeyValueStore                    map[string]*KeyValueStore
+	CvmTransactionsTxdataTrace       map[string]*CvmTransactionsTxdataTrace
 }
 
 func NewPersistMock() *MockPersist {
@@ -69,6 +71,7 @@ func NewPersistMock() *MockPersist {
 		TransactionsRewardsOwnersOutputs: make(map[string]*TransactionsRewardsOwnersOutputs),
 		TxPool:                           make(map[string]*TxPool),
 		KeyValueStore:                    make(map[string]*KeyValueStore),
+		CvmTransactionsTxdataTrace:       make(map[string]*CvmTransactionsTxdataTrace),
 	}
 }
 
@@ -602,5 +605,23 @@ func (m *MockPersist) InsertKeyValueStore(ctx context.Context, runner dbr.Sessio
 	nv := &KeyValueStore{}
 	*nv = *v
 	m.KeyValueStore[v.K] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryCvmTransactionsTxdataTrace(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataTrace) (*CvmTransactionsTxdataTrace, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertCvmTransactionsTxdataTrace(ctx context.Context, runner dbr.SessionRunner, v *CvmTransactionsTxdataTrace, _ bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &CvmTransactionsTxdataTrace{}
+	*nv = *v
+	m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)] = nv
 	return nil
 }

@@ -27,14 +27,16 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 
 	pollLimit = 500
-	pollSleep = 250 * time.Millisecond
+	pollSleep = 500 * time.Millisecond
 )
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 // consumer takes events from Kafka and sends them to a service consumer
 type consumer struct {
-	id       string
+	id        string
+	eventType EventType
+
 	chainID  string
 	reader   *kafka.Reader
 	consumer services.Consumer
@@ -55,7 +57,7 @@ type consumer struct {
 }
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
+func NewConsumerFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactory {
 	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string, idx int, maxIdx int) (Processor, error) {
 		conns, err := sc.DatabaseOnly()
 		if err != nil {
@@ -63,16 +65,27 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 		}
 
 		c := &consumer{
-			idx:                           idx,
-			maxIdx:                        maxIdx,
-			chainID:                       chainID,
-			conns:                         conns,
-			sc:                            sc,
-			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s", chainID),
-			metricProcessMillisCounterKey: fmt.Sprintf("consume_records_process_millis_%s", chainID),
-			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s", chainID),
-			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s", chainID),
-			id:                            fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID),
+			eventType: eventType,
+			idx:       idx,
+			maxIdx:    maxIdx,
+			chainID:   chainID,
+			conns:     conns,
+			sc:        sc,
+		}
+
+		switch eventType {
+		case EventTypeDecisions:
+			c.metricProcessedCountKey = fmt.Sprintf("consume_records_processed_%s", chainID)
+			c.metricProcessMillisCounterKey = fmt.Sprintf("consume_records_process_millis_%s", chainID)
+			c.metricSuccessCountKey = fmt.Sprintf("consume_records_success_%s", chainID)
+			c.metricFailureCountKey = fmt.Sprintf("consume_records_failure_%s", chainID)
+			c.id = fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID)
+		case EventTypeConsensus:
+			c.metricProcessedCountKey = fmt.Sprintf("consume_consensus_records_processed_%s", chainID)
+			c.metricProcessMillisCounterKey = fmt.Sprintf("consume_consensus_records_process_millis_%s", chainID)
+			c.metricSuccessCountKey = fmt.Sprintf("consume_consensus_records_success_%s", chainID)
+			c.metricFailureCountKey = fmt.Sprintf("consume_consensus_records_failure_%s", chainID)
+			c.id = fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID)
 		}
 
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
@@ -97,7 +110,7 @@ func NewConsumerFactory(factory serviceConsumerFactory) ProcessorFactory {
 			c.groupName = ""
 		}
 
-		c.topicName = GetTopicName(conf.NetworkID, chainID, EventTypeDecisions)
+		c.topicName = GetTopicName(conf.NetworkID, chainID, c.eventType)
 		// Create reader for the topic
 		c.reader = kafka.NewReader(kafka.ReaderConfig{
 			Topic:       c.topicName,
@@ -236,7 +249,14 @@ func (c *consumer) ProcessNextMessage() error {
 func (c *consumer) persistConsume(msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
-	return c.consumer.Consume(ctx, c.conns, msg, c.sc.Persist)
+	switch c.eventType {
+	case EventTypeDecisions:
+		return c.consumer.Consume(ctx, c.conns, msg, c.sc.Persist)
+	case EventTypeConsensus:
+		return c.consumer.ConsumeConsensus(ctx, c.conns, msg, c.sc.Persist)
+	default:
+		return fmt.Errorf("invalid eventType %v", c.eventType)
+	}
 }
 
 func (c *consumer) nextMessage() (*Message, error) {

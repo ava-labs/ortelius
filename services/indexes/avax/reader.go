@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -620,98 +618,6 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 	}
 	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
 	return &next
-}
-
-func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams) (*models.CTransactionList, error) {
-	toCTransactionData := func(t *types.Transaction) *models.CTransactionData {
-		res := &models.CTransactionData{}
-		res.Nonce = t.Nonce()
-		if t.GasPrice() != nil {
-			str := t.GasPrice().String()
-			res.GasPrice = &str
-		}
-		res.GasLimit = t.Gas()
-		if t.To() != nil {
-			str := t.To().Hex()
-			if !strings.HasPrefix(str, "0x") {
-				str = "0x" + str
-			}
-			res.Recipient = &str
-		}
-		if t.Value() != nil {
-			str := t.Value().String()
-			res.Amount = &str
-		}
-		res.Payload = t.Data()
-		v, s, r := t.RawSignatureValues()
-		if v != nil {
-			str := v.String()
-			res.V = &str
-		}
-		if s != nil {
-			str := s.String()
-			res.S = &str
-		}
-		if r != nil {
-			str := r.String()
-			res.R = &str
-		}
-		return res
-	}
-
-	dbRunner, err := r.conns.DB().NewSession("list_ctransactions", cfg.RequestTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	var dataList []*services.CvmTransactionsTxdata
-
-	sq := dbRunner.Select(
-		"hash",
-		"block",
-		"idx",
-		"rcpt",
-		"nonce",
-		"serialization",
-		"created_at",
-	).From(services.TableCvmTransactionsTxdata)
-
-	if len(p.CAddresses) > 0 {
-		sq.
-			Where("rcpt in ?", p.CAddresses)
-	}
-	if len(p.Hashes) > 0 {
-		sq.
-			Where("hash in ?", p.Hashes)
-	}
-
-	_, err = p.Apply(sq).
-		OrderDesc("created_at").
-		LoadContext(ctx, &dataList)
-	if err != nil {
-		return nil, err
-	}
-
-	trItems := make([]*models.CTransactionData, 0, len(dataList))
-	for _, txdata := range dataList {
-		var tr types.Transaction
-		err := tr.UnmarshalJSON(txdata.Serialization)
-		if err != nil {
-			return nil, err
-		}
-		ctr := toCTransactionData(&tr)
-		ctr.Block = txdata.Block
-		ctr.CreatedAt = txdata.CreatedAt
-		trItems = append(trItems, ctr)
-	}
-
-	listParamsOriginal := p.ListParams
-
-	return &models.CTransactionList{
-		Transactions: trItems,
-		StartTime:    listParamsOriginal.StartTime,
-		EndTime:      listParamsOriginal.EndTime,
-	}, nil
 }
 
 func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParams) (*models.AddressList, error) {

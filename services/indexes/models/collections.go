@@ -27,19 +27,50 @@ type TransactionList struct {
 	Next *string `json:"next,omitempty"`
 }
 
+type CvmTransactionsTxDataTrace struct {
+	Hash                       *string `json:"hash,omitempty"`
+	Idx                        *uint32 `json:"idx,omitempty"`
+	CallType                   string  `json:"callType"`
+	ToAddr                     string  `json:"to"`
+	FromAddr                   string  `json:"from"`
+	Type                       string  `json:"type"`
+	GasUsed                    string  `json:"gasUsed"`
+	Gas                        string  `json:"gas"`
+	Input                      *string `json:"input,omitempty"`
+	Output                     *string `json:"output,omitempty"`
+	Value                      string  `json:"value"`
+	CreatedContractAddressHash *string `json:"createdContractAddressHash,omitempty"`
+	Init                       *string `json:"init,omitempty"`
+	CreatedContractCode        *string `json:"createdContractCode,omitempty"`
+	Error                      *string `json:"error,omitempty"`
+	TraceAddress               []int   `json:"traceAddress,omitempty"`
+}
+
 type CTransactionData struct {
-	Block     string    `json:"block"`
-	CreatedAt time.Time `json:"createdAt"`
-	Nonce     uint64    `json:"nonce"`
-	GasPrice  *string   `json:"gasPrice,omitempty"`
-	GasLimit  uint64    `json:"gasLimit"`
-	Recipient *string   `json:"recipient,omitempty"`
-	Amount    *string   `json:"value,omitempty"`
-	Payload   []byte    `json:"input,omitempty"`
+	Block         string    `json:"block"`
+	Hash          string    `json:"hash"`
+	CreatedAt     time.Time `json:"createdAt"`
+	Nonce         uint64    `json:"nonce"`
+	GasPrice      *string   `json:"gasPrice,omitempty"`
+	GasLimit      uint64    `json:"gasLimit"`
+	BlockGasUsed  uint64    `json:"blockGasUsed"`
+	BlockGasLimit uint64    `json:"blockGasLimit"`
+	BlockNonce    uint64    `json:"blockNonce"`
+	BlockHash     string    `json:"blockHash"`
+	Recipient     *string   `json:"recipient,omitempty"`
+	Amount        *string   `json:"value,omitempty"`
+	Payload       []byte    `json:"input,omitempty"`
+	ToAddr        string    `json:"toAddr"`
+	FromAddr      string    `json:"fromAddr"`
+
 	// Signature values
 	V *string `json:"v,omitempty"`
 	R *string `json:"r,omitempty"`
 	S *string `json:"s,omitempty"`
+
+	Traces    []*CvmTransactionsTxDataTrace          `json:"traces"`
+	TracesMax uint32                                 `json:"-"`
+	TracesMap map[uint32]*CvmTransactionsTxDataTrace `json:"-"`
 }
 
 type CTransactionList struct {
