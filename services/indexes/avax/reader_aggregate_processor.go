@@ -24,11 +24,17 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		urlv := url.Values{}
 		urlv.Add(params.KeyIntervalSize, "hour")
 		err := p.ForValues(1, urlv)
-		if err == nil {
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
-			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-			_, _ = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+		p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
+		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		_, err = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
 		}
 	}
 	runAgg()
@@ -61,11 +67,17 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		urlv := url.Values{}
 		urlv.Add(params.KeyIntervalSize, "day")
 		err := p.ForValues(1, urlv)
-		if err == nil {
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
-			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-			_, _ = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
+		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		_, err = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
 		}
 	}
 	runAgg()
@@ -98,11 +110,17 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		urlv := url.Values{}
 		urlv.Add(params.KeyIntervalSize, "week")
 		err := p.ForValues(1, urlv)
-		if err == nil {
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
-			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-			_, _ = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
+		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		_, err = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
 		}
 	}
 	runAgg()
@@ -135,11 +153,17 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		urlv := url.Values{}
 		urlv.Add(params.KeyIntervalSize, "month")
 		err := p.ForValues(1, urlv)
-		if err == nil {
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
-			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-			_, _ = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
+		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		_, err = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
 		}
 	}
 	runAgg()
@@ -172,11 +196,17 @@ func (r *Reader) aggregateProcessor1y(conns *services.Connections) {
 		urlv := url.Values{}
 		urlv.Add(params.KeyIntervalSize, "year")
 		err := p.ForValues(1, urlv)
-		if err == nil {
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-(365 * 24 * time.Hour))
-			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-			_, _ = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(365 * 24 * time.Hour))
+		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		_, err = r.Aggregate(ctx, p, conns)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
 		}
 	}
 	runAgg()
