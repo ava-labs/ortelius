@@ -47,17 +47,21 @@ type CvmTransactionsTxDataTrace struct {
 }
 
 type CTransactionData struct {
-	Block     string    `json:"block"`
-	Hash      string    `json:"hash"`
-	CreatedAt time.Time `json:"createdAt"`
-	Nonce     uint64    `json:"nonce"`
-	GasPrice  *string   `json:"gasPrice,omitempty"`
-	GasLimit  uint64    `json:"gasLimit"`
-	Recipient *string   `json:"recipient,omitempty"`
-	Amount    *string   `json:"value,omitempty"`
-	Payload   []byte    `json:"input,omitempty"`
-	ToAddr    string    `json:"toAddr"`
-	FromAddr  string    `json:"fromAddr"`
+	Block         string    `json:"block"`
+	Hash          string    `json:"hash"`
+	CreatedAt     time.Time `json:"createdAt"`
+	Nonce         uint64    `json:"nonce"`
+	GasPrice      *string   `json:"gasPrice,omitempty"`
+	GasLimit      uint64    `json:"gasLimit"`
+	BlockGasUsed  uint64    `json:"blockGasUsed"`
+	BlockGasLimit uint64    `json:"blockGasLimit"`
+	BlockNonce    uint64    `json:"blockNonce"`
+	BlockHash     string    `json:"blockHash"`
+	Recipient     *string   `json:"recipient,omitempty"`
+	Amount        *string   `json:"value,omitempty"`
+	Payload       []byte    `json:"input,omitempty"`
+	ToAddr        string    `json:"toAddr"`
+	FromAddr      string    `json:"fromAddr"`
 
 	// Signature values
 	V *string `json:"v,omitempty"`
