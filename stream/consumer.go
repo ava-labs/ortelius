@@ -198,14 +198,13 @@ func (c *consumer) ProcessNextMessage() error {
 		var err error
 		var rowdata []*services.TxPool
 		rowdata, err = fetchPollForTopic(sess, c.topicName, &c.idx, c.maxIdx)
-
 		if err != nil {
 			return err
 		}
 
 		if len(rowdata) == 0 {
 			time.Sleep(pollSleep)
-			return nil
+			return ErrNoMessage
 		}
 
 		for _, row := range rowdata {
