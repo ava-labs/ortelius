@@ -160,6 +160,7 @@ func (c *ConsumerCChain) ProcessNextMessage() error {
 
 		if len(rowdata) == 0 && len(rowdataTrc) == 0 {
 			time.Sleep(pollSleep)
+			return ErrNoMessage
 		}
 
 		return nil
