@@ -9,6 +9,70 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
+func (r *Reader) aggregateProcessor() error {
+	if !r.sc.IsAggregateCache {
+		return nil
+	}
+
+	var connections1h *services.Connections
+	var connections24h *services.Connections
+	var connections7d *services.Connections
+	var connections30d *services.Connections
+	var connections1y *services.Connections
+	var err error
+
+	closeDBForError := func() {
+		if connections1h != nil {
+			_ = connections1h.Close()
+		}
+		if connections24h != nil {
+			_ = connections24h.Close()
+		}
+		if connections7d != nil {
+			_ = connections7d.Close()
+		}
+		if connections30d != nil {
+			_ = connections30d.Close()
+		}
+		if connections1y != nil {
+			_ = connections1y.Close()
+		}
+	}
+
+	connections1h, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connections24h, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connections7d, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connections30d, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connections1y, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+
+	go r.aggregateProcessor1h(connections1h)
+	go r.aggregateProcessor24h(connections24h)
+	go r.aggregateProcessor7d(connections7d)
+	go r.aggregateProcessor30d(connections30d)
+	go r.aggregateProcessor1y(connections1y)
+	return nil
+}
+
 func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()

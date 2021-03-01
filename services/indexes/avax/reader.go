@@ -67,57 +67,6 @@ type Reader struct {
 }
 
 func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) (*Reader, error) {
-	var connections1h *services.Connections
-	var connections24h *services.Connections
-	var connections7d *services.Connections
-	var connections30d *services.Connections
-	var connections1y *services.Connections
-	var err error
-
-	closeDBForError := func() {
-		if connections1h != nil {
-			_ = connections1h.Close()
-		}
-		if connections24h != nil {
-			_ = connections24h.Close()
-		}
-		if connections7d != nil {
-			_ = connections7d.Close()
-		}
-		if connections30d != nil {
-			_ = connections30d.Close()
-		}
-		if connections1y != nil {
-			_ = connections1y.Close()
-		}
-	}
-
-	connections1h, err = sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return nil, err
-	}
-	connections24h, err = sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return nil, err
-	}
-	connections7d, err = sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return nil, err
-	}
-	connections30d, err = sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return nil, err
-	}
-	connections1y, err = sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return nil, err
-	}
-
 	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
@@ -127,12 +76,9 @@ func NewReader(networkID uint32, conns *services.Connections, chainConsumers map
 		doneCh:          make(chan struct{}),
 	}
 
-	if sc.IsAggregateCache {
-		go reader.aggregateProcessor1h(connections1h)
-		go reader.aggregateProcessor24h(connections24h)
-		go reader.aggregateProcessor7d(connections7d)
-		go reader.aggregateProcessor30d(connections30d)
-		go reader.aggregateProcessor1y(connections1y)
+	err := reader.aggregateProcessor()
+	if err != nil {
+		return nil, err
 	}
 
 	return reader, nil
