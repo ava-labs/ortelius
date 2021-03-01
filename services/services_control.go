@@ -31,6 +31,7 @@ type Control struct {
 	IsAccumulateBalanceReader  bool
 	IsDBPoll                   bool
 	IsDisableBootstrap         bool
+	IsAggregateCache           bool
 }
 
 func (s *Control) Init(networkID uint32) error {
@@ -49,6 +50,9 @@ func (s *Control) Init(networkID uint32) error {
 	}
 	if _, ok := s.Features["disable_bootstrap"]; ok {
 		s.IsDisableBootstrap = true
+	}
+	if _, ok := s.Features["aggregate_cache"]; ok {
+		s.IsAggregateCache = true
 	}
 	var err error
 	persist := NewPersist()

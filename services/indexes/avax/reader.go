@@ -127,11 +127,13 @@ func NewReader(networkID uint32, conns *services.Connections, chainConsumers map
 		doneCh:          make(chan struct{}),
 	}
 
-	go reader.aggregateProcessor1h(connections1h)
-	go reader.aggregateProcessor24h(connections24h)
-	go reader.aggregateProcessor7d(connections7d)
-	go reader.aggregateProcessor30d(connections30d)
-	go reader.aggregateProcessor1y(connections1y)
+	if sc.IsAggregateCache {
+		go reader.aggregateProcessor1h(connections1h)
+		go reader.aggregateProcessor24h(connections24h)
+		go reader.aggregateProcessor7d(connections7d)
+		go reader.aggregateProcessor30d(connections30d)
+		go reader.aggregateProcessor1y(connections1y)
+	}
 
 	return reader, nil
 }
