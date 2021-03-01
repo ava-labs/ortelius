@@ -98,7 +98,10 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	if err != nil {
 		return nil, err
 	}
-	avaxReader := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain, sc)
+	avaxReader, err := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain, sc)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx := Context{sc: sc}
 

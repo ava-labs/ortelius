@@ -86,7 +86,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	}
 
 	cmap := make(map[string]services.Consumer)
-	reader := avax.NewReader(networkID, conns, cmap, nil, sc)
+	reader, _ := avax.NewReader(networkID, conns, cmap, nil, sc)
 	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()

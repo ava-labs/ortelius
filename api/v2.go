@@ -189,7 +189,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.Aggregate(ctx, p)
+			return c.avaxReader.Aggregate(ctx, p, nil)
 		},
 	})
 }

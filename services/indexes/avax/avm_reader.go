@@ -103,7 +103,7 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				IntervalSize: params.IntervalNames[intervalName],
 				Version:      1,
 			}
-			hm, err := r.Aggregate(ctx, &aparams)
+			hm, err := r.Aggregate(ctx, &aparams, nil)
 			if err != nil {
 				return err
 			}
