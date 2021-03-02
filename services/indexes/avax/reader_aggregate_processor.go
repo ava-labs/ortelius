@@ -110,7 +110,10 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		sess := conns.DB().NewSessionForEventReceiver(job)
 
 		var assetsFound []string
-		_, err := sess.Select("asset_id", "sum(amount) as tamt").
+		_, err := sess.Select(
+			"asset_id",
+			"count(distinct(transaction_id)) as tamt",
+		).
 			From("avm_outputs").
 			Where("created_at > ? and asset_id <> ?",
 				time.Now().UTC().Add(-24*time.Hour),
@@ -144,7 +147,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				return
 			}
 			p.AssetID = &id
-			r.sc.Log.Info("aggregate %s %v-%v", id.String(), p.ListParams.StartTime, p.ListParams.EndTime)
+			r.sc.Log.Info("aggregate %s %v-%v", id.String(), p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
 			_, err = r.Aggregate(ctx, p, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
@@ -189,7 +192,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1h interval 5m %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
+		r.sc.Log.Info("aggregate 1h interval 5m %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
 		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -238,7 +241,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1d interval 1h %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
+		r.sc.Log.Info("aggregate 1d interval 1h %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
 		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -287,7 +290,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1w interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
+		r.sc.Log.Info("aggregate 1w interval 1d %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
 		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -336,7 +339,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1m interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
+		r.sc.Log.Info("aggregate 1m interval 1d %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
 		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
