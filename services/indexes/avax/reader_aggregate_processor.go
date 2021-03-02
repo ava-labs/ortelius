@@ -91,6 +91,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		time1h = time1h.Add(5 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -99,7 +100,6 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 			tnow := time.Now()
 			if tnow.After(time1h) {
 				runAgg()
-				time1h = time1h.Add(5 * time.Minute)
 			}
 		case <-r.doneCh:
 			return
@@ -135,6 +135,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		time24h = time24h.Add(10 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -143,7 +144,6 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 			tnow := time.Now()
 			if tnow.After(time24h) {
 				runAgg()
-				time24h = time24h.Add(10 * time.Minute)
 			}
 		case <-r.doneCh:
 			return
@@ -179,6 +179,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		time7d = time7d.Add(time.Hour)
 	}
 	runAgg()
 	for {
@@ -187,7 +188,6 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 			tnow := time.Now()
 			if tnow.After(time7d) {
 				runAgg()
-				time7d = time7d.Add(time.Hour)
 			}
 		case <-r.doneCh:
 			return
@@ -223,6 +223,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		time30d = time30d.Add(4 * time.Hour)
 	}
 	runAgg()
 	for {
@@ -231,7 +232,6 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 			tnow := time.Now()
 			if tnow.After(time30d) {
 				runAgg()
-				time30d = time30d.Add(4 * time.Hour)
 			}
 		case <-r.doneCh:
 			return
