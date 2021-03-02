@@ -706,6 +706,10 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 			OrderAsc("avm_outputs.chain_id").
 			OrderAsc("avm_output_addresses.address").
 			OrderAsc("avm_outputs.asset_id")
+
+		if len(p.ChainIDs) != 0 {
+			baseq.Where("avm_outputs.chain_id IN ?", p.ChainIDs)
+		}
 	}
 
 	builder := dbRunner.Select(
