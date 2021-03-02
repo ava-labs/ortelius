@@ -85,6 +85,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		r.sc.Log.Info("aggregate 1h interval 5m %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
 		_, err = r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -119,7 +120,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		ctx := context.Background()
 		p := &params.AggregateParams{}
 		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "day")
+		urlv.Add(params.KeyIntervalSize, "hour")
 		err := p.ForValues(1, urlv)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -128,6 +129,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		r.sc.Log.Info("aggregate 1d interval 1h %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
 		_, err = r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -162,7 +164,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		ctx := context.Background()
 		p := &params.AggregateParams{}
 		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "week")
+		urlv.Add(params.KeyIntervalSize, "day")
 		err := p.ForValues(1, urlv)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -171,6 +173,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		r.sc.Log.Info("aggregate 1w interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
 		_, err = r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
@@ -214,6 +217,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+		r.sc.Log.Info("aggregate 1m interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
 		_, err = r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
