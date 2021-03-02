@@ -17,6 +17,9 @@ import (
 type ReaderAggregate struct {
 	lock sync.RWMutex
 
+	aggr  map[ids.ID]*models.AggregatesHistogram
+	aggrt *time.Time
+
 	a1h   *models.AggregatesHistogram
 	a1ht  *time.Time
 	a24h  *models.AggregatesHistogram
@@ -130,6 +133,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
 		assets = append(assets, assetsFound...)
 
+		aggrMap := make(map[ids.ID]*models.AggregatesHistogram)
 		for _, asset := range assets {
 			p := &params.AggregateParams{}
 			urlv := url.Values{}
@@ -148,12 +152,18 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			}
 			p.AssetID = &id
 			r.sc.Log.Info("aggregate %s %v-%v", id.String(), p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
-			_, err = r.Aggregate(ctx, p, conns)
+			aggr, err := r.Aggregate(ctx, p, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
 			}
+			aggrMap[id] = aggr
 		}
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.aggrt = &tnow
+		r.readerAggregate.aggr = aggrMap
+		r.readerAggregate.lock.Unlock()
 		timeaggr = timeaggr.Add(5 * time.Minute)
 	}
 	runAgg()
