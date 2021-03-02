@@ -63,6 +63,8 @@ type Reader struct {
 	chainConsumers  map[string]services.Consumer
 	cChainCconsumer services.ConsumerCChain
 
+	readerAggregate ReaderAggregate
+
 	doneCh chan struct{}
 }
 

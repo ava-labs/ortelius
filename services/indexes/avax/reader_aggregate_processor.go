@@ -3,11 +3,27 @@ package avax
 import (
 	"context"
 	"net/url"
+	"sync"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
+
+type ReaderAggregate struct {
+	lock sync.RWMutex
+
+	a1h   *models.AggregatesHistogram
+	a1ht  *time.Time
+	a24h  *models.AggregatesHistogram
+	a24ht *time.Time
+	a7d   *models.AggregatesHistogram
+	a7dt  *time.Time
+	a30d  *models.AggregatesHistogram
+	a30dt *time.Time
+}
 
 func (r *Reader) aggregateProcessor() error {
 	if !r.sc.IsAggregateCache {
@@ -86,11 +102,16 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 		r.sc.Log.Info("aggregate 1h interval 5m %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
-		_, err = r.Aggregate(ctx, p, conns)
+		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.a1ht = &tnow
+		r.readerAggregate.a1h = agg
+		r.readerAggregate.lock.Unlock()
 		time1h = time1h.Add(5 * time.Minute)
 	}
 	runAgg()
@@ -130,12 +151,17 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 		r.sc.Log.Info("aggregate 1d interval 1h %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
-		_, err = r.Aggregate(ctx, p, conns)
+		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		time24h = time24h.Add(10 * time.Minute)
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.a24ht = &tnow
+		r.readerAggregate.a24h = agg
+		r.readerAggregate.lock.Unlock()
+		time24h = time24h.Add(15 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -174,11 +200,16 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 		r.sc.Log.Info("aggregate 1w interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
-		_, err = r.Aggregate(ctx, p, conns)
+		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.a7dt = &tnow
+		r.readerAggregate.a7d = agg
+		r.readerAggregate.lock.Unlock()
 		time7d = time7d.Add(time.Hour)
 	}
 	runAgg()
@@ -218,11 +249,16 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
 		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 		r.sc.Log.Info("aggregate 1m interval 1d %v->%v", p.ListParams.StartTime, p.ListParams.EndTime)
-		_, err = r.Aggregate(ctx, p, conns)
+		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.a30dt = &tnow
+		r.readerAggregate.a30d = agg
+		r.readerAggregate.lock.Unlock()
 		time30d = time30d.Add(4 * time.Hour)
 	}
 	runAgg()
