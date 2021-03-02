@@ -110,13 +110,14 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		sess := conns.DB().NewSessionForEventReceiver(job)
 
 		var assetsFound []string
-		_, err := sess.Select("asset_id").
-			Distinct().
+		_, err := sess.Select("asset_id", "sum(amount) as tamt").
 			From("avm_outputs").
 			Where("created_at > ? and asset_id <> ?",
 				time.Now().UTC().Add(-24*time.Hour),
 				r.sc.GenesisContainer.AvaxAssetID.String(),
 			).
+			GroupBy("asset_id").
+			OrderDesc("tamt").
 			LoadContext(ctx, &assetsFound)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
