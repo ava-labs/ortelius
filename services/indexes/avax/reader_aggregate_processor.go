@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
@@ -30,6 +32,8 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
+	var connectionsaggr *services.Connections
+
 	var connections1h *services.Connections
 	var connections24h *services.Connections
 	var connections7d *services.Connections
@@ -37,6 +41,10 @@ func (r *Reader) aggregateProcessor() error {
 	var err error
 
 	closeDBForError := func() {
+		if connectionsaggr != nil {
+			_ = connectionsaggr.Close()
+		}
+
 		if connections1h != nil {
 			_ = connections1h.Close()
 		}
@@ -49,6 +57,12 @@ func (r *Reader) aggregateProcessor() error {
 		if connections30d != nil {
 			_ = connections30d.Close()
 		}
+	}
+
+	connectionsaggr, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
 	}
 
 	connections1h, err = r.sc.DatabaseRO()
@@ -72,11 +86,84 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
+	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1h(connections1h)
 	go r.aggregateProcessor24h(connections24h)
 	go r.aggregateProcessor7d(connections7d)
 	go r.aggregateProcessor30d(connections30d)
 	return nil
+}
+
+func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ticker := time.NewTicker(1 * time.Minute)
+
+	timeaggr := time.Now().Truncate(time.Minute)
+
+	runAgg := func() {
+		ctx := context.Background()
+
+		job := conns.QuietStream().NewJob("aggr-asset-aggr")
+		sess := conns.DB().NewSessionForEventReceiver(job)
+
+		var assetsFound []string
+		_, err := sess.Select("asset_id").
+			Distinct().
+			From("avm_outputs").
+			Where("created_at > ? and asset_id <> ?",
+				time.Now().UTC().Add(-24*time.Hour),
+				r.sc.GenesisContainer.AvaxAssetID.String(),
+			).
+			LoadContext(ctx, &assetsFound)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+
+		assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
+		assets = append(assets, assetsFound...)
+
+		for _, asset := range assets {
+			p := &params.AggregateParams{}
+			urlv := url.Values{}
+			err = p.ForValues(1, urlv)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+			p.ListParams.StartTime = p.ListParams.EndTime.Add(-24 * time.Hour)
+			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+			id, err := ids.FromString(asset)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+			p.AssetID = &id
+			r.sc.Log.Info("aggregate %s %v-%v", id.String(), p.ListParams.StartTime, p.ListParams.EndTime)
+			_, err = r.Aggregate(ctx, p, conns)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+		}
+		timeaggr = timeaggr.Add(5 * time.Minute)
+	}
+	runAgg()
+	for {
+		select {
+		case <-ticker.C:
+			tnow := time.Now()
+			if tnow.After(timeaggr) {
+				runAgg()
+			}
+		case <-r.doneCh:
+			return
+		}
+	}
 }
 
 func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
