@@ -112,7 +112,7 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/ctxdata/:id", (*V2Context).CTxData).
 		Get("/etxdata/:id", (*V2Context).ETxData).
 		Get("/ctransactions", (*V2Context).ListCTransactions).
-		Get("/rawtransactions/:id", (*V2Context).RawTransaction)
+		Get("/rawtransaction/:id", (*V2Context).RawTransaction)
 }
 
 //

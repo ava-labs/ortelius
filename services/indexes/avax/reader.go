@@ -1639,7 +1639,7 @@ func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, 
 		return nil, err
 	}
 
-	rawTx := models.RawTx{Tx: hex.EncodeToString(serialData.Serialization)}
+	rawTx := models.RawTx{Tx: "0x" + hex.EncodeToString(serialData.Serialization)}
 
 	return &rawTx, nil
 }
