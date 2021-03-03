@@ -3,6 +3,7 @@ package avax
 import (
 	"context"
 	"net/url"
+	"sort"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type ReaderAggregate struct {
 
 	aggr  map[ids.ID]*models.AggregatesHistogram
 	aggrt *time.Time
+	aggrl []*models.AggregatesHistogram
 
 	a1h   *models.AggregatesHistogram
 	a1ht  *time.Time
@@ -134,6 +136,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		assets = append(assets, assetsFound...)
 
 		aggrMap := make(map[ids.ID]*models.AggregatesHistogram)
+		aggrList := make([]*models.AggregatesHistogram, 0, len(assets))
 		for _, asset := range assets {
 			p := &params.AggregateParams{}
 			urlv := url.Values{}
@@ -158,11 +161,16 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				return
 			}
 			aggrMap[id] = aggr
+			aggrList = append(aggrList, aggr)
 		}
+		sort.Slice(aggrList, func(i, j int) bool {
+			return aggrList[i].Aggregates.TransactionCount > aggrList[j].Aggregates.TransactionCount
+		})
 		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
 		r.readerAggregate.aggrt = &tnow
 		r.readerAggregate.aggr = aggrMap
+		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()
 		timeaggr = timeaggr.Add(5 * time.Minute)
 	}
