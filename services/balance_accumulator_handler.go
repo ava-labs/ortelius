@@ -223,11 +223,6 @@ func (a *BalanceAccumulatorManager) Run(sc *Control) {
 type BalancerAccumulateHandler struct {
 }
 
-type OutputAddressAccumulateWithTrID struct {
-	OutputAddressAccumulate
-	TransactionID string
-}
-
 func outTable(typ processType) string {
 	tbl := ""
 	switch typ {
@@ -250,11 +245,11 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*OutputAddressAccumulateWithTrID, error) {
+func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
-	var rowdata []*OutputAddressAccumulateWithTrID
+	var rowdata []*OutputAddressAccumulate
 	var err error
 
 	tbl := outTable(typ)
@@ -320,7 +315,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*OutputAddressAccumulateWithTrID
+	var rowdataAvail []*OutputAddressAccumulate
 	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
@@ -331,7 +326,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*OutputAddressAccumulateWithTrID)
+		trows := make(map[string]*OutputAddressAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -340,7 +335,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*OutputAddressAccumulateWithTrID)
+				trows = make(map[string]*OutputAddressAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -357,7 +352,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 }
 
 func (a *BalancerAccumulateHandler) processOutputsPost(
-	workRows map[string]*OutputAddressAccumulateWithTrID,
+	workRows map[string]*OutputAddressAccumulate,
 	workRowsID []string,
 	typ processType,
 	session *dbr.Session,
@@ -376,7 +371,7 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*OutputAddressAccumulateWithTrID
+	var rowdata []*OutputAddressAccumulate
 
 	_, err = dbTx.Select(
 		"id",
@@ -408,7 +403,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	typ processType,
 	dbTx *dbr.Tx,
 	persist Persist,
-	row *OutputAddressAccumulateWithTrID,
+	row *OutputAddressAccumulate,
 ) error {
 	var err error
 
