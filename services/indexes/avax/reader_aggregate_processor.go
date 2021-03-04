@@ -171,7 +171,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				return
 			}
 			aggrMap[id] = aggr
-			aggrList = append(aggrList, &models.AssetAggregate{Aggregate: aggr})
+			aggrList = append(aggrList, &models.AssetAggregate{Aggregate: aggr, Asset: id})
 		}
 		sort.Slice(aggrList, func(i, j int) bool {
 			return aggrList[i].Aggregate.Aggregates.TransactionCount > aggrList[j].Aggregate.Aggregates.TransactionCount
