@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	cblock "github.com/ava-labs/ortelius/models"
@@ -180,10 +181,16 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		rcptstr := ""
 		if rawtx.To() != nil {
 			rcptstr = rawtx.To().Hex()
+			if strings.HasPrefix(rcptstr, "0x") {
+				rcptstr = rcptstr[2:]
+			}
 			// decode to all lower case
 			hb, err := hex.DecodeString(rcptstr)
-			if err != nil {
+			if err == nil {
 				rcptstr = hex.EncodeToString(hb)
+			}
+			if !strings.HasPrefix(rcptstr, "0x") {
+				rcptstr = "0x" + rcptstr
 			}
 		}
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
