@@ -2,10 +2,11 @@ package avax
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"strings"
+
+	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
@@ -30,15 +31,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		}
 		res.GasLimit = t.Gas()
 		if t.To() != nil {
-			str := strings.TrimPrefix(t.To().Hex(), "0x")
-			// decode to all lower case
-			hb, err := hex.DecodeString(str)
-			if err == nil {
-				str = hex.EncodeToString(hb)
-			}
-			if !strings.HasPrefix(str, "0x") {
-				str = "0x" + str
-			}
+			str := utils.CommonAddressHexRepair(t.To())
 			res.Recipient = &str
 		}
 		if t.Value() != nil {

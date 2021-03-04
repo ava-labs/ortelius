@@ -5,11 +5,11 @@ package cvm
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
+
+	"github.com/ava-labs/ortelius/utils"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -178,18 +178,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	for ipos, txdata := range block.TxsBytes {
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
-		rcptstr := ""
-		if rawtx.To() != nil {
-			rcptstr = strings.TrimPrefix(rawtx.To().Hex(), "0x")
-			// decode to all lower case
-			hb, err := hex.DecodeString(rcptstr)
-			if err == nil {
-				rcptstr = hex.EncodeToString(hb)
-			}
-			if !strings.HasPrefix(rcptstr, "0x") {
-				rcptstr = "0x" + rcptstr
-			}
-		}
+		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
 			Hash:          rawhash.String(),
 			Block:         block.Header.Number.String(),
