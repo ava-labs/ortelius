@@ -30,6 +30,11 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		res.GasLimit = t.Gas()
 		if t.To() != nil {
 			str := t.To().Hex()
+			// decode to all lower case
+			hb, err := hex.DecodeString(str)
+			if err != nil {
+				str = hex.EncodeToString(hb)
+			}
 			if !strings.HasPrefix(str, "0x") {
 				str = "0x" + str
 			}

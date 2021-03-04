@@ -5,6 +5,7 @@ package cvm
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"time"
@@ -178,7 +179,12 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		rawhash := rawtx.Hash()
 		rcptstr := ""
 		if rawtx.To() != nil {
-			rcptstr = rawtx.To().String()
+			rcptstr = rawtx.To().Hex()
+			// decode to all lower case
+			hb, err := hex.DecodeString(rcptstr)
+			if err != nil {
+				rcptstr = hex.EncodeToString(hb)
+			}
 		}
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
 			Hash:          rawhash.String(),
