@@ -1506,12 +1506,12 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 
 	rows := []Row{}
 
-	iv, res := big.NewInt(0).SetString(p.ID, 10)
-	if iv != nil && res {
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("serialization").
 			From("cvm_transactions").
-			Where("block="+p.ID).
+			Where("block="+idInt.String()).
 			Limit(1).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1562,17 +1562,19 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rowsData := []RowData{}
 
-	_, err = dbRunner.
-		Select(
-			"idx",
-			"serialization",
-		).
-		From("cvm_transactions_txdata").
-		Where("block="+p.ID).
-		OrderAsc("idx").
-		LoadContext(ctx, &rowsData)
-	if err != nil {
-		return nil, err
+	if idInt != nil {
+		_, err = dbRunner.
+			Select(
+				"idx",
+				"serialization",
+			).
+			From("cvm_transactions_txdata").
+			Where("block="+idInt.String()).
+			OrderAsc("idx").
+			LoadContext(ctx, &rowsData)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
@@ -1599,13 +1601,16 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rows := []Row{}
 
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
+		_, err = dbRunner.
+			Select("serialization").
+			From(services.TableCvmTransactions).
+			Where("block="+idInt.String()).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
