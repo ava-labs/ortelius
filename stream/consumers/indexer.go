@@ -6,6 +6,7 @@ package consumers
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -122,11 +123,12 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 }
 
 type IndexerFactoryControl struct {
-	msgChan chan *services.TxPool
-	sc      *services.Control
-	doneCh  chan struct{}
-	fsm     map[string]stream.ProcessorDB
-	errs    avlancheGoUtils.AtomicInterface
+	sc        *services.Control
+	fsm       map[string]stream.ProcessorDB
+	errs      avlancheGoUtils.AtomicInterface
+	msgChan   chan *services.TxPool
+	doneCh    chan struct{}
+	msgChanSz int64
 }
 
 func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
@@ -145,6 +147,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	for {
 		select {
 		case txd := <-c.msgChan:
+			atomic.AddInt64(&c.msgChanSz, -1)
 			if p, ok := c.fsm[txd.Topic]; ok {
 				err := p.Process(conns, txd)
 				if err != nil {
@@ -219,10 +222,6 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	for {
-		// ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-		// defer cancelFn()
-
-		// var rowdata []*services.TxPool
 		iterator, err := sess.Select(
 			"id",
 			"network_id",
@@ -242,7 +241,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		}
 
 		var icnt uint64
-		for iterator.Next() {
+		for iterator.Next() && icnt < 10000 {
 			txp := &services.TxPool{}
 			err = iterator.Scan(txp)
 			if err != nil {
@@ -251,12 +250,18 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			}
 			icnt++
 			ctrl.msgChan <- txp
+			atomic.AddInt64(&ctrl.msgChanSz, 1)
 			err = iterator.Err()
 			if err != nil {
 				sc.Log.Warn("err %v", err)
 				continue
 			}
 		}
+
+		for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
+			time.Sleep(1 * time.Millisecond)
+		}
+
 		if icnt == 0 {
 			time.Sleep(500 * time.Millisecond)
 		}
