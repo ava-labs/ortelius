@@ -136,6 +136,59 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 				}
 				icnt = 0
 			}
+
+			// set rewards outputs as processed...
+			ctx := context.Background()
+			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
+
+			var accumsOut []*OutputAddressAccumulate
+			_, err := session.Select("id").
+				From(TableOutputAddressAccumulateOut).
+				Where("processed = ?", 0).
+				Join(TableTransactionsRewardsOwnersOutputs,
+					TableOutputAddressAccumulateOut+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsOut)
+			if err != nil {
+				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			var accumsIn []*OutputAddressAccumulate
+			_, err = session.Select("id").
+				From(TableOutputAddressAccumulateIn).
+				Where("processed = ?", 0).
+				Join(TableTransactionsRewardsOwnersOutputs,
+					TableOutputAddressAccumulateIn+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsIn)
+			if err != nil {
+				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			processed := make(map[string]struct{})
+			for _, accum := range append(accumsIn, accumsOut...) {
+				_, ok := processed[accum.ID]
+				if ok {
+					continue
+				}
+				_, err = session.Update(TableOutputAddressAccumulateOut).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				_, err = session.Update(TableOutputAddressAccumulateIn).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				processed[accum.ID] = struct{}{}
+			}
 		}
 
 		defer func() {
