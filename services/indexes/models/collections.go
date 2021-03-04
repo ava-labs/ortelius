@@ -196,7 +196,7 @@ type AssetAggregate struct {
 	Aggregate *AggregatesHistogram `json:"aggregate"`
 }
 
-type CachedAssetAggregates struct {
+type CacheAssetAggregates struct {
 	Time       *time.Time `json:"time"`
 	Aggregates []*AssetAggregate
 }

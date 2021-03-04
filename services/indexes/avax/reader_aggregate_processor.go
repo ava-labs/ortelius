@@ -32,14 +32,14 @@ type ReaderAggregate struct {
 	a30dt *time.Time
 }
 
-func (r *Reader) CacheAggregatesByAsset() *models.CachedAssetAggregates {
+func (r *Reader) CacheAggregatesByAsset() *models.CacheAssetAggregates {
 	var res []*models.AssetAggregate
 	var tm *time.Time
 	r.readerAggregate.lock.RLock()
 	res = append(res, r.readerAggregate.aggrl...)
 	tm = r.readerAggregate.aggrt
 	r.readerAggregate.lock.RUnlock()
-	return &models.CachedAssetAggregates{Aggregates: res, Time: tm}
+	return &models.CacheAssetAggregates{Aggregates: res, Time: tm}
 }
 
 func (r *Reader) CacheAggregatesHistory(tag string) *models.CacheAggregatesHistory {
