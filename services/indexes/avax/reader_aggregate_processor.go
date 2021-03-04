@@ -42,6 +42,28 @@ func (r *Reader) CacheAggregatesByAsset() *models.CachedAssetAggregates {
 	return &models.CachedAssetAggregates{Aggregates: res, Time: tm}
 }
 
+func (r *Reader) CacheAggregatesHistory(tag string) *models.CacheAggregatesHistory {
+	var res *models.AggregatesHistogram
+	var tm *time.Time
+	r.readerAggregate.lock.RLock()
+	switch tag {
+	case "1h":
+		res = r.readerAggregate.a1h
+		tm = r.readerAggregate.a1ht
+	case "24h":
+		res = r.readerAggregate.a24h
+		tm = r.readerAggregate.a24ht
+	case "7d":
+		res = r.readerAggregate.a7d
+		tm = r.readerAggregate.a7dt
+	case "30d":
+		res = r.readerAggregate.a30d
+		tm = r.readerAggregate.a30dt
+	}
+	r.readerAggregate.lock.RUnlock()
+	return &models.CacheAggregatesHistory{Aggregate: res, Time: tm}
+}
+
 func (r *Reader) aggregateProcessor() error {
 	if !r.sc.IsAggregateCache {
 		return nil
