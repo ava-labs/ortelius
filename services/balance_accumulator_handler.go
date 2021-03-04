@@ -120,29 +120,12 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 	a.sc.Log.Info("start ticker")
 	go func() {
 		runEvent := func(conns *Connections) {
-			icnt := 0
-			for ; icnt < retryProcessing; icnt++ {
-				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
-				if db.ErrIsLockError(err) {
-					icnt = 0
-					continue
-				}
-				if err != nil {
-					a.sc.Log.Error("accumulate ticker error %v", err)
-					return
-				}
-				if cnt < RowLimitValue {
-					break
-				}
-				icnt = 0
-			}
-
 			// set rewards outputs as processed...
 			ctx := context.Background()
 			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
 
 			var accumsOut []*OutputAddressAccumulate
-			_, err := session.Select("id").
+			_, err := session.Select(TableOutputAddressAccumulateOut+".id").
 				From(TableOutputAddressAccumulateOut).
 				Where("processed = ?", 0).
 				Join(TableTransactionsRewardsOwnersOutputs,
@@ -154,7 +137,7 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 			}
 
 			var accumsIn []*OutputAddressAccumulate
-			_, err = session.Select("id").
+			_, err = session.Select(TableOutputAddressAccumulateIn+".id").
 				From(TableOutputAddressAccumulateIn).
 				Where("processed = ?", 0).
 				Join(TableTransactionsRewardsOwnersOutputs,
@@ -188,6 +171,23 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 					return
 				}
 				processed[accum.ID] = struct{}{}
+			}
+
+			icnt := 0
+			for ; icnt < retryProcessing; icnt++ {
+				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error %v", err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
+				icnt = 0
 			}
 		}
 
