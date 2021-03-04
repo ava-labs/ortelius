@@ -180,10 +180,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		rawhash := rawtx.Hash()
 		rcptstr := ""
 		if rawtx.To() != nil {
-			rcptstr = rawtx.To().Hex()
-			if strings.HasPrefix(rcptstr, "0x") {
-				rcptstr = rcptstr[2:]
-			}
+			rcptstr = strings.TrimPrefix(rawtx.To().Hex(), "0x")
 			// decode to all lower case
 			hb, err := hex.DecodeString(rcptstr)
 			if err == nil {
