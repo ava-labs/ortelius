@@ -5,6 +5,7 @@ package avax
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1615,6 +1616,32 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	row := rows[0]
 
 	return r.cChainCconsumer.ParseJSON(row.Serialization)
+}
+
+func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, error) {
+	dbRunner, err := r.conns.DB().NewSession("raw-transaction", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type SerialData struct {
+		Serialization []byte
+	}
+
+	serialData := SerialData{}
+
+	err = dbRunner.
+		Select("serialization").
+		From(services.TableTxPool).
+		Where("msg_key=?", id.String()).
+		LoadOneContext(ctx, &serialData)
+	if err != nil {
+		return nil, err
+	}
+
+	rawTx := models.RawTx{Tx: "0x" + hex.EncodeToString(serialData.Serialization)}
+
+	return &rawTx, nil
 }
 
 func uint64Ptr(u64 uint64) *uint64 {
