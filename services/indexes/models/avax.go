@@ -152,3 +152,7 @@ type CvmOutput struct {
 	ChainID         StringID    `json:"chainID"`
 	Block           string      `json:"block"`
 }
+
+type RawTx struct {
+	Tx string `json:"tx"`
+}

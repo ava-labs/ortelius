@@ -5,6 +5,7 @@ package avax
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1524,12 +1525,12 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 
 	rows := []Row{}
 
-	iv, res := big.NewInt(0).SetString(p.ID, 10)
-	if iv != nil && res {
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("serialization").
 			From("cvm_transactions").
-			Where("block="+p.ID).
+			Where("block="+idInt.String()).
 			Limit(1).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1580,17 +1581,19 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rowsData := []RowData{}
 
-	_, err = dbRunner.
-		Select(
-			"idx",
-			"serialization",
-		).
-		From("cvm_transactions_txdata").
-		Where("block="+p.ID).
-		OrderAsc("idx").
-		LoadContext(ctx, &rowsData)
-	if err != nil {
-		return nil, err
+	if idInt != nil {
+		_, err = dbRunner.
+			Select(
+				"idx",
+				"serialization",
+			).
+			From("cvm_transactions_txdata").
+			Where("block="+idInt.String()).
+			OrderAsc("idx").
+			LoadContext(ctx, &rowsData)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
@@ -1617,13 +1620,16 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rows := []Row{}
 
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
+		_, err = dbRunner.
+			Select("serialization").
+			From(services.TableCvmTransactions).
+			Where("block="+idInt.String()).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
@@ -1633,6 +1639,32 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	row := rows[0]
 
 	return r.cChainCconsumer.ParseJSON(row.Serialization)
+}
+
+func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, error) {
+	dbRunner, err := r.conns.DB().NewSession("raw-transaction", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type SerialData struct {
+		Serialization []byte
+	}
+
+	serialData := SerialData{}
+
+	err = dbRunner.
+		Select("serialization").
+		From(services.TableTxPool).
+		Where("msg_key=?", id.String()).
+		LoadOneContext(ctx, &serialData)
+	if err != nil {
+		return nil, err
+	}
+
+	rawTx := models.RawTx{Tx: "0x" + hex.EncodeToString(serialData.Serialization)}
+
+	return &rawTx, nil
 }
 
 func uint64Ptr(u64 uint64) *uint64 {
