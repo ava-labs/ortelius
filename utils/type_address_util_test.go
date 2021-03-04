@@ -21,7 +21,7 @@ func TestCommonAddressHexRepair(t *testing.T) {
 	addr = &common.Address{}
 	copy(addr[:], b)
 	if origStr != strings.TrimPrefix(addr.Hex(), "0x") {
-		t.Fatal("hex failed")
+		t.Fatal("hex match failed", addr.Hex())
 	}
 	res := CommonAddressHexRepair(addr)
 	if res != "0x"+strings.ToLower(origStr) {
