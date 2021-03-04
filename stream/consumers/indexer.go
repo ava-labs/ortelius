@@ -24,6 +24,10 @@ import (
 const (
 	IndexerAVMName = "avm"
 	IndexerPVMName = "pvm"
+
+	MaximumRecordsRead = 10000
+	MaxTheads          = 10
+	MaxChanSize        = 1000
 )
 
 type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -210,14 +214,14 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		_ = conns.Close()
 	}()
 
-	ctrl.msgChan = make(chan *IndexerFactoryObject, 100)
+	ctrl.msgChan = make(chan *IndexerFactoryObject, MaxChanSize)
 	ctrl.doneCh = make(chan struct{})
 
 	defer func() {
 		close(ctrl.doneCh)
 	}()
 
-	for ipos := 0; ipos < 10; ipos++ {
+	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
 		if err != nil {
 			return err
@@ -248,7 +252,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		errs := &avlancheGoUtils.AtomicInterface{}
 
 		var icnt uint64
-		for iterator.Next() && icnt < 10000 && errs.GetValue() == nil {
+		for iterator.Next() && icnt < MaximumRecordsRead && errs.GetValue() == nil {
 			txp := &services.TxPool{}
 			err = iterator.Scan(txp)
 			if err != nil {
