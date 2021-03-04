@@ -112,7 +112,8 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/ctxdata/:id", (*V2Context).CTxData).
 		Get("/etxdata/:id", (*V2Context).ETxData).
 		Get("/ctransactions", (*V2Context).ListCTransactions).
-		Get("/rawtransaction/:id", (*V2Context).RawTransaction)
+		Get("/rawtransaction/:id", (*V2Context).RawTransaction).
+		Get("/cacheaggregatebyasset", (*V2Context).CacchedAssetAggregateByAsset)
 }
 
 //
@@ -692,6 +693,17 @@ func (c *V2Context) RawTransaction(w web.ResponseWriter, r *web.Request) {
 	}
 
 	b, err := json.Marshal(rawdata)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	WriteJSON(w, b)
+}
+
+func (c *V2Context) CacchedAssetAggregateByAsset(w web.ResponseWriter, r *web.Request) {
+	res := c.avaxReader.CacheAggregatesByAsset()
+	b, err := json.Marshal(res)
 	if err != nil {
 		c.WriteErr(w, 400, err)
 		return
