@@ -197,8 +197,8 @@ type AssetAggregate struct {
 }
 
 type CacheAssetAggregates struct {
-	Time       *time.Time `json:"time"`
-	Aggregates []*AssetAggregate
+	Time       *time.Time        `json:"time"`
+	Aggregates []*AssetAggregate `json:"aggregates"`
 }
 
 type CacheAggregatesHistory struct {
