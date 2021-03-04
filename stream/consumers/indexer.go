@@ -242,7 +242,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			"created_at",
 		).From(services.TableTxPool).
 			Where("processed=? and topic in ?", 0, topicNames).
-			OrderAsc("topic").OrderAsc("processed").OrderAsc("created_at").
+			OrderAsc("processed").OrderAsc("created_at").
 			Iterate()
 		if err != nil {
 			sc.Log.Warn("iter %v", err)
