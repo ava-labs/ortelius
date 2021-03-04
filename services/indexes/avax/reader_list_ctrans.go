@@ -33,7 +33,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			str := strings.TrimPrefix(t.To().Hex(), "0x")
 			// decode to all lower case
 			hb, err := hex.DecodeString(str)
-			if err != nil {
+			if err == nil {
 				str = hex.EncodeToString(hb)
 			}
 			if !strings.HasPrefix(str, "0x") {
