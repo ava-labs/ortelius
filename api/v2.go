@@ -114,7 +114,7 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/ctransactions", (*V2Context).ListCTransactions).
 		Get("/rawtransaction/:id", (*V2Context).RawTransaction).
 		Get("/cacheaggregatebyasset", (*V2Context).CacheAssetAggregateByAsset).
-		Get("/cacheaggregatehistory", (*V2Context).CacheAggregatesHistory)
+		Get("/cacheaggregatehistory/:id", (*V2Context).CacheAggregatesHistory)
 }
 
 //
