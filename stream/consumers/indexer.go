@@ -122,11 +122,15 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }
 
+type IndexerFactoryObject struct {
+	txPool *services.TxPool
+	errs   *avlancheGoUtils.AtomicInterface
+}
+
 type IndexerFactoryControl struct {
 	sc        *services.Control
 	fsm       map[string]stream.ProcessorDB
-	errs      avlancheGoUtils.AtomicInterface
-	msgChan   chan *services.TxPool
+	msgChan   chan *IndexerFactoryObject
 	doneCh    chan struct{}
 	msgChanSz int64
 }
@@ -148,16 +152,16 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 		select {
 		case txd := <-c.msgChan:
 			atomic.AddInt64(&c.msgChanSz, -1)
-			if p, ok := c.fsm[txd.Topic]; ok {
-				err := p.Process(conns, txd)
+			if p, ok := c.fsm[txd.txPool.Topic]; ok {
+				err := p.Process(conns, txd.txPool)
 				if err != nil {
-					c.errs.SetValue(err)
+					txd.errs.SetValue(err)
 					return
 				}
-				txd.Processed = 1
-				err = updateStatus(txd)
+				txd.txPool.Processed = 1
+				err = updateStatus(txd.txPool)
 				if err != nil {
-					c.errs.SetValue(err)
+					txd.errs.SetValue(err)
 					return
 				}
 			}
@@ -203,7 +207,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		_ = conns.Close()
 	}()
 
-	ctrl.msgChan = make(chan *services.TxPool, 100)
+	ctrl.msgChan = make(chan *IndexerFactoryObject, 100)
 	ctrl.doneCh = make(chan struct{})
 
 	defer func() {
@@ -240,6 +244,8 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			continue
 		}
 
+		errs := &avlancheGoUtils.AtomicInterface{}
+
 		var icnt uint64
 		for iterator.Next() && icnt < 10000 {
 			txp := &services.TxPool{}
@@ -249,7 +255,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 				continue
 			}
 			icnt++
-			ctrl.msgChan <- txp
+			ctrl.msgChan <- &IndexerFactoryObject{txPool: txp, errs: errs}
 			atomic.AddInt64(&ctrl.msgChanSz, 1)
 			err = iterator.Err()
 			if err != nil {
