@@ -152,6 +152,9 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 		select {
 		case txd := <-c.msgChan:
 			atomic.AddInt64(&c.msgChanSz, -1)
+			if txd.errs.GetValue() != nil {
+				return
+			}
 			if p, ok := c.fsm[txd.txPool.Topic]; ok {
 				err := p.Process(conns, txd.txPool)
 				if err != nil {
@@ -222,10 +225,8 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		go ctrl.handleTxPool(conns1)
 	}
 
-	job := conns.StreamDBDedup().NewJob("tx-poll")
-	sess := conns.DB().NewSessionForEventReceiver(job)
-
 	for {
+		sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("tx-poll"))
 		iterator, err := sess.Select(
 			"id",
 			"network_id",
@@ -247,7 +248,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 		errs := &avlancheGoUtils.AtomicInterface{}
 
 		var icnt uint64
-		for iterator.Next() && icnt < 10000 {
+		for iterator.Next() && icnt < 10000 && errs.GetValue() == nil {
 			txp := &services.TxPool{}
 			err = iterator.Scan(txp)
 			if err != nil {
@@ -266,6 +267,11 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 
 		for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
 			time.Sleep(1 * time.Millisecond)
+		}
+
+		if errs.GetValue() != nil {
+			err := errs.GetValue().(error)
+			sc.Log.Warn("err %v", err)
 		}
 
 		if icnt == 0 {
