@@ -38,6 +38,18 @@ type Processor interface {
 	ID() string
 }
 
+type ProcessorFactoryDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
+type ProcessorFactoryCChainDB func(*services.Control, cfg.Config) (ProcessorDB, error)
+
+type ProcessorDB interface {
+	Process(*services.Connections, *services.TxPool) error
+	Close() error
+	Failure()
+	Success()
+	ID() string
+	Topic() []string
+}
+
 // ProcessorManager supervises the Processor lifecycle; it will use the given
 // configuration and ProcessorFactory to keep a Processor active
 type ProcessorManager struct {

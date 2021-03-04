@@ -286,6 +286,8 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			},
 			producerFactories(config),
 			nil,
+			nil,
+			nil,
 		),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
@@ -303,6 +305,13 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
 				consumers.IndexerConsumer,
+			},
+			[]stream.ProcessorFactoryDB{
+				consumers.IndexerDB,
+				consumers.IndexerConsensusDB,
+			},
+			[]stream.ProcessorFactoryCChainDB{
+				consumers.IndexerCChainDB(),
 			},
 		),
 	})
@@ -372,6 +381,8 @@ func runStreamProcessorManagers(
 	factories []ProcessorFactoryControl,
 	listenCloseFactories []ListenCloserFactoryControl,
 	consumerFactories []consumers.ConsumerFactory,
+	factoriesDB []stream.ProcessorFactoryDB,
+	factoriesCChainDB []stream.ProcessorFactoryCChainDB,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
@@ -388,6 +399,15 @@ func runStreamProcessorManagers(
 
 			// start the accumulator at startup
 			sc.BalanceAccumulatorManager.Run(sc)
+
+			if sc.IsDBPoll {
+				err = consumers.IndexerFactories(sc, config, factoriesDB, factoriesCChainDB)
+				if err != nil {
+					*runError = err
+					return
+				}
+				return
+			}
 		}
 
 		wg := &sync.WaitGroup{}
