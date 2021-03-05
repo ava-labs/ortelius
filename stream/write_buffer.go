@@ -55,9 +55,9 @@ func newBufferedWriter(sc *services.Control, topic string, networkID uint32, cha
 		buffer:                      make(chan *BufferContainer, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
 		sc:                          sc,
-		metricSuccessCountKey:       "db_write_records_success",
-		metricFailureCountKey:       "db_write_records_failure",
-		metricProcessMillisCountKey: "db_write_records_process_millis",
+		metricSuccessCountKey:       "pool_write_records_success",
+		metricFailureCountKey:       "pool_write_records_failure",
+		metricProcessMillisCountKey: "pool_write_records_process_millis",
 		chainID:                     chainID,
 		networkID:                   networkID,
 	}
