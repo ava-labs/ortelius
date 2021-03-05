@@ -298,7 +298,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			sc.Log.Warn("err %v", err)
 		}
 
-		if icnt == 0 {
+		if readMessages == 0 {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
