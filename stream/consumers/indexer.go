@@ -5,6 +5,8 @@ package consumers
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -190,6 +192,9 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 				return err
 			}
 			for _, topic := range f.Topic() {
+				if _, ok := ctrl.fsm[topic]; !ok {
+					return fmt.Errorf("duplicate topic %v", topic)
+				}
 				ctrl.fsm[topic] = f
 				topicNames = append(topicNames, topic)
 			}
@@ -201,6 +206,9 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			return err
 		}
 		for _, topic := range f.Topic() {
+			if _, ok := ctrl.fsm[topic]; !ok {
+				return fmt.Errorf("duplicate topic %v", topic)
+			}
 			ctrl.fsm[topic] = f
 			topicNames = append(topicNames, topic)
 		}
@@ -230,7 +238,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 	}
 
 	for {
-		sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("tx-poll"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
 		iterator, err := sess.Select(
 			"id",
 			"network_id",
@@ -251,22 +259,34 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 
 		errs := &avlancheGoUtils.AtomicInterface{}
 
-		var icnt uint64
-		for iterator.Next() && icnt < MaximumRecordsRead && errs.GetValue() == nil {
+		var readMessages uint64
+
+		for iterator.Next() {
+			if errs.GetValue() != nil {
+				break
+			}
+
+			if readMessages > MaximumRecordsRead {
+				break
+			}
+
+			err = iterator.Err()
+			if err != nil {
+				if err != io.EOF {
+					sc.Log.Warn("err %v", err)
+				}
+				break
+			}
+
 			txp := &services.TxPool{}
 			err = iterator.Scan(txp)
 			if err != nil {
 				sc.Log.Warn("scan %v", err)
-				continue
+				break
 			}
-			icnt++
+			readMessages++
 			ctrl.msgChan <- &IndexerFactoryObject{txPool: txp, errs: errs}
 			atomic.AddInt64(&ctrl.msgChanSz, 1)
-			err = iterator.Err()
-			if err != nil {
-				sc.Log.Warn("err %v", err)
-				continue
-			}
 		}
 
 		for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
