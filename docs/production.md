@@ -84,7 +84,6 @@ As items are consumed into the indexer the count of processed = 0 transactions d
 
 There are 3 ortelius services, the api/producer/indexer.
 The avalanchego node will be running.
-There is a redis, and mysql service running.
 
 ```
 # docker ps -a
