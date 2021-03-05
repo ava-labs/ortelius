@@ -138,7 +138,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }
 
-type IndexerFactoryObject struct {
+type IndexerFactoryContainer struct {
 	txPool *services.TxPool
 	errs   *avlancheGoUtils.AtomicInterface
 }
@@ -146,23 +146,22 @@ type IndexerFactoryObject struct {
 type IndexerFactoryControl struct {
 	sc        *services.Control
 	fsm       map[string]stream.ProcessorDB
-	msgChan   chan *IndexerFactoryObject
+	msgChan   chan *IndexerFactoryContainer
 	doneCh    chan struct{}
 	msgChanSz int64
+}
+
+func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-txpoll-status"))
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 }
 
 func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
-
-	updateStatus := func(txPoll *services.TxPool) error {
-		job := conns.QuietStream().NewJob("update-txpoll-status")
-		sess := conns.DB().NewSessionForEventReceiver(job)
-		ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
-		defer cancelFn()
-		return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
-	}
 
 	for {
 		select {
@@ -178,7 +177,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 					return
 				}
 				txd.txPool.Processed = 1
-				err = updateStatus(txd.txPool)
+				err = c.updateTxPollStatus(conns, txd.txPool)
 				if err != nil {
 					txd.errs.SetValue(err)
 					return
@@ -232,7 +231,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 		_ = conns.Close()
 	}()
 
-	ctrl.msgChan = make(chan *IndexerFactoryObject, MaxChanSize)
+	ctrl.msgChan = make(chan *IndexerFactoryContainer, MaxChanSize)
 	ctrl.doneCh = make(chan struct{})
 
 	defer func() {
@@ -284,7 +283,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 			err = iterator.Err()
 			if err != nil {
 				if err != io.EOF {
-					sc.Log.Warn("err %v", err)
+					sc.Log.Error("iterator err %v", err)
 				}
 				break
 			}
@@ -292,11 +291,11 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 			txp := &services.TxPool{}
 			err = iterator.Scan(txp)
 			if err != nil {
-				sc.Log.Warn("scan %v", err)
+				sc.Log.Error("scan %v", err)
 				break
 			}
 			readMessages++
-			ctrl.msgChan <- &IndexerFactoryObject{txPool: txp, errs: errs}
+			ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
 			atomic.AddInt64(&ctrl.msgChanSz, 1)
 		}
 
@@ -306,7 +305,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 
 		if errs.GetValue() != nil {
 			err := errs.GetValue().(error)
-			sc.Log.Warn("err %v", err)
+			sc.Log.Error("processing err %v", err)
 			time.Sleep(250 * time.Millisecond)
 			continue
 		}
