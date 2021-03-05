@@ -56,6 +56,9 @@ services:
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - mysql
+      - redis
+    depends_on:
+      - mysql
       - migrate
       - redis
     volumes:
