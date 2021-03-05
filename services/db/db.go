@@ -75,7 +75,7 @@ func newDBRConnection(stream *health.Stream, conf cfg.DB, ro bool) (*dbr.Connect
 		err error
 
 		driver                 = conf.Driver
-		dbrDialect dbr.Dialect = dialect.PostgreSQL
+		dbrDialect dbr.Dialect = dialect.MySQL
 	)
 
 	dsn := conf.DSN

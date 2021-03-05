@@ -7,7 +7,7 @@ This page details the various services and components that make up the Ortelius 
 The full Ortelius pipeline requires the following services. This guide will not cover their installation but will discuss key configuration settings.
 
 - **[Avalanche.go](https://github.com/ava-labs/avalanchego)** is the gateway to the Avalanche network
-- **[MySQL](https://www.mysql.com/)** or **[PostgreSQL](https://www.postgresql.org/)** powers the index
+- **[MySQL](https://www.mysql.com/)** powers the index
 - **[Redis](https://redis.io/)** caches index queries for the API so responses can be as fast as possible
 
 ## Configuring services
@@ -18,9 +18,9 @@ The IPCs for the chains you want to consume must be available. This can be done 
 
 `./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
 
-### MySQL/PostgreSQL
+### MySQL
 
-The indexer requires that a MySQL or Postgres compatible database be available. The migrations can be found in the repo's [services/db/migrations](../services/db/migrations) directory and can be applied with [golang-migrate](https://github.com/golang-migrate/migrate), example:
+The indexer requires that a MySQL compatible database be available. The migrations can be found in the repo's [services/db/migrations](../services/db/migrations) directory and can be applied with [golang-migrate](https://github.com/golang-migrate/migrate), example:
 
 `migrate -source file://services/db/migrations -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius" up`
 
