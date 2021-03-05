@@ -264,6 +264,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 			Iterate()
 		if err != nil {
 			sc.Log.Warn("iter %v", err)
+			time.Sleep(250 * time.Millisecond)
 			continue
 		}
 
@@ -306,6 +307,8 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 		if errs.GetValue() != nil {
 			err := errs.GetValue().(error)
 			sc.Log.Warn("err %v", err)
+			time.Sleep(250 * time.Millisecond)
+			continue
 		}
 
 		if readMessages == 0 {
