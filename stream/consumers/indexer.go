@@ -55,11 +55,10 @@ var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer serv
 
 var IndexerCChain = stream.NewConsumerCChain
 
-type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryDB, error)
+type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryChainDB, error)
 
 var IndexerDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeDecisions)
 var IndexerConsensusDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeConsensus)
-
 var IndexerCChainDB = stream.NewConsumerCChainDB
 
 func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
@@ -180,12 +179,12 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	}
 }
 
-func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []stream.ProcessorFactoryDB, factoriesCChainDB []stream.ProcessorFactoryCChainDB) error {
+func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB []stream.ProcessorFactoryChainDB, factoriesInstDB []stream.ProcessorFactoryInstDB) error {
 	ctrl := &IndexerFactoryControl{sc: sc}
 	ctrl.fsm = make(map[string]stream.ProcessorDB)
 	var topicNames []string
 
-	for _, factory := range factoriesDB {
+	for _, factory := range factoriesChainDB {
 		for _, chainConfig := range config.Chains {
 			f, err := factory(sc, *config, chainConfig.VMType, chainConfig.ID)
 			if err != nil {
@@ -200,7 +199,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			}
 		}
 	}
-	for _, factory := range factoriesCChainDB {
+	for _, factory := range factoriesInstDB {
 		f, err := factory(sc, *config)
 		if err != nil {
 			return err

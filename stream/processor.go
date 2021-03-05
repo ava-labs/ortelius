@@ -38,8 +38,8 @@ type Processor interface {
 	ID() string
 }
 
-type ProcessorFactoryDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
-type ProcessorFactoryCChainDB func(*services.Control, cfg.Config) (ProcessorDB, error)
+type ProcessorFactoryChainDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
+type ProcessorFactoryInstDB func(*services.Control, cfg.Config) (ProcessorDB, error)
 
 type ProcessorDB interface {
 	Process(*services.Connections, *services.TxPool) error

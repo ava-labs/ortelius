@@ -306,11 +306,11 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			[]consumers.ConsumerFactory{
 				consumers.IndexerConsumer,
 			},
-			[]stream.ProcessorFactoryDB{
+			[]stream.ProcessorFactoryChainDB{
 				consumers.IndexerDB,
 				consumers.IndexerConsensusDB,
 			},
-			[]stream.ProcessorFactoryCChainDB{
+			[]stream.ProcessorFactoryInstDB{
 				consumers.IndexerCChainDB(),
 			},
 		),
@@ -381,8 +381,8 @@ func runStreamProcessorManagers(
 	factories []ProcessorFactoryControl,
 	listenCloseFactories []ListenCloserFactoryControl,
 	consumerFactories []consumers.ConsumerFactory,
-	factoriesDB []stream.ProcessorFactoryDB,
-	factoriesCChainDB []stream.ProcessorFactoryCChainDB,
+	factoriesChainDB []stream.ProcessorFactoryChainDB,
+	factoriesInstDB []stream.ProcessorFactoryInstDB,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
@@ -401,7 +401,7 @@ func runStreamProcessorManagers(
 			sc.BalanceAccumulatorManager.Run(sc)
 
 			if sc.IsDBPoll {
-				err = consumers.IndexerFactories(sc, config, factoriesDB, factoriesCChainDB)
+				err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
 				if err != nil {
 					*runError = err
 					return
