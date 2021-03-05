@@ -66,7 +66,7 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 		var err error
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
-			c.Close()
+			_ = c.Close()
 			return nil, err
 		}
 

@@ -63,6 +63,7 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 		var err error
 		c.consumer, err = cvm.NewWriter(c.conf.NetworkID, c.conf.CchainID)
 		if err != nil {
+			_ = c.Close()
 			return nil, err
 		}
 
