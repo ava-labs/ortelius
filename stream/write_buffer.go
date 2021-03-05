@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/segmentio/kafka-go"
 )
 
 const (
@@ -34,7 +33,6 @@ type BufferContainer struct {
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
 	topic  string
-	writer *kafka.Writer
 	buffer chan (*BufferContainer)
 	doneCh chan (struct{})
 	sc     *services.Control
@@ -49,20 +47,11 @@ type bufferedWriter struct {
 	networkID                   uint32
 }
 
-func newBufferedWriter(sc *services.Control, brokers []string, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
+func newBufferedWriter(sc *services.Control, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
 	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
-		topic: topic,
-		writer: kafka.NewWriter(kafka.WriterConfig{
-			Brokers:      brokers,
-			Topic:        topic,
-			Balancer:     &kafka.LeastBytes{},
-			BatchBytes:   ConsumerMaxBytesDefault,
-			BatchSize:    defaultBufferedWriterSize,
-			WriteTimeout: defaultWriteTimeout,
-			RequiredAcks: int(kafka.RequireAll),
-		}),
+		topic:                       topic,
 		buffer:                      make(chan *BufferContainer, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
 		sc:                          sc,
@@ -102,7 +91,6 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 		bufferSize = 0
 		buffer     = make([](*BufferContainer), size)
-		buffer2    = make([]kafka.Message, size)
 	)
 
 	flush := func() error {
@@ -125,37 +113,11 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 		var err error
 
-		if wb.sc.IsDBPoll {
-			for _, b := range buffer[:bufferSize] {
-				wp := &WorkPacket{b: b}
-				err = wb.processWork(wp)
-				if err != nil {
-					break
-				}
-			}
-		} else {
-			for bpos, b := range buffer[:bufferSize] {
-				// reset the message..
-				buffer2[bpos] = kafka.Message{}
-				buffer2[bpos].Value = b.b
-				// compute hash before processing.
-				buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
-			}
-
-			wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
-				ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-				defer cancelFn()
-
-				return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
-			}
-
-			for icnt := 0; icnt < defaultWriteRetry; icnt++ {
-				err = wm(buffer2, bufferSize)
-				if err == nil {
-					break
-				}
-				wb.sc.Log.Warn("Error writing to kafka (retry):", err)
-				time.Sleep(defaultWriteRetrySleep)
+		for _, b := range buffer[:bufferSize] {
+			wp := &WorkPacket{b: b}
+			err = wb.processWork(wp)
+			if err != nil {
+				break
 			}
 		}
 
@@ -201,7 +163,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 }
 
 // close stops the bufferedWriter and flushes any remaining items
-func (wb *bufferedWriter) close() error {
+func (wb *bufferedWriter) close() {
 	// Close buffer and wait for it to stop, flush, and signal back
 	close(wb.buffer)
 	wb.flushTicker.Stop()
@@ -209,7 +171,6 @@ func (wb *bufferedWriter) close() error {
 	if wb.conns != nil {
 		_ = wb.conns.Close()
 	}
-	return wb.writer.Close()
 }
 
 type WorkPacket struct {

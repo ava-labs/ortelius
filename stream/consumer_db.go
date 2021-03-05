@@ -15,6 +15,11 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
+const (
+	ConsumerEventTypeDefault = EventTypeDecisions
+	ConsumerMaxBytesDefault  = 10e8
+)
+
 // consumer takes events from Kafka and sends them to a service consumer
 type consumerDB struct {
 	id        string
@@ -32,6 +37,8 @@ type consumerDB struct {
 
 	topicName string
 }
+
+type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChainDB {
