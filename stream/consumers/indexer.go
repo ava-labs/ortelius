@@ -192,7 +192,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 				return err
 			}
 			for _, topic := range f.Topic() {
-				if _, ok := ctrl.fsm[topic]; !ok {
+				if _, ok := ctrl.fsm[topic]; ok {
 					return fmt.Errorf("duplicate topic %v", topic)
 				}
 				ctrl.fsm[topic] = f
@@ -206,7 +206,7 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesDB []st
 			return err
 		}
 		for _, topic := range f.Topic() {
-			if _, ok := ctrl.fsm[topic]; !ok {
+			if _, ok := ctrl.fsm[topic]; ok {
 				return fmt.Errorf("duplicate topic %v", topic)
 			}
 			ctrl.fsm[topic] = f
