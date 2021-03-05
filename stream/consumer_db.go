@@ -90,37 +90,6 @@ func (c *consumerDB) Close() error {
 }
 
 func (c *consumerDB) Process(conns *services.Connections, row *services.TxPool) error {
-	wm := func(msg *Message) error {
-		var err error
-		collectors := metrics.NewCollectors(
-			metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-			metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-			metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-			metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
-		)
-		defer func() {
-			err := collectors.Collect()
-			if err != nil {
-				c.sc.Log.Error("collectors.Collect: %s", err)
-			}
-		}()
-
-		for {
-			err = c.persistConsume(conns, msg)
-			if !db.ErrIsLockError(err) {
-				break
-			}
-		}
-		if err != nil {
-			collectors.Error()
-			c.sc.Log.Error("consumer.Consume: %s", err)
-			return err
-		}
-
-		c.sc.BalanceAccumulatorManager.Run(c.sc)
-		return err
-	}
-
 	msg := &Message{
 		id:         row.MsgKey,
 		chainID:    c.chainID,
@@ -128,7 +97,40 @@ func (c *consumerDB) Process(conns *services.Connections, row *services.TxPool) 
 		timestamp:  row.CreatedAt.UTC().Unix(),
 		nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
 	}
-	return wm(msg)
+	return c.Consume(conns, msg)
+}
+
+func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			c.sc.Log.Error("collectors.Collect: %s", err)
+		}
+	}()
+
+	var err error
+	for {
+		err = c.persistConsume(conns, msg)
+		if !db.ErrIsLockError(err) {
+			break
+		}
+	}
+	if err != nil {
+		c.Failure()
+		collectors.Error()
+		c.sc.Log.Error("consumer.Consume: %s", err)
+		return err
+	}
+	c.Success()
+
+	c.sc.BalanceAccumulatorManager.Run(c.sc)
+	return err
 }
 
 func (c *consumerDB) persistConsume(conns *services.Connections, msg *Message) error {

@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/ortelius/services/metrics"
 )
 
-type ConsumerCChainDB struct {
+type consumerCChainDB struct {
 	id string
 	sc *services.Control
 
@@ -43,7 +43,7 @@ type ConsumerCChainDB struct {
 
 func NewConsumerCChainDB() ProcessorFactoryInstDB {
 	return func(sc *services.Control, conf cfg.Config) (ProcessorDB, error) {
-		c := &ConsumerCChainDB{
+		c := &consumerCChainDB{
 			conf:                          conf,
 			sc:                            sc,
 			metricProcessedCountKey:       fmt.Sprintf("consume_records_processed_%s_cchain", conf.CchainID),
@@ -74,19 +74,19 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 }
 
 // Close shuts down the producer
-func (c *ConsumerCChainDB) Close() error {
+func (c *consumerCChainDB) Close() error {
 	return nil
 }
 
-func (c *ConsumerCChainDB) ID() string {
+func (c *consumerCChainDB) ID() string {
 	return c.id
 }
 
-func (c *ConsumerCChainDB) Topic() []string {
+func (c *consumerCChainDB) Topic() []string {
 	return []string{c.topicName, c.topicTrcName}
 }
 
-func (c *ConsumerCChainDB) Process(conns *services.Connections, row *services.TxPool) error {
+func (c *consumerCChainDB) Process(conns *services.Connections, row *services.TxPool) error {
 	switch row.Topic {
 	case c.topicName:
 		msg := &Message{
@@ -111,7 +111,7 @@ func (c *ConsumerCChainDB) Process(conns *services.Connections, row *services.Tx
 	return nil
 }
 
-func (c *ConsumerCChainDB) ConsumeTrace(conns *services.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) ConsumeTrace(conns *services.Connections, msg services.Consumable) error {
 	transactionTrace := &cblock.TransactionTrace{}
 	err := json.Unmarshal(msg.Body(), transactionTrace)
 	if err != nil {
@@ -142,15 +142,17 @@ func (c *ConsumerCChainDB) ConsumeTrace(conns *services.Connections, msg service
 	}
 
 	if err != nil {
+		c.Failure()
 		collectors.Error()
 		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
+	c.Success()
 
 	return nil
 }
 
-func (c *ConsumerCChainDB) Consume(conns *services.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Consumable) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -172,6 +174,7 @@ func (c *ConsumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	if block.BlockExtraData == nil {
 		block.BlockExtraData = []byte("")
 	}
+
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
 
@@ -183,34 +186,36 @@ func (c *ConsumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	}
 
 	if err != nil {
+		c.Failure()
 		collectors.Error()
 		c.sc.Log.Error("consumer.Consume: %s", err)
 		return err
 	}
+	c.Success()
 
 	c.sc.BalanceAccumulatorManager.Run(c.sc)
 
 	return nil
 }
 
-func (c *ConsumerCChainDB) persistConsumeTrace(conns *services.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
+func (c *consumerCChainDB) persistConsumeTrace(conns *services.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.ConsumeTrace(ctx, conns, msg, transactionTrace, c.sc.Persist)
 }
 
-func (c *ConsumerCChainDB) persistConsume(conns *services.Connections, msg services.Consumable, block *cblock.Block) error {
+func (c *consumerCChainDB) persistConsume(conns *services.Connections, msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.Consume(ctx, conns, msg, block, c.sc.Persist)
 }
 
-func (c *ConsumerCChainDB) Failure() {
+func (c *consumerCChainDB) Failure() {
 	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
 }
 
-func (c *ConsumerCChainDB) Success() {
+func (c *consumerCChainDB) Success() {
 	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
 }
