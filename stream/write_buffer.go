@@ -55,9 +55,9 @@ func newBufferedWriter(sc *services.Control, topic string, networkID uint32, cha
 		buffer:                      make(chan *BufferContainer, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
 		sc:                          sc,
-		metricSuccessCountKey:       "kafka_write_records_success",
-		metricFailureCountKey:       "kafka_write_records_failure",
-		metricProcessMillisCountKey: "kafka_write_records_process_millis",
+		metricSuccessCountKey:       "db_write_records_success",
+		metricFailureCountKey:       "db_write_records_failure",
+		metricProcessMillisCountKey: "db_write_records_process_millis",
 		chainID:                     chainID,
 		networkID:                   networkID,
 	}
@@ -83,7 +83,7 @@ func (wb *bufferedWriter) Write(msg []byte) {
 	wb.buffer <- &BufferContainer{b: msg}
 }
 
-// loop takes in messages from the buffer and commits them to Kafka when in
+// loop takes in messages from the buffer and commits them to db when in
 // batches
 func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
@@ -123,7 +123,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 		if err != nil {
 			collectors.Error()
-			wb.sc.Log.Error("Error writing to kafka:", err)
+			wb.sc.Log.Error("Error writing to db:", err)
 		}
 
 		bufferSize = 0

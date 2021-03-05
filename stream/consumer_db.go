@@ -20,7 +20,7 @@ const (
 	ConsumerMaxBytesDefault  = 10e8
 )
 
-// consumer takes events from Kafka and sends them to a service consumer
+// consumer takes events from db and sends them to a service consumer
 type consumerDB struct {
 	id        string
 	eventType EventType

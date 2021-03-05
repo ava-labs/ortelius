@@ -87,8 +87,7 @@ func (p *Producer) ID() string {
 	return p.id
 }
 
-// ProcessNextMessage takes in a Message from the IPC socket and writes it to
-// Kafka
+// ProcessNextMessage takes in a Message from the IPC socket and writes it to the db
 func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {
