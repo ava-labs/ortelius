@@ -123,24 +123,6 @@ func (c *Context) WriteErr(w http.ResponseWriter, code int, err error) {
 	fmt.Fprint(w, string(errBytes))
 }
 
-// WriteErr writes an error response to the http response
-func (c *Context) Write500Err(w http.ResponseWriter, actualErr error) {
-	c.err = actualErr
-
-	errBytes, err := json.Marshal(&ErrorResponse{
-		Code:    500,
-		Message: errInternalServerError.Error(),
-	})
-
-	w.WriteHeader(500)
-
-	if err != nil {
-		c.job.EventErr("marshal_error", err)
-		return
-	}
-	fmt.Fprint(w, string(errBytes))
-}
-
 func (*Context) setHeaders(w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 	h := w.Header()
 	h.Add("access-control-allow-headers", "Accept, Content-Type, Content-Length, Accept-Encoding")

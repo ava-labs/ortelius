@@ -19,7 +19,6 @@ import (
 const (
 	DriverMysql = "mysql"
 	DriverNone  = ""
-	driverTXDB  = "txdb"
 )
 
 // Conn is a wrapper around a dbr connection and a health stream
@@ -81,12 +80,6 @@ func newDBRConnection(stream *health.Stream, conf cfg.DB, ro bool) (*dbr.Connect
 	dsn := conf.DSN
 	if ro {
 		dsn = conf.RODSN
-	}
-
-	// If we want a transactional db then register that driver instead
-	if conf.TXDB {
-		driver = driverTXDB
-		registerTxDB(conf)
 	}
 
 	// If we're using MySQL we need to ensure to set the parseTime option

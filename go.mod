@@ -3,7 +3,6 @@ module github.com/ava-labs/ortelius
 go 1.15
 
 require (
-	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/ava-labs/avalanchego v1.2.1
