@@ -157,7 +157,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	timeaggr := time.Now().Truncate(time.Minute)
 
@@ -225,7 +225,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		r.readerAggregate.aggr = aggrMap
 		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()
-		timeaggr = timeaggr.Add(5 * time.Minute)
+		timeaggr = timeaggr.Add(5 * time.Minute).Truncate(5 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -263,7 +263,7 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	runAgg := func() {
 		agg, err := r.processAggregate(conns, "1m", "1s", -time.Minute)
@@ -293,7 +293,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	time1h := time.Now().Truncate(time.Minute)
 
@@ -308,7 +308,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		r.readerAggregate.a1ht = &tnow
 		r.readerAggregate.a1h = agg
 		r.readerAggregate.lock.Unlock()
-		time1h = time1h.Add(5 * time.Minute)
+		time1h = time1h.Add(5 * time.Minute).Truncate(5 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -329,7 +329,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	time24h := time.Now().Truncate(time.Minute)
 
@@ -344,7 +344,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		r.readerAggregate.a24ht = &tnow
 		r.readerAggregate.a24h = agg
 		r.readerAggregate.lock.Unlock()
-		time24h = time24h.Add(15 * time.Minute)
+		time24h = time24h.Add(15 * time.Minute).Truncate(15 * time.Minute)
 	}
 	runAgg()
 	for {
@@ -365,7 +365,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	time7d := time.Now().Truncate(time.Minute)
 
@@ -380,7 +380,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		r.readerAggregate.a7dt = &tnow
 		r.readerAggregate.a7d = agg
 		r.readerAggregate.lock.Unlock()
-		time7d = time7d.Add(time.Hour)
+		time7d = time7d.Add(time.Hour).Truncate(time.Hour)
 	}
 	runAgg()
 	for {
@@ -401,7 +401,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(time.Second)
 
 	time30d := time.Now().Truncate(time.Minute)
 
@@ -416,7 +416,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		r.readerAggregate.a30dt = &tnow
 		r.readerAggregate.a30d = agg
 		r.readerAggregate.lock.Unlock()
-		time30d = time30d.Add(4 * time.Hour)
+		time30d = time30d.Add(1 * time.Hour).Truncate(1 * time.Hour)
 	}
 	runAgg()
 	for {
