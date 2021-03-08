@@ -167,7 +167,6 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 			Consumer: Consumer{
 				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),
-				GroupName: streamConsumerViper.GetString(keysStreamConsumerGroupName),
 			},
 		},
 	}, nil
