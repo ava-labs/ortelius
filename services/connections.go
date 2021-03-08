@@ -64,13 +64,6 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 	if conf.DB != nil || conf.DB.Driver == db.DriverNone {
 		// Setup logging kvs
 		kvs := health.Kvs{"driver": conf.DB.Driver}
-		loggableDSN, loggableRODSN, err := db.SanitizedDSN(conf.DB)
-		if err != nil {
-			return nil, stream.EventErrKv("connect.db.sanitize_dsn", err, kvs)
-		}
-		kvs["dsn"] = loggableDSN
-		kvs["rodsn"] = loggableRODSN
-
 		// Create connection
 		dbConn, err = db.New(stream, *conf.DB, ro)
 		if err != nil {
@@ -104,7 +97,7 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 			return nil, stream.EventErrKv("connect.db", err, kvs)
 		}
 	} else {
-		return nil, fmt.Errorf("invalid databas")
+		return nil, fmt.Errorf("invalid database")
 	}
 
 	return NewConnections(stream, quietStream, streamDBDedup, dbConn, nil), nil

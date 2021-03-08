@@ -56,7 +56,6 @@ type DB struct {
 	DSN    string `json:"dsn"`
 	RODSN  string `json:"rodsn"`
 	Driver string `json:"driver"`
-	TXDB   bool   `json:"txDB"`
 }
 
 type Redis struct {
@@ -153,7 +152,6 @@ func NewFromFile(filePath string) (*Config, error) {
 				Driver: servicesDBViper.GetString(keysServicesDBDriver),
 				DSN:    dbdsn,
 				RODSN:  dbrodsn,
-				TXDB:   servicesDBViper.GetBool(keysServicesDBTXDB),
 			},
 			Redis: &Redis{
 				Addr:     servicesRedisViper.GetString(keysServicesRedisAddr),

@@ -196,18 +196,10 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			if sc.IsDBPoll {
-				replay := replay.NewDB(sc, config, *replayqueuesize, *replayqueuethreads)
-				err := replay.Start()
-				if err != nil {
-					*runErr = err
-				}
-			} else {
-				replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
-				err := replay.Start()
-				if err != nil {
-					*runErr = err
-				}
+			replay := replay.NewDB(sc, config, *replayqueuesize, *replayqueuethreads)
+			err := replay.Start()
+			if err != nil {
+				*runErr = err
 			}
 		},
 	}
@@ -298,10 +290,7 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			sc,
 			config,
 			runErr,
-			[]ProcessorFactoryControl{
-				{Factory: consumers.Indexer, Instances: 2},
-				{Factory: consumers.IndexerConsensus, Instances: 2},
-			},
+			nil,
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
 				consumers.IndexerConsumer,
@@ -321,10 +310,6 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 
 func indexerFactories(_ *cfg.Config) []ListenCloserFactoryControl {
 	var factories []ListenCloserFactoryControl
-	factories = append(
-		factories,
-		ListenCloserFactoryControl{Factory: consumers.IndexerCChain(), Instances: 2},
-	)
 	return factories
 }
 
@@ -400,14 +385,12 @@ func runStreamProcessorManagers(
 			// start the accumulator at startup
 			sc.BalanceAccumulatorManager.Run(sc)
 
-			if sc.IsDBPoll {
-				err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
-				if err != nil {
-					*runError = err
-					return
-				}
+			err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
+			if err != nil {
+				*runError = err
 				return
 			}
+			return
 		}
 
 		wg := &sync.WaitGroup{}

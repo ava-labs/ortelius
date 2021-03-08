@@ -24,8 +24,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 
-	"github.com/segmentio/kafka-go"
-
 	"github.com/ava-labs/coreth"
 
 	"github.com/ava-labs/coreth/ethclient"
@@ -37,10 +35,9 @@ import (
 )
 
 const (
-	rpcTimeout        = time.Minute
-	kafkaWriteTimeout = 10 * time.Second
-	dbReadTimeout     = 10 * time.Second
-	dbWriteTimeout    = time.Minute
+	rpcTimeout     = time.Minute
+	dbReadTimeout  = 10 * time.Second
+	dbWriteTimeout = time.Minute
 
 	readRPCTimeout = 500 * time.Millisecond
 
@@ -60,7 +57,6 @@ type ProducerCChain struct {
 	ethClient *ethclient.Client
 	conns     *services.Connections
 	block     *big.Int
-	writer    *kafka.Writer
 	conf      cfg.Config
 
 	// Concurrency control
@@ -78,16 +74,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 		topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
 
-		writer := kafka.NewWriter(kafka.WriterConfig{
-			Brokers:      conf.Brokers,
-			Topic:        topicName,
-			Balancer:     &kafka.LeastBytes{},
-			BatchBytes:   ConsumerMaxBytesDefault,
-			BatchSize:    defaultBufferedWriterSize,
-			WriteTimeout: defaultWriteTimeout,
-			RequiredAcks: int(kafka.RequireAll),
-		})
-
 		p := &ProducerCChain{
 			topic:                   topicName,
 			topicTrc:                topicTrcName,
@@ -97,7 +83,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
 			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
 			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
-			writer:                  writer,
 			quitCh:                  make(chan struct{}),
 			doneCh:                  make(chan struct{}),
 		}
@@ -169,13 +154,6 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 	return bl, txTraces, nil
 }
 
-func (p *ProducerCChain) writeMessagesToKafka(messages ...kafka.Message) error {
-	ctx, cancelCTX := context.WithTimeout(context.Background(), kafkaWriteTimeout)
-	defer cancelCTX()
-
-	return p.writer.WriteMessages(ctx, messages...)
-}
-
 func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
 	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("update-tx-pool"))
 
@@ -224,38 +202,9 @@ func (p *ProducerCChain) ProcessNextMessage() error {
 			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
 		}()
 
-		if p.sc.IsDBPoll {
-			for _, bl := range localBlocks {
-				wp := &WorkPacketCChain{localBlock: bl}
-				err := p.processWork(wp)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			var kafkaMessages []kafka.Message
-
-			for _, bl := range localBlocks {
-				cblk, err := cblock.New(bl.block)
-				if err != nil {
-					return err
-				}
-				if cblk == nil {
-					return fmt.Errorf("invalid block")
-				}
-				// wipe before re-encoding
-				cblk.Txs = nil
-				block, err := json.Marshal(cblk)
-				if err != nil {
-					return err
-				}
-
-				kafkaMessages = append(kafkaMessages,
-					kafka.Message{Value: block, Key: hashing.ComputeHash256(block)},
-				)
-			}
-
-			err := p.writeMessagesToKafka(kafkaMessages...)
+		for _, bl := range localBlocks {
+			wp := &WorkPacketCChain{localBlock: bl}
+			err := p.processWork(wp)
 			if err != nil {
 				return err
 			}

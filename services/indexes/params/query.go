@@ -68,19 +68,6 @@ func GetQueryID(q url.Values, key string) (*ids.ID, error) {
 	return &id, nil
 }
 
-func GetQueryShortID(q url.Values, key string) (*ids.ShortID, error) {
-	idStr := GetQueryString(q, key, "")
-	if idStr == "" {
-		return nil, nil
-	}
-
-	id, err := ids.ShortFromString(idStr)
-	if err != nil {
-		return nil, err
-	}
-	return &id, nil
-}
-
 func GetQueryInterval(q url.Values, key string) (time.Duration, error) {
 	intervalStrs, ok := q[key]
 	if !ok || len(intervalStrs) < 1 {

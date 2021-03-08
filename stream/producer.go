@@ -35,7 +35,7 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	if err != nil {
 		return nil, err
 	}
-	writer, err := newBufferedWriter(sc, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType), conf.NetworkID, chainID)
+	writer, err := newBufferedWriter(sc, GetTopicName(conf.NetworkID, chainID, eventType), conf.NetworkID, chainID)
 	if err != nil {
 		_ = sock.Close()
 		return nil, err
@@ -75,7 +75,7 @@ func (p *Producer) Close() error {
 	p.sc.Log.Info("close %s", p.id)
 	errs := wrappers.Errs{}
 	if p.writeBuffer != nil {
-		errs.Add(p.writeBuffer.close())
+		p.writeBuffer.close()
 	}
 	if p.sock != nil {
 		errs.Add(p.sock.Close())
@@ -87,8 +87,7 @@ func (p *Producer) ID() string {
 	return p.id
 }
 
-// ProcessNextMessage takes in a Message from the IPC socket and writes it to
-// Kafka
+// ProcessNextMessage takes in a Message from the IPC socket and writes it to the db
 func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {

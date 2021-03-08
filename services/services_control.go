@@ -29,7 +29,6 @@ type Control struct {
 	GenesisContainer           *GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
-	IsDBPoll                   bool
 	IsDisableBootstrap         bool
 }
 
@@ -43,9 +42,6 @@ func (s *Control) Init(networkID uint32) error {
 			s.Log.Info("enable feature accumulate_balance_reader")
 			s.IsAccumulateBalanceReader = true
 		}
-	}
-	if _, ok := s.Features["db_poll"]; ok {
-		s.IsDBPoll = true
 	}
 	if _, ok := s.Features["disable_bootstrap"]; ok {
 		s.IsDisableBootstrap = true

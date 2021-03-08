@@ -46,25 +46,9 @@ var IndexerConsumer = func(networkID uint32, chainVM string, chainID string) (in
 	return indexer, err
 }
 
-var Indexer = stream.NewConsumerFactory(IndexerConsumer, stream.EventTypeDecisions)
-
-var IndexerConsensus = stream.NewConsumerFactory(func(networkID uint32, chainVM string, chainID string) (indexer services.Consumer, err error) {
-	switch chainVM {
-	case IndexerAVMName:
-		indexer, err = avm.NewWriter(networkID, chainID)
-	case IndexerPVMName:
-		indexer, err = pvm.NewWriter(networkID, chainID)
-	default:
-		return nil, stream.ErrUnknownVM
-	}
-	return indexer, err
-}, stream.EventTypeConsensus)
-
 var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer services.ConsumerCChain, err error) {
 	return cvm.NewWriter(networkID, chainID)
 }
-
-var IndexerCChain = stream.NewConsumerCChain
 
 type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryChainDB, error)
 
