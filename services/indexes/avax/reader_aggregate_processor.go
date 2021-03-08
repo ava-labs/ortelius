@@ -297,10 +297,6 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
 		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
 		r.readerAggregate.a1ht = &tnow
@@ -333,10 +329,6 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 
 	runAgg := func() {
 		agg, err := r.processAggregate(conns, "1d", "hour", -(24 * time.Hour))
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
