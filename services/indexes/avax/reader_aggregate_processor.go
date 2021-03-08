@@ -162,10 +162,12 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	timeaggr := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
+		runTime := time.Now().Truncate(time.Minute)
+		runDuration := 24 * time.Hour
+
 		ctx := context.Background()
 
-		job := conns.QuietStream().NewJob("aggr-asset-aggr")
-		sess := conns.DB().NewSessionForEventReceiver(job)
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
 		var assetsFound []string
 		_, err := sess.Select(
@@ -174,7 +176,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		).
 			From("avm_outputs").
 			Where("created_at > ? and asset_id <> ?",
-				time.Now().UTC().Add(-24*time.Hour),
+				runTime.Add(-runDuration),
 				r.sc.GenesisContainer.AvaxAssetID.String(),
 			).
 			GroupBy("asset_id").
@@ -198,8 +200,8 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
 			}
-			p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-			p.ListParams.StartTime = p.ListParams.EndTime.Add(-24 * time.Hour)
+			p.ListParams.EndTime = runTime
+			p.ListParams.StartTime = p.ListParams.EndTime.Add(-runDuration)
 			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 			id, err := ids.FromString(asset)
 			if err != nil {
@@ -219,12 +221,14 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		sort.Slice(aggrList, func(i, j int) bool {
 			return aggrList[i].Aggregate.Aggregates.TransactionCount > aggrList[j].Aggregate.Aggregates.TransactionCount
 		})
+
 		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
 		r.readerAggregate.aggrt = &tnow
 		r.readerAggregate.aggr = aggrMap
 		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()
+
 		timeaggr = timeaggr.Add(5 * time.Minute).Truncate(5 * time.Minute)
 	}
 	runAgg()
