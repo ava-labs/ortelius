@@ -201,7 +201,8 @@ type CacheAssetAggregates struct {
 	Aggregates []*AssetAggregate `json:"aggregates"`
 }
 
-type CacheAggregatesHistory struct {
+type CacheAggregates struct {
 	Time      *time.Time           `json:"time"`
 	Aggregate *AggregatesHistogram `json:"aggregate"`
+	Interval  time.Duration        `json:"interval"`
 }

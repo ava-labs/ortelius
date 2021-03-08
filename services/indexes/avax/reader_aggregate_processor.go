@@ -34,39 +34,45 @@ type ReaderAggregate struct {
 	a30dt *time.Time
 }
 
-func (r *Reader) CacheAggregatesByAsset() *models.CacheAssetAggregates {
+func (r *Reader) CacheAssetAggregates() *models.CacheAssetAggregates {
 	var res []*models.AssetAggregate
 	var tm *time.Time
 	r.readerAggregate.lock.RLock()
+	defer r.readerAggregate.lock.RUnlock()
 	res = append(res, r.readerAggregate.aggrl...)
 	tm = r.readerAggregate.aggrt
-	r.readerAggregate.lock.RUnlock()
 	return &models.CacheAssetAggregates{Aggregates: res, Time: tm}
 }
 
-func (r *Reader) CacheAggregatesHistory(tag string) *models.CacheAggregatesHistory {
+func (r *Reader) CacheAggregates(tag string) *models.CacheAggregates {
 	var res *models.AggregatesHistogram
 	var tm *time.Time
+	var interval time.Duration
 	r.readerAggregate.lock.RLock()
+	defer r.readerAggregate.lock.RUnlock()
 	switch tag {
 	case "1m":
 		res = r.readerAggregate.a1m
 		tm = r.readerAggregate.a1mt
+		interval = time.Second
 	case "1h":
 		res = r.readerAggregate.a1h
 		tm = r.readerAggregate.a1ht
+		interval = 5 * time.Minute
 	case "24h":
 		res = r.readerAggregate.a24h
 		tm = r.readerAggregate.a24ht
+		interval = time.Hour
 	case "7d":
 		res = r.readerAggregate.a7d
 		tm = r.readerAggregate.a7dt
+		interval = 24 * time.Hour
 	case "30d":
 		res = r.readerAggregate.a30d
 		tm = r.readerAggregate.a30dt
+		interval = 24 * time.Hour
 	}
-	r.readerAggregate.lock.RUnlock()
-	return &models.CacheAggregatesHistory{Aggregate: res, Time: tm}
+	return &models.CacheAggregates{Aggregate: res, Interval: interval, Time: tm}
 }
 
 func (r *Reader) aggregateProcessor() error {
@@ -328,7 +334,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 	time24h := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
-		agg, err := r.processAggregate(conns, "1d", "hour", -(24 * time.Hour))
+		agg, err := r.processAggregate(conns, "24h", "hour", -(24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return

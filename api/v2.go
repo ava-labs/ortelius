@@ -113,8 +113,8 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/etxdata/:id", (*V2Context).ETxData).
 		Get("/ctransactions", (*V2Context).ListCTransactions).
 		Get("/rawtransaction/:id", (*V2Context).RawTransaction).
-		Get("/cacheaggregatebyasset", (*V2Context).CacheAssetAggregateByAsset).
-		Get("/cacheaggregatehistory/:id", (*V2Context).CacheAggregatesHistory)
+		Get("/cacheassetaggregates", (*V2Context).CacheAssetAggregates).
+		Get("/cacheaggregates/:id", (*V2Context).CacheAggregates)
 }
 
 //
@@ -702,8 +702,8 @@ func (c *V2Context) RawTransaction(w web.ResponseWriter, r *web.Request) {
 	WriteJSON(w, b)
 }
 
-func (c *V2Context) CacheAssetAggregateByAsset(w web.ResponseWriter, r *web.Request) {
-	res := c.avaxReader.CacheAggregatesByAsset()
+func (c *V2Context) CacheAssetAggregates(w web.ResponseWriter, r *web.Request) {
+	res := c.avaxReader.CacheAssetAggregates()
 	b, err := json.Marshal(res)
 	if err != nil {
 		c.WriteErr(w, 400, err)
@@ -713,9 +713,9 @@ func (c *V2Context) CacheAssetAggregateByAsset(w web.ResponseWriter, r *web.Requ
 	WriteJSON(w, b)
 }
 
-func (c *V2Context) CacheAggregatesHistory(w web.ResponseWriter, r *web.Request) {
+func (c *V2Context) CacheAggregates(w web.ResponseWriter, r *web.Request) {
 	id := r.PathParams["id"]
-	res := c.avaxReader.CacheAggregatesHistory(id)
+	res := c.avaxReader.CacheAggregates(id)
 	b, err := json.Marshal(res)
 	if err != nil {
 		c.WriteErr(w, 400, err)
