@@ -144,7 +144,7 @@ func (r *Reader) aggregateProcessor() error {
 	}
 
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
-	go r.aggregateProcessor1m(connections1h)
+	go r.aggregateProcessor1m(connections1m)
 	go r.aggregateProcessor1h(connections1h)
 	go r.aggregateProcessor24h(connections24h)
 	go r.aggregateProcessor7d(connections7d)
