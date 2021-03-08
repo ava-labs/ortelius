@@ -157,14 +157,13 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
+	runDuration := 24 * time.Hour
+
 	ticker := time.NewTicker(time.Second)
 
 	timeaggr := time.Now().Truncate(time.Minute)
 
-	runAgg := func() {
-		runTime := time.Now().Truncate(time.Minute)
-		runDuration := 24 * time.Hour
-
+	runAgg := func(runTm time.Time) {
 		ctx := context.Background()
 
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
@@ -176,7 +175,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		).
 			From("avm_outputs").
 			Where("created_at > ? and asset_id <> ?",
-				runTime.Add(-runDuration),
+				runTm.Add(-runDuration),
 				r.sc.GenesisContainer.AvaxAssetID.String(),
 			).
 			GroupBy("asset_id").
@@ -200,7 +199,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
 			}
-			p.ListParams.EndTime = runTime
+			p.ListParams.EndTime = runTm
 			p.ListParams.StartTime = p.ListParams.EndTime.Add(-runDuration)
 			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 			id, err := ids.FromString(asset)
@@ -231,13 +230,13 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 
 		timeaggr = timeaggr.Add(5 * time.Minute).Truncate(5 * time.Minute)
 	}
-	runAgg()
+	runAgg(timeaggr)
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(timeaggr) {
-				runAgg()
+				runAgg(timeaggr)
 			}
 		case <-r.doneCh:
 			return
@@ -245,7 +244,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) processAggregate(conns *services.Connections, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
+func (r *Reader) processAggregate(conns *services.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
 	ctx := context.Background()
 	p := &params.AggregateParams{}
 	urlv := url.Values{}
@@ -255,7 +254,7 @@ func (r *Reader) processAggregate(conns *services.Connections, tag string, inter
 		r.sc.Log.Warn("Aggregate %v", err)
 		return nil, err
 	}
-	p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+	p.ListParams.EndTime = runTm
 	p.ListParams.StartTime = p.ListParams.EndTime.Add(deltaTime)
 	p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 	r.sc.Log.Info("aggregate %s interval %s %v->%v", tag, intervalSize, p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
@@ -269,8 +268,10 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	runAgg := func() {
-		agg, err := r.processAggregate(conns, "1m", "1s", -time.Minute)
+	time1m := time.Now().Truncate(time.Minute)
+
+	runAgg := func(runTm time.Time) {
+		agg, err := r.processAggregate(conns, runTm, "1m", "1s", -time.Minute)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -280,12 +281,16 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 		r.readerAggregate.a1mt = &tnow
 		r.readerAggregate.a1m = agg
 		r.readerAggregate.lock.Unlock()
+		time1m = time1m.Add(time.Minute).Truncate(time.Minute)
 	}
-	runAgg()
+	runAgg(time1m)
 	for {
 		select {
 		case <-ticker.C:
-			runAgg()
+			tnow := time.Now()
+			if tnow.After(time1m) {
+				runAgg(time1m)
+			}
 		case <-r.doneCh:
 			return
 		}
@@ -301,8 +306,8 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 
 	time1h := time.Now().Truncate(time.Minute)
 
-	runAgg := func() {
-		agg, err := r.processAggregate(conns, "1h", "5m", -time.Hour)
+	runAgg := func(runtm time.Time) {
+		agg, err := r.processAggregate(conns, runtm, "1h", "5m", -time.Hour)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -314,13 +319,13 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 		r.readerAggregate.lock.Unlock()
 		time1h = time1h.Add(5 * time.Minute).Truncate(5 * time.Minute)
 	}
-	runAgg()
+	runAgg(time1h)
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(time1h) {
-				runAgg()
+				runAgg(time1h)
 			}
 		case <-r.doneCh:
 			return
@@ -337,8 +342,8 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 
 	time24h := time.Now().Truncate(time.Minute)
 
-	runAgg := func() {
-		agg, err := r.processAggregate(conns, "24h", "hour", -(24 * time.Hour))
+	runAgg := func(runTm time.Time) {
+		agg, err := r.processAggregate(conns, runTm, "24h", "hour", -(24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -350,13 +355,13 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 		r.readerAggregate.lock.Unlock()
 		time24h = time24h.Add(15 * time.Minute).Truncate(15 * time.Minute)
 	}
-	runAgg()
+	runAgg(time24h)
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(time24h) {
-				runAgg()
+				runAgg(time24h)
 			}
 		case <-r.doneCh:
 			return
@@ -373,8 +378,8 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 
 	time7d := time.Now().Truncate(time.Minute)
 
-	runAgg := func() {
-		agg, err := r.processAggregate(conns, "7d", "day", -(7 * 24 * time.Hour))
+	runAgg := func(runTm time.Time) {
+		agg, err := r.processAggregate(conns, runTm, "7d", "day", -(7 * 24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -386,13 +391,13 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 		r.readerAggregate.lock.Unlock()
 		time7d = time7d.Add(time.Hour).Truncate(time.Hour)
 	}
-	runAgg()
+	runAgg(time7d)
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(time7d) {
-				runAgg()
+				runAgg(time7d)
 			}
 		case <-r.doneCh:
 			return
@@ -409,8 +414,8 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 
 	time30d := time.Now().Truncate(time.Minute)
 
-	runAgg := func() {
-		agg, err := r.processAggregate(conns, "30d", "day", -(30 * 24 * time.Hour))
+	runAgg := func(runTm time.Time) {
+		agg, err := r.processAggregate(conns, runTm, "30d", "day", -(30 * 24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -422,13 +427,13 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 		r.readerAggregate.lock.Unlock()
 		time30d = time30d.Add(1 * time.Hour).Truncate(1 * time.Hour)
 	}
-	runAgg()
+	runAgg(time30d)
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(time30d) {
-				runAgg()
+				runAgg(time30d)
 			}
 		case <-r.doneCh:
 			return
