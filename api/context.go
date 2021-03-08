@@ -28,10 +28,6 @@ var (
 	// fails.
 	ErrCacheableFnFailed = errors.New("failed to load resource")
 
-	// errInternalServerError is returned when errors occur that are not due to
-	// a mistake from the caller.
-	errInternalServerError = errors.New("internal server error")
-
 	workerQueueSize   = 10
 	workerThreadCount = 1
 )
