@@ -204,5 +204,4 @@ type CacheAssetAggregates struct {
 type CacheAggregates struct {
 	Time      *time.Time           `json:"time"`
 	Aggregate *AggregatesHistogram `json:"aggregate"`
-	Interval  time.Duration        `json:"interval"`
 }

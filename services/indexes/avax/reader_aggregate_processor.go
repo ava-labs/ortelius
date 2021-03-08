@@ -47,32 +47,26 @@ func (r *Reader) CacheAssetAggregates() *models.CacheAssetAggregates {
 func (r *Reader) CacheAggregates(tag string) *models.CacheAggregates {
 	var res *models.AggregatesHistogram
 	var tm *time.Time
-	var interval time.Duration
 	r.readerAggregate.lock.RLock()
 	defer r.readerAggregate.lock.RUnlock()
 	switch tag {
 	case "1m":
 		res = r.readerAggregate.a1m
 		tm = r.readerAggregate.a1mt
-		interval = time.Second
 	case "1h":
 		res = r.readerAggregate.a1h
 		tm = r.readerAggregate.a1ht
-		interval = 5 * time.Minute
 	case "24h":
 		res = r.readerAggregate.a24h
 		tm = r.readerAggregate.a24ht
-		interval = time.Hour
 	case "7d":
 		res = r.readerAggregate.a7d
 		tm = r.readerAggregate.a7dt
-		interval = 24 * time.Hour
 	case "30d":
 		res = r.readerAggregate.a30d
 		tm = r.readerAggregate.a30dt
-		interval = 24 * time.Hour
 	}
-	return &models.CacheAggregates{Aggregate: res, Interval: interval, Time: tm}
+	return &models.CacheAggregates{Aggregate: res, Time: tm}
 }
 
 func (r *Reader) aggregateProcessor() error {
