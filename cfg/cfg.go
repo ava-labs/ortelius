@@ -85,7 +85,6 @@ type Producer struct {
 
 type Consumer struct {
 	StartTime time.Time `json:"startTime"`
-	GroupName string    `json:"groupName"`
 }
 
 // NewFromFile creates a new *Config with the defaults replaced by the config  in

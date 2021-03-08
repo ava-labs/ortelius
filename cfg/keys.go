@@ -40,6 +40,5 @@ const (
 	keysStreamProducerCchainID  = "cchainID"
 
 	keysStreamConsumer          = "consumer"
-	keysStreamConsumerGroupName = "groupName"
 	keysStreamConsumerStartTime = "startTime"
 )
