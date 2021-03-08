@@ -22,6 +22,8 @@ type ReaderAggregate struct {
 	aggrt *time.Time
 	aggrl []*models.AssetAggregate
 
+	a1m   *models.AggregatesHistogram
+	a1mt  *time.Time
 	a1h   *models.AggregatesHistogram
 	a1ht  *time.Time
 	a24h  *models.AggregatesHistogram
@@ -47,6 +49,9 @@ func (r *Reader) CacheAggregatesHistory(tag string) *models.CacheAggregatesHisto
 	var tm *time.Time
 	r.readerAggregate.lock.RLock()
 	switch tag {
+	case "1m":
+		res = r.readerAggregate.a1m
+		tm = r.readerAggregate.a1mt
 	case "1h":
 		res = r.readerAggregate.a1h
 		tm = r.readerAggregate.a1ht
@@ -71,6 +76,7 @@ func (r *Reader) aggregateProcessor() error {
 
 	var connectionsaggr *services.Connections
 
+	var connections1m *services.Connections
 	var connections1h *services.Connections
 	var connections24h *services.Connections
 	var connections7d *services.Connections
@@ -82,6 +88,9 @@ func (r *Reader) aggregateProcessor() error {
 			_ = connectionsaggr.Close()
 		}
 
+		if connections1m != nil {
+			_ = connections1m.Close()
+		}
 		if connections1h != nil {
 			_ = connections1h.Close()
 		}
@@ -102,6 +111,11 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
+	connections1m, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
 	connections1h, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
@@ -124,6 +138,7 @@ func (r *Reader) aggregateProcessor() error {
 	}
 
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
+	go r.aggregateProcessor1m(connections1h)
 	go r.aggregateProcessor1h(connections1h)
 	go r.aggregateProcessor24h(connections24h)
 	go r.aggregateProcessor7d(connections7d)
@@ -220,6 +235,53 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	}
 }
 
+func (r *Reader) processAggregate(conns *services.Connections, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
+	ctx := context.Background()
+	p := &params.AggregateParams{}
+	urlv := url.Values{}
+	urlv.Add(params.KeyIntervalSize, intervalSize)
+	err := p.ForValues(1, urlv)
+	if err != nil {
+		r.sc.Log.Warn("Aggregate %v", err)
+		return nil, err
+	}
+	p.ListParams.EndTime = time.Now().Truncate(time.Minute)
+	p.ListParams.StartTime = p.ListParams.EndTime.Add(deltaTime)
+	p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
+	r.sc.Log.Info("aggregate %s interval %s %v->%v", tag, intervalSize, p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
+	return r.Aggregate(ctx, p, conns)
+}
+
+func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ticker := time.NewTicker(1 * time.Minute)
+
+	runAgg := func() {
+		agg, err := r.processAggregate(conns, "1m", "1s", -time.Minute)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+		tnow := time.Now()
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.a1mt = &tnow
+		r.readerAggregate.a1m = agg
+		r.readerAggregate.lock.Unlock()
+	}
+	runAgg()
+	for {
+		select {
+		case <-ticker.C:
+			runAgg()
+		case <-r.doneCh:
+			return
+		}
+	}
+}
+
 func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
@@ -230,20 +292,11 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 	time1h := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
-		ctx := context.Background()
-		p := &params.AggregateParams{}
-		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "5m")
-		err := p.ForValues(1, urlv)
+		agg, err := r.processAggregate(conns, "1h", "5m", -time.Hour)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-		p.ListParams.StartTime = p.ListParams.EndTime.Add(-time.Hour)
-		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1h interval 5m %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
-		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -279,20 +332,11 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 	time24h := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
-		ctx := context.Background()
-		p := &params.AggregateParams{}
-		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "hour")
-		err := p.ForValues(1, urlv)
+		agg, err := r.processAggregate(conns, "1d", "hour", -(24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(24 * time.Hour))
-		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1d interval 1h %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
-		agg, err := r.Aggregate(ctx, p, conns)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -328,20 +372,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 	time7d := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
-		ctx := context.Background()
-		p := &params.AggregateParams{}
-		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "day")
-		err := p.ForValues(1, urlv)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
-		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(7 * 24 * time.Hour))
-		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1w interval 1d %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
-		agg, err := r.Aggregate(ctx, p, conns)
+		agg, err := r.processAggregate(conns, "7d", "day", -(7 * 24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
@@ -377,20 +408,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 	time30d := time.Now().Truncate(time.Minute)
 
 	runAgg := func() {
-		ctx := context.Background()
-		p := &params.AggregateParams{}
-		urlv := url.Values{}
-		urlv.Add(params.KeyIntervalSize, "month")
-		err := p.ForValues(1, urlv)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
-		p.ListParams.EndTime = time.Now().Truncate(time.Minute)
-		p.ListParams.StartTime = p.ListParams.EndTime.Add(-(30 * 24 * time.Hour))
-		p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-		r.sc.Log.Info("aggregate 1m interval 1d %v->%v", p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
-		agg, err := r.Aggregate(ctx, p, conns)
+		agg, err := r.processAggregate(conns, "30d", "day", -(30 * 24 * time.Hour))
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
