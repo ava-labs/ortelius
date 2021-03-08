@@ -15,11 +15,6 @@ import (
 	"github.com/ava-labs/ortelius/services"
 )
 
-const (
-	ConsumerEventTypeDefault = EventTypeDecisions
-	ConsumerMaxBytesDefault  = 10e8
-)
-
 // consumer takes events from db and sends them to a service consumer
 type consumerDB struct {
 	id        string

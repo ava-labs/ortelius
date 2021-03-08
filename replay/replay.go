@@ -370,7 +370,7 @@ func (replay *replay) startCchain(addr *net.TCPAddr, chain string, replayEndTime
 				Brokers:     replay.config.Kafka.Brokers,
 				Partition:   partOffset.Partition,
 				StartOffset: partOffset.FirstOffset,
-				MaxBytes:    stream.ConsumerMaxBytesDefault,
+				MaxBytes:    cfg.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
@@ -469,7 +469,7 @@ func (replay *replay) startConsensus(addr *net.TCPAddr, chain cfg.Chain, replayE
 				Brokers:     replay.config.Kafka.Brokers,
 				Partition:   partOffset.Partition,
 				StartOffset: partOffset.FirstOffset,
-				MaxBytes:    stream.ConsumerMaxBytesDefault,
+				MaxBytes:    cfg.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
@@ -556,7 +556,7 @@ func (replay *replay) startDecision(addr *net.TCPAddr, chain cfg.Chain, replayEn
 				Brokers:     replay.config.Kafka.Brokers,
 				Partition:   partOffset.Partition,
 				StartOffset: partOffset.FirstOffset,
-				MaxBytes:    stream.ConsumerMaxBytesDefault,
+				MaxBytes:    cfg.ConsumerMaxBytesDefault,
 			})
 			replay.sc.Log.Info("replay for topic %s:%d reading", tn, partOffset.Partition)
 
