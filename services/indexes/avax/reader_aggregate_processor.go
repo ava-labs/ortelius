@@ -41,7 +41,7 @@ func (r *Reader) CacheAssetAggregates() *models.CacheAssetAggregates {
 	defer r.readerAggregate.lock.RUnlock()
 	res = append(res, r.readerAggregate.aggrl...)
 	tm = r.readerAggregate.aggrt
-	return &models.CacheAssetAggregates{Aggregates: res, Time: tm}
+	return &models.CacheAssetAggregates{AssetAggregates: res, Time: tm}
 }
 
 func (r *Reader) CacheAggregates(tag string) *models.CacheAggregates {
