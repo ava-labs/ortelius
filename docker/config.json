@@ -8,12 +8,10 @@
   "chains": {
     "11111111111111111111111111111111LpoYY": {
       "id": "11111111111111111111111111111111LpoYY",
-      "alias": "P",
       "vmType": "pvm"
     },
     "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM": {
       "id": "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
-      "alias": "X",
       "vmType": "avm"
     }
   },

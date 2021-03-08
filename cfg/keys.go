@@ -10,7 +10,6 @@ const (
 
 	keysChains       = "chains"
 	keysChainsID     = "id"
-	keysChainsAlias  = "alias"
 	keysChainsVMType = "vmtype"
 
 	keysServices = "services"
