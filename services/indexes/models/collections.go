@@ -195,13 +195,3 @@ type AssetAggregate struct {
 	Asset     ids.ID               `json:"asset"`
 	Aggregate *AggregatesHistogram `json:"aggregate"`
 }
-
-type CacheAssetAggregates struct {
-	Time            *time.Time        `json:"time"`
-	AssetAggregates []*AssetAggregate `json:"assetAggregates"`
-}
-
-type CacheAggregates struct {
-	Time      *time.Time           `json:"time"`
-	Aggregate *AggregatesHistogram `json:"aggregate"`
-}

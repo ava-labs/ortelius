@@ -19,54 +19,40 @@ type ReaderAggregate struct {
 	lock sync.RWMutex
 
 	aggr  map[ids.ID]*models.AggregatesHistogram
-	aggrt *time.Time
 	aggrl []*models.AssetAggregate
 
-	a1m   *models.AggregatesHistogram
-	a1mt  *time.Time
-	a1h   *models.AggregatesHistogram
-	a1ht  *time.Time
-	a24h  *models.AggregatesHistogram
-	a24ht *time.Time
-	a7d   *models.AggregatesHistogram
-	a7dt  *time.Time
-	a30d  *models.AggregatesHistogram
-	a30dt *time.Time
+	a1m  *models.AggregatesHistogram
+	a1h  *models.AggregatesHistogram
+	a24h *models.AggregatesHistogram
+	a7d  *models.AggregatesHistogram
+	a30d *models.AggregatesHistogram
 }
 
-func (r *Reader) CacheAssetAggregates() *models.CacheAssetAggregates {
+func (r *Reader) CacheAssetAggregates() []*models.AssetAggregate {
 	var res []*models.AssetAggregate
-	var tm *time.Time
 	r.readerAggregate.lock.RLock()
 	defer r.readerAggregate.lock.RUnlock()
 	res = append(res, r.readerAggregate.aggrl...)
-	tm = r.readerAggregate.aggrt
-	return &models.CacheAssetAggregates{AssetAggregates: res, Time: tm}
+	return res
 }
 
-func (r *Reader) CacheAggregates(tag string) *models.CacheAggregates {
+func (r *Reader) CacheAggregates(tag string) *models.AggregatesHistogram {
 	var res *models.AggregatesHistogram
-	var tm *time.Time
 	r.readerAggregate.lock.RLock()
 	defer r.readerAggregate.lock.RUnlock()
 	switch tag {
 	case "1m":
 		res = r.readerAggregate.a1m
-		tm = r.readerAggregate.a1mt
 	case "1h":
 		res = r.readerAggregate.a1h
-		tm = r.readerAggregate.a1ht
 	case "24h":
 		res = r.readerAggregate.a24h
-		tm = r.readerAggregate.a24ht
 	case "7d":
 		res = r.readerAggregate.a7d
-		tm = r.readerAggregate.a7dt
 	case "30d":
 		res = r.readerAggregate.a30d
-		tm = r.readerAggregate.a30dt
 	}
-	return &models.CacheAggregates{Aggregate: res, Time: tm}
+	return res
 }
 
 func (r *Reader) aggregateProcessor() error {
@@ -215,9 +201,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			return aggrList[i].Aggregate.Aggregates.TransactionCount > aggrList[j].Aggregate.Aggregates.TransactionCount
 		})
 
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.aggrt = &tnow
 		r.readerAggregate.aggr = aggrMap
 		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()
@@ -270,9 +254,7 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.a1mt = &tnow
 		r.readerAggregate.a1m = agg
 		r.readerAggregate.lock.Unlock()
 		time1m = time1m.Add(time.Minute).Truncate(time.Minute)
@@ -306,9 +288,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.a1ht = &tnow
 		r.readerAggregate.a1h = agg
 		r.readerAggregate.lock.Unlock()
 		time1h = time1h.Add(5 * time.Minute).Truncate(5 * time.Minute)
@@ -342,9 +322,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.a24ht = &tnow
 		r.readerAggregate.a24h = agg
 		r.readerAggregate.lock.Unlock()
 		time24h = time24h.Add(15 * time.Minute).Truncate(15 * time.Minute)
@@ -378,12 +356,10 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.a7dt = &tnow
 		r.readerAggregate.a7d = agg
 		r.readerAggregate.lock.Unlock()
-		time7d = time7d.Add(time.Hour).Truncate(time.Hour)
+		time7d = time7d.Add(30 * time.Minute).Truncate(30 * time.Minute)
 	}
 	runAgg(time7d)
 	for {
@@ -414,12 +390,10 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-		tnow := time.Now()
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.a30dt = &tnow
 		r.readerAggregate.a30d = agg
 		r.readerAggregate.lock.Unlock()
-		time30d = time30d.Add(1 * time.Hour).Truncate(1 * time.Hour)
+		time30d = time30d.Add(30 * time.Minute).Truncate(30 * time.Minute)
 	}
 	runAgg(time30d)
 	for {
