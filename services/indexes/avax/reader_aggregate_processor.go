@@ -141,7 +141,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	timeaggr := time.Now().Truncate(time.Minute)
+	timeaggr := time.Now().Truncate(time.Minute).Truncate(5 * time.Minute)
 
 	runAgg := func(runTm time.Time) {
 		ctx := context.Background()
@@ -280,7 +280,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	time1h := time.Now().Truncate(time.Minute)
+	time1h := time.Now().Truncate(time.Minute).Truncate(5 * time.Minute)
 
 	runAgg := func(runtm time.Time) {
 		agg, err := r.processAggregate(conns, runtm, "1h", "5m", -time.Hour)
@@ -314,7 +314,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	time24h := time.Now().Truncate(time.Minute)
+	time24h := time.Now().Truncate(time.Minute).Truncate(15 * time.Minute)
 
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "24h", "hour", -(24 * time.Hour))
@@ -348,7 +348,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	time7d := time.Now().Truncate(time.Minute)
+	time7d := time.Now().Truncate(time.Minute).Truncate(30 * time.Minute)
 
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "7d", "day", -(7 * 24 * time.Hour))
@@ -382,7 +382,7 @@ func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	time30d := time.Now().Truncate(time.Minute)
+	time30d := time.Now().Truncate(time.Minute).Truncate(30 * time.Minute)
 
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "30d", "day", -(30 * 24 * time.Hour))
