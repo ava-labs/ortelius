@@ -1,3 +1,3 @@
 # Ortelius Configuration
 
-[configuration](https://docs.avax.network/build/tools/ortelius#ortelius-configuration)
+[configuration](https://github.com/ava-labs/ortelius/blob/master/docker/config.json)

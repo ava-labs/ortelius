@@ -32,6 +32,4 @@ On the first run it will take time for avalanchego to bootstrap and ingest the h
 
 ## Production Deployment
 
-[production setup](docs/production.md)
-
-For a custom production deployment see the [deployment page](docs/deployment.md) which enumerates the individual components.
+[production setup](docs/deployment.md)
