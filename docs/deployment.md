@@ -8,7 +8,7 @@ Minimum recommended specs:
 
 Expandable storage to accommodate growth or use an [external db](#external-db-setup).
 
-It is safe to run ortelius stacks on separate machines with a shared DB.
+It is safe to run the ortelius stack on multiple machines with a shared DB.
 
 # Setup docker (pre-steps)
 
