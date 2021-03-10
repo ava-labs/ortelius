@@ -24,7 +24,7 @@ The indexer requires that a MySQL compatible database be available. The migratio
 
 `migrate -source file://services/db/migrations -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius" up`
 
-[see](production.md#external-db-setup)
+[external db setup](production.md#external-db-setup)
 
 ## Ortelius Distribution
 
