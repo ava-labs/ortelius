@@ -5,6 +5,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
 
 type ListMetadata struct {
@@ -187,4 +189,9 @@ type Aggregates struct {
 
 type AddressChains struct {
 	AddressChains map[string][]StringID `json:"addressChains"`
+}
+
+type AssetAggregate struct {
+	Asset     ids.ID               `json:"asset"`
+	Aggregate *AggregatesHistogram `json:"aggregate"`
 }

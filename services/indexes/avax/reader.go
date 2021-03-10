@@ -63,16 +63,28 @@ type Reader struct {
 	networkID       uint32
 	chainConsumers  map[string]services.Consumer
 	cChainCconsumer services.ConsumerCChain
+
+	readerAggregate ReaderAggregate
+
+	doneCh chan struct{}
 }
 
-func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) *Reader {
-	return &Reader{
+func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) (*Reader, error) {
+	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
 		networkID:       networkID,
 		chainConsumers:  chainConsumers,
 		cChainCconsumer: cChainCconsumer,
+		doneCh:          make(chan struct{}),
 	}
+
+	err := reader.aggregateProcessor()
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID ids.ID) (*models.SearchResults, error) {
@@ -311,7 +323,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	return aggs, nil
 }
 
-func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *services.Connections) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
@@ -336,10 +348,16 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		}
 	}
 
-	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
-	if err != nil {
-		return nil, err
+	var dbRunner *dbr.Session
+	var err error
+
+	if conns != nil {
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("get_transaction_aggregates_histogram"))
+	} else {
+		dbRunner, err = r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var builder *dbr.SelectStmt
