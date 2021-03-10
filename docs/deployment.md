@@ -16,13 +16,15 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--ipcs-chain-ids` flag, example:
 
-`./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,jnUjZSRt16TcRnZzmh5aMhavwVHz3zBrSN8GfFMTQkzUnoBxC`
+`./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
 
 ### MySQL
 
 The indexer requires that a MySQL compatible database be available. The migrations can be found in the repo's [services/db/migrations](../services/db/migrations) directory and can be applied with [golang-migrate](https://github.com/golang-migrate/migrate), example:
 
 `migrate -source file://services/db/migrations -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius" up`
+
+[see](production.md#external-db-setup)
 
 ## Ortelius Distribution
 
