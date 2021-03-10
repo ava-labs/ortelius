@@ -16,7 +16,6 @@ const appName = "ortelius"
 var (
 	ErrChainsConfigMustBeStringMap = errors.New("Chain config must a string map")
 	ErrChainsConfigIDEmpty         = errors.New("Chain config ID is empty")
-	ErrChainsConfigAliasEmpty      = errors.New("Chain config alias is empty")
 	ErrChainsConfigVMEmpty         = errors.New("Chain config vm type is empty")
 	ErrChainsConfigIDNotString     = errors.New("Chain config ID is not a string")
 	ErrChainsConfigAliasNotString  = errors.New("Chain config alias is not a string")
@@ -35,7 +34,6 @@ type Config struct {
 
 type Chain struct {
 	ID     string `json:"id"`
-	Alias  string `json:"alias"`
 	VMType string `json:"vmType"`
 }
 
@@ -87,7 +85,6 @@ type Producer struct {
 
 type Consumer struct {
 	StartTime time.Time `json:"startTime"`
-	GroupName string    `json:"groupName"`
 }
 
 // NewFromFile creates a new *Config with the defaults replaced by the config  in
@@ -170,7 +167,6 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 			Consumer: Consumer{
 				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),
-				GroupName: streamConsumerViper.GetString(keysStreamConsumerGroupName),
 			},
 		},
 	}, nil

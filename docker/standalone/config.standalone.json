@@ -7,12 +7,10 @@
   "chains": {
     "11111111111111111111111111111111LpoYY": {
       "id": "11111111111111111111111111111111LpoYY",
-      "alias": "p",
       "vmType": "pvm"
     },
     "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm": {
       "id": "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm",
-      "alias": "x",
       "vmType": "avm"
     }
   },
@@ -28,7 +26,6 @@
       "cchainRpc": "http://avalanche:9650/ext/bc/C/rpc"
     },
     "consumer": {
-      "groupName": "indexer"
     }
   },
   "services": {

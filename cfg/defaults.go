@@ -22,7 +22,6 @@ const defaultJSON = `{
       "ipcRoot": "/tmp"
     },
     "consumer": {
-      "groupName": "indexer"
     }
   }
 }`

@@ -10,7 +10,6 @@ const (
 
 	keysChains       = "chains"
 	keysChainsID     = "id"
-	keysChainsAlias  = "alias"
 	keysChainsVMType = "vmtype"
 
 	keysServices = "services"
@@ -41,6 +40,5 @@ const (
 	keysStreamProducerCchainID  = "cchainID"
 
 	keysStreamConsumer          = "consumer"
-	keysStreamConsumerGroupName = "groupName"
 	keysStreamConsumerStartTime = "startTime"
 )
