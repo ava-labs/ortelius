@@ -10,6 +10,10 @@ Expandable storage to accommodate growth or use an [external db](#external-db-se
 
 It is safe to run the ortelius stack on multiple machines with a shared DB.
 
+# Docker
+
+https://docs.docker.com/get-started/
+
 # Setup docker (pre-steps)
 
 https://docs.docker.com/engine/install/ubuntu/
@@ -106,6 +110,12 @@ ae923d0489f0   mysql:8.0.23                      "docker-entrypoint.s…"   19 m
 # make production_stop
 ```
 
+# Viewing logs
+
+```
+# make production_logs
+```
+
 # External DB setup
 
 Ortelius requires an updated mysql compatible DB.  This will work with aurora in mysql mode.
@@ -179,7 +189,7 @@ You can test your setup [API](https://docs.avax.network/build/tools/ortelius).
 
 # Ortelius re-indexing
 
-If you performed a standard docker install the avalanchego maintains a database at /var/lib/ortelius/avalanche/mainnet/.
+If you performed a standard install the avalanchego database will be located at: /var/lib/ortelius/avalanche/mainnet/.
 
 ```
 $ ls -altr /var/lib/ortelius/avalanche/mainnet/
@@ -190,6 +200,10 @@ drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.0.0
 ```
 
 ## Steps
-Stop ortelius, remove the directory, and restart ortelius.
+Stop [ortelius](#stop-ortelius)
+Remove the directory /var/lib/ortelius/avalanche/mainnet/
+Restart [ortelius](#start-ortelius).
+
+
 
 
