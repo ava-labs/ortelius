@@ -1,14 +1,22 @@
 # Requirements
 
-ubuntu 20.04+
+ubuntu 18.04+
 
-Minimum recommended specs:
+Minimum _recommended_ specs:
 
 32GB memory + 8 cpu core
 
 Expandable storage to accommodate growth or use an [external db](#external-db-setup).
 
 It is safe to run the ortelius stack on multiple machines with a shared DB.
+
+# Local folders/ports
+
+Docker is configured to write data files into /var/lib/ortelius/
+
+The api listens on port 8080.
+
+Other ports could be exposed on the machine, and appropriate security should be setup to protect your machine.
 
 # Docker
 
