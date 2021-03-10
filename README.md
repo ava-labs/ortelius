@@ -32,4 +32,4 @@ On the first run it will take time for avalanchego to bootstrap and ingest the h
 
 ## Production Deployment
 
-[production setup](docs/deployment.md)
+[production deployment](docs/deployment.md)
