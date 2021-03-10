@@ -152,7 +152,7 @@ The indexer requires that a MySQL compatible database be available. The migratio
 
 `migrate -source file://services/db/migrations -database "mysql://root:password@tcp(127.0.0.1:3306)/ortelius" up`
 
-[external db setup](external-db-setup)
+[external db setup](#external-db-setup)
 
 ## Ortelius Distribution
 
