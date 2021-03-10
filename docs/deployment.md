@@ -176,3 +176,20 @@ ortelius api -c path/to/config.json
 
 As Avalanche.go bootstraps the Producer will send all events to DB, the indexer will index, and the API will make them available. 
 You can test your setup [API](https://docs.avax.network/build/tools/ortelius). 
+
+# Ortelius re-indexing
+
+If you performed a standard docker install the avalanchego maintains a database at /var/lib/ortelius/avalanche/mainnet/.
+
+```
+$ ls -altr /var/lib/ortelius/avalanche/mainnet/
+total 12
+drwxr-xr-x 3 root root 4096 Mar 10 14:29 ..
+drwxr-xr-x 3 root root 4096 Mar 10 14:29 .
+drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.0.0
+```
+
+## Steps
+Stop ortelius, remove the directory, and restart ortelius.
+
+
