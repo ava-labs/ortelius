@@ -22,7 +22,7 @@ jobs:
           - '1.15.5'
     services:
       mysql:
-        image: mysql:8.0.22
+        image: mysql:8.0.23
         ports:
           - 3306:3306
         env:

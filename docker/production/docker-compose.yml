@@ -3,7 +3,7 @@ volumes:
   avalanche-ipcs:
 services:
   mysql:
-    image: "mysql:8.0.22"
+    image: "mysql:8.0.23"
     volumes:
       - /var/lib/ortelius/mysql:/var/lib/mysql
       - ./../my.cnf:/etc/mysql/my.cnf
@@ -34,7 +34,7 @@ services:
   avalanche:
     env_file:
       - production.env
-    image: "avaplatform/avalanchego:v1.2.1"
+    image: "avaplatform/avalanchego:v1.2.3"
     command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche

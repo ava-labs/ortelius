@@ -3,7 +3,7 @@ volumes:
   mysql-data:
 services:
   mysql:
-    image: mysql:8.0.22
+    image: mysql:8.0.23
     volumes:
       - mysql-data:/var/lib/mysql
     restart: always
