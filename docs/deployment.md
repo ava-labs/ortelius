@@ -208,8 +208,11 @@ drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.0.0
 ```
 
 ## Steps
+
 Stop [ortelius](#stop-ortelius)
+
 Remove the directory /var/lib/ortelius/avalanche/mainnet/
+
 Restart [ortelius](#start-ortelius).
 
 
