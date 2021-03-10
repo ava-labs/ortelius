@@ -1,14 +1,26 @@
 # Requirements
 
-ubuntu 20.04+
+ubuntu 18.04+
 
-Minimum recommended specs:
+Minimum _recommended_ specs:
 
 32GB memory + 8 cpu core
 
 Expandable storage to accommodate growth or use an [external db](#external-db-setup).
 
 It is safe to run the ortelius stack on multiple machines with a shared DB.
+
+# Local folders/ports
+
+Docker is configured to write data files into /var/lib/ortelius/
+
+The api listens on port 8080.
+
+Other ports could be exposed on the machine, and appropriate security should be setup to protect your machine.
+
+# Docker
+
+https://docs.docker.com/get-started/
 
 # Setup docker (pre-steps)
 
@@ -106,6 +118,12 @@ ae923d0489f0   mysql:8.0.23                      "docker-entrypoint.s…"   19 m
 # make production_stop
 ```
 
+# Viewing logs
+
+```
+# make production_logs
+```
+
 # External DB setup
 
 Ortelius requires an updated mysql compatible DB.  This will work with aurora in mysql mode.
@@ -176,3 +194,27 @@ ortelius api -c path/to/config.json
 
 As Avalanche.go bootstraps the Producer will send all events to DB, the indexer will index, and the API will make them available. 
 You can test your setup [API](https://docs.avax.network/build/tools/ortelius). 
+
+# Ortelius re-indexing
+
+If you performed a standard install the avalanchego database will be located at: /var/lib/ortelius/avalanche/mainnet/.
+
+```
+$ ls -altr /var/lib/ortelius/avalanche/mainnet/
+total 12
+drwxr-xr-x 3 root root 4096 Mar 10 14:29 ..
+drwxr-xr-x 3 root root 4096 Mar 10 14:29 .
+drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.0.0
+```
+
+## Steps
+
+Stop [ortelius](#stop-ortelius)
+
+Remove the directory /var/lib/ortelius/avalanche/mainnet/
+
+Restart [ortelius](#start-ortelius).
+
+
+
+
