@@ -1,4 +1,4 @@
-## requirements
+# Requirements
 
 ubuntu 20.04+
 
@@ -6,9 +6,13 @@ Minimum recommended specs:
 
 32GB memory + 8 cpu core
 
-Expandable storage to accommodate growth.
+Expandable storage to accommodate growth or use an [external db](#external-db-setup).
 
-### As root
+# Redundancy
+
+It is safe to run ortelius stacks on separate machines with a shared DB.
+
+# As root
 
 ## setup docker
 
@@ -56,7 +60,6 @@ https://docs.docker.com/compose/install/
 
 ```
 
-
 ## test the status of the transaction pool.
 
 {container-id} of the mysql container can be found using `docker ps -a`
@@ -101,3 +104,29 @@ ae923d0489f0   mysql:8.0.23                      "docker-entrypoint.s…"   19 m
 ```
 # make production_stop
 ```
+
+# External DB setup
+
+Ortelius requires an updated mysql compatible DB.  This will work with aurora in mysql mode.
+
+*note* DB needs to be up and migrated before use.
+
+## *optional* mysql docker container (customize to your needs)
+[dockerhub mysql](https://hub.docker.com/_/mysql)
+```
+docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.23
+```
+The standard mysql defaults can cause issues, please configure the customizations [here](https://github.com/ava-labs/ortelius/blob/master/docker/my.cnf)
+
+## run migrations -- *required* for all ortelius updates.
+[dockerhub migrate](https://hub.docker.com/r/migrate/migrate)
+```
+docker run --volume .../github.com/ava-labs/ortelius/services/db/migrations:/migrations --network host "migrate/migrate:v4.13.0"  -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up
+```
+Update the docker params as needed to match the user/password/host/database as appropriate.
+
+## update ortelius configs
+Update [config](https://github.com/ava-labs/ortelius/blob/master/docker/config.json) with the correct dsn in your local github repo.
+
+
+
