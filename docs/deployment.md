@@ -31,7 +31,7 @@ https://docs.docker.com/engine/install/linux-postinstall/
 ```
 
 # Start ortelius
-*note* docker requires root without 
+*note* docker requires root on linux [see](#non-root-docker-configuration-on-linux-optional)
 ```
 # make production_start
 ```
