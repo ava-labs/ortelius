@@ -8,34 +8,35 @@ Minimum recommended specs:
 
 Expandable storage to accommodate growth or use an [external db](#external-db-setup).
 
-# Redundancy
-
 It is safe to run ortelius stacks on separate machines with a shared DB.
 
-# As root
-
-## setup docker
+# Setup docker (pre-steps)
 
 https://docs.docker.com/engine/install/ubuntu/
+
 https://docs.docker.com/compose/install/
 
-## install necessary applications
+## Non root docker configuration on linux (optional)
+https://docs.docker.com/engine/install/linux-postinstall/
+
+# Install necessary applications
 ```
-# apt install git make jq
+# sudo apt install git make jq
 ```
 
-## clone the repo
+# Clone the repo
 ```
 # git clone https://github.com/ava-labs/ortelius
 # cd ortelius
 ```
 
-## start ortelius
+# Start ortelius
+*note* docker requires root without 
 ```
 # make production_start
 ```
 
-## test api connectivity
+# Test api connectivity
 ```
 # curl 'localhost:8080/' | jq "."
 {
@@ -60,7 +61,7 @@ https://docs.docker.com/compose/install/
 
 ```
 
-## test the status of the transaction pool.
+# Test the status of the transaction pool.
 
 {container-id} of the mysql container can be found using `docker ps -a`
 
@@ -83,7 +84,7 @@ https://docs.docker.com/compose/install/
 
 As items are consumed into the indexer the count of processed = 0 transactions decreases.
 
-## docker containers
+# Docker containers
 
 There are 3 ortelius services, the api/producer/indexer.
 The avalanchego node will be running.
@@ -99,7 +100,7 @@ ee28fdea61c2   avaplatform/ortelius:140ac5c      "/opt/orteliusd stre…"   19 m
 ae923d0489f0   mysql:8.0.23                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
 ```
 
-## stop ortelius
+# Stop ortelius
 
 ```
 # make production_stop
@@ -111,7 +112,7 @@ Ortelius requires an updated mysql compatible DB.  This will work with aurora in
 
 *note* DB needs to be up and migrated before use.
 
-## *optional* mysql docker container (customize to your needs)
+## *optional* mysql docker container -- adjust as necessary
 [dockerhub mysql](https://hub.docker.com/_/mysql)
 ```
 docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.23
