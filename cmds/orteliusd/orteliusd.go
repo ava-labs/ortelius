@@ -196,18 +196,10 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 		Short: streamReplayCmdDesc,
 		Long:  streamReplayCmdDesc,
 		Run: func(cmd *cobra.Command, args []string) {
-			if sc.IsDBPoll {
-				replay := replay.NewDB(sc, config, *replayqueuesize, *replayqueuethreads)
-				err := replay.Start()
-				if err != nil {
-					*runErr = err
-				}
-			} else {
-				replay := replay.New(sc, config, *replayqueuesize, *replayqueuethreads)
-				err := replay.Start()
-				if err != nil {
-					*runErr = err
-				}
+			replay := replay.NewDB(sc, config, *replayqueuesize, *replayqueuethreads)
+			err := replay.Start()
+			if err != nil {
+				*runErr = err
 			}
 		},
 	}
@@ -286,6 +278,8 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			},
 			producerFactories(config),
 			nil,
+			nil,
+			nil,
 		),
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
@@ -296,13 +290,17 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			sc,
 			config,
 			runErr,
-			[]ProcessorFactoryControl{
-				{Factory: consumers.Indexer, Instances: 2},
-				{Factory: consumers.IndexerConsensus, Instances: 2},
-			},
+			nil,
 			indexerFactories(config),
 			[]consumers.ConsumerFactory{
 				consumers.IndexerConsumer,
+			},
+			[]stream.ProcessorFactoryChainDB{
+				consumers.IndexerDB,
+				consumers.IndexerConsensusDB,
+			},
+			[]stream.ProcessorFactoryInstDB{
+				consumers.IndexerCChainDB(),
 			},
 		),
 	})
@@ -312,10 +310,6 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 
 func indexerFactories(_ *cfg.Config) []ListenCloserFactoryControl {
 	var factories []ListenCloserFactoryControl
-	factories = append(
-		factories,
-		ListenCloserFactoryControl{Factory: consumers.IndexerCChain(), Instances: 2},
-	)
 	return factories
 }
 
@@ -372,6 +366,8 @@ func runStreamProcessorManagers(
 	factories []ProcessorFactoryControl,
 	listenCloseFactories []ListenCloserFactoryControl,
 	consumerFactories []consumers.ConsumerFactory,
+	factoriesChainDB []stream.ProcessorFactoryChainDB,
+	factoriesInstDB []stream.ProcessorFactoryInstDB,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		if indexer {
@@ -388,6 +384,13 @@ func runStreamProcessorManagers(
 
 			// start the accumulator at startup
 			sc.BalanceAccumulatorManager.Run(sc)
+
+			err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
+			if err != nil {
+				*runError = err
+				return
+			}
+			return
 		}
 
 		wg := &sync.WaitGroup{}

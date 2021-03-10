@@ -4,7 +4,6 @@
   "metricsListenAddr": "",
   "listenAddr": ":8080",
   "features": [
-    "db_poll"
   ],
   "chains": {
     "11111111111111111111111111111111LpoYY": {

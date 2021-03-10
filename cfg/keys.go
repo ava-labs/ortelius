@@ -23,7 +23,6 @@ const (
 	keysServicesDBDriver = "driver"
 	keysServicesDBDSN    = "dsn"
 	keysServicesDBRODSN  = "ro_dsn"
-	keysServicesDBTXDB   = "txDB"
 
 	keysServicesRedis         = "redis"
 	keysServicesRedisAddr     = "addr"
