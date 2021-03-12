@@ -337,7 +337,8 @@ func (p *ProducerCChain) runProcessor() error {
 			}
 		}
 	}()
-	pc, err := p.init()
+	var err error
+	pc, err = p.init()
 	if err != nil {
 		return err
 	}
