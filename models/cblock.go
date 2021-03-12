@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/coreth"
 	"math/big"
 	"strings"
 	"sync"
@@ -126,7 +127,7 @@ type TracerParam struct {
 	Tracer string `json:"tracer"`
 }
 
-func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block, []*TransactionTrace, error) {
+func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block,[]types.Log, []*TransactionTrace, error) {
 	client.lock.Lock()
 	defer client.lock.Unlock()
 
@@ -135,7 +136,7 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 
 	bl, err := client.ethClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil,nil, err
 	}
 
 	txTraces := make([]*TransactionTrace, 0, len(bl.Transactions()))
@@ -147,12 +148,12 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 		var results []interface{}
 		err = client.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: Tracer})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil,nil, err
 		}
 		for ipos, result := range results {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil,nil, err
 			}
 			txTraces = append(txTraces,
 				&TransactionTrace{
@@ -164,5 +165,9 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 		}
 	}
 
-	return bl, txTraces, nil
+	blhash := bl.Hash()
+	fq := &coreth.FilterQuery{BlockHash: blhash}
+	fl , err := client.ethClient.FilterLogs(ctx,fq )
+
+	return bl, txTraces, fl, nil
 }
