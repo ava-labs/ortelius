@@ -43,6 +43,8 @@ const (
 )
 
 type producerCChainContainer struct {
+	sc *services.Control
+
 	conns      *services.Connections
 	block      *big.Int
 	blockCount *big.Int
@@ -54,9 +56,39 @@ type producerCChainContainer struct {
 	msgChanDone chan struct{}
 
 	quitCh chan struct{}
-	doneCh chan struct{}
+	doneCh []chan struct{}
 
 	catchupErrs avalancheGoUtils.AtomicInterface
+}
+
+func newContainer(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
+	conns, err := sc.DatabaseOnly()
+	if err != nil {
+		return nil, err
+	}
+
+	pc := &producerCChainContainer{
+		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
+		msgChanDone: make(chan struct{}, 1),
+		quitCh:      make(chan struct{}, 1),
+		doneCh:      make([]chan struct{}, 0, maxWorkerQueue),
+		conns:       conns,
+	}
+
+	err = pc.getBlock()
+	if err != nil {
+		_ = conns.Close()
+		return nil, err
+	}
+
+	cl, err := cblock.NewClient(conf.Producer.CChainRPC)
+	if err != nil {
+		_ = conns.Close()
+		return nil, err
+	}
+	pc.client = cl
+
+	return pc, nil
 }
 
 func (p *producerCChainContainer) isStopping() bool {
@@ -71,7 +103,9 @@ func (p *producerCChainContainer) isStopping() bool {
 func (p *producerCChainContainer) Close() error {
 	close(p.quitCh)
 	close(p.msgChanDone)
-	<-p.doneCh
+	for _, ch := range p.doneCh {
+		<-ch
+	}
 	close(p.msgChan)
 	if p.client != nil {
 		p.client.Close()
@@ -81,6 +115,42 @@ func (p *producerCChainContainer) Close() error {
 		errs.Add(p.conns.Close())
 	}
 	return errs.Err
+}
+
+func (p *producerCChainContainer) getBlock() error {
+	var err error
+	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.Stream().NewJob("get-block"))
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
+	defer cancelCtx()
+
+	type MaxBlock struct {
+		Block      string
+		BlockCount string
+	}
+	maxBlock := MaxBlock{}
+	_, err = sess.Select(
+		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
+		"cast(count(*) as char) as block_count",
+	).
+		From(services.TableCvmBlocks).
+		LoadContext(ctx, &maxBlock)
+	if err != nil {
+		return err
+	}
+
+	mblock, ok := big.NewInt(0).SetString(maxBlock.Block, 10)
+	if !ok {
+		return fmt.Errorf("invalid block %s", maxBlock.Block)
+	}
+	cblockCount, ok := big.NewInt(0).SetString(maxBlock.BlockCount, 10)
+	if !ok {
+		return fmt.Errorf("invalid block %s", maxBlock.BlockCount)
+	}
+	p.block = mblock
+	p.blockCount = cblockCount
+	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
+	return nil
 }
 
 type ProducerCChain struct {
@@ -208,43 +278,6 @@ func (p *ProducerCChain) Success() {
 	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
 }
 
-func (p *ProducerCChain) getBlock(pc *producerCChainContainer) error {
-	var err error
-
-	sess := pc.conns.DB().NewSessionForEventReceiver(pc.conns.Stream().NewJob("get-block"))
-
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
-	defer cancelCtx()
-
-	type MaxBlock struct {
-		Block      string
-		BlockCount string
-	}
-	maxBlock := MaxBlock{}
-	_, err = sess.Select(
-		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
-		"cast(count(*) as char) as block_count",
-	).
-		From(services.TableCvmBlocks).
-		LoadContext(ctx, &maxBlock)
-	if err != nil {
-		return err
-	}
-
-	mblock, ok := big.NewInt(0).SetString(maxBlock.Block, 10)
-	if !ok {
-		return fmt.Errorf("invalid block %s", maxBlock.Block)
-	}
-	cblockCount, ok := big.NewInt(0).SetString(maxBlock.BlockCount, 10)
-	if !ok {
-		return fmt.Errorf("invalid block %s", maxBlock.BlockCount)
-	}
-	pc.block = mblock
-	pc.blockCount = cblockCount
-	p.sc.Log.Info("starting processing block %s cnt %s", pc.block.String(), pc.blockCount.String())
-	return nil
-}
-
 func (p *ProducerCChain) Listen() error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -291,36 +324,6 @@ func (p *ProducerCChain) isStopping() bool {
 	}
 }
 
-func (p *ProducerCChain) init() (*producerCChainContainer, error) {
-	conns, err := p.sc.DatabaseOnly()
-	if err != nil {
-		return nil, err
-	}
-
-	pc := &producerCChainContainer{
-		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
-		msgChanDone: make(chan struct{}, 1),
-		quitCh:      make(chan struct{}, 1),
-		doneCh:      make(chan struct{}, 1),
-	}
-	pc.conns = conns
-
-	err = p.getBlock(pc)
-	if err != nil {
-		_ = conns.Close()
-		return nil, err
-	}
-
-	cl, err := cblock.NewClient(p.conf.Producer.CChainRPC)
-	if err != nil {
-		_ = conns.Close()
-		return nil, err
-	}
-	pc.client = cl
-
-	return pc, nil
-}
-
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerCChain) runProcessor() error {
@@ -342,7 +345,7 @@ func (p *ProducerCChain) runProcessor() error {
 		}
 	}()
 	var err error
-	pc, err = p.init()
+	pc, err = newContainer(p.sc, p.conf)
 	if err != nil {
 		return err
 	}
@@ -357,7 +360,9 @@ func (p *ProducerCChain) runProcessor() error {
 			cl.Close()
 			return err
 		}
-		go p.blockProcessor(pc, cl, conns1)
+		ch := make(chan struct{})
+		pc.doneCh = append(pc.doneCh, ch)
+		go p.blockProcessor(pc, cl, conns1, ch)
 	}
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
@@ -619,7 +624,7 @@ type blockWorkContainer struct {
 	blockNumber *big.Int
 }
 
-func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections) {
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections, doneCh chan struct{}) {
 	defer func() {
 		_ = conns.Close()
 		client.Close()
@@ -628,7 +633,7 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 	for {
 		select {
 		case <-pc.msgChanDone:
-			pc.doneCh <- struct{}{}
+			doneCh <- struct{}{}
 			return
 		case blockWork := <-pc.msgChan:
 			atomic.AddInt64(&pc.msgChanSz, -1)
