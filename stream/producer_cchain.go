@@ -55,6 +55,8 @@ type producerCChainContainer struct {
 	msgChanSz   int64
 	msgChanDone chan struct{}
 
+	quitCh chan struct{}
+
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
@@ -74,8 +76,6 @@ type ProducerCChain struct {
 	doneCh   chan struct{}
 	topic    string
 	topicTrc string
-
-	pc *producerCChainContainer
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
@@ -104,7 +104,15 @@ func NewProducerCChain() utils.ListenCloserFactory {
 	}
 }
 
-// Close shuts down the producer
+func (p *producerCChainContainer) isStopping() bool {
+	select {
+	case <-p.quitCh:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *ProducerCChain) Close() error {
 	close(p.quitCh)
 	<-p.doneCh
@@ -159,15 +167,15 @@ func (p *ProducerCChain) ProcessNextMessage(pc *producerCChainContainer) error {
 		if errs.GetValue() != nil {
 			return errs.GetValue().(error)
 		}
-		if p.pc.catchupErrs.GetValue() != nil {
-			return p.pc.catchupErrs.GetValue().(error)
+		if pc.catchupErrs.GetValue() != nil {
+			return pc.catchupErrs.GetValue().(error)
 		}
 		ncurrent := big.NewInt(0).Add(pc.block, big.NewInt(1))
-		p.enqueue(&blockWorkContainer{errs: errs, blockNumber: ncurrent})
+		p.enqueue(pc, &blockWorkContainer{errs: errs, blockNumber: ncurrent})
 		pc.block = big.NewInt(0).Add(pc.block, big.NewInt(1))
 	}
 
-	for atomic.LoadInt64(&p.pc.msgChanSz) > 0 {
+	for atomic.LoadInt64(&pc.msgChanSz) > 0 {
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -296,6 +304,7 @@ func (p *ProducerCChain) init() (*producerCChainContainer, error) {
 }
 
 func (pc *producerCChainContainer) Close() error {
+	close(pc.quitCh)
 	close(pc.msgChanDone)
 	if pc.client != nil {
 		pc.client.Close()
@@ -303,15 +312,6 @@ func (pc *producerCChainContainer) Close() error {
 	errs := wrappers.Errs{}
 	if pc.conns != nil {
 		errs.Add(pc.conns.Close())
-	}
-	return errs.Err
-}
-
-func (p *ProducerCChain) processorClose() error {
-	p.sc.Log.Info("close %s", p.id)
-	errs := wrappers.Errs{}
-	if p.pc != nil {
-		errs.Add(p.pc.Close())
 	}
 	return errs.Err
 }
@@ -327,17 +327,19 @@ func (p *ProducerCChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for cchain")
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
+	var pc *producerCChainContainer
 	defer func() {
-		err := p.processorClose()
-		if err != nil {
-			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+		if pc != nil {
+			err := pc.Close()
+			if err != nil {
+				p.sc.Log.Warn("Stopping worker for cchain %w", err)
+			}
 		}
 	}()
 	pc, err := p.init()
 	if err != nil {
 		return err
 	}
-	p.pc = pc
 
 	for icnt := 0; icnt < maxWorkers; icnt++ {
 		cl, err := cblock.NewClient(p.conf.Producer.CChainRPC)
@@ -349,12 +351,12 @@ func (p *ProducerCChain) runProcessor() error {
 			cl.Close()
 			return err
 		}
-		go p.blockProcessor(cl, conns1)
+		go p.blockProcessor(pc, cl, conns1)
 	}
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
 	if pc.blockCount.Cmp(pblockp1) < 0 {
-		go p.catchupBlock(pblockp1)
+		go p.catchupBlock(pc, pblockp1)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -363,9 +365,9 @@ func (p *ProducerCChain) runProcessor() error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			err := p.ProcessNextMessage(p.pc)
-			if err == nil && p.pc.catchupErrs.GetValue() != nil {
-				err = p.pc.catchupErrs.GetValue().(error)
+			err := p.ProcessNextMessage(pc)
+			if err == nil && pc.catchupErrs.GetValue() != nil {
+				err = pc.catchupErrs.GetValue().(error)
 			}
 
 			switch err {
@@ -522,7 +524,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, wp *WorkPacket
 	return nil
 }
 
-func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
+func (p *ProducerCChain) catchupBlock(pc *producerCChainContainer, catchupBlock *big.Int) {
 	conns, err := p.sc.DatabaseOnly()
 	if err != nil {
 		p.sc.Log.Warn("catchupBock %v", err)
@@ -538,7 +540,7 @@ func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
 
 	startBlock := big.NewInt(0)
 	endBlock := big.NewInt(0)
-	for !p.isStopping() && endBlock.Cmp(catchupBlock) < 0 {
+	for !pc.isStopping() && !p.isStopping() && endBlock.Cmp(catchupBlock) < 0 {
 		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
 		if endBlock.Cmp(catchupBlock) >= 0 {
 			endBlock.Set(catchupBlock)
@@ -559,12 +561,12 @@ func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
 			blockMap[bl.Block] = struct{}{}
 		}
 		for startBlock.Cmp(endBlock) < 0 {
-			if p.pc.catchupErrs.GetValue() != nil {
+			if pc.catchupErrs.GetValue() != nil {
 				return
 			}
 			if _, ok := blockMap[startBlock.String()]; !ok {
 				p.sc.Log.Info("refill %v", startBlock.String())
-				p.enqueue(&blockWorkContainer{errs: &p.pc.catchupErrs, blockNumber: startBlock})
+				p.enqueue(pc, &blockWorkContainer{errs: &pc.catchupErrs, blockNumber: startBlock})
 			}
 			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
 		}
@@ -573,9 +575,9 @@ func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
 	p.sc.Log.Info("catchup complete")
 }
 
-func (p *ProducerCChain) enqueue(bw *blockWorkContainer) {
-	p.pc.msgChan <- bw
-	atomic.AddInt64(&p.pc.msgChanSz, 1)
+func (p *ProducerCChain) enqueue(pc *producerCChainContainer, bw *blockWorkContainer) {
+	pc.msgChan <- bw
+	atomic.AddInt64(&pc.msgChanSz, 1)
 }
 
 type blockWorkContainer struct {
@@ -583,7 +585,7 @@ type blockWorkContainer struct {
 	blockNumber *big.Int
 }
 
-func (p *ProducerCChain) blockProcessor(client *cblock.Client, conns *services.Connections) {
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
 		client.Close()
@@ -591,8 +593,8 @@ func (p *ProducerCChain) blockProcessor(client *cblock.Client, conns *services.C
 
 	for {
 		select {
-		case blockWork := <-p.pc.msgChan:
-			atomic.AddInt64(&p.pc.msgChanSz, -1)
+		case blockWork := <-pc.msgChan:
+			atomic.AddInt64(&pc.msgChanSz, -1)
 			if blockWork.errs.GetValue() != nil {
 				return
 			}
@@ -620,7 +622,7 @@ func (p *ProducerCChain) blockProcessor(client *cblock.Client, conns *services.C
 				blockWork.errs.SetValue(err)
 				return
 			}
-		case <-p.pc.msgChanDone:
+		case <-pc.msgChanDone:
 			return
 		}
 	}
