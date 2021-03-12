@@ -61,7 +61,7 @@ func Marshal(bl *types.Block) ([]byte, error) {
 		return nil, err
 	}
 	if b == nil {
-		return nil, fmt.Errorf("invalid Block")
+		return nil, fmt.Errorf("invalid block")
 	}
 	return json.Marshal(b)
 }
