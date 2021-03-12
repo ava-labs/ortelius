@@ -56,7 +56,6 @@ type producerCChainContainer struct {
 	msgChanDone chan struct{}
 
 	quitCh chan struct{}
-	doneCh []chan struct{}
 
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
@@ -71,7 +70,6 @@ func newContainer(sc *services.Control, conf cfg.Config) (*producerCChainContain
 		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
 		msgChanDone: make(chan struct{}, 1),
 		quitCh:      make(chan struct{}, 1),
-		doneCh:      make([]chan struct{}, 0, maxWorkerQueue),
 		conns:       conns,
 		sc:          sc,
 	}
@@ -103,11 +101,6 @@ func (p *producerCChainContainer) isStopping() bool {
 
 func (p *producerCChainContainer) Close() error {
 	close(p.quitCh)
-	close(p.msgChanDone)
-	for _, ch := range p.doneCh {
-		<-ch
-	}
-	close(p.msgChan)
 	if p.client != nil {
 		p.client.Close()
 	}
@@ -337,8 +330,14 @@ func (p *ProducerCChain) runProcessor() error {
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
 	var pc *producerCChainContainer
+
+	bpWg := &sync.WaitGroup{}
+
 	defer func() {
 		if pc != nil {
+			close(pc.msgChanDone)
+			bpWg.Wait()
+
 			err := pc.Close()
 			if err != nil {
 				p.sc.Log.Warn("Stopping worker for cchain %w", err)
@@ -361,9 +360,8 @@ func (p *ProducerCChain) runProcessor() error {
 			cl.Close()
 			return err
 		}
-		ch := make(chan struct{})
-		pc.doneCh = append(pc.doneCh, ch)
-		go p.blockProcessor(pc, cl, conns1, ch)
+		bpWg.Add(1)
+		go p.blockProcessor(pc, cl, conns1, bpWg)
 	}
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
@@ -625,8 +623,9 @@ type blockWorkContainer struct {
 	blockNumber *big.Int
 }
 
-func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections, doneCh chan struct{}) {
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections, wg *sync.WaitGroup) {
 	defer func() {
+		wg.Done()
 		_ = conns.Close()
 		client.Close()
 	}()
@@ -634,7 +633,6 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 	for {
 		select {
 		case <-pc.msgChanDone:
-			doneCh <- struct{}{}
 			return
 		case blockWork := <-pc.msgChan:
 			atomic.AddInt64(&pc.msgChanSz, -1)
