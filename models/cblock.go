@@ -128,14 +128,14 @@ type TracerParam struct {
 	Tracer string `json:"tracer"`
 }
 
-func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block, []*TransactionTrace, []*types.Log, error) {
-	client.lock.Lock()
-	defer client.lock.Unlock()
+func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block, []*TransactionTrace, []*types.Log, error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
 	defer cancelCTX()
 
-	bl, err := client.ethClient.BlockByNumber(ctx, blockNumber)
+	bl, err := c.ethClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -147,7 +147,7 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 			txh = "0x" + txh
 		}
 		var results []interface{}
-		err = client.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: Tracer})
+		err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: Tracer})
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -168,7 +168,7 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 
 	blhash := bl.Hash()
 	fq := coreth.FilterQuery{BlockHash: &blhash}
-	fls, err := client.ethClient.FilterLogs(ctx, fq)
+	fls, err := c.ethClient.FilterLogs(ctx, fq)
 	if err != nil {
 		return nil, nil, nil, err
 	}
