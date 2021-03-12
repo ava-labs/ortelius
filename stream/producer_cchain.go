@@ -54,6 +54,7 @@ type producerCChainContainer struct {
 	msgChanDone chan struct{}
 
 	quitCh chan struct{}
+	doneCh chan struct{}
 
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
@@ -70,6 +71,7 @@ func (p *producerCChainContainer) isStopping() bool {
 func (p *producerCChainContainer) Close() error {
 	close(p.quitCh)
 	close(p.msgChanDone)
+	<-p.doneCh
 	close(p.msgChan)
 	if p.client != nil {
 		p.client.Close()
@@ -299,6 +301,7 @@ func (p *ProducerCChain) init() (*producerCChainContainer, error) {
 		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
 		msgChanDone: make(chan struct{}, 1),
 		quitCh:      make(chan struct{}, 1),
+		doneCh:      make(chan struct{}, 1),
 	}
 	pc.conns = conns
 
@@ -652,6 +655,7 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				return
 			}
 		case <-pc.msgChanDone:
+			pc.doneCh <- struct{}{}
 			return
 		}
 	}
