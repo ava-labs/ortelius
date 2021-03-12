@@ -73,6 +73,7 @@ func newContainer(sc *services.Control, conf cfg.Config) (*producerCChainContain
 		quitCh:      make(chan struct{}, 1),
 		doneCh:      make([]chan struct{}, 0, maxWorkerQueue),
 		conns:       conns,
+		sc:          sc,
 	}
 
 	err = pc.getBlock()
