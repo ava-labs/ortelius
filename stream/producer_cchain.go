@@ -627,6 +627,9 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 
 	for {
 		select {
+		case <-pc.msgChanDone:
+			pc.doneCh <- struct{}{}
+			return
 		case blockWork := <-pc.msgChan:
 			atomic.AddInt64(&pc.msgChanSz, -1)
 			if blockWork.errs.GetValue() != nil {
@@ -654,9 +657,6 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				blockWork.errs.SetValue(err)
 				return
 			}
-		case <-pc.msgChanDone:
-			pc.doneCh <- struct{}{}
-			return
 		}
 	}
 }
