@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 )
 
-var ErrNotFound = errors.New("block not found")
+var ErrNotFound = errors.New("Block not found")
 
 type Block struct {
 	Header         types.Header        `json:"header"`
@@ -61,7 +61,7 @@ func Marshal(bl *types.Block) ([]byte, error) {
 		return nil, err
 	}
 	if b == nil {
-		return nil, fmt.Errorf("invalid block")
+		return nil, fmt.Errorf("invalid Block")
 	}
 	return json.Marshal(b)
 }
@@ -128,7 +128,13 @@ type TracerParam struct {
 	Tracer string `json:"tracer"`
 }
 
-func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block, []*TransactionTrace, []*types.Log, error) {
+type BlockContainer struct {
+	Block  *types.Block
+	Traces []*TransactionTrace
+	Logs   []*types.Log
+}
+
+func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*BlockContainer, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -137,7 +143,7 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*typ
 
 	bl, err := c.ethClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	txTraces := make([]*TransactionTrace, 0, len(bl.Transactions()))
@@ -147,14 +153,14 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*typ
 			txh = "0x" + txh
 		}
 		var results []interface{}
-		err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: Tracer})
+		err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: TracerJS})
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		for ipos, result := range results {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, err
 			}
 			txTraces = append(txTraces,
 				&TransactionTrace{
@@ -170,7 +176,7 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*typ
 	fq := coreth.FilterQuery{BlockHash: &blhash}
 	fls, err := c.ethClient.FilterLogs(ctx, fq)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	flrs := make([]*types.Log, 0, len(fls))
@@ -179,5 +185,5 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*typ
 		flrs = append(flrs, &flcopy)
 	}
 
-	return bl, txTraces, flrs, nil
+	return &BlockContainer{Block: bl, Traces: txTraces, Logs: flrs}, nil
 }

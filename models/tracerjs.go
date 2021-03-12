@@ -1,7 +1,7 @@
 package cblock
 
 const (
-	Tracer = `
+	TracerJS = `
 // tracer allows Geth's "debug_traceTransaction" to mimic the output of Parity's "trace_replayTransaction"
 {
     // The call stack of the EVM execution.

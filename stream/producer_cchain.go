@@ -23,8 +23,6 @@ import (
 
 	"github.com/ava-labs/ortelius/utils"
 
-	"github.com/ava-labs/coreth/core/types"
-
 	"github.com/ava-labs/avalanchego/utils/hashing"
 
 	"github.com/ava-labs/ortelius/services"
@@ -162,10 +160,8 @@ func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *b
 }
 
 type localBlockObject struct {
-	block  *types.Block
-	time   time.Time
-	traces []*cblock.TransactionTrace
-	logs   []*types.Log
+	blockContainer *cblock.BlockContainer
+	time           time.Time
 }
 
 func (p *ProducerCChain) ProcessNextMessage(pc *producerCChainContainer) error {
@@ -465,7 +461,7 @@ func (p *ProducerCChain) runProcessor() error {
 }
 
 func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *localBlockObject) error {
-	cblk, err := cblock.New(localBlock.block)
+	cblk, err := cblock.New(localBlock.blockContainer.Block)
 	if err != nil {
 		return err
 	}
@@ -500,7 +496,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		return err
 	}
 
-	for _, txTranactionTraces := range localBlock.traces {
+	for _, txTranactionTraces := range localBlock.blockContainer.Traces {
 		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
 		if err != nil {
 			return err
@@ -530,7 +526,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		}
 	}
 
-	for _, log := range localBlock.logs {
+	for _, log := range localBlock.blockContainer.Logs {
 		logBits, err := json.Marshal(log)
 		if err != nil {
 			return err
@@ -633,13 +629,13 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				return
 			}
 
-			bl, traces, logs, err := client.ReadBlock(blockWork.blockNumber, rpcTimeout)
+			blContainer, err := client.ReadBlock(blockWork.blockNumber, rpcTimeout)
 			if err != nil {
 				blockWork.errs.SetValue(err)
 				return
 			}
 
-			localBlockObject := &localBlockObject{block: bl, traces: traces, logs: logs, time: time.Now().UTC()}
+			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now().UTC()}
 			err = p.processWork(conns, localBlockObject)
 			if err != nil {
 				blockWork.errs.SetValue(err)
