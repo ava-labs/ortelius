@@ -94,20 +94,23 @@ type ProducerCChain struct {
 	conf cfg.Config
 
 	// Concurrency control
-	quitCh   chan struct{}
-	doneCh   chan struct{}
-	topic    string
-	topicTrc string
+	quitCh    chan struct{}
+	doneCh    chan struct{}
+	topic     string
+	topicTrc  string
+	topicLogs string
 }
 
 func NewProducerCChain() utils.ListenCloserFactory {
 	return func(sc *services.Control, conf cfg.Config, _ int, _ int) utils.ListenCloser {
 		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 		topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
+		topicLogsName := fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
 
 		p := &ProducerCChain{
 			topic:                   topicName,
 			topicTrc:                topicTrcName,
+			topicLogs:               topicLogsName,
 			conf:                    conf,
 			sc:                      sc,
 			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
@@ -162,6 +165,7 @@ type localBlockObject struct {
 	block  *types.Block
 	time   time.Time
 	traces []*cblock.TransactionTrace
+	fls    []*types.Log
 }
 
 func (p *ProducerCChain) ProcessNextMessage(pc *producerCChainContainer) error {
@@ -529,6 +533,37 @@ func (p *ProducerCChain) processWork(conns *services.Connections, wp *WorkPacket
 			return err
 		}
 	}
+
+	for _, fl := range wp.localBlock.fls {
+		flBits, err := json.Marshal(fl)
+		if err != nil {
+			return err
+		}
+
+		id, err := ids.ToID(hashing.ComputeHash256(flBits))
+		if err != nil {
+			return err
+		}
+
+		txPool := &services.TxPool{
+			NetworkID:     p.conf.NetworkID,
+			ChainID:       p.conf.CchainID,
+			MsgKey:        id.String(),
+			Serialization: flBits,
+			Processed:     0,
+			Topic:         p.topicLogs,
+			CreatedAt:     wp.localBlock.time,
+		}
+		err = txPool.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = p.updateTxPool(conns, txPool)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -602,13 +637,13 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				return
 			}
 
-			bl, traces, err := cblock.ReadBlockFromRPC(client, blockWork.blockNumber, rpcTimeout)
+			bl, traces, fls, err := cblock.ReadBlockFromRPC(client, blockWork.blockNumber, rpcTimeout)
 			if err != nil {
 				blockWork.errs.SetValue(err)
 				return
 			}
 
-			localBlockObject := &localBlockObject{block: bl, traces: traces, time: time.Now().UTC()}
+			localBlockObject := &localBlockObject{block: bl, traces: traces, fls: fls, time: time.Now().UTC()}
 
 			wp := &WorkPacketCChain{localBlock: localBlockObject}
 			err = p.processWork(conns, wp)
