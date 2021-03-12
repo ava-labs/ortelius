@@ -60,6 +60,28 @@ type producerCChainContainer struct {
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
+func (p *producerCChainContainer) isStopping() bool {
+	select {
+	case <-p.quitCh:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *producerCChainContainer) Close() error {
+	close(p.quitCh)
+	close(p.msgChanDone)
+	if p.client != nil {
+		p.client.Close()
+	}
+	errs := wrappers.Errs{}
+	if p.conns != nil {
+		errs.Add(p.conns.Close())
+	}
+	return errs.Err
+}
+
 type ProducerCChain struct {
 	id string
 	sc *services.Control
@@ -101,15 +123,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 		sc.InitProduceMetrics()
 
 		return p
-	}
-}
-
-func (p *producerCChainContainer) isStopping() bool {
-	select {
-	case <-p.quitCh:
-		return true
-	default:
-		return false
 	}
 }
 
@@ -284,6 +297,7 @@ func (p *ProducerCChain) init() (*producerCChainContainer, error) {
 	pc := &producerCChainContainer{
 		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
 		msgChanDone: make(chan struct{}, 1),
+		quitCh:      make(chan struct{}, 1),
 	}
 	pc.conns = conns
 
@@ -301,19 +315,6 @@ func (p *ProducerCChain) init() (*producerCChainContainer, error) {
 	pc.client = cl
 
 	return pc, nil
-}
-
-func (pc *producerCChainContainer) Close() error {
-	close(pc.quitCh)
-	close(pc.msgChanDone)
-	if pc.client != nil {
-		pc.client.Close()
-	}
-	errs := wrappers.Errs{}
-	if pc.conns != nil {
-		errs.Add(pc.conns.Close())
-	}
-	return errs.Err
 }
 
 // runProcessor starts the processing loop for the backend and closes it when
