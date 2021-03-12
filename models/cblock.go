@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/coreth"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/coreth"
 
 	"github.com/ava-labs/coreth/ethclient"
 	"github.com/ava-labs/coreth/rpc"
@@ -127,7 +128,7 @@ type TracerParam struct {
 	Tracer string `json:"tracer"`
 }
 
-func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block,[]types.Log, []*TransactionTrace, error) {
+func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Duration) (*types.Block, []*TransactionTrace, []*types.Log, error) {
 	client.lock.Lock()
 	defer client.lock.Unlock()
 
@@ -136,7 +137,7 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 
 	bl, err := client.ethClient.BlockByNumber(ctx, blockNumber)
 	if err != nil {
-		return nil, nil,nil, err
+		return nil, nil, nil, err
 	}
 
 	txTraces := make([]*TransactionTrace, 0, len(bl.Transactions()))
@@ -148,12 +149,12 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 		var results []interface{}
 		err = client.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: Tracer})
 		if err != nil {
-			return nil, nil,nil, err
+			return nil, nil, nil, err
 		}
 		for ipos, result := range results {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
-				return nil, nil,nil, err
+				return nil, nil, nil, err
 			}
 			txTraces = append(txTraces,
 				&TransactionTrace{
@@ -166,8 +167,17 @@ func ReadBlockFromRPC(client *Client, blockNumber *big.Int, rpcTimeout time.Dura
 	}
 
 	blhash := bl.Hash()
-	fq := &coreth.FilterQuery{BlockHash: blhash}
-	fl , err := client.ethClient.FilterLogs(ctx,fq )
+	fq := coreth.FilterQuery{BlockHash: &blhash}
+	fls, err := client.ethClient.FilterLogs(ctx, fq)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
-	return bl, txTraces, fl, nil
+	flrs := make([]*types.Log, 0, len(fls))
+	for _, fl := range fls {
+		flcopy := fl
+		flrs = append(flrs, &flcopy)
+	}
+
+	return bl, txTraces, flrs, nil
 }
