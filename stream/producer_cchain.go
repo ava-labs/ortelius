@@ -70,6 +70,7 @@ func (p *producerCChainContainer) isStopping() bool {
 func (p *producerCChainContainer) Close() error {
 	close(p.quitCh)
 	close(p.msgChanDone)
+	close(p.msgChan)
 	if p.client != nil {
 		p.client.Close()
 	}
@@ -176,7 +177,7 @@ func (p *ProducerCChain) ProcessNextMessage(pc *producerCChainContainer) error {
 	}
 
 	errs := &avalancheGoUtils.AtomicInterface{}
-	for !p.isStopping() && lblocknext.Cmp(pc.block) > 0 {
+	for !pc.isStopping() && !p.isStopping() && lblocknext.Cmp(pc.block) > 0 {
 		if errs.GetValue() != nil {
 			return errs.GetValue().(error)
 		}
@@ -590,7 +591,7 @@ func (p *ProducerCChain) catchupBlock(conns *services.Connections, pc *producerC
 		for _, bl := range cvmBlocks {
 			blockMap[bl.Block] = struct{}{}
 		}
-		for startBlock.Cmp(endBlock) < 0 {
+		for !pc.isStopping() && !p.isStopping() && startBlock.Cmp(endBlock) < 0 {
 			if pc.catchupErrs.GetValue() != nil {
 				return
 			}
