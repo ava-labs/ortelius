@@ -357,7 +357,11 @@ func (p *ProducerCChain) runProcessor() error {
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
 	if pc.blockCount.Cmp(pblockp1) < 0 {
-		go p.catchupBlock(pc, pblockp1)
+		conns1, err := p.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		go p.catchupBlock(conns1, pc, pblockp1)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -367,8 +371,10 @@ func (p *ProducerCChain) runProcessor() error {
 		nomsg              int
 		processNextMessage = func() error {
 			err := p.ProcessNextMessage(pc)
-			if err == nil && pc.catchupErrs.GetValue() != nil {
+			if pc.catchupErrs.GetValue() != nil {
 				err = pc.catchupErrs.GetValue().(error)
+				p.sc.Log.Error("Catchup error: %v", err)
+				return err
 			}
 
 			switch err {
@@ -525,12 +531,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, wp *WorkPacket
 	return nil
 }
 
-func (p *ProducerCChain) catchupBlock(pc *producerCChainContainer, catchupBlock *big.Int) {
-	conns, err := p.sc.DatabaseOnly()
-	if err != nil {
-		p.sc.Log.Warn("catchupBock %v", err)
-		return
-	}
+func (p *ProducerCChain) catchupBlock(conns *services.Connections, pc *producerCChainContainer, catchupBlock *big.Int) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -538,7 +539,7 @@ func (p *ProducerCChain) catchupBlock(pc *producerCChainContainer, catchupBlock 
 	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("catchup-block"))
 
 	ctx := context.Background()
-
+	var err error
 	startBlock := big.NewInt(0)
 	endBlock := big.NewInt(0)
 	for !pc.isStopping() && !p.isStopping() && endBlock.Cmp(catchupBlock) < 0 {
@@ -554,7 +555,7 @@ func (p *ProducerCChain) catchupBlock(pc *producerCChainContainer, catchupBlock 
 			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
 			LoadContext(ctx, &cvmBlocks)
 		if err != nil {
-			p.sc.Log.Warn("catchupBock %v", err)
+			pc.catchupErrs.SetValue(err)
 			return
 		}
 		blockMap := make(map[string]struct{})
