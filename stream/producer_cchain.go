@@ -370,7 +370,8 @@ func (p *ProducerCChain) runProcessor() error {
 		if err != nil {
 			return err
 		}
-		go p.catchupBlock(conns1, pc, pblockp1)
+		bpWg.Add(1)
+		go p.catchupBlock(conns1, pc, pblockp1, bpWg)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -567,8 +568,9 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 	return nil
 }
 
-func (p *ProducerCChain) catchupBlock(conns *services.Connections, pc *producerCChainContainer, catchupBlock *big.Int) {
+func (p *ProducerCChain) catchupBlock(conns *services.Connections, pc *producerCChainContainer, catchupBlock *big.Int, wg *sync.WaitGroup) {
 	defer func() {
+		wg.Done()
 		_ = conns.Close()
 	}()
 
