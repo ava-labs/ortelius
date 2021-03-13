@@ -100,7 +100,6 @@ func (p *producerCChainContainer) isStopping() bool {
 }
 
 func (p *producerCChainContainer) Close() error {
-	close(p.quitCh)
 	if p.client != nil {
 		p.client.Close()
 	}
@@ -144,6 +143,103 @@ func (p *producerCChainContainer) getBlock() error {
 	p.block = mblock
 	p.blockCount = cblockCount
 	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
+	return nil
+}
+
+func (p *producerCChainContainer) enqueue(bw *blockWorkContainer) {
+	p.msgChan <- bw
+	atomic.AddInt64(&p.msgChanSz, 1)
+}
+
+func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
+	defer func() {
+		wg.Done()
+		_ = conns.Close()
+	}()
+
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("catchup-block"))
+
+	ctx := context.Background()
+	var err error
+	startBlock := big.NewInt(0)
+	endBlock := big.NewInt(0)
+	for endBlock.Cmp(catchupBlock) < 0 {
+		if p.isStopping() {
+			break
+		}
+		if p.catchupErrs.GetValue() != nil {
+			return
+		}
+
+		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
+		if endBlock.Cmp(catchupBlock) >= 0 {
+			endBlock.Set(catchupBlock)
+		}
+
+		var cvmBlocks []*services.CvmBlocks
+		_, err = sess.Select(
+			"block",
+		).From(services.TableCvmBlocks).
+			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
+			LoadContext(ctx, &cvmBlocks)
+		if err != nil {
+			p.catchupErrs.SetValue(err)
+			return
+		}
+		blockMap := make(map[string]struct{})
+		for _, bl := range cvmBlocks {
+			blockMap[bl.Block] = struct{}{}
+		}
+		for startBlock.Cmp(endBlock) < 0 {
+			if p.isStopping() {
+				break
+			}
+
+			if p.catchupErrs.GetValue() != nil {
+				return
+			}
+			if _, ok := blockMap[startBlock.String()]; !ok {
+				p.sc.Log.Info("refill %v", startBlock.String())
+				p.enqueue(&blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock})
+			}
+			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
+		}
+	}
+
+	p.sc.Log.Info("catchup complete")
+}
+
+func (p *producerCChainContainer) ProcessNextMessage() error {
+	lblocknext, err := p.client.Latest(rpcTimeout)
+	if err != nil {
+		time.Sleep(readRPCTimeout)
+		return err
+	}
+	if lblocknext.Cmp(p.block) <= 0 {
+		time.Sleep(readRPCTimeout)
+		return ErrNoMessage
+	}
+
+	errs := &avalancheGoUtils.AtomicInterface{}
+	for lblocknext.Cmp(p.block) > 0 {
+		if p.isStopping() {
+			break
+		}
+		if errs.GetValue() != nil {
+			return errs.GetValue().(error)
+		}
+		if p.catchupErrs.GetValue() != nil {
+			return p.catchupErrs.GetValue().(error)
+		}
+		ncurrent := big.NewInt(0).Add(p.block, big.NewInt(1))
+		p.enqueue(&blockWorkContainer{errs: errs, blockNumber: ncurrent})
+		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
+	}
+
+	for atomic.LoadInt64(&p.msgChanSz) > 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+
 	return nil
 }
 
@@ -226,42 +322,6 @@ func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *b
 	return p.sc.Persist.InsertCvmBlocks(ctx, sess, cvmBlocks)
 }
 
-type localBlockObject struct {
-	blockContainer *cblock.BlockContainer
-	time           time.Time
-}
-
-func (p *ProducerCChain) ProcessNextMessage(pc *producerCChainContainer) error {
-	lblocknext, err := pc.client.Latest(rpcTimeout)
-	if err != nil {
-		time.Sleep(readRPCTimeout)
-		return err
-	}
-	if lblocknext.Cmp(pc.block) <= 0 {
-		time.Sleep(readRPCTimeout)
-		return ErrNoMessage
-	}
-
-	errs := &avalancheGoUtils.AtomicInterface{}
-	for !pc.isStopping() && !p.isStopping() && lblocknext.Cmp(pc.block) > 0 {
-		if errs.GetValue() != nil {
-			return errs.GetValue().(error)
-		}
-		if pc.catchupErrs.GetValue() != nil {
-			return pc.catchupErrs.GetValue().(error)
-		}
-		ncurrent := big.NewInt(0).Add(pc.block, big.NewInt(1))
-		p.enqueue(pc, &blockWorkContainer{errs: errs, blockNumber: ncurrent})
-		pc.block = big.NewInt(0).Add(pc.block, big.NewInt(1))
-	}
-
-	for atomic.LoadInt64(&pc.msgChanSz) > 0 {
-		time.Sleep(1 * time.Millisecond)
-	}
-
-	return nil
-}
-
 func (p *ProducerCChain) Failure() {
 	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
 	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
@@ -331,12 +391,21 @@ func (p *ProducerCChain) runProcessor() error {
 
 	var pc *producerCChainContainer
 
-	bpWg := &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
+	wg2 := &sync.WaitGroup{}
+
+	t := time.NewTicker(30 * time.Second)
+	tdoneCh := make(chan struct{})
 
 	defer func() {
+		t.Stop()
+		close(tdoneCh)
 		if pc != nil {
+			close(pc.quitCh)
+			wg.Wait()
 			close(pc.msgChanDone)
-			bpWg.Wait()
+			wg2.Wait()
+			close(pc.msgChan)
 
 			err := pc.Close()
 			if err != nil {
@@ -360,8 +429,8 @@ func (p *ProducerCChain) runProcessor() error {
 			cl.Close()
 			return err
 		}
-		bpWg.Add(1)
-		go p.blockProcessor(pc, cl, conns1, bpWg)
+		wg2.Add(1)
+		go p.blockProcessor(pc, cl, conns1, wg2)
 	}
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
@@ -370,8 +439,8 @@ func (p *ProducerCChain) runProcessor() error {
 		if err != nil {
 			return err
 		}
-		bpWg.Add(1)
-		go p.catchupBlock(conns1, pc, pblockp1, bpWg)
+		wg.Add(1)
+		go pc.catchupBlock(conns1, pblockp1, wg)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -380,7 +449,7 @@ func (p *ProducerCChain) runProcessor() error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			err := p.ProcessNextMessage(pc)
+			err := pc.ProcessNextMessage()
 			if pc.catchupErrs.GetValue() != nil {
 				err = pc.catchupErrs.GetValue().(error)
 				p.sc.Log.Error("Catchup error: %v", err)
@@ -436,20 +505,13 @@ func (p *ProducerCChain) runProcessor() error {
 
 	id := p.ID()
 
-	t := time.NewTicker(30 * time.Second)
-	tdoneCh := make(chan struct{})
-	defer func() {
-		t.Stop()
-		close(tdoneCh)
-	}()
-
 	// Log run statistics periodically until asked to stop
 	go func() {
 		for {
 			select {
 			case <-t.C:
 				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.isStopping() {
+				if p.isStopping() || pc.isStopping() {
 					return
 				}
 			case <-tdoneCh:
@@ -459,7 +521,10 @@ func (p *ProducerCChain) runProcessor() error {
 	}()
 
 	// Process messages until asked to stop
-	for !p.isStopping() {
+	for {
+		if p.isStopping() || pc.isStopping() {
+			break
+		}
 		err := processNextMessage()
 		if err != nil {
 			return err
@@ -467,6 +532,11 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	return nil
+}
+
+type localBlockObject struct {
+	blockContainer *cblock.BlockContainer
+	time           time.Time
 }
 
 func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *localBlockObject) error {
@@ -568,58 +638,6 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 	return nil
 }
 
-func (p *ProducerCChain) catchupBlock(conns *services.Connections, pc *producerCChainContainer, catchupBlock *big.Int, wg *sync.WaitGroup) {
-	defer func() {
-		wg.Done()
-		_ = conns.Close()
-	}()
-
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("catchup-block"))
-
-	ctx := context.Background()
-	var err error
-	startBlock := big.NewInt(0)
-	endBlock := big.NewInt(0)
-	for !pc.isStopping() && !p.isStopping() && endBlock.Cmp(catchupBlock) < 0 {
-		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
-		if endBlock.Cmp(catchupBlock) >= 0 {
-			endBlock.Set(catchupBlock)
-		}
-
-		var cvmBlocks []*services.CvmBlocks
-		_, err = sess.Select(
-			"block",
-		).From(services.TableCvmBlocks).
-			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
-			LoadContext(ctx, &cvmBlocks)
-		if err != nil {
-			pc.catchupErrs.SetValue(err)
-			return
-		}
-		blockMap := make(map[string]struct{})
-		for _, bl := range cvmBlocks {
-			blockMap[bl.Block] = struct{}{}
-		}
-		for !pc.isStopping() && !p.isStopping() && startBlock.Cmp(endBlock) < 0 {
-			if pc.catchupErrs.GetValue() != nil {
-				return
-			}
-			if _, ok := blockMap[startBlock.String()]; !ok {
-				p.sc.Log.Info("refill %v", startBlock.String())
-				p.enqueue(pc, &blockWorkContainer{errs: &pc.catchupErrs, blockNumber: startBlock})
-			}
-			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
-		}
-	}
-
-	p.sc.Log.Info("catchup complete")
-}
-
-func (p *ProducerCChain) enqueue(pc *producerCChainContainer, bw *blockWorkContainer) {
-	pc.msgChan <- bw
-	atomic.AddInt64(&pc.msgChanSz, 1)
-}
-
 type blockWorkContainer struct {
 	errs        *avalancheGoUtils.AtomicInterface
 	blockNumber *big.Int
@@ -639,20 +657,20 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 		case blockWork := <-pc.msgChan:
 			atomic.AddInt64(&pc.msgChanSz, -1)
 			if blockWork.errs.GetValue() != nil {
-				return
+				continue
 			}
 
 			blContainer, err := client.ReadBlock(blockWork.blockNumber, rpcTimeout)
 			if err != nil {
 				blockWork.errs.SetValue(err)
-				return
+				continue
 			}
 
 			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now().UTC()}
 			err = p.processWork(conns, localBlockObject)
 			if err != nil {
 				blockWork.errs.SetValue(err)
-				return
+				continue
 			}
 
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
@@ -661,7 +679,7 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 			err = p.updateBlock(conns, blockWork.blockNumber, localBlockObject.time)
 			if err != nil {
 				blockWork.errs.SetValue(err)
-				return
+				continue
 			}
 		}
 	}
