@@ -240,6 +240,10 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 		time.Sleep(1 * time.Millisecond)
 	}
 
+	if errs.GetValue() != nil {
+		return errs.GetValue().(error)
+	}
+
 	return nil
 }
 
@@ -452,6 +456,8 @@ func (p *ProducerCChain) runProcessor() error {
 			err := pc.ProcessNextMessage()
 			if pc.catchupErrs.GetValue() != nil {
 				err = pc.catchupErrs.GetValue().(error)
+				failures++
+				p.Failure()
 				p.sc.Log.Error("Catchup error: %v", err)
 				return err
 			}
