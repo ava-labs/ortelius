@@ -26,16 +26,6 @@ func WriteJSON(w http.ResponseWriter, msg []byte) {
 	_, _ = w.Write(msg)
 }
 
-// WriteObject writes the given object to the http response as JSON
-func WriteObject(w http.ResponseWriter, obj interface{}) {
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		WriteErr(w, 400, err.Error())
-		return
-	}
-	WriteJSON(w, bytes)
-}
-
 // WriteErr writes the given error message to the http response
 func WriteErr(w http.ResponseWriter, code int, msg string) {
 	errBytes, err := json.Marshal(&ErrorResponse{

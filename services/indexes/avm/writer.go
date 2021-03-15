@@ -60,7 +60,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
-	_, avaxAssetID, err := genesis.Genesis(networkID)
+	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = conns.Stream().NewJob("bootstrap")
+		job                  = conns.QuietStream().NewJob("bootstrap")
 	)
 	job.KeyValue("chain_id", w.chainID)
 
@@ -104,7 +104,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	}()
 
 	// Get platform genesis block
-	platformGenesisBytes, _, err = genesis.Genesis(w.networkID)
+	platformGenesisBytes, _, err = genesis.Genesis(w.networkID, "")
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to get platform genesis bytes")
 	}
@@ -143,7 +143,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 
 func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
 	var (
-		job  = conns.Stream().NewJob("index-consensus")
+		job  = conns.StreamDBDedup().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", c.ID())
@@ -185,7 +185,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 		transactionsEpoch := &services.TransactionsEpoch{
 			ID:        txID.String(),
 			Epoch:     vert.Epoch(),
-			VertexID:  c.ID(),
+			VertexID:  vert.ID().String(),
 			CreatedAt: cCtx.Time(),
 		}
 		err = cCtx.Persist().InsertTransactionsEpoch(cCtx.Ctx(), cCtx.DB(), transactionsEpoch, cfg.PerformUpdates)
@@ -199,7 +199,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
 	var (
 		err  error
-		job  = conns.Stream().NewJob("avm-index")
+		job  = conns.StreamDBDedup().NewJob("avm-index")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
 	job.KeyValue("id", i.ID())
@@ -224,7 +224,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i ser
 	// Ingest the tx and commit
 	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to insert tx")
+		return err
 	}
 
 	return dbTx.Commit()

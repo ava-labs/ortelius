@@ -28,10 +28,6 @@ var (
 	// fails.
 	ErrCacheableFnFailed = errors.New("failed to load resource")
 
-	// errInternalServerError is returned when errors occur that are not due to
-	// a mistake from the caller.
-	errInternalServerError = errors.New("internal server error")
-
 	workerQueueSize   = 10
 	workerThreadCount = 1
 )
@@ -120,24 +116,6 @@ func (c *Context) WriteErr(w http.ResponseWriter, code int, err error) {
 	}
 
 	w.WriteHeader(code)
-	fmt.Fprint(w, string(errBytes))
-}
-
-// WriteErr writes an error response to the http response
-func (c *Context) Write500Err(w http.ResponseWriter, actualErr error) {
-	c.err = actualErr
-
-	errBytes, err := json.Marshal(&ErrorResponse{
-		Code:    500,
-		Message: errInternalServerError.Error(),
-	})
-
-	w.WriteHeader(500)
-
-	if err != nil {
-		c.job.EventErr("marshal_error", err)
-		return
-	}
 	fmt.Fprint(w, string(errBytes))
 }
 

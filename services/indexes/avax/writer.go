@@ -198,7 +198,7 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 
-				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:])
+				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:], in.TxID, in.OutputIndex)
 				if err != nil {
 					return 0, err
 				}
@@ -216,6 +216,11 @@ func (w *Writer) InsertTransactionIns(
 		AssetID:                in.AssetID().String(),
 		ChainID:                chainID,
 		CreatedAt:              ctx.Time(),
+	}
+
+	err = ctx.Persist().UpdateOutputAddressAccumulateInOutputsProcessed(ctx.Ctx(), ctx.DB(), inputID.String())
+	if err != nil {
+		return 0, err
 	}
 
 	return totalin, ctx.Persist().InsertOutputsRedeeming(ctx.Ctx(), ctx.DB(), outputsRedeeming, cfg.PerformUpdates)
@@ -264,7 +269,7 @@ func (w *Writer) InsertOutput(
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
 		addrid := ids.ShortID(addrBytes)
-		err = w.InsertOutputAddress(ctx, outputID, addrid, nil)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil, txID, idx)
 		if err != nil {
 			return err
 		}
@@ -327,6 +332,8 @@ func (w *Writer) InsertOutputAddress(
 	outputID ids.ID,
 	address ids.ShortID,
 	sig []byte,
+	txID ids.ID,
+	idx uint32,
 ) error {
 	addressChain := &services.AddressChain{
 		Address:   address.String(),
@@ -353,19 +360,21 @@ func (w *Writer) InsertOutputAddress(
 	}
 
 	outputAddressAccumulate := &services.OutputAddressAccumulate{
-		OutputID:  outputID.String(),
-		Address:   address.String(),
-		CreatedAt: time.Now(),
+		OutputID:      outputID.String(),
+		Address:       address.String(),
+		TransactionID: txID.String(),
+		OutputIndex:   idx,
+		CreatedAt:     time.Now(),
 	}
 	err = outputAddressAccumulate.ComputeID()
 	if err != nil {
 		return err
 	}
-	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}
-	err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate)
+	err = ctx.Persist().InsertOutputAddressAccumulateIn(ctx.Ctx(), ctx.DB(), outputAddressAccumulate, cfg.PerformUpdates)
 	if err != nil {
 		return err
 	}

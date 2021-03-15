@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -30,6 +31,8 @@ const MetricMillis = "api_millis"
 
 const MetricTransactionsCount = "api_transactions_count"
 const MetricTransactionsMillis = "api_transactions_millis"
+const MetricCTransactionsCount = "api_ctransactions_count"
+const MetricCTransactionsMillis = "api_ctransactions_millis"
 const MetricAddressesCount = "api_addresses_count"
 const MetricAddressesMillis = "api_addresses_millis"
 const MetricAddressChainsCount = "api_address_chains_count"
@@ -51,6 +54,9 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 
 	metrics.Prometheus.CounterInit(MetricTransactionsCount, MetricTransactionsCount)
 	metrics.Prometheus.CounterInit(MetricTransactionsMillis, MetricTransactionsMillis)
+
+	metrics.Prometheus.CounterInit(MetricCTransactionsCount, MetricCTransactionsCount)
+	metrics.Prometheus.CounterInit(MetricTransactionsMillis, MetricCTransactionsMillis)
 
 	metrics.Prometheus.CounterInit(MetricAddressesCount, MetricAddressesCount)
 	metrics.Prometheus.CounterInit(MetricAddressesMillis, MetricAddressesMillis)
@@ -104,7 +110,11 @@ func AddV2Routes(ctx *Context, router *web.Router, path string, indexBytes []byt
 		Get("/atxdata/:id", (*V2Context).ATxData).
 		Get("/ptxdata/:id", (*V2Context).PTxData).
 		Get("/ctxdata/:id", (*V2Context).CTxData).
-		Get("/etxdata/:id", (*V2Context).ETxData)
+		Get("/etxdata/:id", (*V2Context).ETxData).
+		Get("/ctransactions", (*V2Context).ListCTransactions).
+		Get("/rawtransaction/:id", (*V2Context).RawTransaction).
+		Get("/cacheassetaggregates", (*V2Context).CacheAssetAggregates).
+		Get("/cacheaggregates/:id", (*V2Context).CacheAggregates)
 }
 
 //
@@ -183,7 +193,7 @@ func (c *V2Context) Aggregate(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("aggregate", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.Aggregate(ctx, p)
+			return c.avaxReader.Aggregate(ctx, p, nil)
 		},
 	})
 }
@@ -281,6 +291,37 @@ func (c *V2Context) GetTransaction(w web.ResponseWriter, r *web.Request) {
 		Key: c.cacheKeyForID("get_transaction", r.PathParams["id"]),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
 			return c.avaxReader.GetTransaction(ctx, id, c.avaxAssetID)
+		},
+	})
+}
+
+func (c *V2Context) ListCTransactions(w web.ResponseWriter, r *web.Request) {
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterObserveMillisCollect(MetricMillis),
+		metrics.NewCounterIncCollect(MetricCount),
+		metrics.NewCounterObserveMillisCollect(MetricCTransactionsMillis),
+		metrics.NewCounterIncCollect(MetricCTransactionsCount),
+	)
+	defer func() {
+		_ = collectors.Collect()
+	}()
+
+	p := &params.ListCTransactionsParams{}
+	if err := p.ForValues(c.version, r.URL.Query()); err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	if p.ListParams.Offset > DefaultOffsetLimit {
+		c.WriteErr(w, 400, fmt.Errorf("invalid offset"))
+		return
+	}
+
+	c.WriteCacheable(w, Cacheable{
+		TTL: 5 * time.Second,
+		Key: c.cacheKeyForParams("list_ctransactions", p),
+		CacheableFn: func(ctx context.Context) (interface{}, error) {
+			return c.avaxReader.ListCTransactions(ctx, p)
 		},
 	})
 }
@@ -633,5 +674,53 @@ func (c *V2Context) ETxData(w web.ResponseWriter, r *web.Request) {
 		c.WriteErr(w, 400, err)
 		return
 	}
+	WriteJSON(w, b)
+}
+
+func (c *V2Context) RawTransaction(w web.ResponseWriter, r *web.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+	defer cancel()
+
+	id, err := ids.FromString(r.PathParams["id"])
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	rawdata, err := c.avaxReader.RawTransaction(ctx, id)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	b, err := json.Marshal(rawdata)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	WriteJSON(w, b)
+}
+
+func (c *V2Context) CacheAssetAggregates(w web.ResponseWriter, r *web.Request) {
+	res := c.avaxReader.CacheAssetAggregates()
+	b, err := json.Marshal(res)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
+	WriteJSON(w, b)
+}
+
+func (c *V2Context) CacheAggregates(w web.ResponseWriter, r *web.Request) {
+	id := r.PathParams["id"]
+	res := c.avaxReader.CacheAggregates(id)
+	b, err := json.Marshal(res)
+	if err != nil {
+		c.WriteErr(w, 400, err)
+		return
+	}
+
 	WriteJSON(w, b)
 }

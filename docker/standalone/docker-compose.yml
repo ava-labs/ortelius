@@ -10,7 +10,7 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.1.4"
+    image: "avaplatform/avalanchego:v1.2.3"
     command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
@@ -27,37 +27,17 @@ services:
     depends_on:
       - producer
     restart: always
-  kafkatopics:
-    env_file:
-      - standalone.env
-    networks:
-      - services
-    image: "confluentinc/cp-kafka:5.4.3"
-    command: bash -cx "kafka-topics --bootstrap-server $${KAFKA_HOST} --list &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${C_CHAINID}-cchain &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${P_CHAINID}-consensus &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${P_CHAINID}-decisions &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-consensus &&
-      kafka-topics --create --if-not-exists --zookeeper $${ZOOKEEPER_HOST} --replication-factor $${KAFKA_REPLICATIONFACTOR} --partitions $${KAFKA_NUMPARTITIONS} --topic $${NETWORKID}-$${X_CHAINID}-decisions
-      "
-    external_links:
-      - zookeeper
-      - kafka
   producer: &ortelius-app
-    image: "avaplatform/ortelius:6883f45"
+    image: "avaplatform/ortelius:9d45760"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services
     external_links:
-      - zookeeper
-      - kafka
       - mysql
       - redis
     volumes:
       - avalanche-ipcs:/tmp
       - ./config.standalone.json:/opt/config.json
-    depends_on:
-      - kafkatopics
     restart: on-failure
   indexer:
     <<: *ortelius-app

@@ -26,11 +26,14 @@ type Control struct {
 	Persist                    Persist
 	Features                   map[string]struct{}
 	BalanceAccumulatorManager  *BalanceAccumulatorManager
+	GenesisContainer           *GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
+	IsDisableBootstrap         bool
+	IsAggregateCache           bool
 }
 
-func (s *Control) Init() {
+func (s *Control) Init(networkID uint32) error {
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
 		s.IsAccumulateBalanceIndexer = true
@@ -41,7 +44,25 @@ func (s *Control) Init() {
 			s.IsAccumulateBalanceReader = true
 		}
 	}
-	s.BalanceAccumulatorManager = &BalanceAccumulatorManager{}
+	if _, ok := s.Features["disable_bootstrap"]; ok {
+		s.IsDisableBootstrap = true
+	}
+	if _, ok := s.Features["aggregate_cache"]; ok {
+		s.IsAggregateCache = true
+	}
+	var err error
+	persist := NewPersist()
+	s.BalanceAccumulatorManager, err = NewBalanceAccumulatorManager(persist, s)
+	if err != nil {
+		return err
+	}
+
+	s.GenesisContainer, err = NewGenesisContainer(networkID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Control) InitProduceMetrics() {
@@ -63,19 +84,7 @@ func (s *Control) DatabaseOnly() (*Connections, error) {
 		return nil, err
 	}
 	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
-	return c, nil
-}
-
-func (s *Control) Database() (*Connections, error) {
-	c, err := NewConnectionsFromConfig(s.Services, false)
-	if err != nil {
-		return nil, err
-	}
-	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	c.DB().SetConnMaxIdleTime(10 * time.Second)
 	return c, nil
 }
 
@@ -85,7 +94,6 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 		return nil, err
 	}
 	c.DB().SetMaxIdleConns(32)
-	c.DB().SetConnMaxIdleTime(5 * time.Minute)
-	c.DB().SetConnMaxLifetime(5 * time.Minute)
+	c.DB().SetConnMaxIdleTime(10 * time.Second)
 	return c, nil
 }

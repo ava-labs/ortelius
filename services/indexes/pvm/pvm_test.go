@@ -64,7 +64,6 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	conf := cfg.Services{
 		Logging: logConf,
 		DB: &cfg.DB{
-			TXDB:   true,
 			Driver: "mysql",
 			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",
 		},
@@ -74,7 +73,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	}
 
 	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
-	conns, err := sc.Database()
+	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
@@ -86,7 +85,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	}
 
 	cmap := make(map[string]services.Consumer)
-	reader := avax.NewReader(networkID, conns, cmap, nil, sc)
+	reader, _ := avax.NewReader(networkID, conns, cmap, nil, sc)
 	return conns, writer, reader, func() {
 		s.Close()
 		_ = conns.Close()

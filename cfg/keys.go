@@ -10,7 +10,6 @@ const (
 
 	keysChains       = "chains"
 	keysChainsID     = "id"
-	keysChainsAlias  = "alias"
 	keysChainsVMType = "vmtype"
 
 	keysServices = "services"
@@ -23,7 +22,6 @@ const (
 	keysServicesDBDriver = "driver"
 	keysServicesDBDSN    = "dsn"
 	keysServicesDBRODSN  = "ro_dsn"
-	keysServicesDBTXDB   = "txDB"
 
 	keysServicesRedis         = "redis"
 	keysServicesRedisAddr     = "addr"
@@ -42,6 +40,5 @@ const (
 	keysStreamProducerCchainID  = "cchainID"
 
 	keysStreamConsumer          = "consumer"
-	keysStreamConsumerGroupName = "groupName"
 	keysStreamConsumerStartTime = "startTime"
 )

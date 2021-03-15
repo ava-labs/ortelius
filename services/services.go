@@ -45,7 +45,14 @@ type ConsumerCtx struct {
 	persist Persist
 }
 
-func NewConsumerContext(ctx context.Context, job *health.Job, db dbr.SessionRunner, ts int64, nanosecond int64, persist Persist) ConsumerCtx {
+func NewConsumerContext(
+	ctx context.Context,
+	job *health.Job,
+	db dbr.SessionRunner,
+	ts int64,
+	nanosecond int64,
+	persist Persist,
+) ConsumerCtx {
 	return ConsumerCtx{
 		ctx:     ctx,
 		job:     job,
@@ -55,8 +62,8 @@ func NewConsumerContext(ctx context.Context, job *health.Job, db dbr.SessionRunn
 	}
 }
 
-func (ic ConsumerCtx) Time() time.Time       { return ic.time }
-func (ic ConsumerCtx) Job() *health.Job      { return ic.job }
-func (ic ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
-func (ic ConsumerCtx) Ctx() context.Context  { return ic.ctx }
-func (ic ConsumerCtx) Persist() Persist      { return ic.persist }
+func (ic *ConsumerCtx) Time() time.Time       { return ic.time }
+func (ic *ConsumerCtx) Job() *health.Job      { return ic.job }
+func (ic *ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
+func (ic *ConsumerCtx) Ctx() context.Context  { return ic.ctx }
+func (ic *ConsumerCtx) Persist() Persist      { return ic.persist }

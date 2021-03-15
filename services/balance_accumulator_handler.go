@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/db"
@@ -16,7 +14,8 @@ import (
 var RowLimitValueBase = 5000
 var RowLimitValue = uint64(RowLimitValueBase)
 var LockSize = 5
-var Threads = int64(2)
+
+var retryProcessing = 3
 
 var updTimeout = 1 * time.Minute
 
@@ -25,59 +24,164 @@ type processType uint32
 var processTypeIn processType = 1
 var processTypeOut processType = 2
 
-type BalanceAccumulatorManager struct {
-	handler BalancerAccumulateHandler
+type managerChannels struct {
+	ins  chan struct{}
+	outs chan struct{}
+	txs  chan struct{}
 }
 
-func (a *BalanceAccumulatorManager) Run(persist Persist, sc *Control) {
-	if !sc.IsAccumulateBalanceIndexer {
-		return
+func newManagerChannels() *managerChannels {
+	return &managerChannels{
+		ins:  make(chan struct{}, 1),
+		outs: make(chan struct{}, 1),
+		txs:  make(chan struct{}, 1),
 	}
-	a.handler.Run(persist, sc)
 }
 
-type BalancerAccumulateHandler struct {
-	runcntIns   int64
-	runcntOuts  int64
-	runcntTrans int64
-	lock        sync.Mutex
+type BalanceAccumulatorManager struct {
+	handler *BalancerAccumulateHandler
+	ticker  *time.Ticker
+	sc      *Control
+	persist Persist
+
+	managerChannelsList []*managerChannels
+
+	doneCh chan struct{}
 }
 
-func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
-	frun := func(runcnt *int64, id string, f func(conns *Connections, persist Persist) (uint64, error)) {
-		if atomic.LoadInt64(runcnt) >= Threads {
-			return
-		}
+func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
+	bmanager := &BalanceAccumulatorManager{
+		handler: &BalancerAccumulateHandler{},
+		ticker:  time.NewTicker(30 * time.Second),
+		sc:      sc,
+		persist: persist,
+		doneCh:  make(chan struct{}),
+	}
+	return bmanager, nil
+}
 
-		a.lock.Lock()
-		defer a.lock.Unlock()
+func (a *BalanceAccumulatorManager) Close() {
+	close(a.doneCh)
+	a.ticker.Stop()
+}
 
-		if atomic.LoadInt64(runcnt) >= Threads {
-			return
-		}
+func (a *BalanceAccumulatorManager) Start() error {
+	if !a.sc.IsAccumulateBalanceIndexer {
+		return nil
+	}
 
-		conns, err := sc.DatabaseOnly()
+	connsTicker, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+
+	a.runTicker(connsTicker)
+
+	processingFunc := func(id string, managerChannel *managerChannels) error {
+		connsOuts, err := a.sc.DatabaseOnly()
 		if err != nil {
-			sc.Log.Error("accumulate error %v", err)
-			return
+			return err
 		}
+		a.runProcessing("out_"+id, connsOuts, func(conns *Connections) (uint64, error) {
+			return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
+		}, managerChannel.ins)
 
-		atomic.AddInt64(runcnt, 1)
+		connsIns, err := a.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		a.runProcessing("in_"+id, connsIns, func(conns *Connections) (uint64, error) {
+			return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
+		}, managerChannel.outs)
 
-		go func() {
-			defer func() {
-				atomic.AddInt64(runcnt, -1)
-				_ = conns.Close()
-			}()
+		connsTxs, err := a.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		a.runProcessing("tx_"+id, connsTxs, func(conns *Connections) (uint64, error) {
+			return a.handler.processTransactions(conns, a.persist)
+		}, managerChannel.txs)
+		return nil
+	}
+
+	for ipos := 0; ipos < 2; ipos++ {
+		managerChannels := newManagerChannels()
+		a.managerChannelsList = append(a.managerChannelsList, managerChannels)
+		err = processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
+	a.sc.Log.Info("start ticker")
+	go func() {
+		runEvent := func(conns *Connections) {
+			// set rewards outputs as processed...
+			ctx := context.Background()
+			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
+
+			var accumsOut []*OutputAddressAccumulate
+			_, err := session.Select(TableOutputAddressAccumulateOut+".id").
+				From(TableOutputAddressAccumulateOut).
+				Where("processed = ?", 0).
+				Join(TableTransactionsRewardsOwnersOutputs,
+					TableOutputAddressAccumulateOut+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsOut)
+			if err != nil {
+				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			var accumsIn []*OutputAddressAccumulate
+			_, err = session.Select(TableOutputAddressAccumulateIn+".id").
+				From(TableOutputAddressAccumulateIn).
+				Where("processed = ?", 0).
+				Join(TableTransactionsRewardsOwnersOutputs,
+					TableOutputAddressAccumulateIn+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsIn)
+			if err != nil {
+				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			processed := make(map[string]struct{})
+			for _, accum := range append(accumsIn, accumsOut...) {
+				_, ok := processed[accum.ID]
+				if ok {
+					continue
+				}
+				_, err = session.Update(TableOutputAddressAccumulateOut).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				_, err = session.Update(TableOutputAddressAccumulateIn).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				processed[accum.ID] = struct{}{}
+			}
+
 			icnt := 0
-			for ; icnt < 10; icnt++ {
-				cnt, err := f(conns, persist)
+			for ; icnt < retryProcessing; icnt++ {
+				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
 				if db.ErrIsLockError(err) {
 					icnt = 0
 					continue
 				}
 				if err != nil {
-					sc.Log.Error("accumulate error %s %v", id, err)
+					a.sc.Log.Error("accumulate ticker error %v", err)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -85,23 +189,91 @@ func (a *BalancerAccumulateHandler) Run(persist Persist, sc *Control) {
 				}
 				icnt = 0
 			}
-		}()
-	}
+		}
 
-	frun(&a.runcntOuts, "out", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(processTypeOut, conns, persist)
-	})
-	frun(&a.runcntIns, "in", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processOutputs(processTypeIn, conns, persist)
-	})
-	frun(&a.runcntTrans, "tx", func(conns *Connections, persist Persist) (uint64, error) {
-		return a.processTransactions(conns, persist)
-	})
+		defer func() {
+			a.ticker.Stop()
+			err := conns.Close()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+			}
+			a.sc.Log.Info("stop ticker")
+		}()
+
+		for {
+			select {
+			case <-a.ticker.C:
+				runEvent(conns)
+			case <-a.doneCh:
+				return
+			}
+		}
+	}()
 }
 
-type OutputAddressAccumulateWithTrID struct {
-	OutputAddressAccumulate
-	TransactionID string
+func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
+	a.sc.Log.Info("start processing %v", id)
+	go func() {
+		runEvent := func(conns *Connections) {
+			icnt := 0
+			for ; icnt < retryProcessing; icnt++ {
+				cnt, err := f(conns)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					a.sc.Log.Error("accumulate error %s %v", id, err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
+				icnt = 0
+			}
+		}
+
+		defer func() {
+			err := conns.Close()
+			if err != nil {
+				a.sc.Log.Warn("connection close %v", err)
+			}
+			a.sc.Log.Info("stop processing %v", id)
+		}()
+
+		for {
+			select {
+			case <-trigger:
+				runEvent(conns)
+			case <-a.doneCh:
+				return
+			}
+		}
+	}()
+}
+
+func (a *BalanceAccumulatorManager) Run(sc *Control) {
+	if !sc.IsAccumulateBalanceIndexer {
+		return
+	}
+
+	for _, managerChannels := range a.managerChannelsList {
+		select {
+		case managerChannels.ins <- struct{}{}:
+		default:
+		}
+		select {
+		case managerChannels.outs <- struct{}{}:
+		default:
+		}
+		select {
+		case managerChannels.txs <- struct{}{}:
+		default:
+		}
+	}
+}
+
+type BalancerAccumulateHandler struct {
 }
 
 func outTable(typ processType) string {
@@ -126,11 +298,11 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *dbr.Session) ([]*OutputAddressAccumulateWithTrID, error) {
+func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
-	var rowdata []*OutputAddressAccumulateWithTrID
+	var rowdata []*OutputAddressAccumulate
 	var err error
 
 	tbl := outTable(typ)
@@ -139,48 +311,75 @@ func (a *BalancerAccumulateHandler) processOutputsPre(typ processType, session *
 		tbl+".id",
 		tbl+".output_id",
 		tbl+".address",
-		"avm_outputs.transaction_id",
 	).
 		From(tbl).
 		Join("avm_outputs", tbl+".output_id = avm_outputs.id")
 
+	b.Where(tbl+".processed = ?", 0)
+
 	switch typ {
 	case processTypeOut:
 	case processTypeIn:
-		b = b.
-			Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
+		if outputProcessed {
+			b = b.
+				Where(tbl+".output_processed = ?", 1).
+				OrderAsc(tbl + ".output_processed")
+		} else {
+			b = b.
+				Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
+		}
 	}
 
-	_, err = b.
-		Where(tbl+".processed = ?", 0).
+	sb := b.
 		OrderAsc(tbl+".processed").
 		OrderAsc(tbl+".created_at").
-		Limit(RowLimitValue).
+		LeftJoin(TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+		Where(TableTransactionsRewardsOwnersOutputs + ".id is null").
+		Limit(RowLimitValue)
+
+	sc := session.Select(
+		"a.id",
+		"a.output_id",
+		"a.address",
+		"avm_outputs.transaction_id",
+	).From(sb.As("a")).
+		Join("avm_outputs", "a.output_id = avm_outputs.id")
+
+	switch typ {
+	case processTypeOut:
+	case processTypeIn:
+		sc = sc.
+			Join("avm_outputs_redeeming", "a.output_id = avm_outputs_redeeming.id ")
+	}
+
+	_, err = sc.
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Connections, persist Persist) (uint64, error) {
-	job := conns.Stream().NewJob("accumulate")
+func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *Connections, persist Persist) (uint64, error) {
+	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*OutputAddressAccumulateWithTrID
-	rowdataAvail, err = a.processOutputsPre(typ, session)
+	var rowdataAvail []*OutputAddressAccumulate
+	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
 	}
 
+	job = conns.StreamDBDedup().NewJob("accumulate")
+	session = conns.DB().NewSessionForEventReceiver(job)
+
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*OutputAddressAccumulateWithTrID)
+		trows := make(map[string]*OutputAddressAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -189,7 +388,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*OutputAddressAccumulateWithTrID)
+				trows = make(map[string]*OutputAddressAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -206,7 +405,7 @@ func (a *BalancerAccumulateHandler) processOutputs(typ processType, conns *Conne
 }
 
 func (a *BalancerAccumulateHandler) processOutputsPost(
-	workRows map[string]*OutputAddressAccumulateWithTrID,
+	workRows map[string]*OutputAddressAccumulate,
 	workRowsID []string,
 	typ processType,
 	session *dbr.Session,
@@ -225,7 +424,7 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*OutputAddressAccumulateWithTrID
+	var rowdata []*OutputAddressAccumulate
 
 	_, err = dbTx.Select(
 		"id",
@@ -257,7 +456,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	typ processType,
 	dbTx *dbr.Tx,
 	persist Persist,
-	row *OutputAddressAccumulateWithTrID,
+	row *OutputAddressAccumulate,
 ) error {
 	var err error
 
@@ -368,7 +567,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 	var err error
 	var rowdata []*OutputTxsAccumulate
 
-	_, err = session.Select(
+	b := session.Select(
 		"id",
 		"chain_id",
 		"asset_id",
@@ -376,7 +575,9 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		"transaction_id",
 		"processed",
 	).
-		From(TableOutputTxsAccumulate).
+		From(TableOutputTxsAccumulate)
+
+	_, err = b.
 		Where("processed = ?", 0).
 		OrderAsc("processed").
 		OrderAsc("created_at").
@@ -386,14 +587,13 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		return nil, err
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(rowdata), func(i, j int) { rowdata[i], rowdata[j] = rowdata[j], rowdata[i] })
 
 	return rowdata, nil
 }
 
 func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
-	job := conns.Stream().NewJob("accumulate")
+	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
@@ -402,6 +602,10 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 	if err != nil {
 		return 0, err
 	}
+
+	job = conns.StreamDBDedup().NewJob("accumulate")
+	session = conns.DB().NewSessionForEventReceiver(job)
+
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
 		trows := make(map[string]*OutputTxsAccumulate)

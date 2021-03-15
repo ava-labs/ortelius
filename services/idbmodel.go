@@ -15,28 +15,35 @@ import (
 )
 
 const (
-	TableTransactions                   = "avm_transactions"
-	TableOutputsRedeeming               = "avm_outputs_redeeming"
-	TableOutputs                        = "avm_outputs"
-	TableAssets                         = "avm_assets"
-	TableAddresses                      = "addresses"
-	TableAddressChain                   = "address_chain"
-	TableOutputAddresses                = "avm_output_addresses"
-	TableTransactionsEpochs             = "transactions_epoch"
-	TableCvmAddresses                   = "cvm_addresses"
-	TableCvmTransactions                = "cvm_transactions"
-	TableCvmTransactionsTxdata          = "cvm_transactions_txdata"
-	TablePvmBlocks                      = "pvm_blocks"
-	TableRewards                        = "rewards"
-	TableTransactionsValidator          = "transactions_validator"
-	TableTransactionsBlock              = "transactions_block"
-	TableAddressBech32                  = "addresses_bech32"
-	TableOutputAddressAccumulateOut     = "output_addresses_accumulate_out"
-	TableOutputAddressAccumulateIn      = "output_addresses_accumulate_in"
-	TableOutputTxsAccumulate            = "output_txs_accumulate"
-	TableAccumulateBalancesReceived     = "accumulate_balances_received"
-	TableAccumulateBalancesSent         = "accumulate_balances_sent"
-	TableAccumulateBalancesTransactions = "accumulate_balances_transactions"
+	TableTransactions                     = "avm_transactions"
+	TableOutputsRedeeming                 = "avm_outputs_redeeming"
+	TableOutputs                          = "avm_outputs"
+	TableAssets                           = "avm_assets"
+	TableAddresses                        = "addresses"
+	TableAddressChain                     = "address_chain"
+	TableOutputAddresses                  = "avm_output_addresses"
+	TableTransactionsEpochs               = "transactions_epoch"
+	TableCvmAddresses                     = "cvm_addresses"
+	TableCvmBlocks                        = "cvm_blocks"
+	TableCvmTransactions                  = "cvm_transactions"
+	TableCvmTransactionsTxdata            = "cvm_transactions_txdata"
+	TablePvmBlocks                        = "pvm_blocks"
+	TableRewards                          = "rewards"
+	TableTransactionsValidator            = "transactions_validator"
+	TableTransactionsBlock                = "transactions_block"
+	TableAddressBech32                    = "addresses_bech32"
+	TableOutputAddressAccumulateOut       = "output_addresses_accumulate_out"
+	TableOutputAddressAccumulateIn        = "output_addresses_accumulate_in"
+	TableOutputTxsAccumulate              = "output_txs_accumulate"
+	TableAccumulateBalancesReceived       = "accumulate_balances_received"
+	TableAccumulateBalancesSent           = "accumulate_balances_sent"
+	TableAccumulateBalancesTransactions   = "accumulate_balances_transactions"
+	TableTransactionsRewardsOwners        = "transactions_rewards_owners"
+	TableTransactionsRewardsOwnersAddress = "transactions_rewards_owners_address"
+	TableTransactionsRewardsOwnersOutputs = "transactions_rewards_owners_outputs"
+	TableTxPool                           = "tx_pool"
+	TableKeyValueStore                    = "key_value_store"
+	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
 )
 
 type Persist interface {
@@ -140,6 +147,17 @@ type Persist interface {
 		dbr.SessionRunner,
 		*TransactionsEpoch,
 		bool,
+	) error
+
+	QueryCvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmBlocks,
+	) (*CvmBlocks, error)
+	InsertCvmBlocks(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmBlocks,
 	) error
 
 	QueryCvmAddresses(
@@ -248,6 +266,7 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
 	) error
 
 	QueryOutputAddressAccumulateIn(
@@ -259,6 +278,12 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*OutputAddressAccumulate,
+		bool,
+	) error
+	UpdateOutputAddressAccumulateInOutputsProcessed(
+		context.Context,
+		dbr.SessionRunner,
+		string,
 	) error
 
 	QueryOutputTxsAccumulate(
@@ -303,6 +328,81 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*AccumulateBalancesTransactions,
+	) error
+
+	QueryTransactionsRewardsOwnersAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersAddress,
+	) (*TransactionsRewardsOwnersAddress, error)
+	InsertTransactionsRewardsOwnersAddress(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersAddress,
+		bool,
+	) error
+
+	QueryTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
+	) (*TransactionsRewardsOwnersOutputs, error)
+	InsertTransactionsRewardsOwnersOutputs(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwnersOutputs,
+		bool,
+	) error
+
+	QueryTransactionsRewardsOwners(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwners,
+	) (*TransactionsRewardsOwners, error)
+	InsertTransactionsRewardsOwners(
+		context.Context,
+		dbr.SessionRunner,
+		*TransactionsRewardsOwners,
+		bool,
+	) error
+
+	QueryTxPool(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) (*TxPool, error)
+	InsertTxPool(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) error
+	UpdateTxPoolStatus(
+		context.Context,
+		dbr.SessionRunner,
+		*TxPool,
+	) error
+
+	QueryKeyValueStore(
+		context.Context,
+		dbr.SessionRunner,
+		*KeyValueStore,
+	) (*KeyValueStore, error)
+	InsertKeyValueStore(
+		context.Context,
+		dbr.SessionRunner,
+		*KeyValueStore,
+	) error
+
+	QueryCvmTransactionsTxdataTrace(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdataTrace,
+	) (*CvmTransactionsTxdataTrace, error)
+	InsertCvmTransactionsTxdataTrace(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmTransactionsTxdataTrace,
+		bool,
 	) error
 }
 
@@ -870,6 +970,42 @@ func (p *persist) InsertTransactionsEpoch(
 	return nil
 }
 
+type CvmBlocks struct {
+	Block     string
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryCvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmBlocks,
+) (*CvmBlocks, error) {
+	v := &CvmBlocks{}
+	err := sess.Select(
+		"block",
+		"created_at",
+	).From(TableCvmBlocks).
+		Where("block="+q.Block).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmBlocks(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmBlocks,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmBlocks+" (block,created_at) values("+v.Block+",?)",
+			v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmBlocks, false, err)
+	}
+	return nil
+}
+
 type CvmAddresses struct {
 	ID            string
 	Type          models.CChainType
@@ -1010,9 +1146,9 @@ func (p *persist) InsertCvmTransactions(
 }
 
 type CvmTransactionsTxdata struct {
+	Hash          string
 	Block         string
 	Idx           uint64
-	Hash          string
 	Rcpt          string
 	Nonce         uint64
 	Serialization []byte
@@ -1026,15 +1162,15 @@ func (p *persist) QueryCvmTransactionsTxdata(
 ) (*CvmTransactionsTxdata, error) {
 	v := &CvmTransactionsTxdata{}
 	err := sess.Select(
+		"hash",
 		"block",
 		"idx",
-		"hash",
 		"rcpt",
 		"nonce",
 		"serialization",
 		"created_at",
 	).From(TableCvmTransactionsTxdata).
-		Where("block="+q.Block+" and idx=?", q.Idx).
+		Where("hash=?", q.Hash).
 		LoadOneContext(ctx, v)
 	return v, err
 }
@@ -1047,16 +1183,16 @@ func (p *persist) InsertCvmTransactionsTxdata(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (block,idx,hash,rcpt,nonce,serialization,created_at) values("+v.Block+",?,?,?,?,?,?)",
-			v.Idx, v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
+		InsertBySql("insert into "+TableCvmTransactionsTxdata+" (hash,block,idx,rcpt,nonce,serialization,created_at) values(?,"+v.Block+",?,?,?,?,?)",
+			v.Hash, v.Idx, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactionsTxdata, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactionsTxdata+" set hash=?,rcpt=?,nonce=?,serialization=?,created_at=? where block="+v.Block+" and idx=?",
-				v.Hash, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt, v.Idx).
+			UpdateBySql("update "+TableCvmTransactionsTxdata+" set block="+v.Block+",idx=?,rcpt=?,nonce=?,serialization=?,created_at=? where hash=?",
+				v.Idx, v.Rcpt, v.Nonce, v.Serialization, v.CreatedAt, v.Hash).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdata, true, err)
@@ -1348,11 +1484,14 @@ func (p *persist) InsertAddressBech32(
 }
 
 type OutputAddressAccumulate struct {
-	ID        string
-	OutputID  string
-	Address   string
-	Processed int
-	CreatedAt time.Time
+	ID              string
+	OutputID        string
+	Address         string
+	Processed       int
+	OutputProcessed int
+	TransactionID   string
+	OutputIndex     uint32
+	CreatedAt       time.Time
 }
 
 func (b *OutputAddressAccumulate) ComputeID() error {
@@ -1376,6 +1515,8 @@ func (p *persist) QueryOutputAddressAccumulateOut(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateOut).
 		Where("id=?", q.ID).
@@ -1387,6 +1528,7 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1394,10 +1536,26 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateOut, false, err)
+	}
+
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateOut).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
 	}
 
 	return nil
@@ -1414,6 +1572,8 @@ func (p *persist) QueryOutputAddressAccumulateIn(
 		"output_id",
 		"address",
 		"processed",
+		"transaction_id",
+		"output_index",
 		"created_at",
 	).From(TableOutputAddressAccumulateIn).
 		Where("id=?", q.ID).
@@ -1425,6 +1585,7 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *OutputAddressAccumulate,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -1432,7 +1593,39 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 		Pair("id", v.ID).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
 		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableOutputAddressAccumulateIn, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableOutputAddressAccumulateIn).
+			Set("output_id", v.OutputID).
+			Set("address", v.Address).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id = ?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressBech32, true, err)
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateOutputAddressAccumulateInOutputsProcessed(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	id string,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableOutputAddressAccumulateIn).
+		Set("output_processed", 1).
+		Where("output_id=? and output_processed <> ?", id, 1).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddressAccumulateIn, false, err)
@@ -1661,5 +1854,363 @@ func (p *persist) InsertAccumulateBalancesTransactions(
 		return EventErr(TableAccumulateBalancesTransactions, false, err)
 	}
 
+	return nil
+}
+
+type TransactionsRewardsOwnersAddress struct {
+	ID          string
+	Address     string
+	OutputIndex uint32
+}
+
+func (p *persist) QueryTransactionsRewardsOwnersAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwnersAddress,
+) (*TransactionsRewardsOwnersAddress, error) {
+	v := &TransactionsRewardsOwnersAddress{}
+	err := sess.Select(
+		"id",
+		"address",
+		"output_index",
+	).From(TableTransactionsRewardsOwnersAddress).
+		Where("id=? and address=?", q.ID, q.Address).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwnersAddress(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwnersAddress,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwnersAddress).
+		Pair("id", v.ID).
+		Pair("address", v.Address).
+		Pair("output_index", v.OutputIndex).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwnersAddress, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwnersAddress).
+			Set("output_index", v.OutputIndex).
+			Where("id=? and address=?", v.ID, v.Address).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwnersAddress, true, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsRewardsOwnersOutputs struct {
+	ID            string
+	TransactionID string
+	OutputIndex   uint32
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwnersOutputs,
+) (*TransactionsRewardsOwnersOutputs, error) {
+	v := &TransactionsRewardsOwnersOutputs{}
+	err := sess.Select(
+		"id",
+		"transaction_id",
+		"output_index",
+		"created_at",
+	).From(TableTransactionsRewardsOwnersOutputs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwnersOutputs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwnersOutputs,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwnersOutputs).
+		Pair("id", v.ID).
+		Pair("transaction_id", v.TransactionID).
+		Pair("output_index", v.OutputIndex).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwnersOutputs, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwnersOutputs).
+			Set("transaction_id", v.TransactionID).
+			Set("output_index", v.OutputIndex).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwnersOutputs, true, err)
+		}
+	}
+	return nil
+}
+
+type TransactionsRewardsOwners struct {
+	ID        string
+	ChainID   string
+	Threshold uint32
+	Locktime  uint64
+	CreatedAt time.Time
+}
+
+func (p *persist) QueryTransactionsRewardsOwners(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TransactionsRewardsOwners,
+) (*TransactionsRewardsOwners, error) {
+	v := &TransactionsRewardsOwners{}
+	err := sess.Select(
+		"id",
+		"chain_id",
+		"locktime",
+		"threshold",
+		"created_at",
+	).From(TableTransactionsRewardsOwners).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTransactionsRewardsOwners(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TransactionsRewardsOwners,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTransactionsRewardsOwners).
+		Pair("id", v.ID).
+		Pair("chain_id", v.ChainID).
+		Pair("locktime", v.Locktime).
+		Pair("threshold", v.Threshold).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTransactionsRewardsOwners, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableTransactionsRewardsOwners).
+			Set("chain_id", v.ChainID).
+			Set("locktime", v.Locktime).
+			Set("threshold", v.Threshold).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableTransactionsRewardsOwners, true, err)
+		}
+	}
+	return nil
+}
+
+type TxPool struct {
+	ID            string
+	NetworkID     uint32
+	ChainID       string
+	MsgKey        string
+	Serialization []byte
+	Processed     int
+	Topic         string
+	CreatedAt     time.Time
+}
+
+func (b *TxPool) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s", b.MsgKey, b.Topic)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
+}
+
+func (p *persist) QueryTxPool(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *TxPool,
+) (*TxPool, error) {
+	v := &TxPool{}
+	err := sess.Select(
+		"id",
+		"network_id",
+		"chain_id",
+		"msg_key",
+		"serialization",
+		"processed",
+		"topic",
+		"created_at",
+	).From(TableTxPool).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertTxPool(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TxPool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableTxPool).
+		Pair("id", v.ID).
+		Pair("network_id", v.NetworkID).
+		Pair("chain_id", v.ChainID).
+		Pair("msg_key", v.MsgKey).
+		Pair("serialization", v.Serialization).
+		Pair("processed", v.Processed).
+		Pair("topic", v.Topic).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTxPool, false, err)
+	}
+
+	return nil
+}
+
+func (p *persist) UpdateTxPoolStatus(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *TxPool,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableTxPool).
+		Set("processed", v.Processed).
+		Where("id=?", v.ID).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableTxPool, false, err)
+	}
+
+	return nil
+}
+
+type KeyValueStore struct {
+	K string
+	V string
+}
+
+func (p *persist) QueryKeyValueStore(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *KeyValueStore,
+) (*KeyValueStore, error) {
+	v := &KeyValueStore{}
+	err := sess.Select(
+		"k",
+		"v",
+	).From(TableKeyValueStore).
+		Where("k=?", q.K).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertKeyValueStore(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *KeyValueStore,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableKeyValueStore).
+		Pair("k", v.K).
+		Pair("v", v.V).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableKeyValueStore, false, err)
+	}
+
+	return nil
+}
+
+type CvmTransactionsTxdataTrace struct {
+	Hash          string
+	Idx           uint32
+	ToAddr        string
+	FromAddr      string
+	CallType      string
+	Type          string
+	Serialization []byte
+	CreatedAt     time.Time
+}
+
+func (p *persist) QueryCvmTransactionsTxdataTrace(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmTransactionsTxdataTrace,
+) (*CvmTransactionsTxdataTrace, error) {
+	v := &CvmTransactionsTxdataTrace{}
+	err := sess.Select(
+		"hash",
+		"idx",
+		"to_addr",
+		"from_addr",
+		"call_type",
+		"type",
+		"serialization",
+		"created_at",
+	).From(TableCvmTransactionsTxdataTrace).
+		Where("hash=? and idx=?", q.Hash, q.Idx).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmTransactionsTxdataTrace(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmTransactionsTxdataTrace,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableCvmTransactionsTxdataTrace).
+		Pair("hash", v.Hash).
+		Pair("idx", v.Idx).
+		Pair("to_addr", v.ToAddr).
+		Pair("from_addr", v.FromAddr).
+		Pair("call_type", v.CallType).
+		Pair("type", v.Type).
+		Pair("serialization", v.Serialization).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmTransactionsTxdataTrace, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableCvmTransactionsTxdataTrace).
+			Set("to_addr", v.ToAddr).
+			Set("from_addr", v.FromAddr).
+			Set("call_type", v.CallType).
+			Set("type", v.Type).
+			Set("serialization", v.Serialization).
+			Set("created_at", v.CreatedAt).
+			Where("hash=? and idx=?", v.Hash, v.Idx).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableCvmTransactionsTxdataTrace, true, err)
+		}
+	}
 	return nil
 }

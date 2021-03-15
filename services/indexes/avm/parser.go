@@ -40,7 +40,12 @@ func parseTx(c codec.Manager, bytes []byte) (*avm.Tx, error) {
 
 // newAVMCodec creates codec that can parse avm objects
 func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, codec.Manager, database.Database, error) {
-	g, err := genesis.VMGenesis(networkID, avm.ID)
+	genesisBytes, _, err := genesis.Genesis(networkID, "")
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	g, err := genesis.VMGenesis(genesisBytes, avm.ID)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

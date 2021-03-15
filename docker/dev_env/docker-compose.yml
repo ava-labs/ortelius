@@ -1,11 +1,5 @@
 version: '3.5'
 volumes:
-  zookeeper-data:
-    name: ortelius_zookeeper_data
-  zookeeper-log:
-    name: ortelius_zookeeper_logs
-  kafka-data:
-    name: ortelius_kafka
   redis-data:
     name: ortelius_redis
   mysql-data:
@@ -15,7 +9,7 @@ networks:
     name: ortelius_services
 services:
   mysql:
-    image: "mysql:8.0.22"
+    image: "mysql:8.0.23"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./../my.cnf:/etc/mysql/my.cnf
@@ -45,57 +39,3 @@ services:
     volumes:
       - redis-data:/var/lib/redis
     restart: on-failure
-  zookeeper:
-    image: "confluentinc/cp-zookeeper:5.4.3"
-    ports:
-      - 2181
-    environment:
-      - ZOOKEEPER_SERVER_ID=1
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_SERVERS=zookeeper:4182:5181
-    volumes:
-      - zookeeper-data:/var/lib/zookeeper/data/
-      - zookeeper-log:/var/lib/zookeeper/log/
-    restart: on-failure
-  kafka:
-    image: "confluentinc/cp-kafka:5.4.3"
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "29092:29092"
-    volumes:
-      - kafka-data:/var/lib/kafka/data/
-    restart: on-failure
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
-
-      KAFKA_BROKER_ID: 1
-      CONFLUENT_SUPPORT_METRICS_ENABLE: "false"
-      KAFKA_HEAP_OPTS: -Xms256M -Xmx256M -verbose:gc
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_DELETE_TOPIC_ENABLE: "true"
-      KAFKA_NUM_PARTITIONS: 8
-      KAFKA_OFFSETS_RETENTION_MINUTES: 446400
-
-      # Disable replication and lower thread count
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_MIN_INSYNC_REPLICAS: 1
-
-      KAFKA_NUM_RECOVERY_THREADS_PER_DATA_DIR: 1
-      KAFKA_NUM_NETWORK_THREADS: 3
-      KAFKA_NUM_IO_THREADS: 3
-
-      # Set retention policies
-      KAFKA_LOG_CLEANUP_POLICY: compact
-      KAFKA_LOG_RETENTION_BYTES: -1
-      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
-      KAFKA_LOG_RETENTION_HOURS: -1
-      KAFKA_LOG_ROLL_HOURS: 24
-      KAFKA_LOG_SEGMENT_BYTES: 1048576
-      KAFKA_LOG_SEGMENT_DELETE_DELAY_MS: 60000

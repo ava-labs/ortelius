@@ -27,7 +27,7 @@ var (
 )
 
 // ProcessorFactory takes in configuration and returns a stream Processor
-type ProcessorFactory func(*services.Control, cfg.Config, string, string) (Processor, error)
+type ProcessorFactory func(*services.Control, cfg.Config, string, string, int, int) (Processor, error)
 
 // Processor handles writing and reading to/from the event stream
 type Processor interface {
@@ -36,6 +36,16 @@ type Processor interface {
 	Failure()
 	Success()
 	ID() string
+}
+
+type ProcessorFactoryChainDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
+type ProcessorFactoryInstDB func(*services.Control, cfg.Config) (ProcessorDB, error)
+
+type ProcessorDB interface {
+	Process(*services.Connections, *services.TxPool) error
+	Close() error
+	ID() string
+	Topic() []string
 }
 
 // ProcessorManager supervises the Processor lifecycle; it will use the given
@@ -48,10 +58,13 @@ type ProcessorManager struct {
 	// Concurrency control
 	quitCh chan struct{}
 	doneCh chan struct{}
+
+	idx    int
+	maxIdx int
 }
 
 // NewProcessorManager creates a new *ProcessorManager ready for listening
-func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory) *ProcessorManager {
+func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory, idx int, maxIdx int) *ProcessorManager {
 	return &ProcessorManager{
 		conf: conf,
 		sc:   sc,
@@ -60,6 +73,9 @@ func NewProcessorManager(sc *services.Control, conf cfg.Config, factory Processo
 
 		quitCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
+
+		idx:    idx,
+		maxIdx: maxIdx,
 	}
 }
 
@@ -131,7 +147,7 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	defer c.sc.Log.Info("Exiting worker for chain %s", chainConfig.ID)
 
 	// Create a backend to get messages from
-	backend, err := c.factory(c.sc, c.conf, chainConfig.VMType, chainConfig.ID)
+	backend, err := c.factory(c.sc, c.conf, chainConfig.VMType, chainConfig.ID, c.idx, c.maxIdx)
 	if err != nil {
 		return err
 	}
@@ -176,13 +192,22 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	id := backend.ID()
 
 	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
+	tdoneCh := make(chan struct{})
+	defer func() {
+		t.Stop()
+		close(tdoneCh)
+	}()
 
 	// Log run statistics periodically until asked to stop
 	go func() {
-		for range t.C {
-			c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-			if c.isStopping() {
+		for {
+			select {
+			case <-t.C:
+				c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
+				if c.isStopping() {
+					return
+				}
+			case <-tdoneCh:
 				return
 			}
 		}

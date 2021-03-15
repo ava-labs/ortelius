@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
 
@@ -289,6 +291,72 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 		)
 	} else if dosq {
 		b.Where("avm_transactions.id in ?", subquery)
+	}
+
+	return b
+}
+
+type ListCTransactionsParams struct {
+	ListParams ListParams
+	CAddresses []string
+	Hashes     []string
+	Sort       TransactionSort
+}
+
+func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
+	err := p.ListParams.ForValues(v, q)
+	if err != nil {
+		return err
+	}
+
+	p.ListParams.ObserveTimeProvided = true
+
+	p.Sort = TransactionSortDefault
+	sortBys, ok := q[KeySortBy]
+	if ok && len(sortBys) >= 1 {
+		p.Sort, _ = toTransactionSort(sortBys[0])
+	}
+
+	addressStrs := q[KeyAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddresses = append(p.CAddresses, addressStr)
+	}
+
+	hashStrs := q[KeyHash]
+	for _, hashStr := range hashStrs {
+		if !strings.HasPrefix(hashStr, "0x") {
+			hashStr = "0x" + hashStr
+		}
+		p.Hashes = append(p.Hashes, hashStr)
+	}
+
+	return nil
+}
+
+func (p *ListCTransactionsParams) CacheKey() []string {
+	k := p.ListParams.CacheKey()
+	k = append(k, CacheKey(KeySortBy, p.Sort))
+
+	for _, address := range p.CAddresses {
+		k = append(k, CacheKey(KeyAddress, address))
+	}
+
+	return k
+}
+
+func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
+	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
+
+	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
+	} else if !p.ListParams.StartTime.IsZero() {
+		b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
+	}
+	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
+	} else if !p.ListParams.EndTime.IsZero() {
+		b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
 	}
 
 	return b

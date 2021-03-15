@@ -31,11 +31,22 @@ type Producer struct {
 
 // NewProducer creates a producer using the given config
 func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string, eventType EventType) (*Producer, error) {
+	sock, err := socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
+	if err != nil {
+		return nil, err
+	}
+	writer, err := newBufferedWriter(sc, GetTopicName(conf.NetworkID, chainID, eventType), conf.NetworkID, chainID)
+	if err != nil {
+		_ = sock.Close()
+		return nil, err
+	}
+
 	p := &Producer{
 		chainID:                 chainID,
 		eventType:               eventType,
-		writeBuffer:             newBufferedWriter(sc.Log, conf.Brokers, GetTopicName(conf.NetworkID, chainID, eventType)),
+		writeBuffer:             writer,
 		sc:                      sc,
+		sock:                    sock,
 		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_%s", chainID, eventType),
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
@@ -46,22 +57,16 @@ func NewProducer(sc *services.Control, conf cfg.Config, _ string, chainID string
 	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 	sc.InitProduceMetrics()
 
-	var err error
-	p.sock, err = socket.Dial(getSocketName(conf.Producer.IPCRoot, conf.NetworkID, chainID, eventType))
-	if err != nil {
-		return nil, err
-	}
-
 	return p, nil
 }
 
 // NewConsensusProducerProcessor creates a producer for consensus events
-func NewConsensusProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+func NewConsensusProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int, _ int) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeConsensus)
 }
 
 // NewDecisionsProducerProcessor creates a producer for decision events
-func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
+func NewDecisionsProducerProcessor(sc *services.Control, conf cfg.Config, chainVM string, chainID string, _ int, _ int) (Processor, error) {
 	return NewProducer(sc, conf, chainVM, chainID, EventTypeDecisions)
 }
 
@@ -70,7 +75,7 @@ func (p *Producer) Close() error {
 	p.sc.Log.Info("close %s", p.id)
 	errs := wrappers.Errs{}
 	if p.writeBuffer != nil {
-		errs.Add(p.writeBuffer.close())
+		p.writeBuffer.close()
 	}
 	if p.sock != nil {
 		errs.Add(p.sock.Close())
@@ -82,8 +87,7 @@ func (p *Producer) ID() string {
 	return p.id
 }
 
-// ProcessNextMessage takes in a Message from the IPC socket and writes it to
-// Kafka
+// ProcessNextMessage takes in a Message from the IPC socket and writes it to the db
 func (p *Producer) ProcessNextMessage() error {
 	rawMsg, err := p.sock.Recv()
 	if err != nil {

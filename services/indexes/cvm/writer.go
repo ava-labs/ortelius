@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -39,7 +41,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	_, avaxAssetID, err := genesis.Genesis(networkID)
+	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +73,45 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	return json.Marshal(atomicTX)
 }
 
+func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist services.Persist) error {
+	job := conns.StreamDBDedup().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
+	dbTx, err := sess.Begin()
+	if err != nil {
+		return err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	txTraceModel := &models.CvmTransactionsTxDataTrace{}
+	err = json.Unmarshal(transactionTrace.Trace, txTraceModel)
+	if err != nil {
+		return err
+	}
+
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+
+	txTraceService := &services.CvmTransactionsTxdataTrace{
+		Hash:          transactionTrace.Hash,
+		Idx:           transactionTrace.Idx,
+		ToAddr:        txTraceModel.ToAddr,
+		FromAddr:      txTraceModel.FromAddr,
+		CallType:      txTraceModel.CallType,
+		Type:          txTraceModel.Type,
+		Serialization: transactionTrace.Trace,
+		CreatedAt:     cCtx.Time(),
+	}
+
+	err = persist.InsertCvmTransactionsTxdataTrace(ctx, dbTx, txTraceService, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	return dbTx.Commit()
+}
+
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
-	job := conns.Stream().NewJob("cvm-index")
+	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -139,14 +178,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	for ipos, txdata := range block.TxsBytes {
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
-		rcptstr := ""
-		if rawtx.To() != nil {
-			rcptstr = rawtx.To().String()
-		}
+		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
+			Hash:          rawhash.String(),
 			Block:         block.Header.Number.String(),
 			Idx:           uint64(ipos),
-			Hash:          rawhash.String(),
 			Rcpt:          rcptstr,
 			Nonce:         rawtx.Nonce(),
 			Serialization: txdata,

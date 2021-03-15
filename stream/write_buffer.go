@@ -7,17 +7,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/ortelius/services/metrics"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/segmentio/kafka-go"
 )
 
 const (
 	defaultBufferedWriterSize         = 256
-	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 5
+	defaultBufferedWriterMsgQueueSize = defaultBufferedWriterSize * 100
 	defaultWriteTimeout               = 1 * time.Minute
 	defaultWriteRetry                 = 10
 	defaultWriteRetrySleep            = 1 * time.Second
@@ -25,79 +26,78 @@ const (
 
 var defaultBufferedWriterFlushInterval = 1 * time.Second
 
+type BufferContainer struct {
+	b []byte
+}
+
 // bufferedWriter takes in messages and writes them in batches to the backend.
 type bufferedWriter struct {
-	writer *kafka.Writer
-	buffer chan (*[]byte)
+	topic  string
+	buffer chan (*BufferContainer)
 	doneCh chan (struct{})
-	log    logging.Logger
+	sc     *services.Control
 
 	// metrics
 	metricSuccessCountKey       string
 	metricFailureCountKey       string
 	metricProcessMillisCountKey string
+	flushTicker                 *time.Ticker
+	conns                       *services.Connections
+	chainID                     string
+	networkID                   uint32
 }
 
-func newBufferedWriter(log logging.Logger, brokers []string, topic string) *bufferedWriter {
+func newBufferedWriter(sc *services.Control, topic string, networkID uint32, chainID string) (*bufferedWriter, error) {
 	size := defaultBufferedWriterSize
 
 	wb := &bufferedWriter{
-		writer: kafka.NewWriter(kafka.WriterConfig{
-			Brokers:      brokers,
-			Topic:        topic,
-			Balancer:     &kafka.LeastBytes{},
-			BatchBytes:   ConsumerMaxBytesDefault,
-			BatchSize:    defaultBufferedWriterSize,
-			WriteTimeout: defaultWriteTimeout,
-			RequiredAcks: int(kafka.RequireAll),
-		}),
-		buffer:                      make(chan *[]byte, defaultBufferedWriterMsgQueueSize),
+		topic:                       topic,
+		buffer:                      make(chan *BufferContainer, defaultBufferedWriterMsgQueueSize),
 		doneCh:                      make(chan struct{}),
-		log:                         log,
-		metricSuccessCountKey:       "kafka_write_records_success",
-		metricFailureCountKey:       "kafka_write_records_failure",
-		metricProcessMillisCountKey: "kafka_write_records_process_millis",
+		sc:                          sc,
+		metricSuccessCountKey:       "pool_write_records_success",
+		metricFailureCountKey:       "pool_write_records_failure",
+		metricProcessMillisCountKey: "pool_write_records_process_millis",
+		chainID:                     chainID,
+		networkID:                   networkID,
 	}
 
 	metrics.Prometheus.CounterInit(wb.metricSuccessCountKey, "records success")
 	metrics.Prometheus.CounterInit(wb.metricFailureCountKey, "records failure")
 	metrics.Prometheus.CounterInit(wb.metricProcessMillisCountKey, "records processed millis")
 
+	conns, err := wb.sc.DatabaseOnly()
+	if err != nil {
+		return nil, err
+	}
+	wb.conns = conns
+
+	wb.flushTicker = time.NewTicker(defaultBufferedWriterFlushInterval)
 	go wb.loop(size, defaultBufferedWriterFlushInterval)
 
-	return wb
+	return wb, nil
 }
 
 // Write adds the message to the buffer.
 func (wb *bufferedWriter) Write(msg []byte) {
-	wb.buffer <- &msg
+	wb.buffer <- &BufferContainer{b: msg}
 }
 
-// loop takes in messages from the buffer and commits them to Kafka when in
+// loop takes in messages from the buffer and commits them to db when in
 // batches
 func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 	var (
-		lastFlush   = time.Now()
-		flushTicker = time.NewTicker(flushInterval)
+		lastFlush = time.Now()
 
 		bufferSize = 0
-		buffer     = make([](*[]byte), size)
-		buffer2    = make([]kafka.Message, size)
+		buffer     = make([](*BufferContainer), size)
 	)
 
-	flush := func() {
+	flush := func() error {
 		defer func() { lastFlush = time.Now() }()
 
 		if bufferSize == 0 {
-			return
-		}
-
-		for bpos, b := range buffer[:bufferSize] {
-			// reset the message..
-			buffer2[bpos] = kafka.Message{}
-			buffer2[bpos].Value = *b
-			// compute hash before processing.
-			buffer2[bpos].Key = hashing.ComputeHash256(buffer2[bpos].Value)
+			return nil
 		}
 
 		collectors := metrics.NewCollectors(
@@ -107,37 +107,32 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		defer func() {
 			err := collectors.Collect()
 			if err != nil {
-				wb.log.Error("collectors.Collect: %s", err)
+				wb.sc.Log.Error("collectors.Collect: %s", err)
 			}
 		}()
 
-		wm := func(bufmsg []kafka.Message, bufmsgsz int) error {
-			ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
-			defer cancelFn()
-
-			return wb.writer.WriteMessages(ctx, bufmsg[:bufmsgsz]...)
-		}
-
 		var err error
-		for icnt := 0; icnt < defaultWriteRetry; icnt++ {
-			err = wm(buffer2, bufferSize)
-			if err == nil {
+
+		for _, b := range buffer[:bufferSize] {
+			wp := &WorkPacket{b: b}
+			err = wb.processWork(wp)
+			if err != nil {
 				break
 			}
-			wb.log.Warn("Error writing to kafka (retry):", err)
-			time.Sleep(defaultWriteRetrySleep)
 		}
 
 		if err != nil {
 			collectors.Error()
-			wb.log.Error("Error writing to kafka:", err)
+			wb.sc.Log.Error("Error writing to db:", err)
 		}
 
 		bufferSize = 0
+
+		return err
 	}
 
 	defer func() {
-		flushTicker.Stop()
+		wb.flushTicker.Stop()
 		flush()
 		close(wb.doneCh)
 	}()
@@ -158,7 +153,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			// Add this message to the buffer and if it's full we flush and
 			buffer[bufferSize] = msg
 			bufferSize++
-		case <-flushTicker.C:
+		case <-wb.flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
 			if time.Now().After(lastFlush.Add(flushInterval)) {
 				flush()
@@ -168,9 +163,60 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 }
 
 // close stops the bufferedWriter and flushes any remaining items
-func (wb *bufferedWriter) close() error {
+func (wb *bufferedWriter) close() {
 	// Close buffer and wait for it to stop, flush, and signal back
 	close(wb.buffer)
+	wb.flushTicker.Stop()
 	<-wb.doneCh
-	return wb.writer.Close()
+	if wb.conns != nil {
+		_ = wb.conns.Close()
+	}
+}
+
+type WorkPacket struct {
+	b *BufferContainer
+}
+
+func (wb *bufferedWriter) processWork(wp *WorkPacket) error {
+	var err error
+	var id ids.ID
+	id, err = ids.ToID(hashing.ComputeHash256(wp.b.b))
+	if err != nil {
+		return err
+	}
+
+	txPool := &services.TxPool{
+		NetworkID:     wb.networkID,
+		ChainID:       wb.chainID,
+		MsgKey:        id.String(),
+		Serialization: wp.b.b,
+		Processed:     0,
+		Topic:         wb.topic,
+		CreatedAt:     time.Now(),
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		return err
+	}
+
+	wm := func(txPool *services.TxPool) error {
+		job := wb.conns.StreamDBDedup().NewJob("write-buffer")
+		sess := wb.conns.DB().NewSessionForEventReceiver(job)
+
+		ctx, cancelFn := context.WithTimeout(context.Background(), defaultWriteTimeout)
+		defer cancelFn()
+
+		return wb.sc.Persist.InsertTxPool(ctx, sess, txPool)
+	}
+
+	for icnt := 0; icnt < defaultWriteRetry; icnt++ {
+		err = wm(txPool)
+		if err == nil {
+			break
+		}
+		wb.sc.Log.Warn("Error writing to db (retry):", err)
+		time.Sleep(defaultWriteRetrySleep)
+	}
+
+	return err
 }

@@ -65,8 +65,6 @@ func newChainsConfig(v *viper.Viper) (Chains, error) {
 		switch {
 		case confMap[keysChainsID] == nil:
 			return nil, ErrChainsConfigIDEmpty
-		case confMap[keysChainsAlias] == nil:
-			return nil, ErrChainsConfigAliasEmpty
 		case confMap[keysChainsVMType] == nil:
 			return nil, ErrChainsConfigVMEmpty
 		}
@@ -77,17 +75,12 @@ func newChainsConfig(v *viper.Viper) (Chains, error) {
 			return nil, ErrChainsConfigIDNotString
 		}
 
-		alias, ok := confMap[keysChainsAlias].(string)
-		if !ok {
-			return nil, ErrChainsConfigAliasNotString
-		}
-
 		vmType, ok := confMap[keysChainsVMType].(string)
 		if !ok {
 			return nil, ErrChainsConfigVMNotString
 		}
 
-		chains[id] = Chain{ID: id, Alias: alias, VMType: vmType}
+		chains[id] = Chain{ID: id, VMType: vmType}
 	}
 	return chains, nil
 }

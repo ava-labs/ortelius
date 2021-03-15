@@ -5,11 +5,13 @@ package avax
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,16 +63,28 @@ type Reader struct {
 	networkID       uint32
 	chainConsumers  map[string]services.Consumer
 	cChainCconsumer services.ConsumerCChain
+
+	readerAggregate ReaderAggregate
+
+	doneCh chan struct{}
 }
 
-func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) *Reader {
-	return &Reader{
+func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) (*Reader, error) {
+	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
 		networkID:       networkID,
 		chainConsumers:  chainConsumers,
 		cChainCconsumer: cChainCconsumer,
+		doneCh:          make(chan struct{}),
 	}
+
+	err := reader.aggregateProcessor()
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID ids.ID) (*models.SearchResults, error) {
@@ -309,7 +323,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	return aggs, nil
 }
 
-func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *services.Connections) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
@@ -334,10 +348,16 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams) 
 		}
 	}
 
-	// Build the query and load the base data
-	dbRunner, err := r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
-	if err != nil {
-		return nil, err
+	var dbRunner *dbr.Session
+	var err error
+
+	if conns != nil {
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("get_transaction_aggregates_histogram"))
+	} else {
+		dbRunner, err = r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var builder *dbr.SelectStmt
@@ -577,18 +597,20 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 }
 
 func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams params.ListParams, transactionsParams *params.ListTransactionsParams) *string {
-	if len(txs) < listParams.Limit {
+	if len(txs) == 0 || len(txs) < listParams.Limit {
 		return nil
 	}
+
+	lasttxCreated := txs[len(txs)-1].CreatedAt
+
 	next := ""
 	switch transactionsParams.Sort {
 	case params.TransactionSortTimestampAsc:
-		firsttx := txs[0]
-		next = fmt.Sprintf("%s=%d", params.KeyStartTime, firsttx.CreatedAt.Unix())
+		next = fmt.Sprintf("%s=%d", params.KeyStartTime, lasttxCreated.Add(time.Second).Unix())
 	case params.TransactionSortTimestampDesc:
-		lasttx := txs[len(txs)-1]
-		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttx.CreatedAt.Unix()+1)
+		next = fmt.Sprintf("%s=%d", params.KeyEndTime, lasttxCreated.Unix())
 	}
+
 	for k, vs := range listParams.Values {
 		switch k {
 		case params.KeyLimit:
@@ -687,6 +709,10 @@ func (r *Reader) ListAddresses(ctx context.Context, p *params.ListAddressesParam
 			OrderAsc("avm_outputs.chain_id").
 			OrderAsc("avm_output_addresses.address").
 			OrderAsc("avm_outputs.asset_id")
+
+		if len(p.ChainIDs) != 0 {
+			baseq.Where("avm_outputs.chain_id IN ?", p.ChainIDs)
+		}
 	}
 
 	builder := dbRunner.Select(
@@ -1136,8 +1162,6 @@ func (r *Reader) resovleRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 }
 
 func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
-	var outputs []*compositeRecord
-
 	s1_0 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
@@ -1146,8 +1170,12 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		From("avm_outputs_redeeming").
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
-	s1 := selectOutputs(dbRunner).
-		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id")
+	var outputs []*compositeRecord
+	_, err := selectOutputs(dbRunner).
+		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id").LoadContext(ctx, &outputs)
+	if err != nil {
+		return nil, err
+	}
 
 	s2 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs_redeeming").
@@ -1155,41 +1183,15 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	// if we get an input but have not yet seen the output.
-	s3 := selectOutputsRedeeming(dbRunner).
+	var outputs2 []*compositeRecord
+	_, err = selectOutputsRedeeming(dbRunner).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
-			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2")))
-
-	su := dbr.Union(s1, s3).As("union_q")
-	_, err := dbRunner.Select("union_q.id",
-		"union_q.transaction_id",
-		"union_q.output_index",
-		"union_q.asset_id",
-		"union_q.output_type",
-		"union_q.amount",
-		"union_q.locktime",
-		"union_q.stake_locktime",
-		"union_q.threshold",
-		"union_q.created_at",
-		"union_q.redeeming_transaction_id",
-		"union_q.group_id",
-		"union_q.output_id",
-		"union_q.address",
-		"union_q.signature",
-		"union_q.public_key",
-		"union_q.chain_id",
-		"union_q.payload",
-		"union_q.stake",
-		"union_q.stakeableout",
-		"union_q.genesisutxo",
-		"union_q.frozen",
-	).
-		From(su).
-		LoadContext(ctx, &outputs)
+			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2"))).LoadContext(ctx, &outputs2)
 	if err != nil {
 		return nil, err
 	}
 
-	return outputs, nil
+	return append(outputs, outputs2...), nil
 }
 
 func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
@@ -1204,7 +1206,7 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		"cvm_addresses.transaction_id",
 		"cvm_addresses.address",
 		"cvm_addresses.asset_id",
-		"cvm_addresses.created_at as timestamp",
+		"cvm_addresses.created_at",
 		"cvm_transactions.blockchain_id as chain_id",
 		"cvm_transactions.block",
 	).
@@ -1520,14 +1522,45 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	type Row struct {
 		Serialization []byte
 	}
+
 	rows := []Row{}
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("block="+idInt.String()).
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		h := p.ID
+		if !strings.HasPrefix(p.ID, "0x") {
+			h = "0x" + h
+		}
+
+		sq := dbRunner.
+			Select("block").
+			From("cvm_transactions_txdata").
+			Where("hash=? or rcpt=?", h, h)
+
+		_, err = dbRunner.
+			Select("serialization").
+			From("cvm_transactions").
+			Where("hash=? or parent_hash=? or block in ?",
+				h,
+				h,
+				dbRunner.Select("block").From(sq.As("sq")),
+			).
+			OrderDesc("block").
+			Limit(1).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
@@ -1548,17 +1581,19 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rowsData := []RowData{}
 
-	_, err = dbRunner.
-		Select(
-			"idx",
-			"serialization",
-		).
-		From("cvm_transactions_txdata").
-		Where("block="+p.ID).
-		OrderAsc("idx").
-		LoadContext(ctx, &rowsData)
-	if err != nil {
-		return nil, err
+	if idInt != nil {
+		_, err = dbRunner.
+			Select(
+				"idx",
+				"serialization",
+			).
+			From("cvm_transactions_txdata").
+			Where("block="+idInt.String()).
+			OrderAsc("idx").
+			LoadContext(ctx, &rowsData)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	block.Txs = make([]corethType.Transaction, 0, len(rowsData))
@@ -1585,13 +1620,16 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rows := []Row{}
 
-	_, err = dbRunner.
-		Select("serialization").
-		From("cvm_transactions").
-		Where("block="+p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
+		_, err = dbRunner.
+			Select("serialization").
+			From(services.TableCvmTransactions).
+			Where("block="+idInt.String()).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(rows) == 0 {
@@ -1601,6 +1639,32 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	row := rows[0]
 
 	return r.cChainCconsumer.ParseJSON(row.Serialization)
+}
+
+func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, error) {
+	dbRunner, err := r.conns.DB().NewSession("raw-transaction", cfg.RequestTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	type SerialData struct {
+		Serialization []byte
+	}
+
+	serialData := SerialData{}
+
+	err = dbRunner.
+		Select("serialization").
+		From(services.TableTxPool).
+		Where("msg_key=?", id.String()).
+		LoadOneContext(ctx, &serialData)
+	if err != nil {
+		return nil, err
+	}
+
+	rawTx := models.RawTx{Tx: "0x" + hex.EncodeToString(serialData.Serialization)}
+
+	return &rawTx, nil
 }
 
 func uint64Ptr(u64 uint64) *uint64 {

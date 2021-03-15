@@ -12,8 +12,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services"
 
-	"github.com/ava-labs/avalanchego/genesis"
-	avmVM "github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -63,26 +61,14 @@ func (s *Server) Close() error {
 }
 
 func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
-	// Pre-calculate IDs and index responses
-	_, avaxAssetID, err := genesis.Genesis(conf.NetworkID)
+	sc.Log.Info("Router chainID %s", sc.GenesisContainer.XChainID.String())
+
+	indexBytes, err := newIndexResponse(conf.NetworkID, sc.GenesisContainer.XChainID, sc.GenesisContainer.AvaxAssetID)
 	if err != nil {
 		return nil, err
 	}
 
-	xChainGenesisTx, err := genesis.VMGenesis(conf.NetworkID, avmVM.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	xChainID := xChainGenesisTx.ID()
-	sc.Log.Info("Router chainID %s", xChainID.String())
-
-	indexBytes, err := newIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
-	if err != nil {
-		return nil, err
-	}
-
-	legacyIndexResponse, err := newLegacyIndexResponse(conf.NetworkID, xChainID, avaxAssetID)
+	legacyIndexResponse, err := newLegacyIndexResponse(conf.NetworkID, sc.GenesisContainer.XChainID, sc.GenesisContainer.AvaxAssetID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +98,10 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	if err != nil {
 		return nil, err
 	}
-	avaxReader := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain, sc)
+	avaxReader, err := avax.NewReader(conf.NetworkID, connections, consumersmap, consumercchain, sc)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx := Context{sc: sc}
 
@@ -128,7 +117,7 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 		NotFound((*Context).notFoundHandler).
 		Middleware(func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 			c.avaxReader = avaxReader
-			c.avaxAssetID = avaxAssetID
+			c.avaxAssetID = sc.GenesisContainer.AvaxAssetID
 
 			next(w, r)
 		})
@@ -136,8 +125,8 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 	AddV2Routes(&ctx, router, "/v2", indexBytes, nil)
 
 	// Legacy routes.
-	AddV2Routes(&ctx, router, "/x", legacyIndexResponse, &xChainID)
-	AddV2Routes(&ctx, router, "/X", legacyIndexResponse, &xChainID)
+	AddV2Routes(&ctx, router, "/x", legacyIndexResponse, &sc.GenesisContainer.XChainID)
+	AddV2Routes(&ctx, router, "/X", legacyIndexResponse, &sc.GenesisContainer.XChainID)
 
 	return router, nil
 }

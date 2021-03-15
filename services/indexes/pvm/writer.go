@@ -7,6 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -40,7 +46,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	_, avaxAssetID, err := genesis.Genesis(networkID)
+	_, avaxAssetID, err := genesis.Genesis(networkID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +63,17 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 func (*Writer) Name() string { return "pvm-index" }
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	var block platformvm.Tx
-	_, err := w.codec.Unmarshal(txBytes, &block)
+	var blockTx platformvm.Tx
+	_, err := w.codec.Unmarshal(txBytes, &blockTx)
 	if err != nil {
-		return nil, err
+		var block platformvm.Block
+		_, err := w.codec.Unmarshal(txBytes, &block)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(&block)
 	}
-	return json.Marshal(&block)
+	return json.Marshal(&blockTx)
 }
 
 func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
@@ -70,7 +81,7 @@ func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ 
 }
 
 func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
-	job := conns.Stream().NewJob("pvm-index")
+	job := conns.StreamDBDedup().NewJob("pvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -88,9 +99,9 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
-	job := conns.Stream().NewJob("bootstrap")
+	job := conns.QuietStream().NewJob("bootstrap")
 
-	genesisBytes, _, err := genesis.Genesis(w.networkID)
+	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
 	if err != nil {
 		return err
 	}
@@ -251,6 +262,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		if err != nil {
 			return err
 		}
+		if castTx.RewardsOwner != nil {
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx, castTx.Stake)
+			if err != nil {
+				return err
+			}
+		}
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
@@ -273,6 +290,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		err = w.InsertTransactionBlock(ctx, baseTx.ID(), blkID)
 		if err != nil {
 			return err
+		}
+		if castTx.RewardsOwner != nil {
+			err = w.insertTransactionsRewardsOwners(ctx, castTx.RewardsOwner, baseTx, castTx.Stake)
+			if err != nil {
+				return err
+			}
 		}
 	case *platformvm.UnsignedCreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -335,6 +358,59 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 		0,
 		genesis,
 	)
+}
+
+func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewardsOwner verify.Verifiable, baseTx avax.BaseTx, stakeOuts []*avax.TransferableOutput) error {
+	var err error
+
+	owner, ok := rewardsOwner.(*secp256k1fx.OutputOwners)
+	if !ok {
+		return fmt.Errorf("rewards owner %v", reflect.TypeOf(rewardsOwner))
+	}
+
+	// Ingest each Output Address
+	for ipos, addr := range owner.Addresses() {
+		addrid := ids.ShortID{}
+		copy(addrid[:], addr)
+		txRewardsOwnerAddress := &services.TransactionsRewardsOwnersAddress{
+			ID:          baseTx.ID().String(),
+			Address:     addrid.String(),
+			OutputIndex: uint32(ipos),
+		}
+
+		err = ctx.Persist().InsertTransactionsRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+
+	// write out outputs in the len(outs) and len(outs)+1 positions to identify these rewards
+	outcnt := len(baseTx.Outs) + len(stakeOuts)
+	for ipos := outcnt; ipos < outcnt+2; ipos++ {
+		outputID := baseTx.ID().Prefix(uint64(ipos))
+
+		txRewardsOutputs := &services.TransactionsRewardsOwnersOutputs{
+			ID:            outputID.String(),
+			TransactionID: baseTx.ID().String(),
+			OutputIndex:   uint32(ipos),
+			CreatedAt:     ctx.Time(),
+		}
+
+		err = ctx.Persist().InsertTransactionsRewardsOwnersOutputs(ctx.Ctx(), ctx.DB(), txRewardsOutputs, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
+
+	txRewardsOwner := &services.TransactionsRewardsOwners{
+		ID:        baseTx.ID().String(),
+		ChainID:   w.chainID,
+		Threshold: owner.Threshold,
+		Locktime:  owner.Locktime,
+		CreatedAt: ctx.Time(),
+	}
+
+	return ctx.Persist().InsertTransactionsRewardsOwners(ctx.Ctx(), ctx.DB(), txRewardsOwner, cfg.PerformUpdates)
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
