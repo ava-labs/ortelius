@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 )
 
-var ErrNotFound = errors.New("Block not found")
+var ErrNotFound = errors.New("block not found")
 
 type Block struct {
 	Header         types.Header        `json:"header"`
