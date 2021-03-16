@@ -382,6 +382,26 @@ func (p *ProducerCChain) isStopping() bool {
 	}
 }
 
+func TrimNL(msg string) string {
+	oldmsg := msg
+	for {
+		msg = strings.TrimPrefix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	oldmsg = msg
+	for {
+		msg = strings.TrimSuffix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	return msg
+}
+
 func CChainNotReady(err error) bool {
 	if strings.HasPrefix(err.Error(), "404 Not Found") {
 		return true
@@ -477,8 +497,10 @@ func (p *ProducerCChain) runProcessor() error {
 				if !CChainNotReady(err) {
 					failures++
 					p.Failure()
+					p.sc.Log.Error("Catchup error: %v", err)
+				} else {
+					p.sc.Log.Warn("%s", TrimNL(err.Error()))
 				}
-				p.sc.Log.Error("Catchup error: %v", err)
 				return err
 			}
 
@@ -505,7 +527,7 @@ func (p *ProducerCChain) runProcessor() error {
 
 			default:
 				if CChainNotReady(err) {
-					p.sc.Log.Warn("%s", err.Error())
+					p.sc.Log.Warn("%s", TrimNL(err.Error()))
 					return nil
 				}
 
