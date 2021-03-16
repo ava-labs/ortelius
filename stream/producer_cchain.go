@@ -382,9 +382,27 @@ func (p *ProducerCChain) isStopping() bool {
 	}
 }
 
+func CChainNotReady(err error) bool {
+	if strings.HasPrefix(err.Error(), "404 Not Found") {
+		return true
+	}
+	if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
+		return true
+	}
+	if strings.HasSuffix(err.Error(), "connect: connection refused") {
+		return true
+	}
+	if strings.HasSuffix(err.Error(), "read: connection reset by peer") {
+		return true
+	}
+	return false
+}
+
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerCChain) runProcessor() error {
+	id := p.ID()
+
 	if p.isStopping() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
@@ -395,8 +413,8 @@ func (p *ProducerCChain) runProcessor() error {
 
 	var pc *producerCChainContainer
 
-	wg := &sync.WaitGroup{}
-	wg2 := &sync.WaitGroup{}
+	wgpc := &sync.WaitGroup{}
+	wgpcmsgchan := &sync.WaitGroup{}
 
 	t := time.NewTicker(30 * time.Second)
 	tdoneCh := make(chan struct{})
@@ -406,9 +424,9 @@ func (p *ProducerCChain) runProcessor() error {
 		close(tdoneCh)
 		if pc != nil {
 			close(pc.quitCh)
-			wg.Wait()
+			wgpc.Wait()
 			close(pc.msgChanDone)
-			wg2.Wait()
+			wgpcmsgchan.Wait()
 			close(pc.msgChan)
 
 			err := pc.Close()
@@ -423,6 +441,16 @@ func (p *ProducerCChain) runProcessor() error {
 		return err
 	}
 
+	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
+	if pc.blockCount.Cmp(pblockp1) < 0 {
+		conns1, err := p.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		wgpc.Add(1)
+		go pc.catchupBlock(conns1, pblockp1, wgpc)
+	}
+
 	for icnt := 0; icnt < maxWorkers; icnt++ {
 		cl, err := cblock.NewClient(p.conf.Producer.CChainRPC)
 		if err != nil {
@@ -433,18 +461,8 @@ func (p *ProducerCChain) runProcessor() error {
 			cl.Close()
 			return err
 		}
-		wg2.Add(1)
-		go p.blockProcessor(pc, cl, conns1, wg2)
-	}
-
-	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
-	if pc.blockCount.Cmp(pblockp1) < 0 {
-		conns1, err := p.sc.DatabaseOnly()
-		if err != nil {
-			return err
-		}
-		wg.Add(1)
-		go pc.catchupBlock(conns1, pblockp1, wg)
+		wgpcmsgchan.Add(1)
+		go p.blockProcessor(pc, cl, conns1, wgpcmsgchan)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -456,8 +474,10 @@ func (p *ProducerCChain) runProcessor() error {
 			err := pc.ProcessNextMessage()
 			if pc.catchupErrs.GetValue() != nil {
 				err = pc.catchupErrs.GetValue().(error)
-				failures++
-				p.Failure()
+				if !CChainNotReady(err) {
+					failures++
+					p.Failure()
+				}
 				p.sc.Log.Error("Catchup error: %v", err)
 				return err
 			}
@@ -484,19 +504,7 @@ func (p *ProducerCChain) runProcessor() error {
 				return io.EOF
 
 			default:
-				if strings.HasPrefix(err.Error(), "404 Not Found") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasSuffix(err.Error(), "connect: connection refused") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasSuffix(err.Error(), "read: connection reset by peer") {
+				if CChainNotReady(err) {
 					p.sc.Log.Warn("%s", err.Error())
 					return nil
 				}
@@ -508,8 +516,6 @@ func (p *ProducerCChain) runProcessor() error {
 			}
 		}
 	)
-
-	id := p.ID()
 
 	// Log run statistics periodically until asked to stop
 	go func() {
