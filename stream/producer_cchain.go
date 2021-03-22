@@ -259,8 +259,8 @@ type ProducerCChain struct {
 	conf cfg.Config
 
 	// Concurrency control
-	quitCh    chan struct{}
-	doneCh    chan struct{}
+	quitCh chan struct{}
+
 	topic     string
 	topicTrc  string
 	topicLogs string
@@ -283,7 +283,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
 			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
 			quitCh:                  make(chan struct{}),
-			doneCh:                  make(chan struct{}),
 		}
 		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
@@ -296,7 +295,6 @@ func NewProducerCChain() utils.ListenCloserFactory {
 
 func (p *ProducerCChain) Close() error {
 	close(p.quitCh)
-	<-p.doneCh
 	return nil
 }
 
@@ -337,37 +335,24 @@ func (p *ProducerCChain) Success() {
 }
 
 func (p *ProducerCChain) Listen() error {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+	p.sc.Log.Info("Started worker manager for cchain")
+	defer p.sc.Log.Info("Exiting worker manager for cchain")
 
-	go func() {
-		p.sc.Log.Info("Started worker manager for cchain")
-		defer p.sc.Log.Info("Exiting worker manager for cchain")
-		defer wg.Done()
+	for !p.isStopping() {
+		err := p.runProcessor()
 
-		// Keep running the worker until we're asked to stop
-		var err error
-		for !p.isStopping() {
-			err = p.runProcessor()
-
-			// If there was an error we want to log it, and iff we are not stopping
-			// we want to add a retry delay.
-			if err != nil {
-				p.sc.Log.Error("Error running worker: %s", err.Error())
-			}
-			if p.isStopping() {
-				return
-			}
-			if err != nil {
-				<-time.After(processorFailureRetryInterval)
-			}
+		// If there was an error we want to log it, and iff we are not stopping
+		// we want to add a retry delay.
+		if err != nil {
+			p.sc.Log.Error("Error running worker: %s", err.Error())
 		}
-	}()
-
-	// Wait for all workers to finish
-	wg.Wait()
-	p.sc.Log.Info("All workers stopped")
-	close(p.doneCh)
+		if p.isStopping() {
+			break
+		}
+		if err != nil {
+			<-time.After(processorFailureRetryInterval)
+		}
+	}
 
 	return nil
 }
