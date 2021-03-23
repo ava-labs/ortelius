@@ -60,7 +60,7 @@ type producerCChainContainer struct {
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
-func newContainer(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
+func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
@@ -266,31 +266,29 @@ type ProducerCChain struct {
 	topicLogs string
 }
 
-func NewProducerCChain() utils.ListenCloserFactory {
-	return func(sc *services.Control, conf cfg.Config, _ int, _ int) utils.ListenCloser {
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
-		topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
-		topicLogsName := fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
+func NewProducerCChain(sc *services.Control, conf cfg.Config) utils.ListenCloser {
+	topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
+	topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
+	topicLogsName := fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
 
-		p := &ProducerCChain{
-			topic:                   topicName,
-			topicTrc:                topicTrcName,
-			topicLogs:               topicLogsName,
-			conf:                    conf,
-			sc:                      sc,
-			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
-			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
-			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
-			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
-			quitCh:                  make(chan struct{}),
-		}
-		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
-		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
-		sc.InitProduceMetrics()
-
-		return p
+	p := &ProducerCChain{
+		topic:                   topicName,
+		topicTrc:                topicTrcName,
+		topicLogs:               topicLogsName,
+		conf:                    conf,
+		sc:                      sc,
+		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
+		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
+		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
+		id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
+		quitCh:                  make(chan struct{}),
 	}
+	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+	sc.InitProduceMetrics()
+
+	return p
 }
 
 func (p *ProducerCChain) Close() error {
@@ -441,7 +439,7 @@ func (p *ProducerCChain) runProcessor() error {
 		}
 	}()
 	var err error
-	pc, err = newContainer(p.sc, p.conf)
+	pc, err = newContainerC(p.sc, p.conf)
 	if err != nil {
 		return err
 	}
@@ -524,7 +522,6 @@ func (p *ProducerCChain) runProcessor() error {
 		}
 	)
 
-	// Log run statistics periodically until asked to stop
 	go func() {
 		for {
 			select {
