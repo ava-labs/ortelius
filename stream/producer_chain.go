@@ -372,10 +372,10 @@ func (p *ProducerChain) runProcessor() error {
 				return io.EOF
 
 			default:
-				// if ChainNotReady(err) {
-				// 	p.sc.Log.Warn("%s", TrimNL(err.Error()))
-				// 	return nil
-				// }
+				if ChainNotReady(err) {
+					p.sc.Log.Warn("%s", TrimNL(err.Error()))
+					return nil
+				}
 
 				failures++
 				p.Failure()
@@ -415,6 +415,13 @@ func (p *ProducerChain) runProcessor() error {
 
 func IndexNotRaedy(err error) bool {
 	if strings.HasPrefix(err.Error(), "start index") && strings.Contains(err.Error(), "last accepted index") {
+		return true
+	}
+	return false
+}
+
+func ChainNotReady(err error) bool {
+	if strings.HasPrefix(err.Error(), "no containers have been accepted") {
 		return true
 	}
 	return false
