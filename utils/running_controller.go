@@ -16,6 +16,7 @@ func NewRunning() Running {
 func (r *running) Close() {
 	close(r.quitCh)
 }
+
 func (r *running) IsStopped() bool {
 	select {
 	case <-r.quitCh:

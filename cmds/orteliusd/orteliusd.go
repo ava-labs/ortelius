@@ -373,9 +373,9 @@ func runStreamProcessorManagers(
 		// start the accumulator at startup
 		sc.BalanceAccumulatorManager.Run(sc)
 
-		runningUtil := utils.NewRunning()
+		runningControl := utils.NewRunning()
 
-		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB, wg, runningUtil)
+		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB, wg, runningControl)
 		if err != nil {
 			*runError = err
 			return
@@ -403,7 +403,7 @@ func runStreamProcessorManagers(
 			}
 		}
 
-		runningUtil.Close()
+		runningControl.Close()
 
 		wg.Wait()
 	}

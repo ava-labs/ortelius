@@ -179,7 +179,7 @@ func IndexerFactories(
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
 	factoriesInstDB []stream.ProcessorFactoryInstDB,
 	wg *sync.WaitGroup,
-	runningUtil utils.Running,
+	runningControl utils.Running,
 ) error {
 	ctrl := &IndexerFactoryControl{sc: sc}
 	ctrl.fsm = make(map[string]stream.ProcessorDB)
@@ -239,7 +239,7 @@ func IndexerFactories(
 			close(ctrl.doneCh)
 			_ = conns.Close()
 		}()
-		for !runningUtil.IsStopped() {
+		for !runningControl.IsStopped() {
 			sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
 			iterator, err := sess.Select(
 				"id",

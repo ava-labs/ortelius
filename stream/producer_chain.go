@@ -36,14 +36,14 @@ const (
 )
 
 type producerChainContainer struct {
-	sc          *services.Control
-	conns       *services.Connections
-	runningUtil utils.Running
-	nodeIndexer *indexer.Client
-	conf        cfg.Config
-	nodeIndex   *services.NodeIndex
-	topic       string
-	chainID     string
+	sc             *services.Control
+	conns          *services.Connections
+	runningControl utils.Running
+	nodeIndexer    *indexer.Client
+	conf           cfg.Config
+	nodeIndex      *services.NodeIndex
+	topic          string
+	chainID        string
 }
 
 func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string, chainID string) (*producerChainContainer, error) {
@@ -53,13 +53,13 @@ func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Cl
 	}
 
 	pc := &producerChainContainer{
-		runningUtil: utils.NewRunning(),
-		chainID:     chainID,
-		conns:       conns,
-		sc:          sc,
-		nodeIndexer: nodeIndexer,
-		conf:        conf,
-		topic:       topic,
+		runningControl: utils.NewRunning(),
+		chainID:        chainID,
+		conns:          conns,
+		sc:             sc,
+		nodeIndexer:    nodeIndexer,
+		conf:           conf,
+		topic:          topic,
 	}
 
 	// init the node index table
@@ -206,7 +206,7 @@ type ProducerChain struct {
 
 	conf cfg.Config
 
-	runningUtil utils.Running
+	runningControl utils.Running
 
 	topic string
 
@@ -231,7 +231,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 		id:                      fmt.Sprintf("producer %d %s %s", conf.NetworkID, chainID, eventType),
-		runningUtil:             utils.NewRunning(),
+		runningControl:          utils.NewRunning(),
 		nodeIndexer:             nodeIndexer,
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
@@ -243,7 +243,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 }
 
 func (p *ProducerChain) Close() error {
-	p.runningUtil.Close()
+	p.runningControl.Close()
 	return nil
 }
 
@@ -265,7 +265,7 @@ func (p *ProducerChain) Listen() error {
 	p.sc.Log.Info("Started worker manager for %s", p.ID())
 	defer p.sc.Log.Info("Exiting worker manager for %s", p.ID())
 
-	for !p.runningUtil.IsStopped() {
+	for !p.runningControl.IsStopped() {
 		err := p.runProcessor()
 
 		// If there was an error we want to log it, and iff we are not stopping
@@ -273,7 +273,7 @@ func (p *ProducerChain) Listen() error {
 		if err != nil {
 			p.sc.Log.Error("Error running worker: %s", err.Error())
 		}
-		if p.runningUtil.IsStopped() {
+		if p.runningControl.IsStopped() {
 			break
 		}
 		if err != nil {
@@ -289,7 +289,7 @@ func (p *ProducerChain) Listen() error {
 func (p *ProducerChain) runProcessor() error {
 	id := p.ID()
 
-	if p.runningUtil.IsStopped() {
+	if p.runningControl.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
@@ -308,7 +308,7 @@ func (p *ProducerChain) runProcessor() error {
 		t.Stop()
 		close(tdoneCh)
 		if pc != nil {
-			pc.runningUtil.Close()
+			pc.runningControl.Close()
 			wgpc.Wait()
 
 			err := pc.Close()
@@ -372,7 +372,7 @@ func (p *ProducerChain) runProcessor() error {
 			select {
 			case <-t.C:
 				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.runningUtil.IsStopped() || pc.runningUtil.IsStopped() {
+				if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
 					return
 				}
 			case <-tdoneCh:
@@ -383,7 +383,7 @@ func (p *ProducerChain) runProcessor() error {
 
 	// Process messages until asked to stop
 	for {
-		if p.runningUtil.IsStopped() || pc.runningUtil.IsStopped() {
+		if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
 			break
 		}
 		err := processNextMessage()
