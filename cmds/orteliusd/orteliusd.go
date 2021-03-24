@@ -263,42 +263,46 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run: runStreamProcessorManagers(
-			false,
-			sc,
-			config,
-			runErr,
-			[]ProcessorFactoryControl{
-				{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
-				{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
-			},
-			nil,
-			nil,
-			nil,
-			nil,
-		),
+		Run: func(cmd *cobra.Command, arg []string) {
+			runStreamProcessorManagers(
+				false,
+				sc,
+				config,
+				runErr,
+				[]ProcessorFactoryControl{
+					{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
+					{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
+				},
+				nil,
+				nil,
+				nil,
+				nil,
+			)(cmd, arg)
+		},
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run: runStreamProcessorManagers(
-			true,
-			sc,
-			config,
-			runErr,
-			nil,
-			producerFactories(sc, config),
-			[]consumers.ConsumerFactory{
-				consumers.IndexerConsumer,
-			},
-			[]stream.ProcessorFactoryChainDB{
-				consumers.IndexerDB,
-				consumers.IndexerConsensusDB,
-			},
-			[]stream.ProcessorFactoryInstDB{
-				consumers.IndexerCChainDB(),
-			},
-		),
+		Run: func(cmd *cobra.Command, arg []string) {
+			runStreamProcessorManagers(
+				true,
+				sc,
+				config,
+				runErr,
+				nil,
+				producerFactories(sc, config),
+				[]consumers.ConsumerFactory{
+					consumers.IndexerConsumer,
+				},
+				[]stream.ProcessorFactoryChainDB{
+					consumers.IndexerDB,
+					consumers.IndexerConsensusDB,
+				},
+				[]stream.ProcessorFactoryInstDB{
+					consumers.IndexerCChainDB(),
+				},
+			)(cmd, arg)
+		},
 	})
 
 	return streamCmd
