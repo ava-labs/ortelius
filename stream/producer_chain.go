@@ -96,7 +96,7 @@ func (p *producerChainContainer) getIndex() error {
 	}
 	p.nodeIndex = nodeIndex
 	p.nodeIndex.Topic = p.topic
-	p.sc.Log.Info("starting processing %s", p.nodeIndex.Idx)
+	p.sc.Log.Info("starting processing %d", p.nodeIndex.Idx)
 	return nil
 }
 
@@ -109,6 +109,9 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	containers, err := p.nodeIndexer.GetContainerRange(containerRange)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
+		if IndexNotRaedy(err) {
+			return nil
+		}
 		return err
 	}
 	if len(containers) == 0 {
@@ -369,7 +372,7 @@ func (p *ProducerChain) runProcessor() error {
 				return io.EOF
 
 			default:
-				// if CChainNotReady(err) {
+				// if ChainNotReady(err) {
 				// 	p.sc.Log.Warn("%s", TrimNL(err.Error()))
 				// 	return nil
 				// }
@@ -408,4 +411,11 @@ func (p *ProducerChain) runProcessor() error {
 	}
 
 	return nil
+}
+
+func IndexNotRaedy(err error) bool {
+	if strings.HasPrefix(err.Error(), "start index") && strings.Contains(err.Error(), "last accepted index") {
+		return true
+	}
+	return false
 }
