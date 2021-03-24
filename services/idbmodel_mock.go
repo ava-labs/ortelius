@@ -39,6 +39,7 @@ type MockPersist struct {
 	TxPool                           map[string]*TxPool
 	KeyValueStore                    map[string]*KeyValueStore
 	CvmTransactionsTxdataTrace       map[string]*CvmTransactionsTxdataTrace
+	NodeIndex                        map[string]*NodeIndex
 }
 
 func NewPersistMock() *MockPersist {
@@ -72,6 +73,7 @@ func NewPersistMock() *MockPersist {
 		TxPool:                           make(map[string]*TxPool),
 		KeyValueStore:                    make(map[string]*KeyValueStore),
 		CvmTransactionsTxdataTrace:       make(map[string]*CvmTransactionsTxdataTrace),
+		NodeIndex:                        make(map[string]*NodeIndex),
 	}
 }
 
@@ -623,5 +625,32 @@ func (m *MockPersist) InsertCvmTransactionsTxdataTrace(ctx context.Context, runn
 	nv := &CvmTransactionsTxdataTrace{}
 	*nv = *v
 	m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryNodeIndex(ctx context.Context, runner dbr.SessionRunner, v *NodeIndex) (*NodeIndex, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.NodeIndex[v.Topic]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertNodeIndex(ctx context.Context, runner dbr.SessionRunner, v *NodeIndex, _ bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &NodeIndex{}
+	*nv = *v
+	m.NodeIndex[v.Topic] = nv
+	return nil
+}
+
+func (m *MockPersist) UpdateNodeIndex(ctx context.Context, runner dbr.SessionRunner, v *NodeIndex) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if fv, present := m.NodeIndex[v.Topic]; present {
+		fv.Idx = v.Idx
+	}
 	return nil
 }

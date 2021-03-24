@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	indexer "github.com/ava-labs/ortelius/indexer_client"
+
 	"github.com/ava-labs/ortelius/export"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -61,9 +63,6 @@ const (
 
 	streamReplayExportCmdUse  = "replayExport"
 	streamReplayExportCmdDesc = "Runs the replay export"
-
-	streamProducerCmdUse  = "producer"
-	streamProducerCmdDesc = "Runs the stream producer daemon"
 
 	streamIndexerCmdUse  = "indexer"
 	streamIndexerCmdDesc = "Runs the stream indexer daemon"
@@ -224,11 +223,6 @@ func createReplayExportCmds(sc *services.Control, config *cfg.Config, runErr *er
 	return replayCmd
 }
 
-type ProcessorFactoryControl struct {
-	Factory   stream.ProcessorFactory
-	Instances int
-}
-
 func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
@@ -260,24 +254,6 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 
 	// Add sub commands
 	streamCmd.AddCommand(exportCmd, &cobra.Command{
-		Use:   streamProducerCmdUse,
-		Short: streamProducerCmdDesc,
-		Long:  streamProducerCmdDesc,
-		Run: runStreamProcessorManagers(
-			false,
-			sc,
-			config,
-			runErr,
-			[]ProcessorFactoryControl{
-				{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
-				{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
-			},
-			nil,
-			nil,
-			nil,
-			nil,
-		),
-	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
@@ -286,7 +262,6 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 			sc,
 			config,
 			runErr,
-			nil,
 			producerFactories(sc, config),
 			[]consumers.ConsumerFactory{
 				consumers.IndexerConsumer,
@@ -307,6 +282,27 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 func producerFactories(sc *services.Control, cfg *cfg.Config) []utils.ListenCloser {
 	var factories []utils.ListenCloser
 	factories = append(factories, stream.NewProducerCChain(sc, *cfg))
+	for _, v := range cfg.Chains {
+		switch v.VMType {
+		case consumers.IndexerAVMName:
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, indexer.IndexTypeTransactions, indexer.XChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+			p, err = stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeConsensus, indexer.IndexTypeVertices, indexer.XChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+		case consumers.IndexerPVMName:
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, indexer.IndexTypeBlocks, indexer.PChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+		}
+	}
 	return factories
 }
 
@@ -354,7 +350,6 @@ func runStreamProcessorManagers(
 	sc *services.Control,
 	config *cfg.Config,
 	runError *error,
-	factories []ProcessorFactoryControl,
 	listenCloseFactories []utils.ListenCloser,
 	consumerFactories []consumers.ConsumerFactory,
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
@@ -392,19 +387,6 @@ func runStreamProcessorManagers(
 				return
 			}
 		} else {
-			for _, factory := range factories {
-				for instpos := 0; instpos < factory.Instances; instpos++ {
-					wg.Add(1)
-					go func(factory stream.ProcessorFactory, idx int, maxidx int) {
-						defer wg.Done()
-
-						// Create and start processor manager
-						pm := stream.NewProcessorManager(sc, *config, factory, idx, maxidx)
-						runListenCloser(pm)
-					}(factory.Factory, instpos, factory.Instances)
-				}
-			}
-
 			for _, listenCloseFactory := range listenCloseFactories {
 				wg.Add(1)
 				go func(lc utils.ListenCloser) {
@@ -413,6 +395,7 @@ func runStreamProcessorManagers(
 				}(listenCloseFactory)
 			}
 		}
+
 		wg.Wait()
 	}
 }

@@ -44,6 +44,7 @@ const (
 	TableTxPool                           = "tx_pool"
 	TableKeyValueStore                    = "key_value_store"
 	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
+	TableNodeIndex                        = "node_index"
 )
 
 type Persist interface {
@@ -403,6 +404,23 @@ type Persist interface {
 		dbr.SessionRunner,
 		*CvmTransactionsTxdataTrace,
 		bool,
+	) error
+
+	QueryNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
+	) (*NodeIndex, error)
+	InsertNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
+		bool,
+	) error
+	UpdateNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
 	) error
 }
 
@@ -2211,6 +2229,71 @@ func (p *persist) InsertCvmTransactionsTxdataTrace(
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdataTrace, true, err)
 		}
+	}
+	return nil
+}
+
+type NodeIndex struct {
+	Topic string
+	Idx   uint64
+}
+
+func (p *persist) QueryNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *NodeIndex,
+) (*NodeIndex, error) {
+	v := &NodeIndex{}
+	err := sess.Select(
+		"topic",
+		"idx",
+	).From(TableNodeIndex).
+		Where("topic=?", q.Topic).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *NodeIndex,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableNodeIndex).
+		Pair("topic", v.Topic).
+		Pair("idx", v.Idx).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableNodeIndex, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableNodeIndex).
+			Set("idx", v.Idx).
+			Where("topic=?", v.Topic).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableNodeIndex, true, err)
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *NodeIndex,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableNodeIndex).
+		Set("idx", v.Idx).
+		Where("topic=?", v.Topic).
+		ExecContext(ctx)
+	if err != nil {
+		return EventErr(TableNodeIndex, true, err)
 	}
 	return nil
 }

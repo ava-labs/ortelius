@@ -6,7 +6,6 @@ package stream
 import (
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/ava-labs/ortelius/services"
 	kafkaMessage "github.com/segmentio/kafka-go"
@@ -61,10 +60,6 @@ func NewMessageWithKafka(id string,
 	kafkaMessage *kafkaMessage.Message,
 ) services.Consumable {
 	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond, kafkaMessage: kafkaMessage}
-}
-
-func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
-	return path.Join(root, fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType))
 }
 
 func GetTopicName(networkID uint32, chainID string, eventType EventType) string {
