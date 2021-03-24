@@ -218,20 +218,15 @@ func IndexerFactories(
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = conns.Close()
-	}()
 
 	ctrl.msgChan = make(chan *IndexerFactoryContainer, MaxChanSize)
 	ctrl.doneCh = make(chan struct{})
 
-	defer func() {
-		close(ctrl.doneCh)
-	}()
-
 	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
 		if err != nil {
+			_ = conns.Close()
+			close(ctrl.doneCh)
 			return err
 		}
 		go ctrl.handleTxPool(conns1)
@@ -239,7 +234,11 @@ func IndexerFactories(
 
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer func() {
+			wg.Done()
+			close(ctrl.doneCh)
+			_ = conns.Close()
+		}()
 		for !runningUtil.IsStopped() {
 			sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
 			iterator, err := sess.Select(
