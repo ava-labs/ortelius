@@ -383,12 +383,12 @@ func runStreamProcessorManagers(
 
 		for _, listenCloseFactory := range listenCloseFactories {
 			wg.Add(1)
-			go func() {
+			go func(lc utils.ListenCloser) {
 				wg.Done()
-				if err := listenCloseFactory.Listen(); err != nil {
+				if err := lc.Listen(); err != nil {
 					log.Fatalln("Daemon listen error:", err.Error())
 				}
-			}()
+			}(listenCloseFactory)
 		}
 
 		// Wait for exit signal
