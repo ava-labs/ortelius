@@ -363,6 +363,7 @@ func runStreamProcessorManagers(
 			*runError = err
 			return
 		}
+
 		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 		if err != nil {
 			*runError = err
@@ -372,19 +373,37 @@ func runStreamProcessorManagers(
 		// start the accumulator at startup
 		sc.BalanceAccumulatorManager.Run(sc)
 
-		for _, listenCloseFactory := range listenCloseFactories {
-			wg.Add(1)
-			go func(lc utils.ListenCloser) {
-				defer wg.Done()
-				runListenCloser(lc)
-			}(listenCloseFactory)
-		}
+		runningUtil := utils.NewRunning()
 
-		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
+		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB, wg, runningUtil)
 		if err != nil {
 			*runError = err
 			return
 		}
+
+		for _, listenCloseFactory := range listenCloseFactories {
+			wg.Add(1)
+			go func() {
+				wg.Done()
+				if err := listenCloseFactory.Listen(); err != nil {
+					log.Fatalln("Daemon listen error:", err.Error())
+				}
+			}()
+		}
+
+		// Wait for exit signal
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		<-sigCh
+
+		for _, listenCloseFactory := range listenCloseFactories {
+			// Stop server
+			if err := listenCloseFactory.Close(); err != nil {
+				log.Println("Daemon shutdown error:", err.Error())
+			}
+		}
+
+		runningUtil.Close()
 
 		wg.Wait()
 	}

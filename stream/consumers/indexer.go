@@ -173,7 +173,14 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	}
 }
 
-func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB []stream.ProcessorFactoryChainDB, factoriesInstDB []stream.ProcessorFactoryInstDB) error {
+func IndexerFactories(
+	sc *services.Control,
+	config *cfg.Config,
+	factoriesChainDB []stream.ProcessorFactoryChainDB,
+	factoriesInstDB []stream.ProcessorFactoryInstDB,
+	wg *sync.WaitGroup,
+	runningUtil utils.Running,
+) error {
 	ctrl := &IndexerFactoryControl{sc: sc}
 	ctrl.fsm = make(map[string]stream.ProcessorDB)
 	var topicNames []string
@@ -230,72 +237,78 @@ func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB
 		go ctrl.handleTxPool(conns1)
 	}
 
-	for {
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
-		iterator, err := sess.Select(
-			"id",
-			"network_id",
-			"chain_id",
-			"msg_key",
-			"serialization",
-			"processed",
-			"topic",
-			"created_at",
-		).From(services.TableTxPool).
-			Where("processed=? and topic in ?", 0, topicNames).
-			OrderAsc("processed").OrderAsc("created_at").
-			Iterate()
-		if err != nil {
-			sc.Log.Warn("iter %v", err)
-			time.Sleep(250 * time.Millisecond)
-			continue
-		}
-
-		errs := &avlancheGoUtils.AtomicInterface{}
-
-		var readMessages uint64
-
-		for iterator.Next() {
-			if errs.GetValue() != nil {
-				break
-			}
-
-			if readMessages > MaximumRecordsRead {
-				break
-			}
-
-			err = iterator.Err()
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		for !runningUtil.IsStopped() {
+			sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
+			iterator, err := sess.Select(
+				"id",
+				"network_id",
+				"chain_id",
+				"msg_key",
+				"serialization",
+				"processed",
+				"topic",
+				"created_at",
+			).From(services.TableTxPool).
+				Where("processed=? and topic in ?", 0, topicNames).
+				OrderAsc("processed").OrderAsc("created_at").
+				Iterate()
 			if err != nil {
-				if err != io.EOF {
-					sc.Log.Error("iterator err %v", err)
+				sc.Log.Warn("iter %v", err)
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
+
+			errs := &avlancheGoUtils.AtomicInterface{}
+
+			var readMessages uint64
+
+			for iterator.Next() {
+				if errs.GetValue() != nil {
+					break
 				}
-				break
+
+				if readMessages > MaximumRecordsRead {
+					break
+				}
+
+				err = iterator.Err()
+				if err != nil {
+					if err != io.EOF {
+						sc.Log.Error("iterator err %v", err)
+					}
+					break
+				}
+
+				txp := &services.TxPool{}
+				err = iterator.Scan(txp)
+				if err != nil {
+					sc.Log.Error("scan %v", err)
+					break
+				}
+				readMessages++
+				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
+				atomic.AddInt64(&ctrl.msgChanSz, 1)
 			}
 
-			txp := &services.TxPool{}
-			err = iterator.Scan(txp)
-			if err != nil {
-				sc.Log.Error("scan %v", err)
-				break
+			for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
+				time.Sleep(1 * time.Millisecond)
 			}
-			readMessages++
-			ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
-			atomic.AddInt64(&ctrl.msgChanSz, 1)
-		}
 
-		for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
-			time.Sleep(1 * time.Millisecond)
-		}
+			if errs.GetValue() != nil {
+				err := errs.GetValue().(error)
+				sc.Log.Error("processing err %v", err)
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
 
-		if errs.GetValue() != nil {
-			err := errs.GetValue().(error)
-			sc.Log.Error("processing err %v", err)
-			time.Sleep(250 * time.Millisecond)
-			continue
+			if readMessages == 0 {
+				time.Sleep(500 * time.Millisecond)
+			}
 		}
+	}()
 
-		if readMessages == 0 {
-			time.Sleep(500 * time.Millisecond)
-		}
-	}
+	return nil
 }

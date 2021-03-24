@@ -80,7 +80,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 func (*Writer) Name() string { return "avm-index" }
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	tx, err := parseTx(w.codec, txBytes)
+	tx, _, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(w.codec, txBytes)
+	tx, _, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return err
 	}

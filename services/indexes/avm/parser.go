@@ -21,19 +21,19 @@ import (
 
 const MaxCodecSize = 100_000_000
 
-func parseTx(c codec.Manager, bytes []byte) (*avm.Tx, error) {
+func parseTx(c codec.Manager, bytes []byte) (*avm.Tx, uint16, error) {
 	tx := &avm.Tx{}
 	ver, err := c.Unmarshal(bytes, tx)
 	if err != nil {
-		return nil, err
+		return nil, ver, err
 	}
 	unsignedBytes, err := c.Marshal(ver, &tx.UnsignedTx)
 	if err != nil {
-		return nil, err
+		return nil, ver, err
 	}
 
 	tx.Initialize(unsignedBytes, bytes)
-	return tx, nil
+	return tx, ver, nil
 }
 
 // newAVMCodec creates codec that can parse avm objects

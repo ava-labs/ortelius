@@ -78,23 +78,28 @@ func NewClient(uri string, chain IndexedChain, indexType IndexType, requestTimeo
 }
 
 type FormattedContainer struct {
-	ID        string              `json:"id"`
+	ID        ids.ID              `json:"id"`
 	Bytes     string              `json:"bytes"`
 	Timestamp time.Time           `json:"timestamp"`
 	Encoding  formatting.Encoding `json:"encoding"`
+	Index     json.Uint64         `json:"index"`
 }
+
 type GetContainerRange struct {
 	StartIndex json.Uint64         `json:"startIndex"`
 	NumToFetch json.Uint64         `json:"numToFetch"`
 	Encoding   formatting.Encoding `json:"encoding"`
 }
+
 type GetContainer struct {
 	Index    json.Uint64         `json:"index"`
 	Encoding formatting.Encoding `json:"encoding"`
 }
+
 type GetLastAcceptedArgs struct {
 	Encoding formatting.Encoding `json:"encoding"`
 }
+
 type GetIndexArgs struct {
 	ContainerID ids.ID              `json:"containerID"`
 	Encoding    formatting.Encoding `json:"encoding"`

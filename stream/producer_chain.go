@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 
@@ -36,7 +38,7 @@ const (
 type producerChainContainer struct {
 	sc          *services.Control
 	conns       *services.Connections
-	quitCh      chan struct{}
+	runningUtil utils.Running
 	nodeIndexer *indexer.Client
 	conf        cfg.Config
 	nodeIndex   *services.NodeIndex
@@ -51,7 +53,7 @@ func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Cl
 	}
 
 	pc := &producerChainContainer{
-		quitCh:      make(chan struct{}, 1),
+		runningUtil: utils.NewRunning(),
 		chainID:     chainID,
 		conns:       conns,
 		sc:          sc,
@@ -193,15 +195,6 @@ func (p *producerChainContainer) updateTxPool(conns *services.Connections, txPoo
 	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
 }
 
-func (p *producerChainContainer) isStopping() bool {
-	select {
-	case <-p.quitCh:
-		return true
-	default:
-		return false
-	}
-}
-
 type ProducerChain struct {
 	id string
 	sc *services.Control
@@ -213,8 +206,7 @@ type ProducerChain struct {
 
 	conf cfg.Config
 
-	// Concurrency control
-	quitCh chan struct{}
+	runningUtil utils.Running
 
 	topic string
 
@@ -239,7 +231,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_%s", chainID, eventType),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 		id:                      fmt.Sprintf("producer %d %s %s", conf.NetworkID, chainID, eventType),
-		quitCh:                  make(chan struct{}),
+		runningUtil:             utils.NewRunning(),
 		nodeIndexer:             nodeIndexer,
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
@@ -251,7 +243,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 }
 
 func (p *ProducerChain) Close() error {
-	close(p.quitCh)
+	p.runningUtil.Close()
 	return nil
 }
 
@@ -273,7 +265,7 @@ func (p *ProducerChain) Listen() error {
 	p.sc.Log.Info("Started worker manager for %s", p.ID())
 	defer p.sc.Log.Info("Exiting worker manager for %s", p.ID())
 
-	for !p.isStopping() {
+	for !p.runningUtil.IsStopped() {
 		err := p.runProcessor()
 
 		// If there was an error we want to log it, and iff we are not stopping
@@ -281,7 +273,7 @@ func (p *ProducerChain) Listen() error {
 		if err != nil {
 			p.sc.Log.Error("Error running worker: %s", err.Error())
 		}
-		if p.isStopping() {
+		if p.runningUtil.IsStopped() {
 			break
 		}
 		if err != nil {
@@ -292,22 +284,12 @@ func (p *ProducerChain) Listen() error {
 	return nil
 }
 
-// isStopping returns true iff quitCh has been signaled
-func (p *ProducerChain) isStopping() bool {
-	select {
-	case <-p.quitCh:
-		return true
-	default:
-		return false
-	}
-}
-
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerChain) runProcessor() error {
 	id := p.ID()
 
-	if p.isStopping() {
+	if p.runningUtil.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
@@ -326,7 +308,7 @@ func (p *ProducerChain) runProcessor() error {
 		t.Stop()
 		close(tdoneCh)
 		if pc != nil {
-			close(pc.quitCh)
+			pc.runningUtil.Close()
 			wgpc.Wait()
 
 			err := pc.Close()
@@ -390,7 +372,7 @@ func (p *ProducerChain) runProcessor() error {
 			select {
 			case <-t.C:
 				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.isStopping() || pc.isStopping() {
+				if p.runningUtil.IsStopped() || pc.runningUtil.IsStopped() {
 					return
 				}
 			case <-tdoneCh:
@@ -401,7 +383,7 @@ func (p *ProducerChain) runProcessor() error {
 
 	// Process messages until asked to stop
 	for {
-		if p.isStopping() || pc.isStopping() {
+		if p.runningUtil.IsStopped() || pc.runningUtil.IsStopped() {
 			break
 		}
 		err := processNextMessage()
