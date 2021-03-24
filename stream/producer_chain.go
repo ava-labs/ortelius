@@ -41,9 +41,10 @@ type producerChainContainer struct {
 	conf        cfg.Config
 	nodeIndex   *services.NodeIndex
 	topic       string
+	chainID     string
 }
 
-func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string) (*producerChainContainer, error) {
+func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string, chainID string) (*producerChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
@@ -51,6 +52,7 @@ func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Cl
 
 	pc := &producerChainContainer{
 		quitCh:      make(chan struct{}, 1),
+		chainID:     chainID,
 		conns:       conns,
 		sc:          sc,
 		nodeIndexer: nodeIndexer,
@@ -125,7 +127,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 
 		txPool := &services.TxPool{
 			NetworkID:     p.conf.NetworkID,
-			ChainID:       p.conf.CchainID,
+			ChainID:       p.chainID,
 			MsgKey:        hid.String(),
 			Serialization: decodeBytes,
 			Processed:     0,
@@ -214,6 +216,7 @@ type ProducerChain struct {
 	topic string
 
 	nodeIndexer *indexer.Client
+	chainID     string
 }
 
 func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eventType EventType, indexerType indexer.IndexType, indexerChain indexer.IndexedChain) (*ProducerChain, error) {
@@ -225,6 +228,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 	}
 
 	p := &ProducerChain{
+		chainID:                 chainID,
 		topic:                   topicName,
 		conf:                    conf,
 		sc:                      sc,
@@ -330,7 +334,7 @@ func (p *ProducerChain) runProcessor() error {
 	}()
 
 	var err error
-	pc, err = newContainer(p.sc, p.conf, p.nodeIndexer, p.topic)
+	pc, err = newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID)
 	if err != nil {
 		return err
 	}
