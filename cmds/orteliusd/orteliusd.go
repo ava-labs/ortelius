@@ -258,7 +258,6 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
 		Run: runStreamProcessorManagers(
-			true,
 			sc,
 			config,
 			runErr,
@@ -346,7 +345,6 @@ func runListenCloser(lc utils.ListenCloser) {
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
 func runStreamProcessorManagers(
-	indexer bool,
 	sc *services.Control,
 	config *cfg.Config,
 	runError *error,
@@ -358,42 +356,32 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		if indexer {
-			err := sc.BalanceAccumulatorManager.Start()
-			if err != nil {
-				*runError = err
-				return
-			}
-			err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
-			if err != nil {
-				*runError = err
-				return
-			}
+		err := sc.BalanceAccumulatorManager.Start()
+		if err != nil {
+			*runError = err
+			return
+		}
+		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+		if err != nil {
+			*runError = err
+			return
+		}
 
-			// start the accumulator at startup
-			sc.BalanceAccumulatorManager.Run(sc)
+		// start the accumulator at startup
+		sc.BalanceAccumulatorManager.Run(sc)
 
-			for _, listenCloseFactory := range listenCloseFactories {
-				wg.Add(1)
-				go func(lc utils.ListenCloser) {
-					defer wg.Done()
-					runListenCloser(lc)
-				}(listenCloseFactory)
-			}
+		for _, listenCloseFactory := range listenCloseFactories {
+			wg.Add(1)
+			go func(lc utils.ListenCloser) {
+				defer wg.Done()
+				runListenCloser(lc)
+			}(listenCloseFactory)
+		}
 
-			err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
-			if err != nil {
-				*runError = err
-				return
-			}
-		} else {
-			for _, listenCloseFactory := range listenCloseFactories {
-				wg.Add(1)
-				go func(lc utils.ListenCloser) {
-					defer wg.Done()
-					runListenCloser(lc)
-				}(listenCloseFactory)
-			}
+		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
+		if err != nil {
+			*runError = err
+			return
 		}
 
 		wg.Wait()
