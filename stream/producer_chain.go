@@ -58,7 +58,7 @@ func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Cl
 	}
 
 	// init the node index table
-	err = pc.updateNodeIndex(pc.conns, &services.NodeIndex{Topic: pc.topic, Idx: 0})
+	err = pc.insertNodeIndex(pc.conns, &services.NodeIndex{Topic: pc.topic, Idx: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +158,15 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	}
 
 	return nil
+}
+
+func (p *producerChainContainer) insertNodeIndex(conns *services.Connections, nodeIndex *services.NodeIndex) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-node-index"))
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
+	defer cancelCtx()
+
+	return p.sc.Persist.InsertNodeIndex(ctx, sess, nodeIndex, cfg.PerformUpdates)
 }
 
 func (p *producerChainContainer) updateNodeIndex(conns *services.Connections, nodeIndex *services.NodeIndex) error {
