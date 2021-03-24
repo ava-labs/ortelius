@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,7 +114,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		return ErrNoMessage
 	}
 	for _, container := range containers {
-		decodeBytes, err := hex.DecodeString(container.Bytes)
+		decodeBytes, err := hex.DecodeString(strings.TrimPrefix(container.Bytes, "0x"))
 		if err != nil {
 			return err
 		}
