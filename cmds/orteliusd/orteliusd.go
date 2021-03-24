@@ -257,22 +257,24 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run: runStreamProcessorManagers(
-			sc,
-			config,
-			runErr,
-			producerFactories(sc, config),
-			[]consumers.ConsumerFactory{
-				consumers.IndexerConsumer,
-			},
-			[]stream.ProcessorFactoryChainDB{
-				consumers.IndexerDB,
-				consumers.IndexerConsensusDB,
-			},
-			[]stream.ProcessorFactoryInstDB{
-				consumers.IndexerCChainDB(),
-			},
-		),
+		Run: func(cmd *cobra.Command, arg []string) {
+			runStreamProcessorManagers(
+				sc,
+				config,
+				runErr,
+				producerFactories(sc, config),
+				[]consumers.ConsumerFactory{
+					consumers.IndexerConsumer,
+				},
+				[]stream.ProcessorFactoryChainDB{
+					consumers.IndexerDB,
+					consumers.IndexerConsensusDB,
+				},
+				[]stream.ProcessorFactoryInstDB{
+					consumers.IndexerCChainDB(),
+				},
+			)(cmd, arg)
+		},
 	})
 
 	return streamCmd
