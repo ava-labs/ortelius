@@ -12,6 +12,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/genesis"
+	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/nftfx"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -31,8 +43,9 @@ import (
 )
 
 const (
-	IndexerTimeout = 3 * time.Minute
-	MaxTxRead      = 1024
+	IndexerTimeout   = 3 * time.Minute
+	MaxTxRead        = 1024
+	errTrailingSpace = "trailing buffer space"
 )
 
 type producerChainContainer struct {
@@ -44,15 +57,21 @@ type producerChainContainer struct {
 	nodeIndex      *services.NodeIndex
 	topic          string
 	chainID        string
+	codecMgr       codec.Manager
+	indexerType    indexer.IndexType
+	indexerChain   indexer.IndexedChain
 }
 
-func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string, chainID string) (*producerChainContainer, error) {
+func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string, chainID string, indexerType indexer.IndexType, indexerChain indexer.IndexedChain, codecMgr codec.Manager) (*producerChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
 	}
 
 	pc := &producerChainContainer{
+		indexerType:    indexerType,
+		indexerChain:   indexerChain,
+		codecMgr:       codecMgr,
 		runningControl: utils.NewRunning(),
 		chainID:        chainID,
 		conns:          conns,
@@ -125,6 +144,12 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		if err != nil {
 			return err
 		}
+
+		decodeBytes, err = p.processBytes(decodeBytes)
+		if err != nil {
+			return err
+		}
+
 		hid, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
 		if err != nil {
 			return err
@@ -195,6 +220,39 @@ func (p *producerChainContainer) updateTxPool(conns *services.Connections, txPoo
 	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
 }
 
+func (p *producerChainContainer) processBytes(bytes []byte) ([]byte, error) {
+	switch p.indexerChain {
+	case indexer.XChain:
+		switch p.indexerType {
+		case indexer.IndexTypeTransactions:
+			tx := &avm.Tx{}
+			ver, err := p.codecMgr.Unmarshal(bytes, tx)
+			if err == nil {
+				return bytes, nil
+			}
+			if err.Error() != errTrailingSpace {
+				return nil, err
+			}
+			return p.codecMgr.Marshal(ver, tx)
+		case indexer.IndexTypeVertices:
+			return bytes, nil
+		}
+	case indexer.PChain:
+		if p.indexerType == indexer.IndexTypeBlocks {
+			var block platformvm.Block
+			ver, err := p.codecMgr.Unmarshal(bytes, &block)
+			if err == nil {
+				return bytes, nil
+			}
+			if err.Error() != errTrailingSpace {
+				return bytes, err
+			}
+			return p.codecMgr.Marshal(ver, &block)
+		}
+	}
+	return bytes, nil
+}
+
 type ProducerChain struct {
 	id string
 	sc *services.Control
@@ -210,12 +268,27 @@ type ProducerChain struct {
 
 	topic string
 
-	nodeIndexer *indexer.Client
-	chainID     string
+	nodeIndexer  *indexer.Client
+	chainID      string
+	codecMgr     codec.Manager
+	indexerType  indexer.IndexType
+	indexerChain indexer.IndexedChain
 }
 
 func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eventType EventType, indexerType indexer.IndexType, indexerChain indexer.IndexedChain) (*ProducerChain, error) {
 	topicName := GetTopicName(conf.NetworkID, chainID, eventType)
+
+	var codecMgr codec.Manager
+	switch indexerChain {
+	case indexer.XChain:
+		codec, err := newAVMCodec(conf.NetworkID, chainID)
+		if err != nil {
+			return nil, err
+		}
+		codecMgr = codec
+	case indexer.PChain:
+		codecMgr = platformvm.Codec
+	}
 
 	nodeIndexer, err := indexer.NewClient("http://localhost:9650", indexerChain, indexerType, IndexerTimeout)
 	if err != nil {
@@ -223,6 +296,9 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 	}
 
 	p := &ProducerChain{
+		indexerType:             indexerType,
+		indexerChain:            indexerChain,
+		codecMgr:                codecMgr,
 		chainID:                 chainID,
 		topic:                   topicName,
 		conf:                    conf,
@@ -319,7 +395,7 @@ func (p *ProducerChain) runProcessor() error {
 	}()
 
 	var err error
-	pc, err = newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID)
+	pc, err = newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.codecMgr)
 	if err != nil {
 		return err
 	}
@@ -403,8 +479,79 @@ func IndexNotRaedy(err error) bool {
 }
 
 func ChainNotReady(err error) bool {
-	if strings.HasPrefix(err.Error(), "no containers have been accepted") {
-		return true
+	return strings.HasPrefix(err.Error(), "no containers have been accepted")
+}
+
+const MaxCodecSize = 100_000_000
+
+// newAVMCodec creates codec that can parse avm objects
+func newAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
+	genesisBytes, _, err := genesis.Genesis(networkID, "")
+	if err != nil {
+		return nil, err
 	}
-	return false
+
+	g, err := genesis.VMGenesis(genesisBytes, avm.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
+	if !ok {
+		return nil, fmt.Errorf("invalid chain")
+	}
+
+	bcLookup := &ids.Aliaser{}
+	bcLookup.Initialize()
+	id, err := ids.FromString(chainID)
+	if err != nil {
+		return nil, err
+	}
+	if err = bcLookup.Alias(id, "X"); err != nil {
+		return nil, err
+	}
+
+	var (
+		fxIDs = createChainTx.FxIDs
+		fxs   = make([]*common.Fx, 0, len(fxIDs))
+		ctx   = &snow.Context{
+			NetworkID:     networkID,
+			ChainID:       id,
+			Log:           logging.NoLog{},
+			Metrics:       prometheus.NewRegistry(),
+			BCLookup:      bcLookup,
+			EpochDuration: time.Hour,
+		}
+	)
+	for _, fxID := range fxIDs {
+		switch {
+		case fxID == secp256k1fx.ID:
+			fxs = append(fxs, &common.Fx{
+				Fx: &secp256k1fx.Fx{},
+				ID: fxID,
+			})
+		case fxID == nftfx.ID:
+			fxs = append(fxs, &common.Fx{
+				Fx: &nftfx.Fx{},
+				ID: fxID,
+			})
+		default:
+			// return nil, fmt.Errorf("Unknown FxID: %s", fxID)
+		}
+	}
+
+	db := &utils.NoopDatabase{}
+
+	// Initialize an producer to use for tx parsing
+	// An error is returned about the DB being closed but this is expected because
+	// we're not using a real DB here.
+	vm := &avm.VM{}
+	err = vm.Initialize(ctx, db, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
+	if err != nil && err != database.ErrClosed {
+		return nil, err
+	}
+
+	vm.Codec().SetMaxSize(MaxCodecSize)
+
+	return vm.Codec(), nil
 }
