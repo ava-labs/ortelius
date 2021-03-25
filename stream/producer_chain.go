@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/genesis"
@@ -235,7 +237,16 @@ func (p *producerChainContainer) processBytes(bytes []byte) ([]byte, error) {
 			}
 			return p.codecMgr.Marshal(ver, tx)
 		case indexer.IndexTypeVertices:
-			return bytes, nil
+			var vert vertex.StatelessVertex
+			vert, err := vertex.Parse(bytes)
+			if err == nil {
+				return bytes, nil
+			}
+			if err.Error() != errTrailingSpace {
+				return nil, err
+			}
+			vert, err = vertex.Build(vert.ChainID(), vert.Height(), vert.Epoch(), vert.ParentIDs(), vert.Txs(), vert.Restrictions())
+			return vertex.Codec.Marshal(vert.Version(), vert)
 		}
 	case indexer.PChain:
 		if p.indexerType == indexer.IndexTypeBlocks {
