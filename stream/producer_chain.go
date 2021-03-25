@@ -5,14 +5,11 @@ package stream
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
@@ -45,9 +42,8 @@ import (
 )
 
 const (
-	IndexerTimeout   = 3 * time.Minute
-	MaxTxRead        = 1024
-	errTrailingSpace = "trailing buffer space"
+	IndexerTimeout = 3 * time.Minute
+	MaxTxRead      = 1024
 )
 
 type producerChainContainer struct {
@@ -142,17 +138,12 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		return ErrNoMessage
 	}
 	for _, container := range containers {
-		decodeBytes, err := hex.DecodeString(strings.TrimPrefix(container.Bytes, "0x"))
+		decodeBytes, err := formatting.Decode(formatting.Hex, container.Bytes)
 		if err != nil {
 			return err
 		}
 
-		decodeBytes, err = p.processBytes(decodeBytes)
-		if err != nil {
-			return err
-		}
-
-		hid, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
+		id, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
 		if err != nil {
 			return err
 		}
@@ -160,7 +151,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		txPool := &services.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.chainID,
-			MsgKey:        hid.String(),
+			MsgKey:        id.String(),
 			Serialization: decodeBytes,
 			Processed:     0,
 			Topic:         p.topic,
@@ -220,48 +211,6 @@ func (p *producerChainContainer) updateTxPool(conns *services.Connections, txPoo
 	defer cancelCtx()
 
 	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
-}
-
-func (p *producerChainContainer) processBytes(bytes []byte) ([]byte, error) {
-	switch p.indexerChain {
-	case indexer.XChain:
-		switch p.indexerType {
-		case indexer.IndexTypeTransactions:
-			tx := &avm.Tx{}
-			ver, err := p.codecMgr.Unmarshal(bytes, tx)
-			if err == nil {
-				return bytes, nil
-			}
-			if err.Error() != errTrailingSpace {
-				return nil, err
-			}
-			return p.codecMgr.Marshal(ver, tx)
-		case indexer.IndexTypeVertices:
-			var vert vertex.StatelessVertex
-			vert, err := vertex.Parse(bytes)
-			if err == nil {
-				return bytes, nil
-			}
-			if err.Error() != errTrailingSpace {
-				return nil, err
-			}
-			vert, err = vertex.Build(vert.ChainID(), vert.Height(), vert.Epoch(), vert.ParentIDs(), vert.Txs(), vert.Restrictions())
-			return vertex.Codec.Marshal(vert.Version(), vert)
-		}
-	case indexer.PChain:
-		if p.indexerType == indexer.IndexTypeBlocks {
-			var block platformvm.Block
-			ver, err := p.codecMgr.Unmarshal(bytes, &block)
-			if err == nil {
-				return bytes, nil
-			}
-			if err.Error() != errTrailingSpace {
-				return bytes, err
-			}
-			return p.codecMgr.Marshal(ver, &block)
-		}
-	}
-	return bytes, nil
 }
 
 type ProducerChain struct {
