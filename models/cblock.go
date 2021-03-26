@@ -21,7 +21,6 @@ type Block struct {
 func New(bl *types.Block) (*Block, error) {
 	var cblock Block
 	cblock.Version = bl.Version()
-	cblock.ReceivedAt = time.Unix(0,0)
 	cblock.BlockExtraData = bl.ExtData()
 	var h *types.Header = bl.Header()
 	if h != nil {
