@@ -26,20 +26,25 @@ func KeyFromParts(parts ...string) string {
 	return strings.Join(parts, CacheSeparator)
 }
 
-type Cache struct {
+type Cache interface {
+	Get(context.Context, string) ([]byte, error)
+	Set(context.Context, string, []byte, time.Duration) error
+}
+
+type cacheContainer struct {
 	cache      *cache.Cache
 	defaultTTL time.Duration
 }
 
-func New(redisConn *redis.Client) *Cache {
+func New(redisConn *redis.Client) Cache {
 	c := cache.New(&cache.Options{
 		Redis: redisConn,
 	})
 
-	return &Cache{cache: c, defaultTTL: DefaultTTL}
+	return &cacheContainer{cache: c, defaultTTL: DefaultTTL}
 }
 
-func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
+func (c *cacheContainer) Get(ctx context.Context, key string) ([]byte, error) {
 	resp := []byte{}
 	err := c.cache.Get(ctx, key, &resp)
 	if err != nil {
@@ -48,7 +53,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	return resp, nil
 }
 
-func (c *Cache) Set(ctx context.Context, key string, bytes []byte, ttl time.Duration) error {
+func (c *cacheContainer) Set(ctx context.Context, key string, bytes []byte, ttl time.Duration) error {
 	if ttl < 1 {
 		ttl = c.defaultTTL
 	}
