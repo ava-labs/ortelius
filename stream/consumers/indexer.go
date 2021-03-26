@@ -152,19 +152,19 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 		case txd := <-c.msgChan:
 			atomic.AddInt64(&c.msgChanSz, -1)
 			if txd.errs.GetValue() != nil {
-				return
+				continue
 			}
 			if p, ok := c.fsm[txd.txPool.Topic]; ok {
 				err := p.Process(conns, txd.txPool)
 				if err != nil {
 					txd.errs.SetValue(err)
-					return
+					continue
 				}
 				txd.txPool.Processed = 1
 				err = c.updateTxPollStatus(conns, txd.txPool)
 				if err != nil {
 					txd.errs.SetValue(err)
-					return
+					continue
 				}
 			}
 		case <-c.doneCh:
