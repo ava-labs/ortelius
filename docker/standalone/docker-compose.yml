@@ -10,7 +10,7 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.2.3"
+    image: "avaplatform/avalanchego:v1.3.0"
     command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
@@ -28,7 +28,7 @@ services:
       - producer
     restart: always
   producer: &ortelius-app
-    image: "avaplatform/ortelius:9d45760"
+    image: "avaplatform/ortelius:2c09c84"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services
