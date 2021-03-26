@@ -250,7 +250,7 @@ func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eve
 		codecMgr = platformvm.Codec
 	}
 
-	nodeIndexer, err := indexer.NewClient("http://localhost:9650", indexerChain, indexerType, IndexerTimeout)
+	nodeIndexer, err := indexer.NewClient(conf.AvalancheGO, indexerChain, indexerType, IndexerTimeout)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,7 @@
         "kafka:9092"
       ]
     },
+    "avalanchego": "http://avalanche:9650",
     "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
     "producer": {
       "ipcRoot": "/tmp",
