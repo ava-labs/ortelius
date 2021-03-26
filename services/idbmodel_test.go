@@ -1562,6 +1562,9 @@ func TestNodeIndex(t *testing.T) {
 
 	v.Idx = 3
 	err = p.UpdateNodeIndex(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
 	fv, err = p.QueryNodeIndex(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
 		t.Fatal("query fail", err)
