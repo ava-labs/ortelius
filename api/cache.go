@@ -34,6 +34,10 @@ func cacheKey(networkID uint32, parts ...string) string {
 
 type nullCache struct{}
 
+func NewNullCache() cache.Cache {
+	return &nullCache{}
+}
+
 func (nullCache) Get(_ context.Context, _ string) ([]byte, error) {
 	return nil, nil
 }
