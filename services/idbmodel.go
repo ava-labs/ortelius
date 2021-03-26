@@ -2264,7 +2264,7 @@ func (p *persist) InsertNodeIndex(
 	var err error
 	_, err = sess.
 		InsertInto(TableNodeIndex).
-		Pair("topic", v.Instance).
+		Pair("instance", v.Instance).
 		Pair("topic", v.Topic).
 		Pair("idx", v.Idx).
 		ExecContext(ctx)
