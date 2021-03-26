@@ -26,8 +26,24 @@ import (
 	"github.com/ava-labs/ortelius/stream/consumers"
 )
 
-type DBReplay interface {
+type Replay interface {
 	Start() error
+}
+
+type ConsumeType uint32
+
+var (
+	CONSUME          ConsumeType = 1
+	CONSUMECONSENSUS ConsumeType = 2
+	CONSUMEC         ConsumeType = 3
+)
+
+type WorkerPacket struct {
+	writer      services.Consumer
+	cwriter     *cvm.Writer
+	message     services.Consumable
+	consumeType ConsumeType
+	block       *cblock.Block
 }
 
 func NewDB(sc *services.Control, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {

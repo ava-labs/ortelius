@@ -18,7 +18,6 @@ require (
 	github.com/gorilla/rpc v1.2.0
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/prometheus/client_golang v1.7.1
-	github.com/segmentio/kafka-go v0.4.9
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
 	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
