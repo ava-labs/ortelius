@@ -53,6 +53,7 @@ type producerChainContainer struct {
 	nodeIndexer    *indexer.Client
 	conf           cfg.Config
 	nodeIndex      *services.NodeIndex
+	nodeinstance   string
 	topic          string
 	chainID        string
 	codecMgr       codec.Manager
@@ -77,10 +78,11 @@ func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Cl
 		nodeIndexer:    nodeIndexer,
 		conf:           conf,
 		topic:          topic,
+		nodeinstance:   conf.NodeInstance,
 	}
 
 	// init the node index table
-	err = pc.insertNodeIndex(pc.conns, &services.NodeIndex{Topic: pc.topic, Idx: 0})
+	err = pc.insertNodeIndex(pc.conns, &services.NodeIndex{Instance: pc.nodeinstance, Topic: pc.topic, Idx: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +110,13 @@ func (p *producerChainContainer) getIndex() error {
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
-	qn := &services.NodeIndex{Topic: p.topic}
+	qn := &services.NodeIndex{Instance: p.nodeinstance, Topic: p.topic}
 	nodeIndex, err := p.sc.Persist.QueryNodeIndex(ctx, sess, qn)
 	if err != nil {
 		return err
 	}
 	p.nodeIndex = nodeIndex
+	p.nodeIndex.Instance = p.nodeinstance
 	p.nodeIndex.Topic = p.topic
 	p.sc.Log.Info("starting processing %d", p.nodeIndex.Idx)
 	return nil
@@ -168,8 +171,9 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	}
 
 	nodeIdx := &services.NodeIndex{
-		Topic: p.topic,
-		Idx:   p.nodeIndex.Idx + uint64(len(containers)),
+		Instance: p.nodeinstance,
+		Topic:    p.topic,
+		Idx:      p.nodeIndex.Idx + uint64(len(containers)),
 	}
 
 	err = p.updateNodeIndex(p.conns, nodeIdx)

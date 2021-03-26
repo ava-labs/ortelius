@@ -2234,8 +2234,9 @@ func (p *persist) InsertCvmTransactionsTxdataTrace(
 }
 
 type NodeIndex struct {
-	Topic string
-	Idx   uint64
+	Instance string
+	Topic    string
+	Idx      uint64
 }
 
 func (p *persist) QueryNodeIndex(
@@ -2245,10 +2246,11 @@ func (p *persist) QueryNodeIndex(
 ) (*NodeIndex, error) {
 	v := &NodeIndex{}
 	err := sess.Select(
+		"instance",
 		"topic",
 		"idx",
 	).From(TableNodeIndex).
-		Where("topic=?", q.Topic).
+		Where("instance=? and topic=?", q.Instance, q.Topic).
 		LoadOneContext(ctx, v)
 	return v, err
 }
@@ -2262,6 +2264,7 @@ func (p *persist) InsertNodeIndex(
 	var err error
 	_, err = sess.
 		InsertInto(TableNodeIndex).
+		Pair("topic", v.Instance).
 		Pair("topic", v.Topic).
 		Pair("idx", v.Idx).
 		ExecContext(ctx)
@@ -2272,7 +2275,7 @@ func (p *persist) InsertNodeIndex(
 		_, err = sess.
 			Update(TableNodeIndex).
 			Set("idx", v.Idx).
-			Where("topic=?", v.Topic).
+			Where("instance=? and topic=?", v.Instance, v.Topic).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableNodeIndex, true, err)
@@ -2290,7 +2293,7 @@ func (p *persist) UpdateNodeIndex(
 	_, err = sess.
 		Update(TableNodeIndex).
 		Set("idx", v.Idx).
-		Where("topic=?", v.Topic).
+		Where("instance=? and topic=?", v.Instance, v.Topic).
 		ExecContext(ctx)
 	if err != nil {
 		return EventErr(TableNodeIndex, true, err)

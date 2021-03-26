@@ -63,11 +63,12 @@ type Redis struct {
 }
 
 type Stream struct {
-	Kafka       `json:"kafka"`
-	Producer    Producer `json:"producer"`
-	Consumer    Consumer `json:"consumer"`
-	CchainID    string   `json:"cchainId"`
-	AvalancheGO string   `json:"avalanchego"`
+	Kafka        `json:"kafka"`
+	Producer     Producer `json:"producer"`
+	Consumer     Consumer `json:"consumer"`
+	CchainID     string   `json:"cchainId"`
+	AvalancheGO  string   `json:"avalanchego"`
+	NodeInstance string   `json:"nodeInstance"`
 }
 
 type Kafka struct {
@@ -158,8 +159,9 @@ func NewFromFile(filePath string) (*Config, error) {
 			},
 		},
 		Stream: Stream{
-			CchainID:    streamViper.GetString(keysStreamProducerCchainID),
-			AvalancheGO: streamViper.GetString(keysStreamProducerAvalanchego),
+			CchainID:     streamViper.GetString(keysStreamProducerCchainID),
+			AvalancheGO:  streamViper.GetString(keysStreamProducerAvalanchego),
+			NodeInstance: streamViper.GetString(keysStreamProducerNodeInstance),
 			Kafka: Kafka{
 				Brokers: streamKafkaViper.GetStringSlice(keysStreamKafkaBrokers),
 			},

@@ -1513,3 +1513,63 @@ func TestCvmTransactionsTxdataTrace(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestNodeIndex(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+
+	v := &NodeIndex{}
+	v.Instance = "def"
+	v.Topic = "top"
+	v.Idx = 1
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableNodeIndex).Exec()
+
+	err = p.InsertNodeIndex(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryNodeIndex(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Idx = 2
+
+	err = p.InsertNodeIndex(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryNodeIndex(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Idx != 2 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.Idx = 3
+	err = p.UpdateNodeIndex(ctx, rawDBConn.NewSession(stream), v)
+	fv, err = p.QueryNodeIndex(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Idx != 3 {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}
