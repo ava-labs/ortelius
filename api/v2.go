@@ -703,7 +703,7 @@ func (c *V2Context) RawTransaction(w web.ResponseWriter, r *web.Request) {
 	WriteJSON(w, b)
 }
 
-func (c*V2Context) CacheAssets(w web.ResponseWriter, r *web.Request) {
+func (c *V2Context) CacheAssets(w web.ResponseWriter, r *web.Request) {
 	res := c.avaxReader.CacheAssets()
 	b, err := json.Marshal(res)
 	if err != nil {
