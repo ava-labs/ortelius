@@ -21,6 +21,11 @@ type Block struct {
 func New(bl *types.Block) (*Block, error) {
 	var cblock Block
 	cblock.Version = bl.Version()
+	tm1, err := time.Parse(time.RFC3339, "0001-01-01T00:00:00Z")
+	if err != nil {
+		return nil, err
+	}
+	cblock.ReceivedAt = tm1.UTC()
 	cblock.BlockExtraData = bl.ExtData()
 	var h *types.Header = bl.Header()
 	if h != nil {
