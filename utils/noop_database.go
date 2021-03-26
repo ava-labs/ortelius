@@ -46,6 +46,8 @@ func (*NoopDatabase) Close() error { return nil }
 // NoopBatch does nothing
 type NoopBatch struct{}
 
+func (b *NoopBatch) Size() int { return 0 }
+
 // Put returns nil
 func (*NoopBatch) Put(_, _ []byte) error { return nil }
 
