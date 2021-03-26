@@ -52,7 +52,7 @@ services:
       - producer
     restart: always
   producer: &ortelius-app
-    image: "avaplatform/ortelius:f83f43b"
+    image: "avaplatform/ortelius:2c09c84"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - mysql
