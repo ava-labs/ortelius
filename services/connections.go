@@ -30,7 +30,7 @@ type Connections struct {
 
 	db    *db.Conn
 	redis *redis.Client
-	cache *cache.Cache
+	cache cache.Cache
 }
 
 func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
@@ -104,7 +104,7 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 }
 
 func NewConnections(s *health.Stream, quietStream *health.Stream, streamDBDedup *health.Stream, db *db.Conn, r *redis.Client) *Connections {
-	var c *cache.Cache
+	var c cache.Cache
 	if r != nil {
 		c = cache.New(r)
 	}
@@ -126,7 +126,7 @@ func (c Connections) StreamDBDedup() *health.Stream { return c.streamDBDedup }
 
 func (c Connections) DB() *db.Conn         { return c.db }
 func (c Connections) Redis() *redis.Client { return c.redis }
-func (c Connections) Cache() *cache.Cache  { return c.cache }
+func (c Connections) Cache() cache.Cache   { return c.cache }
 
 func (c Connections) Close() error {
 	errs := wrappers.Errs{}
