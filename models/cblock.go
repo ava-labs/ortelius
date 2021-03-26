@@ -27,6 +27,11 @@ func New(bl *types.Block) (*Block, error) {
 	}
 	cblock.ReceivedAt = tm1.UTC()
 	cblock.BlockExtraData = bl.ExtData()
+	if cblock.BlockExtraData != nil {
+		if len(cblock.BlockExtraData) == 0 {
+			cblock.BlockExtraData = nil
+		}
+	}
 	var h *types.Header = bl.Header()
 	if h != nil {
 		cblock.Header = *h
