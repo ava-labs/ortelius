@@ -198,7 +198,7 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 
-				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:], in.TxID, in.OutputIndex)
+				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:], in.TxID, in.OutputIndex, chainID)
 				if err != nil {
 					return 0, err
 				}
@@ -269,7 +269,7 @@ func (w *Writer) InsertOutput(
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
 		addrid := ids.ShortID(addrBytes)
-		err = w.InsertOutputAddress(ctx, outputID, addrid, nil, txID, idx)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil, txID, idx, chainID)
 		if err != nil {
 			return err
 		}
@@ -334,10 +334,11 @@ func (w *Writer) InsertOutputAddress(
 	sig []byte,
 	txID ids.ID,
 	idx uint32,
+	chainID string,
 ) error {
 	addressChain := &services.AddressChain{
 		Address:   address.String(),
-		ChainID:   w.chainID,
+		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
