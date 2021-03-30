@@ -156,7 +156,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			return err
 		}
 		txIDString = txID.String()
-		switch atx := atomicTX.UnsignedTx.(type) {
+		switch atx := atomicTX.UnsignedAtomicTx.(type) {
 		case *evm.UnsignedExportTx:
 			typ = models.CChainExport
 			blockchainID = atx.BlockchainID.String()
