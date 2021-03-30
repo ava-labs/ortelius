@@ -82,7 +82,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	transferableOut.Out = &secp256k1fx.TransferOutput{}
 	extx.ExportedOutputs = []*avalancheGoAvax.TransferableOutput{transferableOut}
 
-	tx.UnsignedTx = extx
+	tx.UnsignedAtomicTx = extx
 	header := types.Header{}
 	block := &cblock.Block{Header: header}
 
@@ -116,7 +116,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	transferableIn.In = &secp256k1fx.TransferInput{}
 	extx.ImportedInputs = []*avalancheGoAvax.TransferableInput{transferableIn}
 
-	tx.UnsignedTx = extx
+	tx.UnsignedAtomicTx = extx
 	header := types.Header{}
 	block := &cblock.Block{Header: header}
 
