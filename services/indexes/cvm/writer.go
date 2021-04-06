@@ -130,17 +130,22 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
 	var atomicTX *evm.Tx
+	var unsignedBytes []byte
 	if len(blockBytes) > 0 {
 		atomicTX = new(evm.Tx)
-		_, err := w.codec.Unmarshal(blockBytes, atomicTX)
+		ver, err := w.codec.Unmarshal(blockBytes, atomicTX)
+		if err != nil {
+			return err
+		}
+		unsignedBytes, err = w.codec.Marshal(ver, &atomicTX.UnsignedAtomicTx)
 		if err != nil {
 			return err
 		}
 	}
-	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block)
+	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block, unsignedBytes)
 }
 
-func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block) error {
+func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block, unsignedBytes []byte) error {
 	txIDString := ""
 
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
@@ -167,7 +172,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		case *evm.UnsignedImportTx:
 			typ = models.CChainImport
 			blockchainID = atx.BlockchainID.String()
-			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes)
+			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes,unsignedBytes)
 			if err != nil {
 				return err
 			}
@@ -308,7 +313,7 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 	return w.indexTransaction(ctx, txID, models.CChainExport, tx.BlockchainID, totalin-totalout, unsignedBytes)
 }
 
-func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, unsignedBytes []byte) error {
+func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.UnsignedImportTx, creds []verify.Verifiable, blockBytes []byte, unsignedBytes []byte) error {
 	var err error
 
 	var totalout uint64
@@ -329,5 +334,5 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		}
 	}
 
-	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, totalin-totalout, unsignedBytes)
+	return w.indexTransaction(ctx, txID, models.CChainImport, tx.BlockchainID, totalin-totalout, blockBytes)
 }
