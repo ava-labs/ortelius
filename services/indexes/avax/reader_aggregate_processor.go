@@ -18,14 +18,24 @@ import (
 type ReaderAggregate struct {
 	lock sync.RWMutex
 
-	aggr  map[ids.ID]*models.AggregatesHistogram
-	aggrl []*models.AssetAggregate
+	assetm map[ids.ID]*models.Asset
+	assetl []*models.Asset
+	aggr   map[ids.ID]*models.AggregatesHistogram
+	aggrl  []*models.AssetAggregate
 
 	a1m  *models.AggregatesHistogram
 	a1h  *models.AggregatesHistogram
 	a24h *models.AggregatesHistogram
 	a7d  *models.AggregatesHistogram
 	a30d *models.AggregatesHistogram
+}
+
+func (r *Reader) CacheAssets() []*models.Asset {
+	var res []*models.Asset
+	r.readerAggregate.lock.RLock()
+	defer r.readerAggregate.lock.RUnlock()
+	res = append(res, r.readerAggregate.assetl...)
+	return res
 }
 
 func (r *Reader) CacheAssetAggregates() []*models.AssetAggregate {
@@ -166,10 +176,24 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			return
 		}
 
+		var addlAssetsFound []string
+		_, err = sess.Select(
+			"id",
+		).
+			From("avm_assets").
+			OrderDesc("created_at").
+			Limit(params.PaginationMaxLimit).
+			LoadContext(ctx, &addlAssetsFound)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate %v", err)
+			return
+		}
+
 		assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
 		assets = append(assets, assetsFound...)
 
 		aggrMap := make(map[ids.ID]*models.AggregatesHistogram)
+		assetMap := make(map[ids.ID]*models.Asset)
 		aggrList := make([]*models.AssetAggregate, 0, len(assets))
 		for _, asset := range assets {
 			p := &params.AggregateParams{}
@@ -194,14 +218,55 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
 			}
+
+			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
+			lassets, err := r.ListAssets(ctx, pa)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+
 			aggrMap[id] = aggr
+			for _, lasset := range lassets.Assets {
+				assetMap[id] = lasset
+			}
 			aggrList = append(aggrList, &models.AssetAggregate{Aggregate: aggr, Asset: id})
 		}
+
+		for _, asset := range addlAssetsFound {
+			id, err := ids.FromString(asset)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+			_, ok := assetMap[id]
+			if ok {
+				continue
+			}
+
+			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
+			lassets, err := r.ListAssets(ctx, pa)
+			if err != nil {
+				r.sc.Log.Warn("Aggregate %v", err)
+				return
+			}
+			for _, lasset := range lassets.Assets {
+				assetMap[id] = lasset
+			}
+		}
+
 		sort.Slice(aggrList, func(i, j int) bool {
 			return aggrList[i].Aggregate.Aggregates.TransactionCount > aggrList[j].Aggregate.Aggregates.TransactionCount
 		})
 
+		assetl := make([]*models.Asset, 0, len(assetMap))
+		for _, assetv := range assetMap {
+			assetl = append(assetl, assetv)
+		}
+
 		r.readerAggregate.lock.Lock()
+		r.readerAggregate.assetm = assetMap
+		r.readerAggregate.assetl = assetl
 		r.readerAggregate.aggr = aggrMap
 		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()

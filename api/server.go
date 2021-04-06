@@ -79,9 +79,9 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 		return nil, err
 	}
 
-	var cache cacher = connections.Cache()
+	cache := connections.Cache()
 	if cache == nil {
-		cache = &nullCache{}
+		cache = NewNullCache()
 	}
 
 	delayCache := NewDelayCache(cache)
