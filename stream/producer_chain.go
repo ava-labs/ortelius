@@ -443,7 +443,13 @@ func IndexNotRaedy(err error) bool {
 }
 
 func ChainNotReady(err error) bool {
-	return strings.HasPrefix(err.Error(), "no containers have been accepted")
+	if strings.HasPrefix(err.Error(), "no containers have been accepted") {
+		return true
+	}
+	if strings.HasPrefix(err.Error(), "received status code '404'") {
+		return true
+	}
+	return false
 }
 
 const MaxCodecSize = 100_000_000
