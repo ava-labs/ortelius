@@ -172,7 +172,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		case *evm.UnsignedImportTx:
 			typ = models.CChainImport
 			blockchainID = atx.BlockchainID.String()
-			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes,unsignedBytes)
+			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, unsignedBytes)
 			if err != nil {
 				return err
 			}
