@@ -107,7 +107,8 @@ func (p *ProducerCChain) ID() string {
 }
 
 type TracerParam struct {
-	Tracer string `json:"tracer"`
+	Tracer  string `json:"tracer"`
+	Timeout string `json:"timeout"`
 }
 
 func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionTrace, error) {
@@ -132,7 +133,7 @@ func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, [
 			txh = "0x" + txh
 		}
 		var results []interface{}
-		err = p.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: utils.Tracer})
+		err = p.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: utils.Tracer, Timeout: "1m"})
 		if err != nil {
 			return nil, nil, err
 		}
