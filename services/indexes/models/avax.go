@@ -156,3 +156,8 @@ type CvmOutput struct {
 type RawTx struct {
 	Tx string `json:"tx"`
 }
+
+type AddressCounts struct {
+	ChainID StringID `json:"chainID"`
+	Count   string   `json:"count"`
+}
