@@ -46,6 +46,10 @@ type WorkerPacket struct {
 	block       *cblock.Block
 }
 
+type TxPoolID struct {
+	ID string
+}
+
 func NewDB(sc *services.Control, config *cfg.Config, replayqueuesize int, replayqueuethreads int) Replay {
 	return &dbReplay{
 		sc:           sc,
@@ -285,10 +289,11 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 		sess := replay.conns.DB().NewSessionForEventReceiver(job)
 
 		ctx := context.Background()
-		var txPools []services.TxPool
+		var txPools []TxPoolID
 		_, err := sess.Select("id").
 			From(services.TableTxPool).
 			Where("topic=?", tn).
+			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)
@@ -358,10 +363,11 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 		sess := replay.conns.DB().NewSessionForEventReceiver(job)
 
 		ctx := context.Background()
-		var txPools []services.TxPool
+		var txPools []TxPoolID
 		_, err := sess.Select("id").
 			From(services.TableTxPool).
 			Where("topic=?", tn).
+			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)
@@ -421,10 +427,11 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 		sess := replay.conns.DB().NewSessionForEventReceiver(job)
 
 		ctx := context.Background()
-		var txPools []services.TxPool
+		var txPools []TxPoolID
 		_, err := sess.Select("id").
 			From(services.TableTxPool).
 			Where("topic=?", tn).
+			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
 		if err != nil {
 			replay.errs.SetValue(err)

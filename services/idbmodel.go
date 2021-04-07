@@ -922,10 +922,13 @@ func (p *persist) InsertOutputAddresses(
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableOutputAddresses, false, err)
 	}
-	if v.RedeemingSignature != nil && upd {
-		_, err = sess.
-			Update(TableOutputAddresses).
-			Set("redeeming_signature", v.RedeemingSignature).
+	if upd {
+		stmt := sess.
+			Update(TableOutputAddresses)
+		if v.RedeemingSignature != nil {
+			stmt = stmt.Set("redeeming_signature", v.RedeemingSignature)
+		}
+		_, err = stmt.
 			Set("updated_at", v.UpdatedAt).
 			Where("output_id = ? and address=?", v.OutputID, v.Address).
 			ExecContext(ctx)
