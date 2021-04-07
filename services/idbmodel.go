@@ -848,7 +848,7 @@ func (p *persist) InsertAddressChain(
 	if upd {
 		_, err = sess.
 			Update(TableAddressChain).
-			Set("update_at", v.UpdatedAt).
+			Set("updated_at", v.UpdatedAt).
 			Where("address = ? and chain_id=?", v.Address, v.ChainID).
 			ExecContext(ctx)
 		if err != nil {
