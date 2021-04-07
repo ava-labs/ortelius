@@ -159,5 +159,5 @@ type RawTx struct {
 
 type AddressCounts struct {
 	ChainID StringID `json:"chainID"`
-	Count   string   `json:"count"`
+	Total   string   `json:"total"`
 }

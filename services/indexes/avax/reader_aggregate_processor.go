@@ -276,7 +276,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		var addressCountl []*models.AddressCounts
 		_, err = sess.Select(
 			"chain_id",
-			"cast(count(*)) as count",
+			"cast(count(*)) as total",
 		).
 			From(services.TableAddressChain).
 			GroupBy("chain_id").
