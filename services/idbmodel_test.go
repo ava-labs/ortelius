@@ -437,12 +437,16 @@ func TestOutputAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
+	if fv.UpdatedAt != tmu.Add(1*time.Minute) {
+		t.Fatal("compare fail")
+	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
 
 	v.RedeemingSignature = []byte("rd2")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(2 * time.Minute)
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -455,12 +459,16 @@ func TestOutputAddresses(t *testing.T) {
 	if string(v.RedeemingSignature) != "rd2" {
 		t.Fatal("compare fail")
 	}
+	if fv.UpdatedAt != tmu.Add(2*time.Minute) {
+		t.Fatal("compare fail")
+	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
 
 	v.RedeemingSignature = []byte("rd3")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(3 * time.Minute)
 
 	err = p.UpdateOutputAddresses(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
