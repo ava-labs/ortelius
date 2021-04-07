@@ -804,6 +804,7 @@ type AddressChain struct {
 	Address   string
 	ChainID   string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (p *persist) QueryAddressChain(
@@ -816,6 +817,7 @@ func (p *persist) QueryAddressChain(
 		"address",
 		"chain_id",
 		"created_at",
+		"updated_at",
 	).From(TableAddressChain).
 		Where("address=? and chain_id=?", q.Address, q.ChainID).
 		LoadOneContext(ctx, v)
@@ -826,7 +828,7 @@ func (p *persist) InsertAddressChain(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *AddressChain,
-	_ bool,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -834,9 +836,20 @@ func (p *persist) InsertAddressChain(
 		Pair("address", v.Address).
 		Pair("chain_id", v.ChainID).
 		Pair("created_at", v.CreatedAt).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddressChain, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddressChain).
+			Set("update_at", v.UpdatedAt).
+			Where("address = ? and chain_id=?", v.Address, v.ChainID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressChain, true, err)
+		}
 	}
 	return nil
 }

@@ -340,6 +340,7 @@ func (w *Writer) InsertOutputAddress(
 		Address:   address.String(),
 		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {

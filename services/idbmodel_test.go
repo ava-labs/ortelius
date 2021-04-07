@@ -337,11 +337,13 @@ func TestAddressChain(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &AddressChain{}
 	v.Address = "id1"
 	v.ChainID = "ch1"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -365,6 +367,7 @@ func TestAddressChain(t *testing.T) {
 
 	v.ChainID = "ch2"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
