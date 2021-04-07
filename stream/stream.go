@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/ortelius/services"
-	kafkaMessage "github.com/segmentio/kafka-go"
 )
 
 var (
@@ -28,20 +27,18 @@ type EventType string
 
 // Message is a message on the event stream
 type Message struct {
-	id           string
-	chainID      string
-	body         []byte
-	timestamp    int64
-	nanosecond   int64
-	kafkaMessage *kafkaMessage.Message
+	id         string
+	chainID    string
+	body       []byte
+	timestamp  int64
+	nanosecond int64
 }
 
-func (m *Message) ID() string                          { return m.id }
-func (m *Message) ChainID() string                     { return m.chainID }
-func (m *Message) Body() []byte                        { return m.body }
-func (m *Message) Timestamp() int64                    { return m.timestamp }
-func (m *Message) Nanosecond() int64                   { return m.nanosecond }
-func (m *Message) KafkaMessage() *kafkaMessage.Message { return m.kafkaMessage }
+func (m *Message) ID() string        { return m.id }
+func (m *Message) ChainID() string   { return m.chainID }
+func (m *Message) Body() []byte      { return m.body }
+func (m *Message) Timestamp() int64  { return m.timestamp }
+func (m *Message) Nanosecond() int64 { return m.nanosecond }
 
 func NewMessage(id string,
 	chainID string,
@@ -50,16 +47,6 @@ func NewMessage(id string,
 	nanosecond int64,
 ) services.Consumable {
 	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond}
-}
-
-func NewMessageWithKafka(id string,
-	chainID string,
-	body []byte,
-	timestamp int64,
-	nanosecond int64,
-	kafkaMessage *kafkaMessage.Message,
-) services.Consumable {
-	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond, kafkaMessage: kafkaMessage}
 }
 
 func GetTopicName(networkID uint32, chainID string, eventType EventType) string {

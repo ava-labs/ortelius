@@ -162,9 +162,6 @@ func NewFromFile(filePath string) (*Config, error) {
 			CchainID:     streamViper.GetString(keysStreamProducerCchainID),
 			AvalancheGO:  streamViper.GetString(keysStreamProducerAvalanchego),
 			NodeInstance: streamViper.GetString(keysStreamProducerNodeInstance),
-			Kafka: Kafka{
-				Brokers: streamKafkaViper.GetStringSlice(keysStreamKafkaBrokers),
-			},
 			Producer: Producer{
 				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
 				CChainRPC: streamProducerViper.GetString(keysStreamProducerCchainRPC),
