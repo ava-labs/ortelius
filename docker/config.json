@@ -16,11 +16,6 @@
     }
   },
   "stream": {
-    "kafka": {
-      "brokers": [
-        "kafka:9092"
-      ]
-    },
     "cchainId": "2q9e4r6Mu3U68nU1fYjgbR6JvwrRx36CohpAX5UQxse55x1Q5",
     "producer": {
       "ipcRoot": "/tmp",
