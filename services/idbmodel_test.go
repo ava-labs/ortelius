@@ -965,10 +965,12 @@ func TestTransactionsBlock(t *testing.T) {
 func TestAddressBech32(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &AddressBech32{}
 	v.Address = "adr1"
 	v.Bech32Address = "badr1"
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -991,6 +993,7 @@ func TestAddressBech32(t *testing.T) {
 	}
 
 	v.Bech32Address = "badr2"
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddressBech32(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

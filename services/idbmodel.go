@@ -1455,6 +1455,7 @@ func (p *persist) InsertTransactionsBlock(
 type AddressBech32 struct {
 	Address       string
 	Bech32Address string
+	UpdatedAt     time.Time
 }
 
 func (p *persist) QueryAddressBech32(
@@ -1466,6 +1467,7 @@ func (p *persist) QueryAddressBech32(
 	err := sess.Select(
 		"address",
 		"bech32_address",
+		"updated_at",
 	).From(TableAddressBech32).
 		Where("address=?", q.Address).
 		LoadOneContext(ctx, v)
@@ -1483,6 +1485,7 @@ func (p *persist) InsertAddressBech32(
 		InsertInto(TableAddressBech32).
 		Pair("address", v.Address).
 		Pair("bech32_address", v.Bech32Address).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddressBech32, false, err)
@@ -1491,6 +1494,7 @@ func (p *persist) InsertAddressBech32(
 		_, err = sess.
 			Update(TableAddressBech32).
 			Set("bech32_address", v.Bech32Address).
+			Set("updated_at", v.UpdatedAt).
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
