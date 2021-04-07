@@ -55,7 +55,7 @@ type producerCChainContainer struct {
 	msgChanSz   int64
 	msgChanDone chan struct{}
 
-	quitCh chan struct{}
+	runningControl utils.Running
 
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
@@ -67,11 +67,11 @@ func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContai
 	}
 
 	pc := &producerCChainContainer{
-		msgChan:     make(chan *blockWorkContainer, maxWorkerQueue),
-		msgChanDone: make(chan struct{}, 1),
-		quitCh:      make(chan struct{}, 1),
-		conns:       conns,
-		sc:          sc,
+		msgChan:        make(chan *blockWorkContainer, maxWorkerQueue),
+		msgChanDone:    make(chan struct{}, 1),
+		runningControl: utils.NewRunning(),
+		conns:          conns,
+		sc:             sc,
 	}
 
 	err = pc.getBlock()
@@ -88,15 +88,6 @@ func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContai
 	pc.client = cl
 
 	return pc, nil
-}
-
-func (p *producerCChainContainer) isStopping() bool {
-	select {
-	case <-p.quitCh:
-		return true
-	default:
-		return false
-	}
 }
 
 func (p *producerCChainContainer) Close() error {
@@ -164,7 +155,7 @@ func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catc
 	startBlock := big.NewInt(0)
 	endBlock := big.NewInt(0)
 	for endBlock.Cmp(catchupBlock) < 0 {
-		if p.isStopping() {
+		if p.runningControl.IsStopped() {
 			break
 		}
 		if p.catchupErrs.GetValue() != nil {
@@ -191,7 +182,7 @@ func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catc
 			blockMap[bl.Block] = struct{}{}
 		}
 		for startBlock.Cmp(endBlock) < 0 {
-			if p.isStopping() {
+			if p.runningControl.IsStopped() {
 				break
 			}
 
@@ -222,7 +213,7 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 
 	errs := &avalancheGoUtils.AtomicInterface{}
 	for lblocknext.Cmp(p.block) > 0 {
-		if p.isStopping() {
+		if p.runningControl.IsStopped() {
 			break
 		}
 		if errs.GetValue() != nil {
@@ -258,8 +249,7 @@ type ProducerCChain struct {
 
 	conf cfg.Config
 
-	// Concurrency control
-	quitCh chan struct{}
+	runningControl utils.Running
 
 	topic     string
 	topicTrc  string
@@ -281,7 +271,7 @@ func NewProducerCChain(sc *services.Control, conf cfg.Config) utils.ListenCloser
 		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
 		id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
-		quitCh:                  make(chan struct{}),
+		runningControl:          utils.NewRunning(),
 	}
 	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
@@ -292,7 +282,7 @@ func NewProducerCChain(sc *services.Control, conf cfg.Config) utils.ListenCloser
 }
 
 func (p *ProducerCChain) Close() error {
-	close(p.quitCh)
+	p.runningControl.Close()
 	return nil
 }
 
@@ -336,7 +326,7 @@ func (p *ProducerCChain) Listen() error {
 	p.sc.Log.Info("Started worker manager for cchain")
 	defer p.sc.Log.Info("Exiting worker manager for cchain")
 
-	for !p.isStopping() {
+	for !p.runningControl.IsStopped() {
 		err := p.runProcessor()
 
 		// If there was an error we want to log it, and iff we are not stopping
@@ -344,7 +334,7 @@ func (p *ProducerCChain) Listen() error {
 		if err != nil {
 			p.sc.Log.Error("Error running worker: %s", err.Error())
 		}
-		if p.isStopping() {
+		if p.runningControl.IsStopped() {
 			break
 		}
 		if err != nil {
@@ -353,16 +343,6 @@ func (p *ProducerCChain) Listen() error {
 	}
 
 	return nil
-}
-
-// isStopping returns true iff quitCh has been signaled
-func (p *ProducerCChain) isStopping() bool {
-	select {
-	case <-p.quitCh:
-		return true
-	default:
-		return false
-	}
 }
 
 func TrimNL(msg string) string {
@@ -406,7 +386,7 @@ func CChainNotReady(err error) bool {
 func (p *ProducerCChain) runProcessor() error {
 	id := p.ID()
 
-	if p.isStopping() {
+	if p.runningControl.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
@@ -426,7 +406,7 @@ func (p *ProducerCChain) runProcessor() error {
 		t.Stop()
 		close(tdoneCh)
 		if pc != nil {
-			close(pc.quitCh)
+			pc.runningControl.Close()
 			wgpc.Wait()
 			close(pc.msgChanDone)
 			wgpcmsgchan.Wait()
@@ -527,7 +507,7 @@ func (p *ProducerCChain) runProcessor() error {
 			select {
 			case <-t.C:
 				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.isStopping() || pc.isStopping() {
+				if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
 					return
 				}
 			case <-tdoneCh:
@@ -538,7 +518,7 @@ func (p *ProducerCChain) runProcessor() error {
 
 	// Process messages until asked to stop
 	for {
-		if p.isStopping() || pc.isStopping() {
+		if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
 			break
 		}
 		err := processNextMessage()
