@@ -202,10 +202,6 @@ type ProcessorFactoryControl struct {
 	Factory   stream.ProcessorFactory
 	Instances int
 }
-type ListenCloserFactoryControl struct {
-	Factory   utils.ListenCloserFactory
-	Instances int
-}
 
 func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
@@ -223,55 +219,54 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		Use:   streamProducerCmdUse,
 		Short: streamProducerCmdDesc,
 		Long:  streamProducerCmdDesc,
-		Run: runStreamProcessorManagers(
-			false,
-			sc,
-			config,
-			runErr,
-			[]ProcessorFactoryControl{
-				{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
-				{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
-			},
-			producerFactories(config),
-			nil,
-			nil,
-			nil,
-		),
+		Run: func(cmd *cobra.Command, arg []string) {
+			runStreamProcessorManagers(
+				false,
+				sc,
+				config,
+				runErr,
+				[]ProcessorFactoryControl{
+					{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
+					{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
+				},
+				nil,
+				nil,
+				nil,
+				nil,
+			)(cmd, arg)
+		},
 	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
-		Run: runStreamProcessorManagers(
-			true,
-			sc,
-			config,
-			runErr,
-			nil,
-			indexerFactories(config),
-			[]consumers.ConsumerFactory{
-				consumers.IndexerConsumer,
-			},
-			[]stream.ProcessorFactoryChainDB{
-				consumers.IndexerDB,
-				consumers.IndexerConsensusDB,
-			},
-			[]stream.ProcessorFactoryInstDB{
-				consumers.IndexerCChainDB(),
-			},
-		),
+		Run: func(cmd *cobra.Command, arg []string) {
+			runStreamProcessorManagers(
+				true,
+				sc,
+				config,
+				runErr,
+				nil,
+				producerFactories(sc, config),
+				[]consumers.ConsumerFactory{
+					consumers.IndexerConsumer,
+				},
+				[]stream.ProcessorFactoryChainDB{
+					consumers.IndexerDB,
+					consumers.IndexerConsensusDB,
+				},
+				[]stream.ProcessorFactoryInstDB{
+					consumers.IndexerCChainDB(),
+				},
+			)(cmd, arg)
+		},
 	})
 
 	return streamCmd
 }
 
-func indexerFactories(_ *cfg.Config) []ListenCloserFactoryControl {
-	var factories []ListenCloserFactoryControl
-	return factories
-}
-
-func producerFactories(_ *cfg.Config) []ListenCloserFactoryControl {
-	var factories []ListenCloserFactoryControl
-	factories = append(factories, ListenCloserFactoryControl{Factory: stream.NewProducerCChain(), Instances: 1})
+func producerFactories(sc *services.Control, cfg *cfg.Config) []utils.ListenCloser {
+	var factories []utils.ListenCloser
+	factories = append(factories, stream.NewProducerCChain(sc, *cfg))
 	return factories
 }
 
@@ -320,12 +315,14 @@ func runStreamProcessorManagers(
 	config *cfg.Config,
 	runError *error,
 	factories []ProcessorFactoryControl,
-	listenCloseFactories []ListenCloserFactoryControl,
+	listenCloseFactories []utils.ListenCloser,
 	consumerFactories []consumers.ConsumerFactory,
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
 	factoriesInstDB []stream.ProcessorFactoryInstDB,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
+		wg := &sync.WaitGroup{}
+
 		if indexer {
 			err := sc.BalanceAccumulatorManager.Start()
 			if err != nil {
@@ -341,41 +338,41 @@ func runStreamProcessorManagers(
 			// start the accumulator at startup
 			sc.BalanceAccumulatorManager.Run(sc)
 
+			for _, listenCloseFactory := range listenCloseFactories {
+				wg.Add(1)
+				go func(lc utils.ListenCloser) {
+					defer wg.Done()
+					runListenCloser(lc)
+				}(listenCloseFactory)
+			}
+
 			err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
 			if err != nil {
 				*runError = err
 				return
 			}
-			return
-		}
+		} else {
+			for _, factory := range factories {
+				for instpos := 0; instpos < factory.Instances; instpos++ {
+					wg.Add(1)
+					go func(factory stream.ProcessorFactory, idx int, maxidx int) {
+						defer wg.Done()
 
-		wg := &sync.WaitGroup{}
-
-		for _, factory := range factories {
-			for instpos := 0; instpos < factory.Instances; instpos++ {
-				wg.Add(1)
-				go func(factory stream.ProcessorFactory, idx int, maxidx int) {
-					defer wg.Done()
-
-					// Create and start processor manager
-					pm := stream.NewProcessorManager(sc, *config, factory, idx, maxidx)
-					runListenCloser(pm)
-				}(factory.Factory, instpos, factory.Instances)
+						// Create and start processor manager
+						pm := stream.NewProcessorManager(sc, *config, factory, idx, maxidx)
+						runListenCloser(pm)
+					}(factory.Factory, instpos, factory.Instances)
+				}
 			}
-		}
 
-		for _, listenCloseFactory := range listenCloseFactories {
-			for instpos := 0; instpos < listenCloseFactory.Instances; instpos++ {
+			for _, listenCloseFactory := range listenCloseFactories {
 				wg.Add(1)
-				go func(listenCloserFactory utils.ListenCloserFactory, idx int, maxidx int) {
+				go func(lc utils.ListenCloser) {
 					defer wg.Done()
-
-					lc := listenCloserFactory(sc, *config, idx, maxidx)
 					runListenCloser(lc)
-				}(listenCloseFactory.Factory, instpos, listenCloseFactory.Instances)
+				}(listenCloseFactory)
 			}
 		}
-
 		wg.Wait()
 	}
 }
