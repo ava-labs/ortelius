@@ -388,6 +388,7 @@ func (w *Writer) InsertOutputAddress(
 		Address:            address.String(),
 		RedeemingSignature: sig,
 		CreatedAt:          ctx.Time(),
+		UpdatedAt:          time.Now().UTC(),
 	}
 	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses, cfg.PerformUpdates)
 	if err != nil {

@@ -863,6 +863,7 @@ type OutputAddresses struct {
 	Address            string
 	RedeemingSignature []byte
 	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 func (p *persist) QueryOutputAddresses(
@@ -876,6 +877,7 @@ func (p *persist) QueryOutputAddresses(
 		"address",
 		"redeeming_signature",
 		"created_at",
+		"updated_at",
 	).From(TableOutputAddresses).
 		Where("output_id=? and address=?", q.OutputID, q.Address).
 		LoadOneContext(ctx, v)
@@ -893,7 +895,8 @@ func (p *persist) InsertOutputAddresses(
 		InsertInto(TableOutputAddresses).
 		Pair("output_id", v.OutputID).
 		Pair("address", v.Address).
-		Pair("created_at", v.CreatedAt)
+		Pair("created_at", v.CreatedAt).
+		Pair("updated_at", v.UpdatedAt)
 	if v.RedeemingSignature != nil {
 		stmt = stmt.Pair("redeeming_signature", v.RedeemingSignature)
 	}
@@ -905,6 +908,7 @@ func (p *persist) InsertOutputAddresses(
 		_, err = sess.
 			Update(TableOutputAddresses).
 			Set("redeeming_signature", v.RedeemingSignature).
+			Set("updated_at", v.UpdatedAt).
 			Where("output_id = ? and address=?", v.OutputID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
@@ -923,6 +927,7 @@ func (p *persist) UpdateOutputAddresses(
 	_, err = sess.
 		Update(TableOutputAddresses).
 		Set("redeeming_signature", v.RedeemingSignature).
+		Set("updated_at", v.UpdatedAt).
 		Where("output_id = ? and address=?", v.OutputID, v.Address).
 		ExecContext(ctx)
 	if err != nil {
