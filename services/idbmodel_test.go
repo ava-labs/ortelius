@@ -277,6 +277,7 @@ func TestAddresses(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	basebin := [33]byte{}
 	for cnt := 0; cnt < len(basebin); cnt++ {
@@ -288,6 +289,7 @@ func TestAddresses(t *testing.T) {
 	v.PublicKey = make([]byte, len(basebin))
 	copy(v.PublicKey, basebin[:])
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -313,6 +315,7 @@ func TestAddresses(t *testing.T) {
 	basebin[5] = 0xE
 	copy(v.PublicKey, basebin[:])
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

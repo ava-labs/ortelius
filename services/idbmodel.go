@@ -752,6 +752,7 @@ type Addresses struct {
 	Address   string
 	PublicKey []byte
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (p *persist) QueryAddresses(
@@ -764,6 +765,7 @@ func (p *persist) QueryAddresses(
 		"address",
 		"public_key",
 		"created_at",
+		"updated_at",
 	).From(TableAddresses).
 		Where("address=?", q.Address).
 		LoadOneContext(ctx, v)
@@ -782,6 +784,7 @@ func (p *persist) InsertAddresses(
 		Pair("address", v.Address).
 		Pair("public_key", v.PublicKey).
 		Pair("created_at", v.CreatedAt).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddresses, false, err)
@@ -790,6 +793,7 @@ func (p *persist) InsertAddresses(
 		_, err = sess.
 			Update(TableAddresses).
 			Set("public_key", v.PublicKey).
+			Set("updated_at", v.UpdatedAt).
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
