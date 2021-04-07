@@ -167,8 +167,27 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
+		var err error
+
+		var addressCountl []*models.AddressCounts
+		_, err = sess.Select(
+			"chain_id",
+			"cast(count(*)) as total",
+		).
+			From(services.TableAddressChain).
+			GroupBy("chain_id").
+			LoadContext(ctx, &addressCountl)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate address counts %v", err)
+			return
+		}
+
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.addressCountl = addressCountl
+		r.readerAggregate.lock.Unlock()
+
 		var assetsFound []string
-		_, err := sess.Select(
+		_, err = sess.Select(
 			"asset_id",
 			"count(distinct(transaction_id)) as tamt",
 		).
@@ -273,23 +292,9 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			assetl = append(assetl, assetv)
 		}
 
-		var addressCountl []*models.AddressCounts
-		_, err = sess.Select(
-			"chain_id",
-			"cast(count(*)) as total",
-		).
-			From(services.TableAddressChain).
-			GroupBy("chain_id").
-			LoadContext(ctx, &addressCountl)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate address counts %v", err)
-			return
-		}
-
 		r.readerAggregate.lock.Lock()
 		r.readerAggregate.assetm = assetMap
 		r.readerAggregate.assetl = assetl
-		r.readerAggregate.addressCountl = addressCountl
 		r.readerAggregate.aggr = aggrMap
 		r.readerAggregate.aggrl = aggrList
 		r.readerAggregate.lock.Unlock()
