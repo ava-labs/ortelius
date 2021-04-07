@@ -377,7 +377,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 			ID:          baseTx.ID().String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
-			UpdatedAt: time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
 		}
 
 		err = ctx.Persist().InsertTransactionsRewardsOwnersAddress(ctx.Ctx(), ctx.DB(), txRewardsOwnerAddress, cfg.PerformUpdates)
