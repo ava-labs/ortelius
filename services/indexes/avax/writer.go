@@ -356,6 +356,7 @@ func (w *Writer) InsertOutputAddress(
 	addressBech32 := &services.AddressBech32{
 		Address:       address.String(),
 		Bech32Address: bech32Addr,
+		UpdatedAt:     time.Now().UTC(),
 	}
 	err = ctx.Persist().InsertAddressBech32(ctx.Ctx(), ctx.DB(), addressBech32, cfg.PerformUpdates)
 	if err != nil {
