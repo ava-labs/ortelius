@@ -392,6 +392,7 @@ func TestOutputAddresses(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	stream := health.NewStream()
 
@@ -405,6 +406,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.OutputID = "oid1"
 	v.Address = "id1"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -425,6 +427,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.Address = "id1"
 	v.RedeemingSignature = []byte("rd1")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

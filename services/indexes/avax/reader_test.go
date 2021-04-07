@@ -44,7 +44,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	groupID := uint32(0)
 	payload := []byte("")
 	stakeLocktime := uint64(99991)
-	time := time.Now().Truncate(1 * time.Hour)
+	tm := time.Now().Truncate(1 * time.Hour)
 
 	inputIDUnmatched := "inu"
 
@@ -63,38 +63,39 @@ func TestCollectInsAndOuts(t *testing.T) {
 		GroupID:       groupID,
 		Payload:       payload,
 		StakeLocktime: stakeLocktime,
-		CreatedAt:     time,
+		CreatedAt:     tm,
 	}
 	_ = persist.InsertOutputs(ctx, session, outputs, false)
 
 	outputAddresses := &services.OutputAddresses{
 		OutputID:  outputID,
 		Address:   address,
-		CreatedAt: time,
+		CreatedAt: tm,
+		UpdatedAt: time.Now().UTC(),
 	}
 	_ = persist.InsertOutputAddresses(ctx, session, outputAddresses, false)
 
 	outputsRedeeming := &services.OutputsRedeeming{
 		ID:                     inputID,
-		RedeemedAt:             time,
+		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
 		Amount:                 amount,
 		OutputIndex:            idx,
 		Intx:                   intxID,
 		AssetID:                assetID,
-		CreatedAt:              time,
+		CreatedAt:              tm,
 	}
 	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
 	outputsRedeeming = &services.OutputsRedeeming{
 		ID:                     inputIDUnmatched,
-		RedeemedAt:             time,
+		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
 		Amount:                 amount,
 		OutputIndex:            idx,
 		Intx:                   intxID,
 		AssetID:                assetID,
-		CreatedAt:              time,
+		CreatedAt:              tm,
 	}
 	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
