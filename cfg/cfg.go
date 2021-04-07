@@ -63,16 +63,11 @@ type Redis struct {
 }
 
 type Stream struct {
-	Kafka        `json:"kafka"`
 	Producer     Producer `json:"producer"`
 	Consumer     Consumer `json:"consumer"`
 	CchainID     string   `json:"cchainId"`
 	AvalancheGO  string   `json:"avalanchego"`
 	NodeInstance string   `json:"nodeInstance"`
-}
-
-type Kafka struct {
-	Brokers []string `json:"brokers"`
 }
 
 type Filter struct {
