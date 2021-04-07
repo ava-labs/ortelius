@@ -18,16 +18,25 @@ import (
 type ReaderAggregate struct {
 	lock sync.RWMutex
 
-	assetm map[ids.ID]*models.Asset
-	assetl []*models.Asset
-	aggr   map[ids.ID]*models.AggregatesHistogram
-	aggrl  []*models.AssetAggregate
+	assetm        map[ids.ID]*models.Asset
+	assetl        []*models.Asset
+	aggr          map[ids.ID]*models.AggregatesHistogram
+	aggrl         []*models.AssetAggregate
+	addressCountl []*models.AddressCounts
 
 	a1m  *models.AggregatesHistogram
 	a1h  *models.AggregatesHistogram
 	a24h *models.AggregatesHistogram
 	a7d  *models.AggregatesHistogram
 	a30d *models.AggregatesHistogram
+}
+
+func (r *Reader) CacheAddressCounts() []*models.AddressCounts {
+	var res []*models.AddressCounts
+	r.readerAggregate.lock.RLock()
+	defer r.readerAggregate.lock.RUnlock()
+	res = append(res, r.readerAggregate.addressCountl...)
+	return res
 }
 
 func (r *Reader) CacheAssets() []*models.Asset {
@@ -158,8 +167,27 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
+		var err error
+
+		var addressCountl []*models.AddressCounts
+		_, err = sess.Select(
+			"chain_id",
+			"cast(count(*) as char) as total",
+		).
+			From(services.TableAddressChain).
+			GroupBy("chain_id").
+			LoadContext(ctx, &addressCountl)
+		if err != nil {
+			r.sc.Log.Warn("Aggregate address counts %v", err)
+			return
+		}
+
+		r.readerAggregate.lock.Lock()
+		r.readerAggregate.addressCountl = addressCountl
+		r.readerAggregate.lock.Unlock()
+
 		var assetsFound []string
-		_, err := sess.Select(
+		_, err = sess.Select(
 			"asset_id",
 			"count(distinct(transaction_id)) as tamt",
 		).
