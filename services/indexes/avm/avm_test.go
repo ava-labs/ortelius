@@ -90,7 +90,8 @@ func TestIndexBootstrap(t *testing.T) {
 	addressChain := &services.AddressChain{
 		Address:   addr.String(),
 		ChainID:   "ch1",
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	_ = persist.InsertAddressChain(context.Background(), sess, addressChain, false)
 
