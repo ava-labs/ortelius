@@ -17,8 +17,6 @@ import (
 
 	indexer "github.com/ava-labs/ortelius/indexer_client"
 
-	"github.com/ava-labs/ortelius/export"
-
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
@@ -61,14 +59,8 @@ const (
 	streamReplayCmdUse  = "replay"
 	streamReplayCmdDesc = "Runs the replay"
 
-	streamReplayExportCmdUse  = "replayExport"
-	streamReplayExportCmdDesc = "Runs the replay export"
-
 	streamIndexerCmdUse  = "indexer"
 	streamIndexerCmdDesc = "Runs the stream indexer daemon"
-
-	streamExportCmdUse  = "export"
-	streamExportCmdDesc = "Exports the stream to disk"
 
 	envCmdUse  = "env"
 	envCmdDesc = "Displays information about the Ortelius environment"
@@ -157,7 +149,6 @@ func execute() error {
 	cmd.PersistentFlags().IntVarP(replayqueuethreads, "replayqueuethreads", "", defaultReplayQueueThreads, fmt.Sprintf("replay queue size threads default %d", defaultReplayQueueThreads))
 
 	cmd.AddCommand(
-		createReplayExportCmds(serviceControl, config, &runErr, replayqueuesize, replayqueuethreads),
 		createReplayCmds(serviceControl, config, &runErr, replayqueuesize, replayqueuethreads),
 		createStreamCmds(serviceControl, config, &runErr),
 		createAPICmds(serviceControl, config, &runErr),
@@ -206,23 +197,6 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 	return replayCmd
 }
 
-func createReplayExportCmds(sc *services.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
-	replayCmd := &cobra.Command{
-		Use:   streamReplayExportCmdUse,
-		Short: streamReplayExportCmdDesc,
-		Long:  streamReplayExportCmdDesc,
-		Run: func(cmd *cobra.Command, args []string) {
-			replay := export.New(sc, config, *replayqueuesize, *replayqueuethreads)
-			err := replay.Start()
-			if err != nil {
-				*runErr = err
-			}
-		},
-	}
-
-	return replayCmd
-}
-
 func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
@@ -234,26 +208,8 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 		},
 	}
 
-	// Create export sub command command
-	exportCmd := &cobra.Command{
-		Use:   streamExportCmdUse,
-		Short: streamExportCmdDesc,
-		Long:  streamExportCmdDesc,
-	}
-	exportFile := ""
-	exportChainID := ""
-	exportCmd.Flags().StringVarP(&exportFile, "export-path", "", "/tmp/ortelius_exports", "")
-	exportCmd.Flags().StringVarP(&exportChainID, "export-chain-id", "", "11111111111111111111111111111111LpoYY", "")
-	exportCmd.Run = func(_ *cobra.Command, _ []string) {
-		count, err := consumers.ExportToDisk(config, exportFile, exportChainID)
-		if err != nil {
-			log.Printf("Error exporting: %s\n", err.Error())
-		}
-		log.Printf("Export finished. Exported %d records.\n", count)
-	}
-
 	// Add sub commands
-	streamCmd.AddCommand(exportCmd, &cobra.Command{
+	streamCmd.AddCommand(&cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
