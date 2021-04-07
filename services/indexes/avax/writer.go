@@ -323,6 +323,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 		Address:   publicKey.Address().String(),
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 }

@@ -1882,6 +1882,7 @@ type TransactionsRewardsOwnersAddress struct {
 	ID          string
 	Address     string
 	OutputIndex uint32
+	UpdatedAt   time.Time
 }
 
 func (p *persist) QueryTransactionsRewardsOwnersAddress(
@@ -1894,6 +1895,7 @@ func (p *persist) QueryTransactionsRewardsOwnersAddress(
 		"id",
 		"address",
 		"output_index",
+		"updated_at",
 	).From(TableTransactionsRewardsOwnersAddress).
 		Where("id=? and address=?", q.ID, q.Address).
 		LoadOneContext(ctx, v)
@@ -1912,6 +1914,7 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 		Pair("id", v.ID).
 		Pair("address", v.Address).
 		Pair("output_index", v.OutputIndex).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableTransactionsRewardsOwnersAddress, false, err)
@@ -1920,6 +1923,7 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 		_, err = sess.
 			Update(TableTransactionsRewardsOwnersAddress).
 			Set("output_index", v.OutputIndex).
+			Set("updated_at", v.UpdatedAt).
 			Where("id=? and address=?", v.ID, v.Address).
 			ExecContext(ctx)
 		if err != nil {

@@ -1305,11 +1305,13 @@ func TestTransactionsRewardsOwnersOutputs(t *testing.T) {
 func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &TransactionsRewardsOwnersAddress{}
 	v.ID = "txid1"
 	v.Address = "addr1"
 	v.OutputIndex = 1
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -1332,6 +1334,7 @@ func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	}
 
 	v.OutputIndex = 4
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
