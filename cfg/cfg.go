@@ -103,7 +103,6 @@ func NewFromFile(filePath string) (*Config, error) {
 	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
 
 	streamViper := newSubViper(v, keysStream)
-	streamKafkaViper := newSubViper(streamViper, keysStreamKafka)
 	streamProducerViper := newSubViper(streamViper, keysStreamProducer)
 	streamConsumerViper := newSubViper(streamViper, keysStreamConsumer)
 
