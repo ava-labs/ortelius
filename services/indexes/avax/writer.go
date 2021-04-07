@@ -323,6 +323,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 		Address:   publicKey.Address().String(),
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 }
@@ -340,6 +341,7 @@ func (w *Writer) InsertOutputAddress(
 		Address:   address.String(),
 		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {
@@ -354,6 +356,7 @@ func (w *Writer) InsertOutputAddress(
 	addressBech32 := &services.AddressBech32{
 		Address:       address.String(),
 		Bech32Address: bech32Addr,
+		UpdatedAt:     time.Now().UTC(),
 	}
 	err = ctx.Persist().InsertAddressBech32(ctx.Ctx(), ctx.DB(), addressBech32, cfg.PerformUpdates)
 	if err != nil {

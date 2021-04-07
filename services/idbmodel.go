@@ -752,6 +752,7 @@ type Addresses struct {
 	Address   string
 	PublicKey []byte
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (p *persist) QueryAddresses(
@@ -764,6 +765,7 @@ func (p *persist) QueryAddresses(
 		"address",
 		"public_key",
 		"created_at",
+		"updated_at",
 	).From(TableAddresses).
 		Where("address=?", q.Address).
 		LoadOneContext(ctx, v)
@@ -782,6 +784,7 @@ func (p *persist) InsertAddresses(
 		Pair("address", v.Address).
 		Pair("public_key", v.PublicKey).
 		Pair("created_at", v.CreatedAt).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddresses, false, err)
@@ -790,6 +793,7 @@ func (p *persist) InsertAddresses(
 		_, err = sess.
 			Update(TableAddresses).
 			Set("public_key", v.PublicKey).
+			Set("updated_at", v.UpdatedAt).
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
@@ -804,6 +808,7 @@ type AddressChain struct {
 	Address   string
 	ChainID   string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (p *persist) QueryAddressChain(
@@ -816,6 +821,7 @@ func (p *persist) QueryAddressChain(
 		"address",
 		"chain_id",
 		"created_at",
+		"updated_at",
 	).From(TableAddressChain).
 		Where("address=? and chain_id=?", q.Address, q.ChainID).
 		LoadOneContext(ctx, v)
@@ -826,7 +832,7 @@ func (p *persist) InsertAddressChain(
 	ctx context.Context,
 	sess dbr.SessionRunner,
 	v *AddressChain,
-	_ bool,
+	upd bool,
 ) error {
 	var err error
 	_, err = sess.
@@ -834,9 +840,20 @@ func (p *persist) InsertAddressChain(
 		Pair("address", v.Address).
 		Pair("chain_id", v.ChainID).
 		Pair("created_at", v.CreatedAt).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddressChain, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableAddressChain).
+			Set("updated_at", v.UpdatedAt).
+			Where("address = ? and chain_id=?", v.Address, v.ChainID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableAddressChain, true, err)
+		}
 	}
 	return nil
 }
@@ -1438,6 +1455,7 @@ func (p *persist) InsertTransactionsBlock(
 type AddressBech32 struct {
 	Address       string
 	Bech32Address string
+	UpdatedAt     time.Time
 }
 
 func (p *persist) QueryAddressBech32(
@@ -1449,6 +1467,7 @@ func (p *persist) QueryAddressBech32(
 	err := sess.Select(
 		"address",
 		"bech32_address",
+		"updated_at",
 	).From(TableAddressBech32).
 		Where("address=?", q.Address).
 		LoadOneContext(ctx, v)
@@ -1466,6 +1485,7 @@ func (p *persist) InsertAddressBech32(
 		InsertInto(TableAddressBech32).
 		Pair("address", v.Address).
 		Pair("bech32_address", v.Bech32Address).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableAddressBech32, false, err)
@@ -1474,6 +1494,7 @@ func (p *persist) InsertAddressBech32(
 		_, err = sess.
 			Update(TableAddressBech32).
 			Set("bech32_address", v.Bech32Address).
+			Set("updated_at", v.UpdatedAt).
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
@@ -1861,6 +1882,7 @@ type TransactionsRewardsOwnersAddress struct {
 	ID          string
 	Address     string
 	OutputIndex uint32
+	UpdatedAt   time.Time
 }
 
 func (p *persist) QueryTransactionsRewardsOwnersAddress(
@@ -1873,6 +1895,7 @@ func (p *persist) QueryTransactionsRewardsOwnersAddress(
 		"id",
 		"address",
 		"output_index",
+		"updated_at",
 	).From(TableTransactionsRewardsOwnersAddress).
 		Where("id=? and address=?", q.ID, q.Address).
 		LoadOneContext(ctx, v)
@@ -1891,6 +1914,7 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 		Pair("id", v.ID).
 		Pair("address", v.Address).
 		Pair("output_index", v.OutputIndex).
+		Pair("updated_at", v.UpdatedAt).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableTransactionsRewardsOwnersAddress, false, err)
@@ -1899,6 +1923,7 @@ func (p *persist) InsertTransactionsRewardsOwnersAddress(
 		_, err = sess.
 			Update(TableTransactionsRewardsOwnersAddress).
 			Set("output_index", v.OutputIndex).
+			Set("updated_at", v.UpdatedAt).
 			Where("id=? and address=?", v.ID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
