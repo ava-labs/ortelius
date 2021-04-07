@@ -509,15 +509,15 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 		switch sort {
 		case params.TransactionSortTimestampAsc:
-			if len(p.ChainIDs) > 0 {
-				subquery.OrderAsc("avm_transactions.chain_id")
-			}
 			subquery.OrderAsc("avm_transactions.created_at")
-		case params.TransactionSortTimestampDesc:
 			if len(p.ChainIDs) > 0 {
 				subquery.OrderAsc("avm_transactions.chain_id")
 			}
+		case params.TransactionSortTimestampDesc:
 			subquery.OrderDesc("avm_transactions.created_at")
+			if len(p.ChainIDs) > 0 {
+				subquery.OrderAsc("avm_transactions.chain_id")
+			}
 		default:
 			applySort2(params.TransactionSortDefault)
 		}
@@ -537,15 +537,15 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		}
 		switch sort {
 		case params.TransactionSortTimestampAsc:
-			if len(p.ChainIDs) > 0 {
-				builder.OrderAsc("avm_transactions.chain_id")
-			}
 			builder.OrderAsc("avm_transactions.created_at")
-		case params.TransactionSortTimestampDesc:
 			if len(p.ChainIDs) > 0 {
 				builder.OrderAsc("avm_transactions.chain_id")
 			}
+		case params.TransactionSortTimestampDesc:
 			builder.OrderDesc("avm_transactions.created_at")
+			if len(p.ChainIDs) > 0 {
+				builder.OrderAsc("avm_transactions.chain_id")
+			}
 		default:
 			applySort(params.TransactionSortDefault)
 		}
