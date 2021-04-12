@@ -6,6 +6,9 @@ package stream
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -117,11 +120,13 @@ func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
 	}()
 
 	var err error
+	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, msg)
 		if !db.ErrIsLockError(err) {
 			break
 		}
+		rsleep.Inc()
 	}
 	if err != nil {
 		c.Failure()
