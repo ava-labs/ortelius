@@ -10,10 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/rpc"
 )
 
-type Client struct {
-	rpc.EndpointRequester
-}
-
 type FormattedContainer struct {
 	ID        ids.ID              `json:"id"`
 	Bytes     string              `json:"bytes"`
@@ -50,6 +46,10 @@ type GetIndexResponse struct {
 	Index json.Uint64 `json:"index"`
 }
 
+type Client struct {
+	rpc.EndpointRequester
+}
+
 // NewClient creates a client that can interact with an index via HTTP API calls.
 // [host] is the host to make API calls to (e.g. http://1.2.3.4:9650).
 // [endpoint] is the path to the index endpoint (e.g. /ext/index/C/block or /ext/index/X/tx).
@@ -60,7 +60,7 @@ func NewClient(host, endpoint string, requestTimeout time.Duration) *Client {
 }
 
 func (c *Client) GetContainerRange(args *GetContainerRangeArgs) ([]FormattedContainer, error) {
-	var response *GetContainerRangeResponse
+	var response GetContainerRangeResponse
 	err := c.SendRequest("getContainerRange", args, &response)
 	return response.Containers, err
 }
