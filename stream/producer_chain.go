@@ -428,7 +428,6 @@ func (p *ProducerChain) runProcessor() error {
 
 			case ErrNoMessage:
 				nomsg++
-				p.sc.Log.Debug("no message")
 				return nil
 
 			case io.EOF:
