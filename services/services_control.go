@@ -22,6 +22,7 @@ const (
 
 type Control struct {
 	Services                   cfg.Services
+	Chains                     map[string]cfg.Chain `json:"chains"`
 	Log                        logging.Logger
 	Persist                    Persist
 	Features                   map[string]struct{}
