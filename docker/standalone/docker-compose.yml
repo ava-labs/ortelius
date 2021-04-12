@@ -18,7 +18,6 @@ services:
       --http-host=0.0.0.0
       --ipcs-chain-ids=$${P_CHAINID},$${X_CHAINID}
       --index-enabled=true
-      --index-initial-chains=$${P_CHAINID},$${X_CHAINID}
       --coreth-config='{\"rpc-gas-cap\":2500000000,\"rpc-tx-fee-cap\":100,\"eth-api-enabled\":true,\"debug-api-enabled\":true,\"tx-pool-api-enabled\":true}'
       "
     ports:
@@ -29,9 +28,9 @@ services:
     depends_on:
       - producer
     restart: always
-  producer: &ortelius-app
+  indexer: &ortelius-app
     image: "avaplatform/ortelius:7676497"
-    command: ["stream", "producer", "-c", "/opt/config.json"]
+    command: ["stream", "indexer", "-c", "/opt/config.json"]
     networks:
       - services
     external_links:
@@ -41,9 +40,6 @@ services:
       - avalanche-ipcs:/tmp
       - ./config.standalone.json:/opt/config.json
     restart: on-failure
-  indexer:
-    <<: *ortelius-app
-    command: ["stream", "indexer", "-c", "/opt/config.json"]
   api:
     <<: *ortelius-app
     command: ["api", "-c", "/opt/config.json"]
