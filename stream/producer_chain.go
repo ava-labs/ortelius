@@ -43,7 +43,7 @@ import (
 
 const (
 	IndexerTimeout = 3 * time.Minute
-	MaxTxRead      = 1024
+	MaxTxRead      = 500
 )
 
 type IndexType byte
