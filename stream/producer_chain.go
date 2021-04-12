@@ -174,7 +174,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	containers, err := p.nodeIndexer.GetContainerRange(containerRange)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
-		if IndexNotRaedy(err) {
+		if IndexNotReady(err) {
 			return nil
 		}
 		return err
@@ -477,8 +477,11 @@ func (p *ProducerChain) runProcessor() error {
 	return nil
 }
 
-func IndexNotRaedy(err error) bool {
+func IndexNotReady(err error) bool {
 	if strings.HasPrefix(err.Error(), "start index") && strings.Contains(err.Error(), "last accepted index") {
+		return true
+	}
+	if strings.HasPrefix(err.Error(), "received status code '404'") {
 		return true
 	}
 	return false
