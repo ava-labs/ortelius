@@ -1,8 +1,6 @@
 package indexer
 
 import (
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -12,69 +10,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/rpc"
 )
 
-type IndexType byte
-
-const (
-	IndexTypeTransactions IndexType = iota
-	IndexTypeVertices
-	IndexTypeBlocks
-
-	typeUnknown = "unknown"
-)
-
-func (t IndexType) String() string {
-	switch t {
-	case IndexTypeTransactions:
-		return "tx"
-	case IndexTypeVertices:
-		return "vtx"
-	case IndexTypeBlocks:
-		return "block"
-	}
-	return typeUnknown
-}
-
-type IndexedChain byte
-
-const (
-	XChain IndexedChain = iota
-	PChain
-	CChain
-)
-
-func (t IndexedChain) String() string {
-	switch t {
-	case XChain:
-		return "X"
-	case PChain:
-		return "P"
-	case CChain:
-		return "C"
-	}
-	// Should never happen
-	return typeUnknown
-}
-
 type Client struct {
 	rpc.EndpointRequester
-}
-
-// NewClient creates a client.
-func NewClient(uri string, chain IndexedChain, indexType IndexType, requestTimeout time.Duration) (*Client, error) {
-	switch {
-	case chain == XChain && indexType == IndexTypeBlocks:
-		return nil, errors.New("X-Chain doesn't have blocks")
-	case (chain == PChain || chain == CChain) && indexType != IndexTypeBlocks:
-		return nil, errors.New("P-Chain and C-Chain only blocks")
-	case chain != XChain && chain != PChain && chain != CChain:
-		return nil, errors.New("invalid chain given")
-	case indexType != IndexTypeTransactions && indexType != IndexTypeVertices && indexType != IndexTypeBlocks:
-		return nil, errors.New("invalid chain given")
-	}
-
-	return &Client{
-		EndpointRequester: rpc.NewEndpointRequester(uri, fmt.Sprintf("ext/index/%s/%s", chain, indexType), "index", requestTimeout),
-	}, nil
 }
 
 type FormattedContainer struct {
@@ -85,10 +22,14 @@ type FormattedContainer struct {
 	Index     json.Uint64         `json:"index"`
 }
 
-type GetContainerRange struct {
+type GetContainerRangeArgs struct {
 	StartIndex json.Uint64         `json:"startIndex"`
 	NumToFetch json.Uint64         `json:"numToFetch"`
 	Encoding   formatting.Encoding `json:"encoding"`
+}
+
+type GetContainerRangeResponse struct {
+	Containers []FormattedContainer `json:"containers"`
 }
 
 type GetContainer struct {
@@ -109,10 +50,19 @@ type GetIndexResponse struct {
 	Index json.Uint64 `json:"index"`
 }
 
-func (c *Client) GetContainerRange(args *GetContainerRange) ([]FormattedContainer, error) {
-	var response []FormattedContainer
+// NewClient creates a client that can interact with an index via HTTP API calls.
+// [host] is the host to make API calls to (e.g. http://1.2.3.4:9650).
+// [endpoint] is the path to the index endpoint (e.g. /ext/index/C/block or /ext/index/X/tx).
+func NewClient(host, endpoint string, requestTimeout time.Duration) *Client {
+	return &Client{
+		EndpointRequester: rpc.NewEndpointRequester(host, endpoint, "index", requestTimeout),
+	}
+}
+
+func (c *Client) GetContainerRange(args *GetContainerRangeArgs) ([]FormattedContainer, error) {
+	var response *GetContainerRangeResponse
 	err := c.SendRequest("getContainerRange", args, &response)
-	return response, err
+	return response.Containers, err
 }
 
 func (c *Client) GetContainerByIndex(args *GetContainer) (FormattedContainer, error) {

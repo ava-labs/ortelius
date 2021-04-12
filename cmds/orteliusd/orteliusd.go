@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	indexer "github.com/ava-labs/ortelius/indexer_client"
-
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
@@ -242,18 +240,18 @@ func producerFactories(sc *services.Control, cfg *cfg.Config) []utils.ListenClos
 	for _, v := range cfg.Chains {
 		switch v.VMType {
 		case consumers.IndexerAVMName:
-			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, indexer.IndexTypeTransactions, indexer.XChain)
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeTransactions, stream.IndexXChain)
 			if err != nil {
 				panic(err)
 			}
 			factories = append(factories, p)
-			p, err = stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeConsensus, indexer.IndexTypeVertices, indexer.XChain)
+			p, err = stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeConsensus, stream.IndexTypeVertices, stream.IndexXChain)
 			if err != nil {
 				panic(err)
 			}
 			factories = append(factories, p)
 		case consumers.IndexerPVMName:
-			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, indexer.IndexTypeBlocks, indexer.PChain)
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeBlocks, stream.IndexPChain)
 			if err != nil {
 				panic(err)
 			}

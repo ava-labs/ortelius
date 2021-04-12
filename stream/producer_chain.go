@@ -33,7 +33,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	indexer "github.com/ava-labs/ortelius/indexer_client"
+	indexer2 "github.com/ava-labs/ortelius/indexer_client"
 
 	"github.com/ava-labs/ortelius/services"
 
@@ -46,22 +46,65 @@ const (
 	MaxTxRead      = 1024
 )
 
+type IndexType byte
+
+const (
+	IndexTypeTransactions IndexType = iota
+	IndexTypeVertices
+	IndexTypeBlocks
+
+	typeUnknown = "unknown"
+)
+
+func (t IndexType) String() string {
+	switch t {
+	case IndexTypeTransactions:
+		return "tx"
+	case IndexTypeVertices:
+		return "vtx"
+	case IndexTypeBlocks:
+		return "block"
+	}
+	return typeUnknown
+}
+
+type IndexedChain byte
+
+const (
+	IndexXChain IndexedChain = iota
+	IndexPChain
+	IndexCChain
+)
+
+func (t IndexedChain) String() string {
+	switch t {
+	case IndexXChain:
+		return "X"
+	case IndexPChain:
+		return "P"
+	case IndexCChain:
+		return "C"
+	}
+	// Should never happen
+	return typeUnknown
+}
+
 type producerChainContainer struct {
 	sc             *services.Control
 	conns          *services.Connections
 	runningControl utils.Running
-	nodeIndexer    *indexer.Client
+	nodeIndexer    *indexer2.Client
 	conf           cfg.Config
 	nodeIndex      *services.NodeIndex
 	nodeinstance   string
 	topic          string
 	chainID        string
 	codecMgr       codec.Manager
-	indexerType    indexer.IndexType
-	indexerChain   indexer.IndexedChain
+	indexerType    IndexType
+	indexerChain   IndexedChain
 }
 
-func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer.Client, topic string, chainID string, indexerType indexer.IndexType, indexerChain indexer.IndexedChain, codecMgr codec.Manager) (*producerChainContainer, error) {
+func newContainer(sc *services.Control, conf cfg.Config, nodeIndexer *indexer2.Client, topic string, chainID string, indexerType IndexType, indexerChain IndexedChain, codecMgr codec.Manager) (*producerChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
@@ -123,7 +166,7 @@ func (p *producerChainContainer) getIndex() error {
 }
 
 func (p *producerChainContainer) ProcessNextMessage() error {
-	containerRange := &indexer.GetContainerRange{
+	containerRange := &indexer2.GetContainerRangeArgs{
 		StartIndex: json.Uint64(p.nodeIndex.Idx),
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
@@ -232,32 +275,31 @@ type ProducerChain struct {
 
 	topic string
 
-	nodeIndexer  *indexer.Client
+	nodeIndexer  *indexer2.Client
 	chainID      string
 	codecMgr     codec.Manager
-	indexerType  indexer.IndexType
-	indexerChain indexer.IndexedChain
+	indexerType  IndexType
+	indexerChain IndexedChain
 }
 
-func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eventType EventType, indexerType indexer.IndexType, indexerChain indexer.IndexedChain) (*ProducerChain, error) {
+func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eventType EventType, indexerType IndexType, indexerChain IndexedChain) (*ProducerChain, error) {
 	topicName := GetTopicName(conf.NetworkID, chainID, eventType)
 
 	var codecMgr codec.Manager
 	switch indexerChain {
-	case indexer.XChain:
+	case IndexXChain:
 		codec, err := newAVMCodec(conf.NetworkID, chainID)
 		if err != nil {
 			return nil, err
 		}
 		codecMgr = codec
-	case indexer.PChain:
+	case IndexPChain:
 		codecMgr = platformvm.Codec
 	}
 
-	nodeIndexer, err := indexer.NewClient(conf.AvalancheGO, indexerChain, indexerType, IndexerTimeout)
-	if err != nil {
-		return nil, err
-	}
+	endpoint := fmt.Sprintf("/ext/index/%s/%s", indexerChain, indexerType)
+
+	nodeIndexer := indexer2.NewClient(conf.AvalancheGO, endpoint, IndexerTimeout)
 
 	p := &ProducerChain{
 		indexerType:             indexerType,
