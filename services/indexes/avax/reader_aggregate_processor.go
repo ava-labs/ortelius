@@ -182,8 +182,16 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			return
 		}
 
+		// counts for the chains only..
+		var addressCountlpruned []*models.AddressCounts
+		for _, aCount := range addressCountl {
+			if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
+				addressCountlpruned = append(addressCountlpruned, aCount)
+			}
+		}
+
 		r.readerAggregate.lock.Lock()
-		r.readerAggregate.addressCountl = addressCountl
+		r.readerAggregate.addressCountl = addressCountlpruned
 		r.readerAggregate.lock.Unlock()
 
 		var assetsFound []string
