@@ -133,7 +133,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 
 	defer func() {
 		wb.flushTicker.Stop()
-		flush()
+		_ = flush()
 		close(wb.doneCh)
 	}()
 
@@ -147,7 +147,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 			// If the buffer is full we must flush before we can add another message
 			// This will exert backpressure
 			if bufferSize >= size {
-				flush()
+				_ = flush()
 			}
 
 			// Add this message to the buffer and if it's full we flush and
@@ -156,7 +156,7 @@ func (wb *bufferedWriter) loop(size int, flushInterval time.Duration) {
 		case <-wb.flushTicker.C:
 			// Don't flush if we've flushed recently from a full buffer
 			if time.Now().After(lastFlush.Add(flushInterval)) {
-				flush()
+				_ = flush()
 			}
 		}
 	}
