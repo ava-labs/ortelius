@@ -309,10 +309,14 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 			txPoolQ := services.TxPool{
 				ID: txPoolID.ID,
 			}
-			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
+			var txPool *services.TxPool
+			for {
+				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+				if err == nil {
+					break
+				}
+				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				time.Sleep(500 * time.Millisecond)
 			}
 
 			id, err := ids.FromString(txPool.MsgKey)
@@ -383,10 +387,14 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 			txPoolQ := services.TxPool{
 				ID: txPoolID.ID,
 			}
-			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
+			var txPool *services.TxPool
+			for {
+				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+				if err == nil {
+					break
+				}
+				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				time.Sleep(500 * time.Millisecond)
 			}
 
 			id, err := ids.FromString(txPool.MsgKey)
@@ -447,10 +455,14 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 			txPoolQ := services.TxPool{
 				ID: txPoolID.ID,
 			}
-			txPool, err := replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
+			var txPool *services.TxPool
+			for {
+				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+				if err == nil {
+					break
+				}
+				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				time.Sleep(500 * time.Millisecond)
 			}
 
 			id, err := ids.FromString(txPool.MsgKey)
