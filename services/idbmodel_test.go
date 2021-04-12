@@ -277,6 +277,7 @@ func TestAddresses(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	basebin := [33]byte{}
 	for cnt := 0; cnt < len(basebin); cnt++ {
@@ -288,6 +289,7 @@ func TestAddresses(t *testing.T) {
 	v.PublicKey = make([]byte, len(basebin))
 	copy(v.PublicKey, basebin[:])
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -313,6 +315,7 @@ func TestAddresses(t *testing.T) {
 	basebin[5] = 0xE
 	copy(v.PublicKey, basebin[:])
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -337,11 +340,13 @@ func TestAddressChain(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &AddressChain{}
 	v.Address = "id1"
 	v.ChainID = "ch1"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -365,6 +370,7 @@ func TestAddressChain(t *testing.T) {
 
 	v.ChainID = "ch2"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddressChain(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -386,6 +392,7 @@ func TestOutputAddresses(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
 	tm := time.Now().UTC().Truncate(1 * time.Second)
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	stream := health.NewStream()
 
@@ -399,6 +406,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.OutputID = "oid1"
 	v.Address = "id1"
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -419,6 +427,7 @@ func TestOutputAddresses(t *testing.T) {
 	v.Address = "id1"
 	v.RedeemingSignature = []byte("rd1")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -428,12 +437,16 @@ func TestOutputAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatal("query fail", err)
 	}
+	if fv.UpdatedAt != tmu.Add(1*time.Minute) {
+		t.Fatal("compare fail")
+	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
 
 	v.RedeemingSignature = []byte("rd2")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(2 * time.Minute)
 
 	err = p.InsertOutputAddresses(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -446,12 +459,16 @@ func TestOutputAddresses(t *testing.T) {
 	if string(v.RedeemingSignature) != "rd2" {
 		t.Fatal("compare fail")
 	}
+	if fv.UpdatedAt != tmu.Add(2*time.Minute) {
+		t.Fatal("compare fail")
+	}
 	if !reflect.DeepEqual(*v, *fv) {
 		t.Fatal("compare fail")
 	}
 
 	v.RedeemingSignature = []byte("rd3")
 	v.CreatedAt = tm
+	v.UpdatedAt = tmu.Add(3 * time.Minute)
 
 	err = p.UpdateOutputAddresses(ctx, rawDBConn.NewSession(stream), v)
 	if err != nil {
@@ -959,10 +976,12 @@ func TestTransactionsBlock(t *testing.T) {
 func TestAddressBech32(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &AddressBech32{}
 	v.Address = "adr1"
 	v.Bech32Address = "badr1"
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -985,6 +1004,7 @@ func TestAddressBech32(t *testing.T) {
 	}
 
 	v.Bech32Address = "badr2"
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertAddressBech32(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {
@@ -1296,11 +1316,13 @@ func TestTransactionsRewardsOwnersOutputs(t *testing.T) {
 func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	p := NewPersist()
 	ctx := context.Background()
+	tmu := time.Now().UTC().Truncate(1 * time.Second)
 
 	v := &TransactionsRewardsOwnersAddress{}
 	v.ID = "txid1"
 	v.Address = "addr1"
 	v.OutputIndex = 1
+	v.UpdatedAt = tmu
 
 	stream := health.NewStream()
 
@@ -1323,6 +1345,7 @@ func TestTransactionsRewardsOwnersAddress(t *testing.T) {
 	}
 
 	v.OutputIndex = 4
+	v.UpdatedAt = tmu.Add(1 * time.Minute)
 
 	err = p.InsertTransactionsRewardsOwnersAddress(ctx, rawDBConn.NewSession(stream), v, true)
 	if err != nil {

@@ -11,7 +11,10 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
 	"github.com/ava-labs/avalanchego/ids"
 	cblock "github.com/ava-labs/ortelius/models"
@@ -20,14 +23,8 @@ import (
 
 	"github.com/ava-labs/ortelius/utils"
 
-	"github.com/ava-labs/coreth/core/types"
-
 	"github.com/ava-labs/avalanchego/utils/hashing"
 
-	"github.com/ava-labs/coreth"
-
-	"github.com/ava-labs/coreth/ethclient"
-	"github.com/ava-labs/coreth/rpc"
 	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -41,252 +38,72 @@ const (
 
 	readRPCTimeout = 500 * time.Millisecond
 
-	blocksToQueue = 25
+	maxWorkerQueue = 1000
+	maxWorkers     = 4
 )
 
-type ProducerCChain struct {
-	id string
+type producerCChainContainer struct {
 	sc *services.Control
 
-	// metrics
-	metricProcessedCountKey string
-	metricSuccessCountKey   string
-	metricFailureCountKey   string
-
-	rpcClient *rpc.Client
-	ethClient *ethclient.Client
-	conns     *services.Connections
-	block     *big.Int
-	conf      cfg.Config
-
-	// Concurrency control
-	quitCh     chan struct{}
-	doneCh     chan struct{}
-	topic      string
-	topicTrc   string
+	conns      *services.Connections
+	block      *big.Int
 	blockCount *big.Int
 
-	ethClientLock sync.Mutex
+	client *cblock.Client
+
+	msgChan     chan *blockWorkContainer
+	msgChanSz   int64
+	msgChanDone chan struct{}
+
+	runningControl utils.Running
+
+	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
-func NewProducerCChain() utils.ListenCloserFactory {
-	return func(sc *services.Control, conf cfg.Config, _ int, _ int) utils.ListenCloser {
-		topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
-		topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
-
-		p := &ProducerCChain{
-			topic:                   topicName,
-			topicTrc:                topicTrcName,
-			conf:                    conf,
-			sc:                      sc,
-			metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
-			metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
-			metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
-			id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
-			quitCh:                  make(chan struct{}),
-			doneCh:                  make(chan struct{}),
-		}
-		metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
-		metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
-		sc.InitProduceMetrics()
-
-		return p
-	}
-}
-
-// Close shuts down the producer
-func (p *ProducerCChain) Close() error {
-	close(p.quitCh)
-	<-p.doneCh
-	return nil
-}
-
-func (p *ProducerCChain) ID() string {
-	return p.id
-}
-
-type TracerParam struct {
-	Tracer  string `json:"tracer"`
-	Timeout string `json:"timeout"`
-}
-
-func (p *ProducerCChain) readBlockFromRPC(blockNumber *big.Int) (*types.Block, []*cblock.TransactionTrace, error) {
-	p.ethClientLock.Lock()
-	defer p.ethClientLock.Unlock()
-
-	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
-	defer cancelCTX()
-
-	bl, err := p.ethClient.BlockByNumber(ctx, blockNumber)
-	if err == coreth.NotFound {
-		return nil, nil, ErrNoMessage
-	}
+func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
+	conns, err := sc.DatabaseOnly()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	txTraces := make([]*cblock.TransactionTrace, 0, len(bl.Transactions()))
-	for _, tx := range bl.Transactions() {
-		txh := tx.Hash().Hex()
-		if !strings.HasPrefix(txh, "0x") {
-			txh = "0x" + txh
-		}
-		var results []interface{}
-		err = p.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, TracerParam{Tracer: utils.Tracer, Timeout: "1m"})
-		if err != nil {
-			return nil, nil, err
-		}
-		for ipos, result := range results {
-			traceBits, err := json.Marshal(result)
-			if err != nil {
-				return nil, nil, err
-			}
-			txTraces = append(txTraces,
-				&cblock.TransactionTrace{
-					Hash:  txh,
-					Idx:   uint32(ipos),
-					Trace: traceBits,
-				},
-			)
-		}
+	pc := &producerCChainContainer{
+		msgChan:        make(chan *blockWorkContainer, maxWorkerQueue),
+		msgChanDone:    make(chan struct{}, 1),
+		runningControl: utils.NewRunning(),
+		conns:          conns,
+		sc:             sc,
 	}
 
-	return bl, txTraces, nil
-}
-
-func (p *ProducerCChain) updateTxPool(txPool *services.TxPool) error {
-	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("update-tx-pool"))
-
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
-	defer cancelCtx()
-
-	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
-}
-
-func (p *ProducerCChain) updateBlock(blockNumber *big.Int, updateTime time.Time) error {
-	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("update-block"))
-
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
-	defer cancelCtx()
-
-	cvmBlocks := &services.CvmBlocks{
-		Block:     blockNumber.String(),
-		CreatedAt: updateTime,
-	}
-	return p.sc.Persist.InsertCvmBlocks(ctx, sess, cvmBlocks)
-}
-
-func (p *ProducerCChain) fetchLatest() (uint64, error) {
-	ctx, cancelCTX := context.WithTimeout(context.Background(), rpcTimeout)
-	defer cancelCTX()
-	return p.ethClient.BlockNumber(ctx)
-}
-
-type localBlockObject struct {
-	block  *types.Block
-	time   time.Time
-	traces []*cblock.TransactionTrace
-}
-
-func (p *ProducerCChain) ProcessNextMessage() error {
-	current := big.NewInt(0).Set(p.block)
-
-	localBlocks := make([]*localBlockObject, 0, blocksToQueue)
-
-	consumeBlock := func() error {
-		if len(localBlocks) == 0 {
-			return nil
-		}
-
-		defer func() {
-			localBlocks = make([]*localBlockObject, 0, blocksToQueue)
-		}()
-
-		for _, bl := range localBlocks {
-			wp := &WorkPacketCChain{localBlock: bl}
-			err := p.processWork(wp)
-			if err != nil {
-				return err
-			}
-		}
-
-		for _, bl := range localBlocks {
-			err := p.updateBlock(bl.block.Number(), time.Now().UTC())
-			if err != nil {
-				return err
-			}
-			p.block.Set(bl.block.Number())
-		}
-
-		return nil
+	err = pc.getBlock()
+	if err != nil {
+		_ = conns.Close()
+		return nil, err
 	}
 
-	defer func() {
-		err := consumeBlock()
-		if err != nil {
-			p.sc.Log.Warn("consume block error %v", err)
-		}
-	}()
-
-	for !p.isStopping() {
-		lblock, err := p.fetchLatest()
-		if err != nil {
-			time.Sleep(readRPCTimeout)
-			return err
-		}
-
-		lblocknext := big.NewInt(0).SetUint64(lblock)
-		if lblocknext.Cmp(current) <= 0 {
-			time.Sleep(readRPCTimeout)
-			return ErrNoMessage
-		}
-
-		for !p.isStopping() && lblocknext.Cmp(current) > 0 {
-			ncurrent := big.NewInt(0).Add(current, big.NewInt(1))
-			bl, traces, err := p.readBlockFromRPC(ncurrent)
-			if err != nil {
-				time.Sleep(readRPCTimeout)
-				return err
-			}
-			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
-
-			localBlocks = append(localBlocks, &localBlockObject{block: bl, traces: traces, time: time.Now().UTC()})
-			if len(localBlocks) > blocksToQueue {
-				err = consumeBlock()
-				if err != nil {
-					return err
-				}
-			}
-
-			current = big.NewInt(0).Add(current, big.NewInt(1))
-		}
-
-		err = consumeBlock()
-		if err != nil {
-			return err
-		}
+	cl, err := cblock.NewClient(conf.Producer.CChainRPC)
+	if err != nil {
+		_ = conns.Close()
+		return nil, err
 	}
+	pc.client = cl
 
-	return nil
+	return pc, nil
 }
 
-func (p *ProducerCChain) Failure() {
-	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
+func (p *producerCChainContainer) Close() error {
+	if p.client != nil {
+		p.client.Close()
+	}
+	errs := wrappers.Errs{}
+	if p.conns != nil {
+		errs.Add(p.conns.Close())
+	}
+	return errs.Err
 }
 
-func (p *ProducerCChain) Success() {
-	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
-}
-
-func (p *ProducerCChain) getBlock() error {
+func (p *producerCChainContainer) getBlock() error {
 	var err error
-
-	job := p.conns.Stream().NewJob("get-block")
-	sess := p.conns.DB().NewSessionForEventReceiver(job)
+	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.Stream().NewJob("get-block"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
@@ -310,101 +127,266 @@ func (p *ProducerCChain) getBlock() error {
 	if !ok {
 		return fmt.Errorf("invalid block %s", maxBlock.Block)
 	}
-	cblock, ok := big.NewInt(0).SetString(maxBlock.BlockCount, 10)
+	cblockCount, ok := big.NewInt(0).SetString(maxBlock.BlockCount, 10)
 	if !ok {
 		return fmt.Errorf("invalid block %s", maxBlock.BlockCount)
 	}
 	p.block = mblock
-	p.blockCount = cblock
+	p.blockCount = cblockCount
 	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
 	return nil
 }
 
-func (p *ProducerCChain) Listen() error {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+func (p *producerCChainContainer) enqueue(bw *blockWorkContainer) {
+	p.msgChan <- bw
+	atomic.AddInt64(&p.msgChanSz, 1)
+}
 
-	go func() {
-		p.sc.Log.Info("Started worker manager for cchain")
-		defer p.sc.Log.Info("Exiting worker manager for cchain")
-		defer wg.Done()
-
-		// Keep running the worker until we're asked to stop
-		var err error
-		for !p.isStopping() {
-			err = p.runProcessor()
-
-			// If there was an error we want to log it, and iff we are not stopping
-			// we want to add a retry delay.
-			if err != nil {
-				p.sc.Log.Error("Error running worker: %s", err.Error())
-			}
-			if p.isStopping() {
-				return
-			}
-			if err != nil {
-				<-time.After(processorFailureRetryInterval)
-			}
-		}
+func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
+	defer func() {
+		wg.Done()
+		_ = conns.Close()
 	}()
 
-	// Wait for all workers to finish
-	wg.Wait()
-	p.sc.Log.Info("All workers stopped")
-	close(p.doneCh)
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("catchup-block"))
+
+	ctx := context.Background()
+	var err error
+	startBlock := big.NewInt(0)
+	endBlock := big.NewInt(0)
+	for endBlock.Cmp(catchupBlock) < 0 {
+		if p.runningControl.IsStopped() {
+			break
+		}
+		if p.catchupErrs.GetValue() != nil {
+			return
+		}
+
+		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
+		if endBlock.Cmp(catchupBlock) >= 0 {
+			endBlock.Set(catchupBlock)
+		}
+
+		var cvmBlocks []*services.CvmBlocks
+		_, err = sess.Select(
+			"block",
+		).From(services.TableCvmBlocks).
+			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
+			LoadContext(ctx, &cvmBlocks)
+		if err != nil {
+			p.catchupErrs.SetValue(err)
+			return
+		}
+		blockMap := make(map[string]struct{})
+		for _, bl := range cvmBlocks {
+			blockMap[bl.Block] = struct{}{}
+		}
+		for startBlock.Cmp(endBlock) < 0 {
+			if p.runningControl.IsStopped() {
+				break
+			}
+
+			if p.catchupErrs.GetValue() != nil {
+				return
+			}
+			if _, ok := blockMap[startBlock.String()]; !ok {
+				p.sc.Log.Info("refill %v", startBlock.String())
+				p.enqueue(&blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock})
+			}
+			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
+		}
+	}
+
+	p.sc.Log.Info("catchup complete")
+}
+
+func (p *producerCChainContainer) ProcessNextMessage() error {
+	lblocknext, err := p.client.Latest(rpcTimeout)
+	if err != nil {
+		time.Sleep(readRPCTimeout)
+		return err
+	}
+	if lblocknext.Cmp(p.block) <= 0 {
+		time.Sleep(readRPCTimeout)
+		return ErrNoMessage
+	}
+
+	errs := &avalancheGoUtils.AtomicInterface{}
+	for lblocknext.Cmp(p.block) > 0 {
+		if p.runningControl.IsStopped() {
+			break
+		}
+		if errs.GetValue() != nil {
+			return errs.GetValue().(error)
+		}
+		if p.catchupErrs.GetValue() != nil {
+			return p.catchupErrs.GetValue().(error)
+		}
+		ncurrent := big.NewInt(0).Add(p.block, big.NewInt(1))
+		p.enqueue(&blockWorkContainer{errs: errs, blockNumber: ncurrent})
+		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
+	}
+
+	for atomic.LoadInt64(&p.msgChanSz) > 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	if errs.GetValue() != nil {
+		return errs.GetValue().(error)
+	}
 
 	return nil
 }
 
-// isStopping returns true iff quitCh has been signaled
-func (p *ProducerCChain) isStopping() bool {
-	select {
-	case <-p.quitCh:
+type ProducerCChain struct {
+	id string
+	sc *services.Control
+
+	// metrics
+	metricProcessedCountKey string
+	metricSuccessCountKey   string
+	metricFailureCountKey   string
+
+	conf cfg.Config
+
+	runningControl utils.Running
+
+	topic     string
+	topicTrc  string
+	topicLogs string
+}
+
+func NewProducerCChain(sc *services.Control, conf cfg.Config) utils.ListenCloser {
+	topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
+	topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
+	topicLogsName := fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
+
+	p := &ProducerCChain{
+		topic:                   topicName,
+		topicTrc:                topicTrcName,
+		topicLogs:               topicLogsName,
+		conf:                    conf,
+		sc:                      sc,
+		metricProcessedCountKey: fmt.Sprintf("produce_records_processed_%s_cchain", conf.CchainID),
+		metricSuccessCountKey:   fmt.Sprintf("produce_records_success_%s_cchain", conf.CchainID),
+		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_cchain", conf.CchainID),
+		id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
+		runningControl:          utils.NewRunning(),
+	}
+	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+	sc.InitProduceMetrics()
+
+	return p
+}
+
+func (p *ProducerCChain) Close() error {
+	p.runningControl.Close()
+	return nil
+}
+
+func (p *ProducerCChain) ID() string {
+	return p.id
+}
+
+func (p *ProducerCChain) updateTxPool(conns *services.Connections, txPool *services.TxPool) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
+	defer cancelCtx()
+
+	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
+}
+
+func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *big.Int, updateTime time.Time) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-block"))
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
+	defer cancelCtx()
+
+	cvmBlocks := &services.CvmBlocks{
+		Block:     blockNumber.String(),
+		CreatedAt: updateTime,
+	}
+	return p.sc.Persist.InsertCvmBlocks(ctx, sess, cvmBlocks)
+}
+
+func (p *ProducerCChain) Failure() {
+	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
+}
+
+func (p *ProducerCChain) Success() {
+	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
+}
+
+func (p *ProducerCChain) Listen() error {
+	p.sc.Log.Info("Started worker manager for cchain")
+	defer p.sc.Log.Info("Exiting worker manager for cchain")
+
+	for !p.runningControl.IsStopped() {
+		err := p.runProcessor()
+
+		// If there was an error we want to log it, and iff we are not stopping
+		// we want to add a retry delay.
+		if err != nil {
+			p.sc.Log.Error("Error running worker: %s", err.Error())
+		}
+		if p.runningControl.IsStopped() {
+			break
+		}
+		if err != nil {
+			<-time.After(processorFailureRetryInterval)
+		}
+	}
+
+	return nil
+}
+
+func TrimNL(msg string) string {
+	oldmsg := msg
+	for {
+		msg = strings.TrimPrefix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	oldmsg = msg
+	for {
+		msg = strings.TrimSuffix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	return msg
+}
+
+func CChainNotReady(err error) bool {
+	if strings.HasPrefix(err.Error(), "404 Not Found") {
 		return true
-	default:
-		return false
 	}
-}
-
-func (p *ProducerCChain) init() error {
-	conns, err := p.sc.DatabaseOnly()
-	if err != nil {
-		return err
+	if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
+		return true
 	}
-
-	p.conns = conns
-
-	err = p.getBlock()
-	if err != nil {
-		return err
+	if strings.HasSuffix(err.Error(), "connect: connection refused") {
+		return true
 	}
-
-	rc, err := rpc.Dial(p.conf.Producer.CChainRPC)
-	if err != nil {
-		return err
+	if strings.HasSuffix(err.Error(), "read: connection reset by peer") {
+		return true
 	}
-	p.rpcClient = rc
-	p.ethClient = ethclient.NewClient(rc)
-
-	return nil
-}
-
-func (p *ProducerCChain) processorClose() error {
-	p.sc.Log.Info("close %s", p.id)
-	if p.rpcClient != nil {
-		p.rpcClient.Close()
-	}
-	errs := wrappers.Errs{}
-	if p.conns != nil {
-		errs.Add(p.conns.Close())
-	}
-	return errs.Err
+	return false
 }
 
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerCChain) runProcessor() error {
-	if p.isStopping() {
+	id := p.ID()
+
+	if p.runningControl.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
 	}
@@ -412,20 +394,58 @@ func (p *ProducerCChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for cchain")
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
+	var pc *producerCChainContainer
+
+	wgpc := &sync.WaitGroup{}
+	wgpcmsgchan := &sync.WaitGroup{}
+
+	t := time.NewTicker(30 * time.Second)
+	tdoneCh := make(chan struct{})
+
 	defer func() {
-		err := p.processorClose()
-		if err != nil {
-			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+		t.Stop()
+		close(tdoneCh)
+		if pc != nil {
+			pc.runningControl.Close()
+			wgpc.Wait()
+			close(pc.msgChanDone)
+			wgpcmsgchan.Wait()
+			close(pc.msgChan)
+
+			err := pc.Close()
+			if err != nil {
+				p.sc.Log.Warn("Stopping worker for cchain %w", err)
+			}
 		}
 	}()
-	err := p.init()
+	var err error
+	pc, err = newContainerC(p.sc, p.conf)
 	if err != nil {
 		return err
 	}
 
-	pblockp1 := big.NewInt(0).Add(p.block, big.NewInt(1))
-	if p.blockCount.Cmp(pblockp1) < 0 {
-		go p.catchupBlock(pblockp1)
+	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
+	if pc.blockCount.Cmp(pblockp1) < 0 {
+		conns1, err := p.sc.DatabaseOnly()
+		if err != nil {
+			return err
+		}
+		wgpc.Add(1)
+		go pc.catchupBlock(conns1, pblockp1, wgpc)
+	}
+
+	for icnt := 0; icnt < maxWorkers; icnt++ {
+		cl, err := cblock.NewClient(p.conf.Producer.CChainRPC)
+		if err != nil {
+			return err
+		}
+		conns1, err := p.sc.DatabaseOnly()
+		if err != nil {
+			cl.Close()
+			return err
+		}
+		wgpcmsgchan.Add(1)
+		go p.blockProcessor(pc, cl, conns1, wgpcmsgchan)
 	}
 
 	// Create a closure that processes the next message from the backend
@@ -434,7 +454,18 @@ func (p *ProducerCChain) runProcessor() error {
 		failures           int
 		nomsg              int
 		processNextMessage = func() error {
-			err := p.ProcessNextMessage()
+			err := pc.ProcessNextMessage()
+			if pc.catchupErrs.GetValue() != nil {
+				err = pc.catchupErrs.GetValue().(error)
+				if !CChainNotReady(err) {
+					failures++
+					p.Failure()
+					p.sc.Log.Error("Catchup error: %v", err)
+				} else {
+					p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				}
+				return err
+			}
 
 			switch err {
 			case nil:
@@ -458,20 +489,8 @@ func (p *ProducerCChain) runProcessor() error {
 				return io.EOF
 
 			default:
-				if strings.HasPrefix(err.Error(), "404 Not Found") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasPrefix(err.Error(), "503 Service Unavailable") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasSuffix(err.Error(), "connect: connection refused") {
-					p.sc.Log.Warn("%s", err.Error())
-					return nil
-				}
-				if strings.HasSuffix(err.Error(), "read: connection reset by peer") {
-					p.sc.Log.Warn("%s", err.Error())
+				if CChainNotReady(err) {
+					p.sc.Log.Warn("%s", TrimNL(err.Error()))
 					return nil
 				}
 
@@ -483,22 +502,12 @@ func (p *ProducerCChain) runProcessor() error {
 		}
 	)
 
-	id := p.ID()
-
-	t := time.NewTicker(30 * time.Second)
-	tdoneCh := make(chan struct{})
-	defer func() {
-		t.Stop()
-		close(tdoneCh)
-	}()
-
-	// Log run statistics periodically until asked to stop
 	go func() {
 		for {
 			select {
 			case <-t.C:
 				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.isStopping() {
+				if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
 					return
 				}
 			case <-tdoneCh:
@@ -508,7 +517,10 @@ func (p *ProducerCChain) runProcessor() error {
 	}()
 
 	// Process messages until asked to stop
-	for !p.isStopping() {
+	for {
+		if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
+			break
+		}
 		err := processNextMessage()
 		if err != nil {
 			return err
@@ -518,18 +530,17 @@ func (p *ProducerCChain) runProcessor() error {
 	return nil
 }
 
-type WorkPacketCChain struct {
-	localBlock *localBlockObject
+type localBlockObject struct {
+	blockContainer *cblock.BlockContainer
+	time           time.Time
 }
 
-func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
-	cblk, err := cblock.New(wp.localBlock.block)
+func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *localBlockObject) error {
+	cblk, err := cblock.New(localBlock.blockContainer.Block)
 	if err != nil {
 		return err
 	}
-	if cblk == nil {
-		return fmt.Errorf("cblock is nil")
-	}
+
 	// wipe before re-encoding
 	cblk.Txs = nil
 	block, err := json.Marshal(cblk)
@@ -549,18 +560,18 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 		Serialization: block,
 		Processed:     0,
 		Topic:         p.topic,
-		CreatedAt:     wp.localBlock.time,
+		CreatedAt:     localBlock.time,
 	}
 	err = txPool.ComputeID()
 	if err != nil {
 		return err
 	}
-	err = p.updateTxPool(txPool)
+	err = p.updateTxPool(conns, txPool)
 	if err != nil {
 		return err
 	}
 
-	for _, txTranactionTraces := range wp.localBlock.traces {
+	for _, txTranactionTraces := range localBlock.blockContainer.Traces {
 		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
 		if err != nil {
 			return err
@@ -578,83 +589,94 @@ func (p *ProducerCChain) processWork(wp *WorkPacketCChain) error {
 			Serialization: txTransactionTracesBits,
 			Processed:     0,
 			Topic:         p.topicTrc,
-			CreatedAt:     wp.localBlock.time,
+			CreatedAt:     localBlock.time,
 		}
 		err = txPool.ComputeID()
 		if err != nil {
 			return err
 		}
-		err = p.updateTxPool(txPool)
+		err = p.updateTxPool(conns, txPool)
 		if err != nil {
 			return err
 		}
 	}
+
+	for _, log := range localBlock.blockContainer.Logs {
+		logBits, err := json.Marshal(log)
+		if err != nil {
+			return err
+		}
+
+		id, err := ids.ToID(hashing.ComputeHash256(logBits))
+		if err != nil {
+			return err
+		}
+
+		txPool := &services.TxPool{
+			NetworkID:     p.conf.NetworkID,
+			ChainID:       p.conf.CchainID,
+			MsgKey:        id.String(),
+			Serialization: logBits,
+			Processed:     0,
+			Topic:         p.topicLogs,
+			CreatedAt:     localBlock.time,
+		}
+		err = txPool.ComputeID()
+		if err != nil {
+			return err
+		}
+		err = p.updateTxPool(conns, txPool)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (p *ProducerCChain) catchupBlock(catchupBlock *big.Int) {
-	conns, err := p.sc.DatabaseOnly()
-	if err != nil {
-		p.sc.Log.Warn("catchupBock %v", err)
-		return
-	}
+type blockWorkContainer struct {
+	errs        *avalancheGoUtils.AtomicInterface
+	blockNumber *big.Int
+}
+
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections, wg *sync.WaitGroup) {
 	defer func() {
+		wg.Done()
 		_ = conns.Close()
+		client.Close()
 	}()
 
-	sess := p.conns.DB().NewSessionForEventReceiver(p.conns.StreamDBDedup().NewJob("catchup-block"))
-
-	ctx := context.Background()
-
-	startBlock := big.NewInt(0)
-	endBlock := big.NewInt(0)
-	for endBlock.Cmp(catchupBlock) < 0 {
-		endBlock = big.NewInt(0).Add(startBlock, big.NewInt(100000))
-		if endBlock.Cmp(catchupBlock) >= 0 {
-			endBlock.Set(catchupBlock)
-		}
-
-		var cvmBlocks []*services.CvmBlocks
-		_, err = sess.Select(
-			"block",
-		).From(services.TableCvmBlocks).
-			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
-			LoadContext(ctx, &cvmBlocks)
-		if err != nil {
-			p.sc.Log.Warn("catchupBock %v", err)
+	for {
+		select {
+		case <-pc.msgChanDone:
 			return
-		}
-		blockMap := make(map[string]struct{})
-		for _, bl := range cvmBlocks {
-			blockMap[bl.Block] = struct{}{}
-		}
-		for startBlock.Cmp(endBlock) < 0 {
-			if _, ok := blockMap[startBlock.String()]; !ok {
-				p.sc.Log.Info("refill %v", startBlock.String())
-				bl, traces, err := p.readBlockFromRPC(startBlock)
-				if err != nil {
-					p.sc.Log.Warn("catchupBock %v", err)
-					return
-				}
-
-				localBlockObject := &localBlockObject{block: bl, traces: traces, time: time.Now().UTC()}
-
-				wp := &WorkPacketCChain{localBlock: localBlockObject}
-				err = p.processWork(wp)
-				if err != nil {
-					p.sc.Log.Warn("catchupBock %v", err)
-					return
-				}
-
-				err = p.updateBlock(startBlock, time.Now().UTC())
-				if err != nil {
-					p.sc.Log.Warn("catchupBock %v", err)
-					return
-				}
+		case blockWork := <-pc.msgChan:
+			atomic.AddInt64(&pc.msgChanSz, -1)
+			if blockWork.errs.GetValue() != nil {
+				continue
 			}
-			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
+
+			blContainer, err := client.ReadBlock(blockWork.blockNumber, rpcTimeout)
+			if err != nil {
+				blockWork.errs.SetValue(err)
+				continue
+			}
+
+			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now().UTC()}
+			err = p.processWork(conns, localBlockObject)
+			if err != nil {
+				blockWork.errs.SetValue(err)
+				continue
+			}
+
+			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
+
+			err = p.updateBlock(conns, blockWork.blockNumber, localBlockObject.time)
+			if err != nil {
+				blockWork.errs.SetValue(err)
+				continue
+			}
 		}
 	}
-
-	p.sc.Log.Info("catchup complete")
 }

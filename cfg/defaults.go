@@ -15,9 +15,6 @@ const defaultJSON = `{
     }
   },
   "stream": {
-    "kafka": {
-      "brokers": []
-    },
     "producer": {
       "ipcRoot": "/tmp"
     },

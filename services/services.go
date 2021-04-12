@@ -6,8 +6,6 @@ import (
 
 	cblock "github.com/ava-labs/ortelius/models"
 
-	kafkaMessage "github.com/segmentio/kafka-go"
-
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )
@@ -18,7 +16,6 @@ type Consumable interface {
 	Body() []byte
 	Timestamp() int64
 	Nanosecond() int64
-	KafkaMessage() *kafkaMessage.Message
 }
 
 // Consumer takes in Consumables and adds them to the service's backend

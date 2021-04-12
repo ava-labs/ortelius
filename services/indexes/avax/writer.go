@@ -198,7 +198,7 @@ func (w *Writer) InsertTransactionIns(
 					return 0, err
 				}
 
-				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:], in.TxID, in.OutputIndex)
+				err = w.InsertOutputAddress(ctx, inputID, publicKey.Address(), sig[:], in.TxID, in.OutputIndex, chainID)
 				if err != nil {
 					return 0, err
 				}
@@ -269,7 +269,7 @@ func (w *Writer) InsertOutput(
 		addrBytes := [20]byte{}
 		copy(addrBytes[:], addr)
 		addrid := ids.ShortID(addrBytes)
-		err = w.InsertOutputAddress(ctx, outputID, addrid, nil, txID, idx)
+		err = w.InsertOutputAddress(ctx, outputID, addrid, nil, txID, idx, chainID)
 		if err != nil {
 			return err
 		}
@@ -323,6 +323,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 		Address:   publicKey.Address().String(),
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	return ctx.Persist().InsertAddresses(ctx.Ctx(), ctx.DB(), addresses, cfg.PerformUpdates)
 }
@@ -334,11 +335,13 @@ func (w *Writer) InsertOutputAddress(
 	sig []byte,
 	txID ids.ID,
 	idx uint32,
+	chainID string,
 ) error {
 	addressChain := &services.AddressChain{
 		Address:   address.String(),
-		ChainID:   w.chainID,
+		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	err := ctx.Persist().InsertAddressChain(ctx.Ctx(), ctx.DB(), addressChain, cfg.PerformUpdates)
 	if err != nil {
@@ -353,6 +356,7 @@ func (w *Writer) InsertOutputAddress(
 	addressBech32 := &services.AddressBech32{
 		Address:       address.String(),
 		Bech32Address: bech32Addr,
+		UpdatedAt:     time.Now().UTC(),
 	}
 	err = ctx.Persist().InsertAddressBech32(ctx.Ctx(), ctx.DB(), addressBech32, cfg.PerformUpdates)
 	if err != nil {
@@ -384,6 +388,7 @@ func (w *Writer) InsertOutputAddress(
 		Address:            address.String(),
 		RedeemingSignature: sig,
 		CreatedAt:          ctx.Time(),
+		UpdatedAt:          time.Now().UTC(),
 	}
 	err = ctx.Persist().InsertOutputAddresses(ctx.Ctx(), ctx.DB(), outputAddresses, cfg.PerformUpdates)
 	if err != nil {

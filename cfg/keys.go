@@ -30,9 +30,6 @@ const (
 
 	keysStream = "stream"
 
-	keysStreamKafka        = "kafka"
-	keysStreamKafkaBrokers = "brokers"
-
 	keysStreamProducer        = "producer"
 	keysStreamProducerIPCRoot = "ipcRoot"
 

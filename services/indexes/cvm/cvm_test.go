@@ -90,7 +90,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
@@ -124,7 +124,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block)
+	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
