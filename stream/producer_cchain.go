@@ -60,7 +60,10 @@ type producerCChainContainer struct {
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
-func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
+func newContainerC(
+	sc *services.Control,
+	conf cfg.Config,
+) (*producerCChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
@@ -668,14 +671,14 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
-
 			err = p.updateBlock(conns, blockWork.blockNumber, localBlockObject.time)
 			if err != nil {
 				blockWork.errs.SetValue(err)
 				continue
 			}
+
+			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 		}
 	}
 }
