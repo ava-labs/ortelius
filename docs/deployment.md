@@ -159,9 +159,9 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 ### Avalanche.go
 
-The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--ipcs-chain-ids` flag, example:
+The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--index-enabled` and `--ipcs-chain-ids` flag, example:
 
-`./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
+`./build/avalanchego --index-enabled=true --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
 
 ### MySQL
 
@@ -186,7 +186,6 @@ Example: `docker run --rm avaplatform/ortelius --help`
 Ortelius is a collection of services. The full stack consists of the Producer, Indexer, and API which can all be started from the single binary:
 
 ```
-ortelius stream producer -c path/to/config.json
 ortelius stream indexer -c path/to/config.json
 ortelius api -c path/to/config.json
 ```
@@ -213,7 +212,5 @@ Stop [ortelius](#stop-ortelius)
 Remove the directory /var/lib/ortelius/avalanche/mainnet/
 
 Restart [ortelius](#start-ortelius).
-
-
 
 
