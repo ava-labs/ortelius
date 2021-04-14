@@ -60,7 +60,10 @@ type producerCChainContainer struct {
 	catchupErrs avalancheGoUtils.AtomicInterface
 }
 
-func newContainerC(sc *services.Control, conf cfg.Config) (*producerCChainContainer, error) {
+func newContainerC(
+	sc *services.Control,
+	conf cfg.Config,
+) (*producerCChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return nil, err
@@ -392,31 +395,26 @@ func (p *ProducerCChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for cchain")
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
-	var pc *producerCChainContainer
-
 	wgpc := &sync.WaitGroup{}
 	wgpcmsgchan := &sync.WaitGroup{}
 
-	defer func() {
-		if pc != nil {
-			pc.runningControl.Close()
-			wgpc.Wait()
-			close(pc.msgChanDone)
-			wgpcmsgchan.Wait()
-			close(pc.msgChan)
-
-			err := pc.Close()
-			if err != nil {
-				p.sc.Log.Warn("Stopping worker for cchain %w", err)
-			}
-		}
-	}()
-
-	var err error
-	pc, err = newContainerC(p.sc, p.conf)
+	pc, err := newContainerC(p.sc, p.conf)
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		pc.runningControl.Close()
+		wgpc.Wait()
+		close(pc.msgChanDone)
+		wgpcmsgchan.Wait()
+		close(pc.msgChan)
+
+		err := pc.Close()
+		if err != nil {
+			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+		}
+	}()
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
 	if pc.blockCount.Cmp(pblockp1) < 0 {

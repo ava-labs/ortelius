@@ -173,7 +173,12 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	}
 }
 
-func IndexerFactories(sc *services.Control, config *cfg.Config, factoriesChainDB []stream.ProcessorFactoryChainDB, factoriesInstDB []stream.ProcessorFactoryInstDB) error {
+func IndexerFactories(
+	sc *services.Control,
+	config *cfg.Config,
+	factoriesChainDB []stream.ProcessorFactoryChainDB,
+	factoriesInstDB []stream.ProcessorFactoryInstDB,
+) error {
 	ctrl := &IndexerFactoryControl{sc: sc}
 	ctrl.fsm = make(map[string]stream.ProcessorDB)
 	var topicNames []string
