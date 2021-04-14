@@ -1171,7 +1171,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ?", txIDs)
 
 	var outputs []*compositeRecord
-	_, err := selectOutputs(dbRunner).
+	_, err := selectOutputs(dbRunner, false).
 		Join(dbr.Union(s1_0, s1_1).As("union_q_x"), "union_q_x.id = avm_outputs.id").LoadContext(ctx, &outputs)
 	if err != nil {
 		return nil, err
@@ -1184,7 +1184,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 
 	// if we get an input but have not yet seen the output.
 	var outputs2 []*compositeRecord
-	_, err = selectOutputsRedeeming(dbRunner).
+	_, err = selectOutputs(dbRunner, true).
 		Where("avm_outputs_redeeming.redeeming_transaction_id IN ? and avm_outputs_redeeming.id not in ?",
 			txIDs, dbr.Select("sq_s2.id").From(s2.As("sq_s2"))).LoadContext(ctx, &outputs2)
 	if err != nil {
@@ -1342,64 +1342,51 @@ func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInf
 	return collatedResults, nil
 }
 
-func selectOutputs(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs.id",
-		"avm_outputs.transaction_id",
-		"avm_outputs.output_index",
-		"avm_outputs.asset_id",
-		"avm_outputs.output_type",
-		"avm_outputs.amount",
-		"avm_outputs.locktime",
-		"avm_outputs.stake_locktime",
-		"avm_outputs.threshold",
-		"avm_outputs.created_at",
-		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
-		"avm_outputs.group_id",
-		"avm_output_addresses.output_id AS output_id",
-		"avm_output_addresses.address AS address",
-		"avm_output_addresses.redeeming_signature AS signature",
-		"addresses.public_key AS public_key",
-		"avm_outputs.chain_id",
-		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
-		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
-		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
-		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
-		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
-	).
-		From("avm_outputs").
-		LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
-		LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id").
-		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
-}
+func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
+	tbl := "avm_outputs"
+	if redeem {
+		tbl = "avm_outputs_redeeming"
+	}
+	cols := make([]string, 0, 50)
+	cols = append(cols, tbl+".id")
+	if !redeem {
+		cols = append(cols, "avm_outputs.transaction_id")
+	} else {
+		cols = append(cols, "avm_outputs_redeeming.intx as transaction_id")
+	}
+	cols = append(cols, tbl+".output_index")
+	cols = append(cols, tbl+".asset_id")
+	cols = append(cols, "case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type")
+	cols = append(cols, tbl+".amount")
+	cols = append(cols, "case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime")
+	cols = append(cols, "case when avm_outputs.stake_locktime is null then 0 else avm_outputs.stake_locktime end as stake_locktime")
+	cols = append(cols, "case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold")
+	cols = append(cols, tbl+".created_at")
+	cols = append(cols, "case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id")
+	cols = append(cols, "case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id")
+	cols = append(cols, "case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id")
+	cols = append(cols, "case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address")
+	cols = append(cols, "avm_output_addresses.redeeming_signature AS signature")
+	cols = append(cols, "addresses.public_key AS public_key")
+	cols = append(cols, tbl+".chain_id")
+	cols = append(cols, "case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload")
+	cols = append(cols, "case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake")
+	cols = append(cols, "case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout")
+	cols = append(cols, "case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo")
+	cols = append(cols, "case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen")
+	cols = append(cols, "case when transactions_rewards_owners_outputs.id is null then false else true end as reward_utxo")
 
-// match selectOutputs but based from avm_outputs_redeeming
-func selectOutputsRedeeming(dbRunner dbr.SessionRunner) *dbr.SelectBuilder {
-	return dbRunner.Select("avm_outputs_redeeming.id",
-		"avm_outputs_redeeming.intx as transaction_id",
-		"avm_outputs_redeeming.output_index",
-		"avm_outputs_redeeming.asset_id",
-		"case when avm_outputs.output_type is null then 0 else avm_outputs.output_type end as output_type",
-		"avm_outputs_redeeming.amount",
-		"case when avm_outputs.locktime is null then 0 else avm_outputs.locktime end as locktime",
-		"case when avm_outputs.stake_locktime is null then 0 else avm_outputs.stake_locktime end as stake_locktime",
-		"case when avm_outputs.threshold is null then 0 else avm_outputs.threshold end as threshold",
-		"avm_outputs_redeeming.created_at",
-		"case when avm_outputs_redeeming.redeeming_transaction_id IS NULL then '' else avm_outputs_redeeming.redeeming_transaction_id end as redeeming_transaction_id",
-		"case when avm_outputs.group_id is null then 0 else avm_outputs.group_id end as group_id",
-		"case when avm_output_addresses.output_id is null then '' else avm_output_addresses.output_id end AS output_id",
-		"case when avm_output_addresses.address is null then '' else avm_output_addresses.address end AS address",
-		"avm_output_addresses.redeeming_signature AS signature",
-		"addresses.public_key AS public_key",
-		"avm_outputs_redeeming.chain_id",
-		"case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload",
-		"case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake",
-		"case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout",
-		"case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo",
-		"case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen",
-	).
-		From("avm_outputs_redeeming").
-		LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id").
-		LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
+	sq := dbRunner.Select(cols...).From(tbl)
+
+	if !redeem {
+		sq = sq.LeftJoin("avm_outputs_redeeming", "avm_outputs.id = avm_outputs_redeeming.id")
+	} else {
+		sq = sq.LeftJoin("avm_outputs", "avm_outputs_redeeming.id = avm_outputs.id")
+	}
+
+	return sq.
+		LeftJoin("avm_output_addresses", tbl+".id = avm_output_addresses.output_id").
+		LeftJoin("transactions_rewards_owners_outputs", tbl+".id = transactions_rewards_owners_outputs.id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
 
