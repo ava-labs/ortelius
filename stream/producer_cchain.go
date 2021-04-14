@@ -384,8 +384,6 @@ func CChainNotReady(err error) bool {
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerCChain) runProcessor() error {
-	id := p.ID()
-
 	if p.runningControl.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
@@ -399,12 +397,7 @@ func (p *ProducerCChain) runProcessor() error {
 	wgpc := &sync.WaitGroup{}
 	wgpcmsgchan := &sync.WaitGroup{}
 
-	t := time.NewTicker(30 * time.Second)
-	tdoneCh := make(chan struct{})
-
 	defer func() {
-		t.Stop()
-		close(tdoneCh)
 		if pc != nil {
 			pc.runningControl.Close()
 			wgpc.Wait()
@@ -418,6 +411,7 @@ func (p *ProducerCChain) runProcessor() error {
 			}
 		}
 	}()
+
 	var err error
 	pc, err = newContainerC(p.sc, p.conf)
 	if err != nil {
@@ -449,72 +443,47 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	// Create a closure that processes the next message from the backend
-	var (
-		successes          int
-		failures           int
-		nomsg              int
-		processNextMessage = func() error {
-			err := pc.ProcessNextMessage()
-			if pc.catchupErrs.GetValue() != nil {
-				err = pc.catchupErrs.GetValue().(error)
-				if !CChainNotReady(err) {
-					failures++
-					p.Failure()
-					p.sc.Log.Error("Catchup error: %v", err)
-				} else {
-					p.sc.Log.Warn("%s", TrimNL(err.Error()))
-				}
-				return err
-			}
-
-			switch err {
-			case nil:
-				successes++
-				p.Success()
-				return nil
-
-			// This error is expected when the upstream service isn't producing
-			case context.DeadlineExceeded:
-				nomsg++
-				p.sc.Log.Debug("context deadline exceeded")
-				return nil
-
-			case ErrNoMessage:
-				nomsg++
-				p.sc.Log.Debug("no message")
-				return nil
-
-			case io.EOF:
-				p.sc.Log.Error("EOF")
-				return io.EOF
-
-			default:
-				if CChainNotReady(err) {
-					p.sc.Log.Warn("%s", TrimNL(err.Error()))
-					return nil
-				}
-
-				failures++
+	processNextMessage := func() error {
+		err := pc.ProcessNextMessage()
+		if pc.catchupErrs.GetValue() != nil {
+			err = pc.catchupErrs.GetValue().(error)
+			if !CChainNotReady(err) {
 				p.Failure()
-				p.sc.Log.Error("Unknown error: %v", err)
-				return err
+				p.sc.Log.Error("Catchup error: %v", err)
+			} else {
+				p.sc.Log.Warn("%s", TrimNL(err.Error()))
 			}
+			return err
 		}
-	)
 
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
-					return
-				}
-			case <-tdoneCh:
-				return
+		switch err {
+		case nil:
+			p.Success()
+			return nil
+
+		// This error is expected when the upstream service isn't producing
+		case context.DeadlineExceeded:
+			p.sc.Log.Debug("context deadline exceeded")
+			return nil
+
+		case ErrNoMessage:
+			return nil
+
+		case io.EOF:
+			p.sc.Log.Error("EOF")
+			return io.EOF
+
+		default:
+			if CChainNotReady(err) {
+				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				return nil
 			}
+
+			p.Failure()
+			p.sc.Log.Error("Unknown error: %v", err)
+			return err
 		}
-	}()
+	}
 
 	// Process messages until asked to stop
 	for {

@@ -154,64 +154,30 @@ func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
 	defer backend.Close()
 
 	// Create a closure that processes the next message from the backend
-	var (
-		successes          int
-		failures           int
-		nomsg              int
-		processNextMessage = func() error {
-			err := backend.ProcessNextMessage()
-			switch err {
-			case nil:
-				successes++
-				backend.Success()
-				return nil
+	processNextMessage := func() error {
+		err := backend.ProcessNextMessage()
+		switch err {
+		case nil:
+			backend.Success()
+			return nil
 
-			// This error is expected when the upstream service isn't producing
-			case context.DeadlineExceeded:
-				nomsg++
-				c.sc.Log.Debug("context deadline exceeded")
-				return nil
+		// This error is expected when the upstream service isn't producing
+		case context.DeadlineExceeded:
+			c.sc.Log.Debug("context deadline exceeded")
+			return nil
 
-			case ErrNoMessage:
-				nomsg++
-				c.sc.Log.Debug("no message")
-				return nil
+		case ErrNoMessage:
+			return nil
 
-			case io.EOF:
-				c.sc.Log.Error("EOF")
-				return io.EOF
-			default:
-				failures++
-				backend.Failure()
-				c.sc.Log.Error("Unknown error: %v", err)
-				return err
-			}
+		case io.EOF:
+			c.sc.Log.Error("EOF")
+			return io.EOF
+		default:
+			backend.Failure()
+			c.sc.Log.Error("Unknown error: %v", err)
+			return err
 		}
-	)
-
-	id := backend.ID()
-
-	t := time.NewTicker(30 * time.Second)
-	tdoneCh := make(chan struct{})
-	defer func() {
-		t.Stop()
-		close(tdoneCh)
-	}()
-
-	// Log run statistics periodically until asked to stop
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				c.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if c.isStopping() {
-					return
-				}
-			case <-tdoneCh:
-				return
-			}
-		}
-	}()
+	}
 
 	// Process messages until asked to stop
 	for !c.isStopping() {
