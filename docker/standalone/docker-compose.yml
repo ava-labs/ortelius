@@ -29,7 +29,7 @@ services:
       - producer
     restart: always
   indexer: &ortelius-app
-    image: "avaplatform/ortelius:7676497"
+    image: "avaplatform/ortelius:53083c3d"
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     networks:
       - services

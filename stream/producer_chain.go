@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/indexer"
@@ -384,8 +383,6 @@ func (p *ProducerChain) Listen() error {
 // runProcessor starts the processing loop for the backend and closes it when
 // finished
 func (p *ProducerChain) runProcessor() error {
-	id := p.ID()
-
 	if p.runningControl.IsStopped() {
 		p.sc.Log.Info("Not starting worker for cchain because we're stopping")
 		return nil
@@ -396,18 +393,9 @@ func (p *ProducerChain) runProcessor() error {
 
 	var pc *producerChainContainer
 
-	wgpc := &sync.WaitGroup{}
-
-	t := time.NewTicker(30 * time.Second)
-	tdoneCh := make(chan struct{})
-
 	defer func() {
-		t.Stop()
-		close(tdoneCh)
 		if pc != nil {
 			pc.runningControl.Close()
-			wgpc.Wait()
-
 			err := pc.Close()
 			if err != nil {
 				p.sc.Log.Warn("Stopping worker for chain %w", err)
@@ -421,61 +409,37 @@ func (p *ProducerChain) runProcessor() error {
 		return err
 	}
 
-	// Create a closure that processes the next message from the backend
-	var (
-		successes          int
-		failures           int
-		nomsg              int
-		processNextMessage = func() error {
-			err := pc.ProcessNextMessage()
+	processNextMessage := func() error {
+		err := pc.ProcessNextMessage()
 
-			switch err {
-			case nil:
-				successes++
-				p.Success()
+		switch err {
+		case nil:
+			p.Success()
+			return nil
+
+		// This error is expected when the upstream service isn't producing
+		case context.DeadlineExceeded:
+			p.sc.Log.Debug("context deadline exceeded")
+			return nil
+
+		case ErrNoMessage:
+			return nil
+
+		case io.EOF:
+			p.sc.Log.Error("EOF")
+			return io.EOF
+
+		default:
+			if ChainNotReady(err) {
+				p.sc.Log.Warn("%s", TrimNL(err.Error()))
 				return nil
-
-			// This error is expected when the upstream service isn't producing
-			case context.DeadlineExceeded:
-				nomsg++
-				p.sc.Log.Debug("context deadline exceeded")
-				return nil
-
-			case ErrNoMessage:
-				nomsg++
-				return nil
-
-			case io.EOF:
-				p.sc.Log.Error("EOF")
-				return io.EOF
-
-			default:
-				if ChainNotReady(err) {
-					p.sc.Log.Warn("%s", TrimNL(err.Error()))
-					return nil
-				}
-
-				failures++
-				p.Failure()
-				p.sc.Log.Error("Unknown error: %v", err)
-				return err
 			}
-		}
-	)
 
-	go func() {
-		for {
-			select {
-			case <-t.C:
-				p.sc.Log.Info("IProcessor %s successes=%d failures=%d nomsg=%d", id, successes, failures, nomsg)
-				if p.runningControl.IsStopped() || pc.runningControl.IsStopped() {
-					return
-				}
-			case <-tdoneCh:
-				return
-			}
+			p.Failure()
+			p.sc.Log.Error("Unknown error: %v", err)
+			return err
 		}
-	}()
+	}
 
 	// Process messages until asked to stop
 	for {
