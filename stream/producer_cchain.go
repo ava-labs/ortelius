@@ -464,9 +464,6 @@ func (p *ProducerCChain) runProcessor() error {
 			p.Success()
 			return nil
 
-		case ErrNoMessage:
-			return nil
-
 		// This error is expected when the upstream service isn't producing
 		case context.DeadlineExceeded:
 			p.sc.Log.Debug("context deadline exceeded")
