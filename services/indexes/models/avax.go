@@ -72,6 +72,7 @@ type Output struct {
 	Payload                []byte      `json:"payload"`
 	Block                  string      `json:"block"`
 	Nonce                  uint64      `json:"nonce"`
+	RewardUtxo             bool        `json:"rewardUtxo"`
 	Score                  uint64      `json:"-"`
 }
 
