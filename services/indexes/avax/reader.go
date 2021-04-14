@@ -1348,11 +1348,7 @@ func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
 		tbl = "avm_outputs_redeeming"
 	}
 	cols := make([]string, 0, 50)
-	if !redeem {
-		cols = append(cols, "avm_outputs.id")
-	} else {
-		cols = append(cols, "avm_outputs_redeeming.id")
-	}
+	cols = append(cols, tbl+".id")
 	if !redeem {
 		cols = append(cols, "avm_outputs.transaction_id")
 	} else {
@@ -1382,6 +1378,7 @@ func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
 	cols = append(cols, "case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout")
 	cols = append(cols, "case when avm_outputs.genesisutxo is null then 0 else avm_outputs.genesisutxo end as genesisutxo")
 	cols = append(cols, "case when avm_outputs.frozen is null then 0 else avm_outputs.frozen end as frozen")
+	cols = append(cols, "case when transactions_rewards_owners_outputs.id is null then false else true end as reward_utxo")
 
 	sq := dbRunner.Select(cols...).From(tbl)
 
@@ -1393,6 +1390,7 @@ func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
 
 	return sq.
 		LeftJoin("avm_output_addresses", tbl+".id = avm_output_addresses.output_id").
+		LeftJoin("transactions_rewards_owners_outputs", tbl+".id = transactions_rewards_owners_outputs.id").
 		LeftJoin("addresses", "addresses.address = avm_output_addresses.address")
 }
 
