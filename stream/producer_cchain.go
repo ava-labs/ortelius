@@ -293,15 +293,6 @@ func (p *ProducerCChain) ID() string {
 	return p.id
 }
 
-func (p *ProducerCChain) updateTxPool(conns *services.Connections, txPool *services.TxPool) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
-
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
-	defer cancelCtx()
-
-	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
-}
-
 func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *big.Int, updateTime time.Time) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-block"))
 
@@ -348,26 +339,6 @@ func (p *ProducerCChain) Listen() error {
 	return nil
 }
 
-func TrimNL(msg string) string {
-	oldmsg := msg
-	for {
-		msg = strings.TrimPrefix(msg, "\n")
-		if msg == oldmsg {
-			break
-		}
-		oldmsg = msg
-	}
-	oldmsg = msg
-	for {
-		msg = strings.TrimSuffix(msg, "\n")
-		if msg == oldmsg {
-			break
-		}
-		oldmsg = msg
-	}
-	return msg
-}
-
 func CChainNotReady(err error) bool {
 	if strings.HasPrefix(err.Error(), "404 Not Found") {
 		return true
@@ -395,31 +366,26 @@ func (p *ProducerCChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for cchain")
 	defer p.sc.Log.Info("Exiting worker for cchain")
 
-	var pc *producerCChainContainer
-
 	wgpc := &sync.WaitGroup{}
 	wgpcmsgchan := &sync.WaitGroup{}
 
-	defer func() {
-		if pc != nil {
-			pc.runningControl.Close()
-			wgpc.Wait()
-			close(pc.msgChanDone)
-			wgpcmsgchan.Wait()
-			close(pc.msgChan)
-
-			err := pc.Close()
-			if err != nil {
-				p.sc.Log.Warn("Stopping worker for cchain %w", err)
-			}
-		}
-	}()
-
-	var err error
-	pc, err = newContainerC(p.sc, p.conf)
+	pc, err := newContainerC(p.sc, p.conf)
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		pc.runningControl.Close()
+		wgpc.Wait()
+		close(pc.msgChanDone)
+		wgpcmsgchan.Wait()
+		close(pc.msgChan)
+
+		err := pc.Close()
+		if err != nil {
+			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+		}
+	}()
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
 	if pc.blockCount.Cmp(pblockp1) < 0 {
@@ -538,7 +504,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 	if err != nil {
 		return err
 	}
-	err = p.updateTxPool(conns, txPool)
+	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
 	if err != nil {
 		return err
 	}
@@ -567,7 +533,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = p.updateTxPool(conns, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
 		if err != nil {
 			return err
 		}
@@ -597,7 +563,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = p.updateTxPool(conns, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
 		if err != nil {
 			return err
 		}

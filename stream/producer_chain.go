@@ -218,7 +218,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		if err != nil {
 			return err
 		}
-		err = p.updateTxPool(p.conns, txPool)
+		err = UpdateTxPool(dbWriteTimeout, p.conns, p.sc.Persist, txPool)
 		if err != nil {
 			return err
 		}
@@ -263,15 +263,6 @@ func (p *producerChainContainer) updateNodeIndex(conns *services.Connections, no
 	defer cancelCtx()
 
 	return p.sc.Persist.UpdateNodeIndex(ctx, sess, nodeIndex)
-}
-
-func (p *producerChainContainer) updateTxPool(conns *services.Connections, txPool *services.TxPool) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
-
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
-	defer cancelCtx()
-
-	return p.sc.Persist.InsertTxPool(ctx, sess, txPool)
 }
 
 type ProducerChain struct {
@@ -391,23 +382,18 @@ func (p *ProducerChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for %s", p.ID())
 	defer p.sc.Log.Info("Exiting worker for %s", p.ID())
 
-	var pc *producerChainContainer
-
-	defer func() {
-		if pc != nil {
-			pc.runningControl.Close()
-			err := pc.Close()
-			if err != nil {
-				p.sc.Log.Warn("Stopping worker for chain %w", err)
-			}
-		}
-	}()
-
-	var err error
-	pc, err = newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.codecMgr, p.metricProcessedCountKey)
+	pc, err := newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.codecMgr, p.metricProcessedCountKey)
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		pc.runningControl.Close()
+		err := pc.Close()
+		if err != nil {
+			p.sc.Log.Warn("Stopping worker for chain %w", err)
+		}
+	}()
 
 	processNextMessage := func() error {
 		err := pc.ProcessNextMessage()

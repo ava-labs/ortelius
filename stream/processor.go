@@ -4,7 +4,9 @@
 package stream
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/ortelius/services"
@@ -27,4 +29,33 @@ type ProcessorDB interface {
 	Close() error
 	ID() string
 	Topic() []string
+}
+
+func UpdateTxPool(ctxTimeout time.Duration, conns *services.Connections, persist services.Persist, txPool *services.TxPool) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
+
+	ctx, cancelCtx := context.WithTimeout(context.Background(), ctxTimeout)
+	defer cancelCtx()
+
+	return persist.InsertTxPool(ctx, sess, txPool)
+}
+
+func TrimNL(msg string) string {
+	oldmsg := msg
+	for {
+		msg = strings.TrimPrefix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	oldmsg = msg
+	for {
+		msg = strings.TrimSuffix(msg, "\n")
+		if msg == oldmsg {
+			break
+		}
+		oldmsg = msg
+	}
+	return msg
 }
