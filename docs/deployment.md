@@ -183,7 +183,7 @@ Example: `docker run --rm avaplatform/ortelius --help`
 
 ## Running Ortelius
 
-Ortelius is a collection of services. The full stack consists of the Producer, Indexer, and API which can all be started from the single binary:
+Ortelius is a collection of services. The full stack consists of the Indexer, and API which can all be started from the single binary:
 
 ```
 ortelius stream indexer -c path/to/config.json
