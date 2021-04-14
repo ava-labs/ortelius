@@ -636,14 +636,14 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
-
 			err = p.updateBlock(conns, blockWork.blockNumber, localBlockObject.time)
 			if err != nil {
 				blockWork.errs.SetValue(err)
 				continue
 			}
+
+			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
+			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
 		}
 	}
 }
