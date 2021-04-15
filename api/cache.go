@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -39,7 +40,7 @@ func NewNullCache() cache.Cache {
 }
 
 func (nullCache) Get(_ context.Context, _ string) ([]byte, error) {
-	return nil, nil
+	return nil, fmt.Errorf("invalid")
 }
 
 func (nullCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error {
