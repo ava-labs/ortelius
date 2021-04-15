@@ -54,7 +54,7 @@ services:
     restart: always
   indexer: &ortelius-app
     image: "avaplatform/ortelius:53083c3d"
-    command: ["stream", "indexer", "-c", "/opt/config.json"]
+    command: ["stream", "producer", "-c", "/opt/config.json"]
     external_links:
       - mysql
       - redis
