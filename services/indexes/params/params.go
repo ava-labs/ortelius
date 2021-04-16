@@ -100,12 +100,18 @@ func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
 	if err != nil {
 		return err
 	}
+	if p.Limit < 0 {
+		p.Limit = 0
+	}
 	if p.Limit > PaginationMaxLimit {
 		p.Limit = PaginationMaxLimit
 	}
 	p.Offset, err = GetQueryInt(q, KeyOffset, PaginationDefaultOffset)
 	if err != nil {
 		return err
+	}
+	if p.Offset < 0 {
+		p.Offset = 0
 	}
 
 	p.ID, err = GetQueryID(q, KeyID)
