@@ -7,8 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/coreth/core/types"
 	"time"
+
+	"github.com/ava-labs/coreth/core/types"
 
 	"github.com/ava-labs/ortelius/utils"
 
@@ -266,6 +267,7 @@ func (c *consumerCChainDB) persistConsumeLogs(conns *services.Connections, msg s
 	defer cancelFn()
 	return c.consumer.ConsumeLogs(ctx, conns, msg, txLogs, c.sc.Persist)
 }
+
 func (c *consumerCChainDB) persistConsumeTrace(conns *services.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()

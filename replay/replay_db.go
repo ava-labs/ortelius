@@ -2,11 +2,14 @@ package replay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
 	"sync/atomic"
 	"time"
+
+	"github.com/ava-labs/coreth/core/types"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -36,6 +39,8 @@ var (
 	CONSUME          ConsumeType = 1
 	CONSUMECONSENSUS ConsumeType = 2
 	CONSUMEC         ConsumeType = 3
+	CONSUMECTRC      ConsumeType = 4
+	CONSUMECLOG      ConsumeType = 5
 )
 
 type WorkerPacket struct {
@@ -181,6 +186,14 @@ func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker uti
 	if err != nil {
 		return err
 	}
+	err = replay.startCchainTrc(chain, waitGroup, worker, writer)
+	if err != nil {
+		return err
+	}
+	err = replay.startCchainLog(chain, waitGroup, worker, writer)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -268,6 +281,40 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 					replay.errs.SetValue(consumererr)
 					return
 				}
+			case CONSUMECTRC:
+				transactionTrace := &cblock.TransactionTrace{}
+				err := json.Unmarshal(value.message.Body(), transactionTrace)
+				if err != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+				for {
+					consumererr = value.cwriter.ConsumeTrace(ctx, replay.conns, value.message, transactionTrace, replay.persist)
+					if !db.ErrIsLockError(consumererr) {
+						break
+					}
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+			case CONSUMECLOG:
+				txLogs := &types.Log{}
+				err := json.Unmarshal(value.message.Body(), txLogs)
+				if err != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
+				for {
+					consumererr = value.cwriter.ConsumeLogs(ctx, replay.conns, value.message, txLogs, replay.persist)
+					if !db.ErrIsLockError(consumererr) {
+						break
+					}
+				}
+				if consumererr != nil {
+					replay.errs.SetValue(consumererr)
+					return
+				}
 			}
 		default:
 		}
@@ -346,6 +393,162 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 			)
 
 			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMEC})
+		}
+	}()
+
+	return nil
+}
+
+func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+	tn := fmt.Sprintf("%d-%s-cchain-trc", replay.config.NetworkID, chain)
+
+	replay.counterWaits.Inc(tn)
+	replay.counterAdded.Add(tn, 0)
+
+	atomic.AddInt64(waitGroup, 1)
+	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
+		defer replay.counterWaits.Add(tn, -1)
+
+		job := replay.conns.Stream().NewJob("query-replay-txpoll")
+		sess := replay.conns.DB().NewSessionForEventReceiver(job)
+
+		ctx := context.Background()
+		var txPools []TxPoolID
+		_, err := sess.Select("id").
+			From(services.TableTxPool).
+			Where("topic=?", tn).
+			OrderAsc("created_at").
+			LoadContext(ctx, &txPools)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return
+		}
+
+		for _, txPoolID := range txPools {
+			if replay.errs.GetValue() != nil {
+				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				return
+			}
+
+			txPoolQ := services.TxPool{
+				ID: txPoolID.ID,
+			}
+			var txPool *services.TxPool
+			for {
+				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+				if err == nil {
+					break
+				}
+				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				time.Sleep(500 * time.Millisecond)
+			}
+
+			id, err := ids.FromString(txPool.MsgKey)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			replay.counterAdded.Inc(tn)
+
+			block, err := cblock.Unmarshal(txPool.Serialization)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			if block.BlockExtraData == nil {
+				block.BlockExtraData = []byte("")
+			}
+
+			msgc := stream.NewMessage(
+				id.String(),
+				chain,
+				block.BlockExtraData,
+				txPool.CreatedAt.UTC().Unix(),
+				int64(txPool.CreatedAt.UTC().Nanosecond()),
+			)
+
+			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMECTRC})
+		}
+	}()
+
+	return nil
+}
+
+func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+	tn := fmt.Sprintf("%d-%s-cchain-logs", replay.config.NetworkID, chain)
+
+	replay.counterWaits.Inc(tn)
+	replay.counterAdded.Add(tn, 0)
+
+	atomic.AddInt64(waitGroup, 1)
+	go func() {
+		defer atomic.AddInt64(waitGroup, -1)
+		defer replay.counterWaits.Add(tn, -1)
+
+		job := replay.conns.Stream().NewJob("query-replay-txpoll")
+		sess := replay.conns.DB().NewSessionForEventReceiver(job)
+
+		ctx := context.Background()
+		var txPools []TxPoolID
+		_, err := sess.Select("id").
+			From(services.TableTxPool).
+			Where("topic=?", tn).
+			OrderAsc("created_at").
+			LoadContext(ctx, &txPools)
+		if err != nil {
+			replay.errs.SetValue(err)
+			return
+		}
+
+		for _, txPoolID := range txPools {
+			if replay.errs.GetValue() != nil {
+				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				return
+			}
+
+			txPoolQ := services.TxPool{
+				ID: txPoolID.ID,
+			}
+			var txPool *services.TxPool
+			for {
+				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
+				if err == nil {
+					break
+				}
+				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				time.Sleep(500 * time.Millisecond)
+			}
+
+			id, err := ids.FromString(txPool.MsgKey)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			replay.counterAdded.Inc(tn)
+
+			block, err := cblock.Unmarshal(txPool.Serialization)
+			if err != nil {
+				replay.errs.SetValue(err)
+				return
+			}
+
+			if block.BlockExtraData == nil {
+				block.BlockExtraData = []byte("")
+			}
+
+			msgc := stream.NewMessage(
+				id.String(),
+				chain,
+				block.BlockExtraData,
+				txPool.CreatedAt.UTC().Unix(),
+				int64(txPool.CreatedAt.UTC().Nanosecond()),
+			)
+
+			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMECLOG})
 		}
 	}()
 
