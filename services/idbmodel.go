@@ -1246,6 +1246,7 @@ type PvmBlocks struct {
 	ParentID      string
 	Serialization []byte
 	CreatedAt     time.Time
+	Height        uint64
 }
 
 func (p *persist) QueryPvmBlocks(
@@ -1261,6 +1262,7 @@ func (p *persist) QueryPvmBlocks(
 		"parent_id",
 		"serialization",
 		"created_at",
+		"height",
 	).From(TablePvmBlocks).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1282,6 +1284,7 @@ func (p *persist) InsertPvmBlocks(
 		Pair("parent_id", v.ParentID).
 		Pair("created_at", v.CreatedAt).
 		Pair("serialization", v.Serialization).
+		Pair("height", v.Height).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TablePvmBlocks, false, err)
@@ -1293,6 +1296,7 @@ func (p *persist) InsertPvmBlocks(
 			Set("type", v.Type).
 			Set("parent_id", v.ParentID).
 			Set("serialization", v.Serialization).
+			Set("height", v.Height).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {

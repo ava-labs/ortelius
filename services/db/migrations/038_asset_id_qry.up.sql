@@ -15,3 +15,5 @@ create table cvm_logs
 
 create index cvm_logs_block on cvm_logs (block);
 create index cvm_logs_block_hash on cvm_logs (block_hash);
+
+alter table pvm_blocks add column height bigint unsigned default 0 not null;
