@@ -2313,7 +2313,7 @@ func (p *persist) InsertCvmLogs(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmLogs+" (id,block_hash,tx_hash,log_index,first_topic,block,removed,created_at,serialization) values(?,?,?,?,?,?,"+v.Block+",?,?)",
+		InsertBySql("insert into "+TableCvmLogs+" (id,block_hash,tx_hash,log_index,first_topic,block,removed,created_at,serialization) values(?,?,?,?,?,"+v.Block+",?,?,?)",
 			v.ID, v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.CreatedAt, v.Serialization).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
