@@ -982,13 +982,25 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 	rows := []Row{}
 
-	_, err = dbRunner.
-		Select("serialization", "chain_id").
-		From("pvm_blocks").
-		Where("id=?", p.ID).
-		LoadContext(ctx, &rows)
-	if err != nil {
-		return nil, err
+	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
+	if idInt != nil && ok {
+		_, err = dbRunner.
+			Select("serialization", "chain_id").
+			From("pvm_blocks").
+			Where("height="+idInt.String()).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		_, err = dbRunner.
+			Select("serialization", "chain_id").
+			From("pvm_blocks").
+			Where("id=?", p.ID).
+			LoadContext(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(rows) == 0 {
 		return []byte(""), nil
