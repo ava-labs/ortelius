@@ -460,7 +460,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
 			)
 
-			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMECTRC})
+			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, consumeType: CONSUMECTRC})
 		}
 	}()
 
@@ -528,7 +528,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
 			)
 
-			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, block: block, consumeType: CONSUMECLOG})
+			worker.Enque(&WorkerPacket{cwriter: writer, message: msgc, consumeType: CONSUMECLOG})
 		}
 	}()
 
