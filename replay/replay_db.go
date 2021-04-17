@@ -452,20 +452,10 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 
 			replay.counterAdded.Inc(tn)
 
-			block, err := cblock.Unmarshal(txPool.Serialization)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			if block.BlockExtraData == nil {
-				block.BlockExtraData = []byte("")
-			}
-
 			msgc := stream.NewMessage(
 				id.String(),
 				chain,
-				block.BlockExtraData,
+				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
 			)
@@ -530,20 +520,10 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 
 			replay.counterAdded.Inc(tn)
 
-			block, err := cblock.Unmarshal(txPool.Serialization)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
-			if block.BlockExtraData == nil {
-				block.BlockExtraData = []byte("")
-			}
-
 			msgc := stream.NewMessage(
 				id.String(),
 				chain,
-				block.BlockExtraData,
+				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
 			)
