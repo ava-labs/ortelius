@@ -2268,6 +2268,7 @@ type CvmLogs struct {
 	LogIndex      uint64
 	FirstTopic    string
 	Block         string
+	Removed       bool
 	CreatedAt     time.Time
 	Serialization []byte
 }
@@ -2295,6 +2296,7 @@ func (p *persist) QueryCvmLogs(
 		"log_index",
 		"first_topic",
 		"block",
+		"removed",
 		"created_at",
 		"serialization",
 	).From(TableCvmLogs).
@@ -2311,16 +2313,16 @@ func (p *persist) InsertCvmLogs(
 ) error {
 	var err error
 	_, err = sess.
-		InsertBySql("insert into "+TableCvmLogs+" (id,block_hash,tx_hash,log_index,first_topic,block,created_at,serialization) values(?,?,?,?,?,"+v.Block+",?,?)",
-			v.ID, v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.CreatedAt, v.Serialization).
+		InsertBySql("insert into "+TableCvmLogs+" (id,block_hash,tx_hash,log_index,first_topic,block,removed,created_at,serialization) values(?,?,?,?,?,?,"+v.Block+",?,?)",
+			v.ID, v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.CreatedAt, v.Serialization).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmLogs, false, err)
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmLogs+" set block_hash=?,tx_hash=?,log_index=?,first_topic=?,block="+v.Block+",serialization=? where id=?",
-				v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Serialization, v.ID).
+			UpdateBySql("update "+TableCvmLogs+" set block_hash=?,tx_hash=?,log_index=?,first_topic=?,block="+v.Block+",removed=?,serialization=? where id=?",
+				v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.Serialization, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmLogs, true, err)

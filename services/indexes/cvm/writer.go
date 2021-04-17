@@ -98,6 +98,7 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *services.Connections, c
 		LogIndex:      uint64(txLogs.Index),
 		Block:         fmt.Sprintf("%d", txLogs.BlockNumber),
 		FirstTopic:    firstTopic,
+		Removed:       txLogs.Removed,
 		CreatedAt:     cCtx.Time(),
 		Serialization: c.Body(),
 	}
