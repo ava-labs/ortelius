@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/coreth/core/types"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -40,8 +41,9 @@ type consumerCChainDB struct {
 	quitCh   chan struct{}
 	consumer *cvm.Writer
 
-	topicName    string
-	topicTrcName string
+	topicName     string
+	topicTrcName  string
+	topicLogsName string
 }
 
 func NewConsumerCChainDB() ProcessorFactoryInstDB {
@@ -72,6 +74,7 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 
 		c.topicName = fmt.Sprintf("%d-%s-cchain", c.conf.NetworkID, c.conf.CchainID)
 		c.topicTrcName = fmt.Sprintf("%d-%s-cchain-trc", c.conf.NetworkID, c.conf.CchainID)
+		c.topicLogsName = fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
 
 		return c, nil
 	}
@@ -87,7 +90,7 @@ func (c *consumerCChainDB) ID() string {
 }
 
 func (c *consumerCChainDB) Topic() []string {
-	return []string{c.topicName, c.topicTrcName}
+	return []string{c.topicName, c.topicTrcName, c.topicLogsName}
 }
 
 func (c *consumerCChainDB) Process(conns *services.Connections, row *services.TxPool) error {
@@ -110,7 +113,59 @@ func (c *consumerCChainDB) Process(conns *services.Connections, row *services.Tx
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
 		}
 		return c.ConsumeTrace(conns, msg)
+	case c.topicLogsName:
+		msg := &Message{
+			id:         row.MsgKey,
+			chainID:    c.conf.CchainID,
+			body:       row.Serialization,
+			timestamp:  row.CreatedAt.UTC().Unix(),
+			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
+		}
+		return c.ConsumeLogs(conns, msg)
 	}
+
+	return nil
+}
+
+func (c *consumerCChainDB) ConsumeLogs(conns *services.Connections, msg services.Consumable) error {
+	txLogs := &types.Log{}
+	err := json.Unmarshal(msg.Body(), txLogs)
+	if err != nil {
+		return err
+	}
+	collectors := metrics.NewCollectors(
+		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+	)
+	defer func() {
+		err := collectors.Collect()
+		if err != nil {
+			c.sc.Log.Error("collectors.Collect: %s", err)
+		}
+	}()
+
+	id := hashing.ComputeHash256(msg.Body())
+
+	nmsg := NewMessage(string(id), msg.ChainID(), msg.Body(), msg.Timestamp(), msg.Nanosecond())
+
+	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	for {
+		err = c.persistConsumeLogs(conns, nmsg, txLogs)
+		if !db.ErrIsLockError(err) {
+			break
+		}
+		rsleep.Inc()
+	}
+
+	if err != nil {
+		c.Failure()
+		collectors.Error()
+		c.sc.Log.Error("consumer.Consume: %s", err)
+		return err
+	}
+	c.Success()
 
 	return nil
 }
@@ -206,6 +261,11 @@ func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	return nil
 }
 
+func (c *consumerCChainDB) persistConsumeLogs(conns *services.Connections, msg services.Consumable, txLogs *types.Log) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
+	defer cancelFn()
+	return c.consumer.ConsumeLogs(ctx, conns, msg, txLogs, c.sc.Persist)
+}
 func (c *consumerCChainDB) persistConsumeTrace(conns *services.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()

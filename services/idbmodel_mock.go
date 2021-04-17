@@ -39,6 +39,7 @@ type MockPersist struct {
 	TxPool                           map[string]*TxPool
 	KeyValueStore                    map[string]*KeyValueStore
 	CvmTransactionsTxdataTrace       map[string]*CvmTransactionsTxdataTrace
+	CvmLogs                          map[string]*CvmLogs
 }
 
 func NewPersistMock() *MockPersist {
@@ -72,6 +73,7 @@ func NewPersistMock() *MockPersist {
 		TxPool:                           make(map[string]*TxPool),
 		KeyValueStore:                    make(map[string]*KeyValueStore),
 		CvmTransactionsTxdataTrace:       make(map[string]*CvmTransactionsTxdataTrace),
+		CvmLogs:                          make(map[string]*CvmLogs),
 	}
 }
 
@@ -623,5 +625,23 @@ func (m *MockPersist) InsertCvmTransactionsTxdataTrace(ctx context.Context, runn
 	nv := &CvmTransactionsTxdataTrace{}
 	*nv = *v
 	m.CvmTransactionsTxdataTrace[fmt.Sprintf("%s:%v", v.Hash, v.Idx)] = nv
+	return nil
+}
+
+func (m *MockPersist) QueryCvmLogs(ctx context.Context, runner dbr.SessionRunner, v *CvmLogs) (*CvmLogs, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.CvmLogs[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertCvmLogs(ctx context.Context, runner dbr.SessionRunner, v *CvmLogs, _ bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &CvmLogs{}
+	*nv = *v
+	m.CvmLogs[v.ID] = nv
 	return nil
 }

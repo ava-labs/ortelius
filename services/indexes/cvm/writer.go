@@ -7,7 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/ava-labs/coreth/core/types"
 
 	"github.com/ava-labs/ortelius/utils"
 
@@ -71,6 +74,43 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	}
 
 	return json.Marshal(atomicTX)
+}
+
+func (w *Writer) ConsumeLogs(ctx context.Context, conns *services.Connections, c services.Consumable, txLogs *types.Log, persist services.Persist) error {
+	job := conns.StreamDBDedup().NewJob("cvm-index")
+	sess := conns.DB().NewSessionForEventReceiver(job)
+
+	dbTx, err := sess.Begin()
+	if err != nil {
+		return err
+	}
+	defer dbTx.RollbackUnlessCommitted()
+
+	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+
+	firstTopic := ""
+	if len(txLogs.Topics) > 0 {
+		firstTopic = txLogs.Topics[0].Hex()
+	}
+	cvmLogs := &services.CvmLogs{
+		BlockHash:     txLogs.BlockHash.Hex(),
+		TxHash:        txLogs.TxHash.Hex(),
+		LogIndex:      uint64(txLogs.Index),
+		Block:         fmt.Sprintf("%d", txLogs.BlockNumber),
+		FirstTopic:    firstTopic,
+		CreatedAt:     cCtx.Time(),
+		Serialization: c.Body(),
+	}
+	err = cvmLogs.ComputeID()
+	if err != nil {
+		return err
+	}
+	err = persist.InsertCvmLogs(ctx, dbTx, cvmLogs, cfg.PerformUpdates)
+	if err != nil {
+		return err
+	}
+
+	return dbTx.Commit()
 }
 
 func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist services.Persist) error {
