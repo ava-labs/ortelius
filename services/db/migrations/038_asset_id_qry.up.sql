@@ -8,6 +8,7 @@ create table cvm_logs
     log_index     bigint unsigned                           not null,
     first_topic   varchar(256)                              not null,
     block         decimal(65)                               not null,
+    Removed       smallint                                  not null,
     created_at    timestamp(6) default CURRENT_TIMESTAMP(6) not null,
     serialization MEDIUMBLOB
 );
