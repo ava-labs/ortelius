@@ -1,0 +1,2 @@
+drop index avm_outputs_transaction_id_asset_id_output_type on avm_outputs;
+
