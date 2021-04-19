@@ -158,7 +158,7 @@ type RawTx struct {
 	Tx string `json:"tx"`
 }
 
-type AddressCounts struct {
+type ChainCounts struct {
 	ChainID StringID `json:"chainID"`
 	Total   string   `json:"total"`
 }

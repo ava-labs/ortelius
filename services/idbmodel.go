@@ -45,6 +45,7 @@ const (
 	TableKeyValueStore                    = "key_value_store"
 	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
 	TableNodeIndex                        = "node_index"
+	TableCvmLogs                          = "cvm_logs"
 )
 
 type Persist interface {
@@ -421,6 +422,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*NodeIndex,
+	) error
+
+	QueryCvmLogs(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmLogs,
+	) (*CvmLogs, error)
+	InsertCvmLogs(
+		context.Context,
+		dbr.SessionRunner,
+		*CvmLogs,
+		bool,
 	) error
 }
 
@@ -1251,6 +1264,7 @@ type PvmBlocks struct {
 	ParentID      string
 	Serialization []byte
 	CreatedAt     time.Time
+	Height        uint64
 }
 
 func (p *persist) QueryPvmBlocks(
@@ -1266,6 +1280,7 @@ func (p *persist) QueryPvmBlocks(
 		"parent_id",
 		"serialization",
 		"created_at",
+		"height",
 	).From(TablePvmBlocks).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1287,6 +1302,7 @@ func (p *persist) InsertPvmBlocks(
 		Pair("parent_id", v.ParentID).
 		Pair("created_at", v.CreatedAt).
 		Pair("serialization", v.Serialization).
+		Pair("height", v.Height).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TablePvmBlocks, false, err)
@@ -1298,6 +1314,7 @@ func (p *persist) InsertPvmBlocks(
 			Set("type", v.Type).
 			Set("parent_id", v.ParentID).
 			Set("serialization", v.Serialization).
+			Set("height", v.Height).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -2330,6 +2347,76 @@ func (p *persist) UpdateNodeIndex(
 		ExecContext(ctx)
 	if err != nil {
 		return EventErr(TableNodeIndex, true, err)
+	}
+	return nil
+}
+
+type CvmLogs struct {
+	ID            string
+	BlockHash     string
+	TxHash        string
+	LogIndex      uint64
+	FirstTopic    string
+	Block         string
+	Removed       bool
+	CreatedAt     time.Time
+	Serialization []byte
+}
+
+func (b *CvmLogs) ComputeID() error {
+	idsv := fmt.Sprintf("%s:%s:%d", b.BlockHash, b.TxHash, b.LogIndex)
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
+	if err != nil {
+		return err
+	}
+	b.ID = id.String()
+	return nil
+}
+
+func (p *persist) QueryCvmLogs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *CvmLogs,
+) (*CvmLogs, error) {
+	v := &CvmLogs{}
+	err := sess.Select(
+		"id",
+		"block_hash",
+		"tx_hash",
+		"log_index",
+		"first_topic",
+		"block",
+		"removed",
+		"created_at",
+		"serialization",
+	).From(TableCvmLogs).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertCvmLogs(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *CvmLogs,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertBySql("insert into "+TableCvmLogs+" (id,block_hash,tx_hash,log_index,first_topic,block,removed,created_at,serialization) values(?,?,?,?,?,"+v.Block+",?,?,?)",
+			v.ID, v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.CreatedAt, v.Serialization).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmLogs, false, err)
+	}
+	if upd {
+		_, err = sess.
+			UpdateBySql("update "+TableCvmLogs+" set block_hash=?,tx_hash=?,log_index=?,first_topic=?,block="+v.Block+",removed=?,serialization=? where id=?",
+				v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.Serialization, v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableCvmLogs, true, err)
+		}
 	}
 	return nil
 }
