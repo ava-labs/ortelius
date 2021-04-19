@@ -2333,6 +2333,7 @@ func (p *persist) InsertNodeIndex(
 	}
 	return nil
 }
+
 func (p *persist) UpdateNodeIndex(
 	ctx context.Context,
 	sess dbr.SessionRunner,
