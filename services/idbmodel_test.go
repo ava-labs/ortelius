@@ -1536,3 +1536,64 @@ func TestCvmTransactionsTxdataTrace(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestCvmLogs(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &CvmLogs{}
+	v.BlockHash = "bh1"
+	v.TxHash = "txh1"
+	v.LogIndex = 1
+	v.FirstTopic = "ft1"
+	v.Block = "123"
+	v.Removed = false
+	v.CreatedAt = tm
+	v.Serialization = []byte("bits1")
+
+	err := v.ComputeID()
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TableCvmLogs).Exec()
+
+	err = p.InsertCvmLogs(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryCvmLogs(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.FirstTopic = "ft3"
+	v.Block = "124"
+	v.Removed = false
+	v.Serialization = []byte("bits2")
+
+	err = p.InsertCvmLogs(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryCvmLogs(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.Block != "124" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

@@ -232,6 +232,7 @@ func (w *Writer) indexCommonBlock(
 		ParentID:      blk.ParentID().String(),
 		Serialization: blockBytes,
 		CreatedAt:     ctx.Time(),
+		Height:        blk.Height(),
 	}
 	return ctx.Persist().InsertPvmBlocks(ctx.Ctx(), ctx.DB(), pvmBlocks, cfg.PerformUpdates)
 }
