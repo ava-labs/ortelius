@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gocraft/dbr/v2"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -22,7 +24,8 @@ type ReaderAggregate struct {
 	assetl        []*models.Asset
 	aggr          map[ids.ID]*models.AggregatesHistogram
 	aggrl         []*models.AssetAggregate
-	addressCountl []*models.AddressCounts
+	addressCountl []*models.ChainCounts
+	txCountl      []*models.ChainCounts
 
 	a1m  *models.AggregatesHistogram
 	a1h  *models.AggregatesHistogram
@@ -31,11 +34,19 @@ type ReaderAggregate struct {
 	a30d *models.AggregatesHistogram
 }
 
-func (r *Reader) CacheAddressCounts() []*models.AddressCounts {
-	var res []*models.AddressCounts
+func (r *Reader) CacheAddressCounts() []*models.ChainCounts {
+	var res []*models.ChainCounts
 	r.readerAggregate.lock.RLock()
 	defer r.readerAggregate.lock.RUnlock()
 	res = append(res, r.readerAggregate.addressCountl...)
+	return res
+}
+
+func (r *Reader) CacheTxCounts() []*models.ChainCounts {
+	var res []*models.ChainCounts
+	r.readerAggregate.lock.RLock()
+	defer r.readerAggregate.lock.RUnlock()
+	res = append(res, r.readerAggregate.txCountl...)
 	return res
 }
 
@@ -151,6 +162,60 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
+func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
+	var addressCountl []*models.ChainCounts
+	_, err := sess.Select(
+		"chain_id",
+		"cast(count(*) as char) as total",
+	).
+		From(services.TableAddressChain).
+		GroupBy("chain_id").
+		LoadContext(ctx, &addressCountl)
+	if err != nil {
+		r.sc.Log.Warn("Aggregate address counts %v", err)
+		return
+	}
+
+	// counts for the chains only..
+	var addressCountlpruned []*models.ChainCounts
+	for _, aCount := range addressCountl {
+		if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
+			addressCountlpruned = append(addressCountlpruned, aCount)
+		}
+	}
+
+	r.readerAggregate.lock.Lock()
+	r.readerAggregate.addressCountl = addressCountlpruned
+	r.readerAggregate.lock.Unlock()
+}
+
+func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
+	var txCountl []*models.ChainCounts
+	_, err := sess.Select(
+		"chain_id",
+		"cast(count(*) as char) as total",
+	).
+		From(services.TableTransactions).
+		GroupBy("chain_id").
+		LoadContext(ctx, &txCountl)
+	if err != nil {
+		r.sc.Log.Warn("Aggregate tx counts %v", err)
+		return
+	}
+
+	// counts for the chains only..
+	var txCountlpruned []*models.ChainCounts
+	for _, aCount := range txCountl {
+		if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
+			txCountlpruned = append(txCountlpruned, aCount)
+		}
+	}
+
+	r.readerAggregate.lock.Lock()
+	r.readerAggregate.txCountl = txCountlpruned
+	r.readerAggregate.lock.Unlock()
+}
+
 func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
@@ -167,35 +232,11 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
-		var err error
-
-		var addressCountl []*models.AddressCounts
-		_, err = sess.Select(
-			"chain_id",
-			"cast(count(*) as char) as total",
-		).
-			From(services.TableAddressChain).
-			GroupBy("chain_id").
-			LoadContext(ctx, &addressCountl)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate address counts %v", err)
-			return
-		}
-
-		// counts for the chains only..
-		var addressCountlpruned []*models.AddressCounts
-		for _, aCount := range addressCountl {
-			if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
-				addressCountlpruned = append(addressCountlpruned, aCount)
-			}
-		}
-
-		r.readerAggregate.lock.Lock()
-		r.readerAggregate.addressCountl = addressCountlpruned
-		r.readerAggregate.lock.Unlock()
+		r.addressCounts(ctx, sess)
+		r.txCounts(ctx, sess)
 
 		var assetsFound []string
-		_, err = sess.Select(
+		_, err := sess.Select(
 			"asset_id",
 			"count(distinct(transaction_id)) as tamt",
 		).
