@@ -638,6 +638,7 @@ func (m *MockPersist) QueryNodeIndex(ctx context.Context, runner dbr.SessionRunn
 	}
 	return nil, nil
 }
+
 func (m *MockPersist) InsertNodeIndex(ctx context.Context, runner dbr.SessionRunner, v *NodeIndex, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
