@@ -40,6 +40,7 @@ type MockPersist struct {
 	KeyValueStore                    map[string]*KeyValueStore
 	CvmTransactionsTxdataTrace       map[string]*CvmTransactionsTxdataTrace
 	NodeIndex                        map[string]*NodeIndex
+	CvmLogs                          map[string]*CvmLogs
 }
 
 func NewPersistMock() *MockPersist {
@@ -74,6 +75,7 @@ func NewPersistMock() *MockPersist {
 		KeyValueStore:                    make(map[string]*KeyValueStore),
 		CvmTransactionsTxdataTrace:       make(map[string]*CvmTransactionsTxdataTrace),
 		NodeIndex:                        make(map[string]*NodeIndex),
+		CvmLogs:                          make(map[string]*CvmLogs),
 	}
 }
 
@@ -636,7 +638,6 @@ func (m *MockPersist) QueryNodeIndex(ctx context.Context, runner dbr.SessionRunn
 	}
 	return nil, nil
 }
-
 func (m *MockPersist) InsertNodeIndex(ctx context.Context, runner dbr.SessionRunner, v *NodeIndex, _ bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -652,5 +653,23 @@ func (m *MockPersist) UpdateNodeIndex(ctx context.Context, runner dbr.SessionRun
 	if fv, present := m.NodeIndex[v.Topic]; present {
 		fv.Idx = v.Idx
 	}
+	return nil
+}
+
+func (m *MockPersist) QueryCvmLogs(ctx context.Context, runner dbr.SessionRunner, v *CvmLogs) (*CvmLogs, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	if v, present := m.CvmLogs[v.ID]; present {
+		return v, nil
+	}
+	return nil, nil
+}
+
+func (m *MockPersist) InsertCvmLogs(ctx context.Context, runner dbr.SessionRunner, v *CvmLogs, _ bool) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	nv := &CvmLogs{}
+	*nv = *v
+	m.CvmLogs[v.ID] = nv
 	return nil
 }
