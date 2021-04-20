@@ -106,6 +106,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 				switch key {
 				case params.KeySortBy:
 				case params.KeyLimit:
+				case params.KeyDisableCount:
 				default:
 					match = false
 				}
