@@ -50,7 +50,7 @@ services:
       - /var/lib/ortelius/avalanche:/var/lib/avalanche
       - avalanche-ipcs:/tmp
     depends_on:
-      - producer
+      - indexer
     restart: always
   indexer: &ortelius-app
     image: "avaplatform/ortelius:53083c3d"
