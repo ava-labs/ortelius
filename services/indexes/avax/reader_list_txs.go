@@ -84,7 +84,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 		return nil
 	}
 	var txs []*models.Transaction
-	if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
+	if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 0 && p.ListParams.Limit <= 500 {
 		match := true
 		for key := range p.ListParams.Values {
 			if !match {
@@ -110,7 +110,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 			}
 		}
 	}
-	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 8 {
+	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 0 {
 		match := true
 		for key := range p.ListParams.Values {
 			if !match {
