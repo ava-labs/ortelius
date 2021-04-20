@@ -139,7 +139,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return nil, err
 	}
 
-	builder1 := r.transactionQuery(dbRunner).
+	builder1 := transactionQuery(dbRunner).
 		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%")).
 		OrderDesc("avm_transactions.created_at").
 		Limit(uint64(p.ListParams.Limit))
@@ -824,7 +824,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 	}
 
 	var txs []*models.Transaction
-	builder := r.transactionQuery(dbRunner).
+	builder := transactionQuery(dbRunner).
 		Where("avm_transactions.id = ?", id.String()).Limit(1)
 	if _, err := builder.LoadContext(ctx, &txs); err != nil {
 		return nil, err
@@ -899,7 +899,7 @@ func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInf
 	return collatedResults, nil
 }
 
-func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
+func transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
 	return dbRunner.
 		Select(
 			"avm_transactions.id",

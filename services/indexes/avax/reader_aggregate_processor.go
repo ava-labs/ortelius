@@ -18,6 +18,9 @@ import (
 )
 
 type ReaderAggregate struct {
+	txLock sync.RWMutex
+	txList []*models.Transaction
+
 	lock sync.RWMutex
 
 	assetm        map[ids.ID]*models.Asset
@@ -90,6 +93,7 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
+	var connectionstxs *services.Connections
 	var connectionsaggr *services.Connections
 
 	var connections1m *services.Connections
@@ -100,33 +104,30 @@ func (r *Reader) aggregateProcessor() error {
 	var err error
 
 	closeDBForError := func() {
-		if connectionsaggr != nil {
-			_ = connectionsaggr.Close()
+		closeConn := func(c *services.Connections) {
+			if c != nil {
+				_ = c.Close()
+			}
 		}
-
-		if connections1m != nil {
-			_ = connections1m.Close()
-		}
-		if connections1h != nil {
-			_ = connections1h.Close()
-		}
-		if connections24h != nil {
-			_ = connections24h.Close()
-		}
-		if connections7d != nil {
-			_ = connections7d.Close()
-		}
-		if connections30d != nil {
-			_ = connections30d.Close()
-		}
+		closeConn(connectionstxs)
+		closeConn(connectionsaggr)
+		closeConn(connections1m)
+		closeConn(connections1h)
+		closeConn(connections24h)
+		closeConn(connections7d)
+		closeConn(connections30d)
 	}
 
+	connectionstxs, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
 	connectionsaggr, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
 		return err
 	}
-
 	connections1m, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
@@ -153,6 +154,7 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
+	go r.aggregateProcessorTxFetch(connectionstxs)
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1m(connections1m)
 	go r.aggregateProcessor1h(connections1h)
@@ -160,6 +162,50 @@ func (r *Reader) aggregateProcessor() error {
 	go r.aggregateProcessor7d(connections7d)
 	go r.aggregateProcessor30d(connections30d)
 	return nil
+}
+
+func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ticker := time.NewTicker(time.Second)
+
+	timeaggr := time.Now().Truncate(time.Second).Truncate(time.Second)
+
+	runAggrTx := func(runTm time.Time) {
+		ctx := context.Background()
+
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
+
+		builder := transactionQuery(sess)
+		builder.OrderDesc("avm_transactions.created_at")
+		builder.OrderAsc("avm_transactions.chain_id")
+		builder.Limit(500)
+
+		var txs []*models.Transaction
+		if _, err := builder.LoadContext(ctx, &txs); err != nil {
+			return
+		}
+
+		r.readerAggregate.txLock.Lock()
+		r.readerAggregate.txList = txs
+		r.readerAggregate.txLock.Unlock()
+
+		timeaggr = timeaggr.Add(1 * time.Second).Truncate(time.Second)
+	}
+	runAggrTx(timeaggr)
+	for {
+		select {
+		case <-ticker.C:
+			tnow := time.Now()
+			if tnow.After(timeaggr) {
+				runAggrTx(timeaggr)
+			}
+		case <-r.doneCh:
+			return
+		}
+	}
 }
 
 func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
@@ -216,6 +262,45 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 	r.readerAggregate.lock.Unlock()
 }
 
+func (r *Reader) fetchAssets(
+	ctx context.Context,
+	sess *dbr.Session,
+	runTm time.Time,
+	runDuration time.Duration,
+) ([]string, []string, error) {
+	var assetsFound []string
+	_, err := sess.Select(
+		"asset_id",
+		"count(distinct(transaction_id)) as tamt",
+	).
+		From("avm_outputs").
+		Where("created_at > ? and asset_id <> ?",
+			runTm.Add(-runDuration),
+			r.sc.GenesisContainer.AvaxAssetID.String(),
+		).
+		GroupBy("asset_id").
+		OrderDesc("tamt").
+		LoadContext(ctx, &assetsFound)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var addlAssetsFound []string
+	_, err = sess.Select(
+		"id",
+	).
+		From("avm_assets").
+		OrderDesc("created_at").
+		Limit(params.PaginationMaxLimit).
+		LoadContext(ctx, &addlAssetsFound)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
+	return append(assets, assetsFound...), addlAssetsFound, nil
+}
+
 func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
@@ -235,39 +320,11 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		r.addressCounts(ctx, sess)
 		r.txCounts(ctx, sess)
 
-		var assetsFound []string
-		_, err := sess.Select(
-			"asset_id",
-			"count(distinct(transaction_id)) as tamt",
-		).
-			From("avm_outputs").
-			Where("created_at > ? and asset_id <> ?",
-				runTm.Add(-runDuration),
-				r.sc.GenesisContainer.AvaxAssetID.String(),
-			).
-			GroupBy("asset_id").
-			OrderDesc("tamt").
-			LoadContext(ctx, &assetsFound)
+		assets, addlAssetsFound, err := r.fetchAssets(ctx, sess, runTm, runDuration)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-
-		var addlAssetsFound []string
-		_, err = sess.Select(
-			"id",
-		).
-			From("avm_assets").
-			OrderDesc("created_at").
-			Limit(params.PaginationMaxLimit).
-			LoadContext(ctx, &addlAssetsFound)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
-
-		assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
-		assets = append(assets, assetsFound...)
 
 		aggrMap := make(map[ids.ID]*models.AggregatesHistogram)
 		assetMap := make(map[ids.ID]*models.Asset)

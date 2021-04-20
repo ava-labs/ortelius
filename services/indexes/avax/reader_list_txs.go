@@ -100,6 +100,29 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	}
 
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
+		if r.sc.IsAggregateCache && p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
+			match := true
+			for key := range p.ListParams.Values {
+				switch key {
+				case params.KeySortBy:
+				case params.KeyLimit:
+				default:
+					match = false
+				}
+			}
+			if match {
+				txs := make([]*models.Transaction, 0, 501)
+				r.readerAggregate.txLock.RLock()
+				if r.readerAggregate.txList != nil {
+					txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
+				}
+				r.readerAggregate.txLock.RUnlock()
+				if txs != nil {
+					return txs, nil
+				}
+			}
+		}
+
 		builderBase := applySort(
 			p.Sort,
 			r.listTxsQuery(dbRunner.Select("avm_transactions.id").From("avm_transactions"), p),
@@ -113,7 +136,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 
 		builder := applySort(
 			p.Sort,
-			r.transactionQuery(dbRunner).
+			transactionQuery(dbRunner).
 				Join(builderBase.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
 		)
 
@@ -121,12 +144,13 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 		if _, err := builder.LoadContext(ctx, &txs); err != nil {
 			return nil, err
 		}
+
 		return txs, nil
 	}
 
 	builder := applySort(
 		p.Sort,
-		r.listTxsQuery(r.transactionQuery(dbRunner), p),
+		r.listTxsQuery(transactionQuery(dbRunner), p),
 	).Limit(100000)
 
 	txs := make([]*models.Transaction, 0, params.PaginationMaxLimit+1)
