@@ -87,6 +87,9 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 	if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
 		match := true
 		for key := range p.ListParams.Values {
+			if !match {
+				break
+			}
 			switch key {
 			case params.KeySortBy:
 			case params.KeyLimit:
@@ -107,9 +110,12 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 			}
 		}
 	}
-	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
+	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 8 {
 		match := true
 		for key := range p.ListParams.Values {
+			if !match {
+				break
+			}
 			switch key {
 			case params.KeySortBy:
 			case params.KeyLimit:
@@ -135,8 +141,10 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 			} else {
 				r.readerAggregate.txAscLock.RLock()
 				if r.readerAggregate.txListAsc != nil {
-					txs = make([]*models.Transaction, 0, 501)
-					txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
+					if p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
+						txs = make([]*models.Transaction, 0, 501)
+						txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
+					}
 				}
 				r.readerAggregate.txAscLock.RUnlock()
 				if txs != nil {
