@@ -21,6 +21,11 @@ type ReaderAggregate struct {
 	txLock sync.RWMutex
 	txList []*models.Transaction
 
+	txAscLock        sync.RWMutex
+	txAscProcessed   bool
+	txListAsc        []*models.Transaction
+	txListByChainAsc map[models.StringID][]*models.Transaction
+
 	lock sync.RWMutex
 
 	assetm        map[ids.ID]*models.Asset
@@ -173,9 +178,8 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 	timeaggr := time.Now().Truncate(time.Second).Truncate(time.Second)
 
-	runAggrTx := func(runTm time.Time) {
+	runAggrTx := func() {
 		ctx := context.Background()
-
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
 		builder := transactionQuery(sess)
@@ -192,15 +196,45 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 		r.readerAggregate.txList = txs
 		r.readerAggregate.txLock.Unlock()
 
+		r.readerAggregate.txAscLock.RLock()
+		processed := r.readerAggregate.txAscProcessed
+		r.readerAggregate.txAscLock.RUnlock()
+
+		if !processed {
+			builder := transactionQuery(sess)
+			builder.OrderAsc("avm_transactions.created_at")
+			builder.OrderAsc("avm_transactions.chain_id")
+			builder.Limit(5000)
+
+			var txsAsc []*models.Transaction
+			if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
+				return
+			}
+
+			txsAscByChain := make(map[models.StringID][]*models.Transaction)
+			for _, tx := range txsAsc {
+				if _, ok := txsAscByChain[tx.ChainID]; !ok {
+					txsAscByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
+				}
+				txsAscByChain[tx.ChainID] = append(txsAscByChain[tx.ChainID], tx)
+			}
+
+			r.readerAggregate.txAscLock.Lock()
+			r.readerAggregate.txListAsc = txsAsc
+			r.readerAggregate.txListByChainAsc = txsAscByChain
+			r.readerAggregate.txAscProcessed = true
+			r.readerAggregate.txAscLock.Unlock()
+		}
+
 		timeaggr = timeaggr.Add(1 * time.Second).Truncate(time.Second)
 	}
-	runAggrTx(timeaggr)
+	runAggrTx()
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(timeaggr) {
-				runAggrTx(timeaggr)
+				runAggrTx()
 			}
 		case <-r.doneCh:
 			return
