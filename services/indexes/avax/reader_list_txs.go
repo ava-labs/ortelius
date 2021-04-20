@@ -113,9 +113,10 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 					}
 				}
 				if match {
-					txs := make([]*models.Transaction, 0, 501)
+					var txs []*models.Transaction
 					r.readerAggregate.txLock.RLock()
 					if r.readerAggregate.txList != nil {
+						txs := make([]*models.Transaction, 0, 501)
 						txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
 					}
 					r.readerAggregate.txLock.RUnlock()
@@ -136,12 +137,13 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 					}
 				}
 				if match {
-					txs := make([]*models.Transaction, 0, 501)
+					var txs []*models.Transaction
 					if len(p.ChainIDs) == 1 {
 						chainID := p.ChainIDs[0]
 						r.readerAggregate.txAscLock.RLock()
 						if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
 							if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
+								txs := make([]*models.Transaction, 0, 501)
 								txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
 							}
 						}
@@ -152,6 +154,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 					} else {
 						r.readerAggregate.txAscLock.RLock()
 						if r.readerAggregate.txListAsc != nil {
+							txs := make([]*models.Transaction, 0, 501)
 							txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
 						}
 						r.readerAggregate.txAscLock.RUnlock()
