@@ -151,7 +151,7 @@ func (c *consumerCChainDB) ConsumeLogs(conns *services.Connections, msg services
 
 	nmsg := NewMessage(string(id), msg.ChainID(), msg.Body(), msg.Timestamp(), msg.Nanosecond())
 
-	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsumeLogs(conns, nmsg, txLogs)
 		if !db.ErrIsLockError(err) {
@@ -194,7 +194,7 @@ func (c *consumerCChainDB) ConsumeTrace(conns *services.Connections, msg service
 
 	nmsg := NewMessage(string(id), msg.ChainID(), transactionTrace.Trace, msg.Timestamp(), msg.Nanosecond())
 
-	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsumeTrace(conns, nmsg, transactionTrace)
 		if !db.ErrIsLockError(err) {
@@ -240,7 +240,7 @@ func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	id := hashing.ComputeHash256(block.BlockExtraData)
 	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
 
-	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, nmsg, block)
 		if !db.ErrIsLockError(err) {

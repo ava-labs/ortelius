@@ -120,7 +120,7 @@ func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
 	}()
 
 	var err error
-	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, msg)
 		if !db.ErrIsLockError(err) {

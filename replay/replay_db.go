@@ -249,33 +249,39 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 			var consumererr error
 			switch value.consumeType {
 			case CONSUME:
+				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.writer.Consume(ctx, replay.conns, value.message, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
+					rsleep.Inc()
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
 					return
 				}
 			case CONSUMECONSENSUS:
+				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.writer.ConsumeConsensus(ctx, replay.conns, value.message, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
+					rsleep.Inc()
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
 					return
 				}
 			case CONSUMEC:
+				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.Consume(ctx, replay.conns, value.message, value.block, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
+					rsleep.Inc()
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -288,11 +294,13 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 					replay.errs.SetValue(consumererr)
 					return
 				}
+				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.ConsumeTrace(ctx, replay.conns, value.message, transactionTrace, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
+					rsleep.Inc()
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
@@ -305,11 +313,13 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 					replay.errs.SetValue(consumererr)
 					return
 				}
+				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.ConsumeLogs(ctx, replay.conns, value.message, txLogs, replay.persist)
 					if !db.ErrIsLockError(consumererr) {
 						break
 					}
+					rsleep.Inc()
 				}
 				if consumererr != nil {
 					replay.errs.SetValue(consumererr)
