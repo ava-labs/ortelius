@@ -79,6 +79,75 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	return builder
 }
 
+func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transaction {
+	if !r.sc.IsAggregateCache {
+		return nil
+	}
+	var txs []*models.Transaction
+	if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
+		match := true
+		for key := range p.ListParams.Values {
+			switch key {
+			case params.KeySortBy:
+			case params.KeyLimit:
+			case params.KeyDisableCount:
+			default:
+				match = false
+			}
+		}
+		if match {
+			r.readerAggregate.txLock.RLock()
+			if r.readerAggregate.txList != nil {
+				txs = make([]*models.Transaction, 0, 501)
+				txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
+			}
+			r.readerAggregate.txLock.RUnlock()
+			if txs != nil {
+				return txs
+			}
+		}
+	}
+	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
+		match := true
+		for key := range p.ListParams.Values {
+			switch key {
+			case params.KeySortBy:
+			case params.KeyLimit:
+			case params.KeyDisableCount:
+			default:
+				match = false
+			}
+		}
+		if match {
+			if len(p.ChainIDs) == 1 {
+				chainID := p.ChainIDs[0]
+				r.readerAggregate.txAscLock.RLock()
+				if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
+					if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
+						txs = make([]*models.Transaction, 0, 501)
+						txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
+					}
+				}
+				r.readerAggregate.txAscLock.RUnlock()
+				if txs != nil {
+					return txs
+				}
+			} else {
+				r.readerAggregate.txAscLock.RLock()
+				if r.readerAggregate.txListAsc != nil {
+					txs = make([]*models.Transaction, 0, 501)
+					txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
+				}
+				r.readerAggregate.txAscLock.RUnlock()
+				if txs != nil {
+					return txs
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, dbRunner *dbr.Session) ([]*models.Transaction, error) {
 	var applySort func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt
 	applySort = func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
@@ -100,70 +169,9 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	}
 
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
-		if r.sc.IsAggregateCache {
-			if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
-				match := true
-				for key := range p.ListParams.Values {
-					switch key {
-					case params.KeySortBy:
-					case params.KeyLimit:
-					case params.KeyDisableCount:
-					default:
-						match = false
-					}
-				}
-				if match {
-					var txs []*models.Transaction
-					r.readerAggregate.txLock.RLock()
-					if r.readerAggregate.txList != nil {
-						txs = make([]*models.Transaction, 0, 501)
-						txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
-					}
-					r.readerAggregate.txLock.RUnlock()
-					if txs != nil {
-						return txs, nil
-					}
-				}
-			}
-			if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 8 && p.ListParams.Limit <= 500 {
-				match := true
-				for key := range p.ListParams.Values {
-					switch key {
-					case params.KeySortBy:
-					case params.KeyLimit:
-					case params.KeyDisableCount:
-					default:
-						match = false
-					}
-				}
-				if match {
-					var txs []*models.Transaction
-					if len(p.ChainIDs) == 1 {
-						chainID := p.ChainIDs[0]
-						r.readerAggregate.txAscLock.RLock()
-						if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
-							if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
-								txs = make([]*models.Transaction, 0, 501)
-								txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
-							}
-						}
-						r.readerAggregate.txAscLock.RUnlock()
-						if txs != nil {
-							return txs, nil
-						}
-					} else {
-						r.readerAggregate.txAscLock.RLock()
-						if r.readerAggregate.txListAsc != nil {
-							txs = make([]*models.Transaction, 0, 501)
-							txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
-						}
-						r.readerAggregate.txAscLock.RUnlock()
-						if txs != nil {
-							return txs, nil
-						}
-					}
-				}
-			}
+		txsAggr := r.listTxsAgg(p)
+		if txsAggr != nil {
+			return txsAggr, nil
 		}
 
 		builderBase := applySort(
