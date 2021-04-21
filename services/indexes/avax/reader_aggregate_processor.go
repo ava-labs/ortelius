@@ -209,6 +209,13 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 			var txsAsc []*models.Transaction
 			if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
+				r.sc.Log.Warn("ascending tx query fail %v", err)
+				return
+			}
+
+			err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
+			if err != nil {
+				r.sc.Log.Warn("ascending tx dress tx fail %v", err)
 				return
 			}
 

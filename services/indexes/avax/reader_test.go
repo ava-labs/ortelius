@@ -99,7 +99,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
-	records, _ := reader.collectInsAndOuts(ctx, session, []models.StringID{models.StringID(txID)})
+	records, _ := collectInsAndOuts(ctx, session, []models.StringID{models.StringID(txID)})
 
 	if len(records) != 3 {
 		t.Error("invalid input/outputs")

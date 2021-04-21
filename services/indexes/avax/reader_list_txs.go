@@ -79,12 +79,12 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	return builder
 }
 
-func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Transaction {
+func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.Transaction, bool) {
 	if !r.sc.IsAggregateCache {
-		return nil
+		return nil, false
 	}
 	if p.ListParams.Limit == 0 {
-		return nil
+		return nil, false
 	}
 
 	dupTxs := func(itxs []*models.Transaction) []*models.Transaction {
@@ -107,7 +107,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Tr
 			case params.KeyLimit:
 			case params.KeyDisableCount:
 			default:
-				return nil
+				return nil, false
 			}
 		}
 		r.readerAggregate.txLock.RLock()
@@ -118,7 +118,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Tr
 		}
 		r.readerAggregate.txLock.RUnlock()
 		if txs != nil {
-			return dupTxs(txs)
+			return dupTxs(txs), false
 		}
 	case params.TransactionSortTimestampAsc:
 		for key := range p.ListParams.Values {
@@ -128,7 +128,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Tr
 			case params.KeyDisableCount:
 			case params.KeyChainID:
 			default:
-				return nil
+				return nil, false
 			}
 		}
 		switch len(p.ChainIDs) {
@@ -143,7 +143,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Tr
 			}
 			r.readerAggregate.txAscLock.RUnlock()
 			if txs != nil {
-				return dupTxs(txs)
+				return dupTxs(txs), true
 			}
 		case 0:
 			r.readerAggregate.txAscLock.RLock()
@@ -154,16 +154,16 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Tr
 			}
 			r.readerAggregate.txAscLock.RUnlock()
 			if txs != nil {
-				return dupTxs(txs)
+				return dupTxs(txs), true
 			}
 		default:
 		}
 	default:
 	}
-	return nil
+	return nil, false
 }
 
-func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, dbRunner *dbr.Session) ([]*models.Transaction, error) {
+func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, dbRunner *dbr.Session) ([]*models.Transaction, bool, error) {
 	var applySort func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt
 	applySort = func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.Query != "" {
@@ -184,9 +184,9 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	}
 
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
-		txsAggr := r.listTxsFromCache(p)
+		txsAggr, dressed := r.listTxsFromCache(p)
 		if txsAggr != nil {
-			return txsAggr, nil
+			return txsAggr, dressed, nil
 		}
 
 		builderBase := applySort(
@@ -208,10 +208,10 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 
 		var txs []*models.Transaction
 		if _, err := builder.LoadContext(ctx, &txs); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
-		return txs, nil
+		return txs, false, nil
 	}
 
 	builder := applySort(
@@ -225,7 +225,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 
 	itr, err := builder.IterateContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	defer func() {
@@ -235,12 +235,12 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	for itr.Next() {
 		err = itr.Err()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		var tx *models.Transaction
 		err = itr.Scan(&tx)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if p.ListParams.Offset > 0 && len(txsmoffset) < p.ListParams.Offset {
 			txsmoffset[tx.ID] = struct{}{}
@@ -258,7 +258,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 		}
 	}
 
-	return txs, nil
+	return txs, false, nil
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
@@ -268,14 +268,15 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 	}
 
 	p.ListParams.ObserveTimeProvided = true
-	txs, err := r.listTxs(ctx, p, dbRunner)
+	txs, dressed, err := r.listTxs(ctx, p, dbRunner)
 	if err != nil {
 		return nil, err
 	}
 
-	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
-		return nil, err
+	if !dressed {
+		if err := dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
+			return nil, err
+		}
 	}
 
 	listParamsOriginal := p.ListParams
@@ -357,7 +358,7 @@ type rewardsTypeModel struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
+func dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -371,12 +372,12 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		txIDs[i] = tx.ID
 	}
 
-	rewardsTypesMap, err := r.resolveRewarded(ctx, dbRunner, txIDs)
+	rewardsTypesMap, err := resolveRewarded(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
 
-	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
+	outputs, err := collectInsAndOuts(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
@@ -462,16 +463,16 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 
-	cvmin, cvmout, err := r.collectCvmTransactions(ctx, dbRunner, txIDs)
+	cvmin, cvmout, err := collectCvmTransactions(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
 
-	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
+	dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
 	return nil
 }
 
-func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.Output, cvmouts map[models.StringID][]models.Output) {
+func dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.Output, cvmouts map[models.StringID][]models.Output) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -520,7 +521,7 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 	}
 }
 
-func (r *Reader) resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {
+func resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {
 	rewardsTypes := []rewardsTypeModel{}
 	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
 	_, err := dbRunner.Select("rewards.txid",
@@ -542,7 +543,7 @@ func (r *Reader) resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 	return rewardsTypesMap, nil
 }
 
-func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
+func collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
 	s1_0 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
@@ -575,7 +576,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	return append(outputs, outputs2...), nil
 }
 
-func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
+func collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
 	var cvmAddress []models.CvmOutput
 	_, err := dbRunner.Select(
 		"cvm_addresses.type",
@@ -611,16 +612,16 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		}
 		switch a.Type {
 		case models.CChainIn:
-			ins[a.TransactionID] = append(ins[a.TransactionID], r.mapOutput(a))
+			ins[a.TransactionID] = append(ins[a.TransactionID], mapOutput(a))
 		case models.CchainOut:
-			outs[a.TransactionID] = append(outs[a.TransactionID], r.mapOutput(a))
+			outs[a.TransactionID] = append(outs[a.TransactionID], mapOutput(a))
 		}
 	}
 
 	return ins, outs, nil
 }
 
-func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
+func mapOutput(a models.CvmOutput) models.Output {
 	var o models.Output
 	o.TransactionID = a.TransactionID
 	o.ID = a.ID
