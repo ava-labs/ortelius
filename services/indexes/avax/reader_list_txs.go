@@ -126,7 +126,8 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 			}
 		}
 		if match {
-			if len(p.ChainIDs) == 1 {
+			switch len(p.ChainIDs) {
+			case 1:
 				chainID := p.ChainIDs[0]
 				r.readerAggregate.txAscLock.RLock()
 				if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
@@ -139,7 +140,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 				if txs != nil {
 					return txs
 				}
-			} else if len(p.ChainIDs) == 0 {
+			case 0:
 				r.readerAggregate.txAscLock.RLock()
 				if r.readerAggregate.txListAsc != nil {
 					if p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
@@ -151,6 +152,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 				if txs != nil {
 					return txs
 				}
+			default:
 			}
 		}
 	}
