@@ -120,6 +120,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 			case params.KeySortBy:
 			case params.KeyLimit:
 			case params.KeyDisableCount:
+			case params.KeyChainID:
 			default:
 				match = false
 			}
@@ -138,7 +139,7 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 				if txs != nil {
 					return txs
 				}
-			} else {
+			} else if len(p.ChainIDs) == 0 {
 				r.readerAggregate.txAscLock.RLock()
 				if r.readerAggregate.txListAsc != nil {
 					if p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
