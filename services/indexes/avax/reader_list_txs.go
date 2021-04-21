@@ -80,10 +80,7 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 }
 
 func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.Transaction, bool) {
-	if !r.sc.IsAggregateCache {
-		return nil, false
-	}
-	if p.ListParams.Limit == 0 {
+	if !r.sc.IsAggregateCache || p.ListParams.Limit == 0 || p.ListParams.Offset != 0 {
 		return nil, false
 	}
 
@@ -105,6 +102,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 			switch key {
 			case params.KeySortBy:
 			case params.KeyLimit:
+			case params.KeyOffset:
 			case params.KeyDisableCount:
 			default:
 				return nil, false
@@ -125,6 +123,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 			switch key {
 			case params.KeySortBy:
 			case params.KeyLimit:
+			case params.KeyOffset:
 			case params.KeyDisableCount:
 			case params.KeyChainID:
 			default:
