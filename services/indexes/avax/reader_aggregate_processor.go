@@ -34,6 +34,14 @@ func (t *ReaderAgregateTxList) First() *models.Transaction {
 }
 
 func (t *ReaderAgregateTxList) Set(txs []*models.Transaction) {
+	if txs == nil {
+		t.Lock.Lock()
+		defer t.Lock.Unlock()
+		t.Txs = nil
+		t.TxsByChain = nil
+		t.Processed = false
+		return
+	}
 	txsListByChain := make(map[models.StringID][]*models.Transaction)
 	for _, tx := range txs {
 		if _, ok := txsListByChain[tx.ChainID]; !ok {
@@ -42,16 +50,10 @@ func (t *ReaderAgregateTxList) Set(txs []*models.Transaction) {
 		txsListByChain[tx.ChainID] = append(txsListByChain[tx.ChainID], tx)
 	}
 	t.Lock.Lock()
-	if txs != nil {
-		t.Txs = txs
-		t.TxsByChain = txsListByChain
-		t.Processed = true
-	} else {
-		t.Txs = nil
-		t.TxsByChain = nil
-		t.Processed = false
-	}
-	t.Lock.Unlock()
+	defer t.Lock.Unlock()
+	t.Txs = txs
+	t.TxsByChain = txsListByChain
+	t.Processed = true
 }
 
 type ReaderAggregate struct {
