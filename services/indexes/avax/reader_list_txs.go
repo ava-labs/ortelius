@@ -83,76 +83,85 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 	if !r.sc.IsAggregateCache {
 		return nil
 	}
-	var txs []*models.Transaction
-	if p.Sort == params.TransactionSortTimestampDesc && p.ListParams.Limit > 0 && p.ListParams.Limit <= 500 {
-		match := true
-		for key := range p.ListParams.Values {
-			if !match {
-				break
-			}
-			switch key {
-			case params.KeySortBy:
-			case params.KeyLimit:
-			case params.KeyDisableCount:
-			default:
-				match = false
-			}
-		}
-		if match {
-			r.readerAggregate.txLock.RLock()
-			if r.readerAggregate.txList != nil {
-				txs = make([]*models.Transaction, 0, 501)
-				txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
-			}
-			r.readerAggregate.txLock.RUnlock()
-			if txs != nil {
-				return txs
-			}
-		}
+	dupTxs := func(itxs []*models.Transaction) []*models.Transaction {
+		ctxs := make([]*models.Transaction, len(itxs))
+		copy(ctxs, itxs)
+		return ctxs
 	}
-	if p.Sort == params.TransactionSortTimestampAsc && p.ListParams.Limit > 0 {
-		match := true
-		for key := range p.ListParams.Values {
-			if !match {
-				break
+	var txs []*models.Transaction
+	switch p.Sort {
+	case params.TransactionSortTimestampDesc:
+		if p.ListParams.Limit > 0 && p.ListParams.Limit <= 500 {
+			match := true
+			for key := range p.ListParams.Values {
+				if !match {
+					break
+				}
+				switch key {
+				case params.KeySortBy:
+				case params.KeyLimit:
+				case params.KeyDisableCount:
+				default:
+					match = false
+				}
 			}
-			switch key {
-			case params.KeySortBy:
-			case params.KeyLimit:
-			case params.KeyDisableCount:
-			case params.KeyChainID:
-			default:
-				match = false
+			if match {
+				r.readerAggregate.txLock.RLock()
+				if r.readerAggregate.txList != nil {
+					txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
+					txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
+				}
+				r.readerAggregate.txLock.RUnlock()
+				if txs != nil {
+					return dupTxs(txs)
+				}
 			}
 		}
-		if match {
-			switch len(p.ChainIDs) {
-			case 1:
-				chainID := p.ChainIDs[0]
-				r.readerAggregate.txAscLock.RLock()
-				if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
-					if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
-						txs = make([]*models.Transaction, 0, 501)
-						txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
+	case params.TransactionSortTimestampAsc:
+		if p.ListParams.Limit > 0 {
+			match := true
+			for key := range p.ListParams.Values {
+				if !match {
+					break
+				}
+				switch key {
+				case params.KeySortBy:
+				case params.KeyLimit:
+				case params.KeyDisableCount:
+				case params.KeyChainID:
+				default:
+					match = false
+				}
+			}
+			if match {
+				switch len(p.ChainIDs) {
+				case 1:
+					chainID := p.ChainIDs[0]
+					r.readerAggregate.txAscLock.RLock()
+					if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
+						if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
+							txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
+							txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
+						}
 					}
-				}
-				r.readerAggregate.txAscLock.RUnlock()
-				if txs != nil {
-					return txs
-				}
-			case 0:
-				r.readerAggregate.txAscLock.RLock()
-				if r.readerAggregate.txListAsc != nil {
-					if p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
-						txs = make([]*models.Transaction, 0, 501)
-						txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
+					r.readerAggregate.txAscLock.RUnlock()
+					if txs != nil {
+						return dupTxs(txs)
 					}
+				case 0:
+					r.readerAggregate.txAscLock.RLock()
+					if r.readerAggregate.txListAsc != nil {
+						if p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
+							txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
+							txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
+						}
+					}
+					r.readerAggregate.txAscLock.RUnlock()
+					if txs != nil {
+						return dupTxs(txs)
+					}
+				default:
 				}
-				r.readerAggregate.txAscLock.RUnlock()
-				if txs != nil {
-					return txs
-				}
-			default:
 			}
 		}
 	}
