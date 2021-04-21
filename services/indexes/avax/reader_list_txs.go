@@ -105,14 +105,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 
 	txs := readerAggregateTxList.FindTxs(p.ChainIDs, p.ListParams.Limit)
 	if txs != nil {
-		ctxs := make([]*models.Transaction, len(txs))
-		for ipos, tx := range txs {
-			// make a copy to avoid overwriting the tx inputs/outputs
-			ntx := &models.Transaction{}
-			*ntx = *tx
-			ctxs[ipos] = ntx
-		}
-		return ctxs, true
+		return txs, true
 	}
 	return nil, false
 }
