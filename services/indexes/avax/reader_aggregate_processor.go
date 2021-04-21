@@ -210,8 +210,6 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 	ticker := time.NewTicker(time.Second)
 
-	timeaggr := time.Now().Truncate(time.Second).Truncate(time.Second)
-
 	runTx := func() {
 		ctx := context.Background()
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
@@ -270,17 +268,12 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 				return
 			}
 		}
-
-		timeaggr = timeaggr.Add(1 * time.Second).Truncate(time.Second)
 	}
 	runTx()
 	for {
 		select {
 		case <-ticker.C:
-			tnow := time.Now()
-			if tnow.After(timeaggr) {
-				runTx()
-			}
+			runTx()
 		case <-r.doneCh:
 			return
 		}
