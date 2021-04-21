@@ -17,14 +17,20 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
-type ReaderAgregateTxList struct {
+type ReaderAggregateTxList struct {
 	Lock       sync.RWMutex
 	Txs        []*models.Transaction
 	TxsByChain map[models.StringID][]*models.Transaction
 	Processed  bool
 }
 
-func (t *ReaderAgregateTxList) First() *models.Transaction {
+func (t *ReaderAggregateTxList) IsProcessed() bool {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	return t.Processed
+}
+
+func (t *ReaderAggregateTxList) First() *models.Transaction {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
 	if t.Processed {
@@ -33,7 +39,7 @@ func (t *ReaderAgregateTxList) First() *models.Transaction {
 	return nil
 }
 
-func (t *ReaderAgregateTxList) Set(txs []*models.Transaction) {
+func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 	if txs == nil {
 		t.Lock.Lock()
 		defer t.Lock.Unlock()
@@ -57,8 +63,8 @@ func (t *ReaderAgregateTxList) Set(txs []*models.Transaction) {
 }
 
 type ReaderAggregate struct {
-	txDesc ReaderAgregateTxList
-	txAsc  ReaderAgregateTxList
+	txDesc ReaderAggregateTxList
+	txAsc  ReaderAggregateTxList
 
 	lock sync.RWMutex
 
@@ -239,11 +245,7 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 			return
 		}
 
-		r.readerAggregate.txAsc.Lock.RLock()
-		processed := r.readerAggregate.txAsc.Processed
-		r.readerAggregate.txAsc.Lock.RUnlock()
-
-		if !processed {
+		if !r.readerAggregate.txAsc.IsProcessed() {
 			builder := transactionQuery(sess)
 			builder.OrderAsc("avm_transactions.created_at")
 			builder.OrderAsc("avm_transactions.chain_id")
