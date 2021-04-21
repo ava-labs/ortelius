@@ -118,7 +118,7 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 		}
 		r.readerAggregate.txLock.RUnlock()
 		if txs != nil {
-			return dupTxs(txs), false
+			return dupTxs(txs), true
 		}
 	case params.TransactionSortTimestampAsc:
 		for key := range p.ListParams.Values {

@@ -189,13 +189,25 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 		builder.Limit(500)
 
 		var txs []*models.Transaction
+
+		defer func() {
+			r.readerAggregate.txLock.Lock()
+			r.readerAggregate.txList = txs
+			r.readerAggregate.txLock.Unlock()
+		}()
+
 		if _, err := builder.LoadContext(ctx, &txs); err != nil {
+			r.sc.Log.Warn("descending tx query fail %v", err)
+			txs = nil
 			return
 		}
 
-		r.readerAggregate.txLock.Lock()
-		r.readerAggregate.txList = txs
-		r.readerAggregate.txLock.Unlock()
+		err := dressTransactions(ctx, sess, txs, r.sc.GenesisContainer.AvaxAssetID, nil, false)
+		if err != nil {
+			r.sc.Log.Warn("descending tx dress tx fail %v", err)
+			txs = nil
+			return
+		}
 
 		r.readerAggregate.txAscLock.RLock()
 		processed := r.readerAggregate.txAscProcessed
@@ -208,30 +220,41 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 			builder.Limit(5000)
 
 			var txsAsc []*models.Transaction
+			txsAscByChain := make(map[models.StringID][]*models.Transaction)
+
+			defer func() {
+				r.readerAggregate.txAscLock.Lock()
+				if txsAsc != nil {
+					r.readerAggregate.txListAsc = txsAsc
+					r.readerAggregate.txListByChainAsc = txsAscByChain
+					r.readerAggregate.txAscProcessed = true
+				} else {
+					r.readerAggregate.txListAsc = nil
+					r.readerAggregate.txListByChainAsc = make(map[models.StringID][]*models.Transaction)
+					r.readerAggregate.txAscProcessed = false
+				}
+				r.readerAggregate.txAscLock.Unlock()
+			}()
+
 			if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
 				r.sc.Log.Warn("ascending tx query fail %v", err)
+				txsAsc = nil
 				return
 			}
 
 			err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
 			if err != nil {
 				r.sc.Log.Warn("ascending tx dress tx fail %v", err)
+				txsAsc = nil
 				return
 			}
 
-			txsAscByChain := make(map[models.StringID][]*models.Transaction)
 			for _, tx := range txsAsc {
 				if _, ok := txsAscByChain[tx.ChainID]; !ok {
 					txsAscByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
 				}
 				txsAscByChain[tx.ChainID] = append(txsAscByChain[tx.ChainID], tx)
 			}
-
-			r.readerAggregate.txAscLock.Lock()
-			r.readerAggregate.txListAsc = txsAsc
-			r.readerAggregate.txListByChainAsc = txsAscByChain
-			r.readerAggregate.txAscProcessed = true
-			r.readerAggregate.txAscLock.Unlock()
 		}
 
 		timeaggr = timeaggr.Add(1 * time.Second).Truncate(time.Second)
