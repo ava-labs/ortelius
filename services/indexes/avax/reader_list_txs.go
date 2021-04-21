@@ -85,7 +85,10 @@ func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transact
 	}
 	dupTxs := func(itxs []*models.Transaction) []*models.Transaction {
 		ctxs := make([]*models.Transaction, len(itxs))
-		copy(ctxs, itxs)
+		for ipos, tx := range itxs {
+			ntx := tx
+			ctxs[ipos] = ntx
+		}
 		return ctxs
 	}
 	var txs []*models.Transaction
