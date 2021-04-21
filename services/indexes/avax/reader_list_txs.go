@@ -79,7 +79,7 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	return builder
 }
 
-func (r *Reader) listTxsAgg(p *params.ListTransactionsParams) []*models.Transaction {
+func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) []*models.Transaction {
 	if !r.sc.IsAggregateCache {
 		return nil
 	}
@@ -184,7 +184,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	}
 
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
-		txsAggr := r.listTxsAgg(p)
+		txsAggr := r.listTxsFromCache(p)
 		if txsAggr != nil {
 			return txsAggr, nil
 		}

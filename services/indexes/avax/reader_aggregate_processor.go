@@ -178,11 +178,12 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 	timeaggr := time.Now().Truncate(time.Second).Truncate(time.Second)
 
-	runAggrTx := func() {
+	runTx := func() {
 		ctx := context.Background()
 		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
 
 		builder := transactionQuery(sess)
+		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
 		builder.OrderDesc("avm_transactions.created_at")
 		builder.OrderAsc("avm_transactions.chain_id")
 		builder.Limit(500)
@@ -228,13 +229,13 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 		timeaggr = timeaggr.Add(1 * time.Second).Truncate(time.Second)
 	}
-	runAggrTx()
+	runTx()
 	for {
 		select {
 		case <-ticker.C:
 			tnow := time.Now()
 			if tnow.After(timeaggr) {
-				runAggrTx()
+				runTx()
 			}
 		case <-r.doneCh:
 			return
