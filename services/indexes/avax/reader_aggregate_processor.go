@@ -17,14 +17,46 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
-type ReaderAggregate struct {
-	txLock sync.RWMutex
-	txList []*models.Transaction
+type ReaderAgregateTxList struct {
+	Lock       sync.RWMutex
+	Txs        []*models.Transaction
+	TxsByChain map[models.StringID][]*models.Transaction
+	Processed  bool
+}
 
-	txAscLock        sync.RWMutex
-	txAscProcessed   bool
-	txListAsc        []*models.Transaction
-	txListByChainAsc map[models.StringID][]*models.Transaction
+func (t *ReaderAgregateTxList) First() *models.Transaction {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	if t.Processed {
+		return t.Txs[0]
+	}
+	return nil
+}
+
+func (t *ReaderAgregateTxList) Set(txs []*models.Transaction) {
+	txsListByChain := make(map[models.StringID][]*models.Transaction)
+	for _, tx := range txs {
+		if _, ok := txsListByChain[tx.ChainID]; !ok {
+			txsListByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
+		}
+		txsListByChain[tx.ChainID] = append(txsListByChain[tx.ChainID], tx)
+	}
+	t.Lock.Lock()
+	if txs != nil {
+		t.Txs = txs
+		t.TxsByChain = txsListByChain
+		t.Processed = true
+	} else {
+		t.Txs = nil
+		t.TxsByChain = nil
+		t.Processed = false
+	}
+	t.Lock.Unlock()
+}
+
+type ReaderAggregate struct {
+	txDesc ReaderAgregateTxList
+	txAsc  ReaderAgregateTxList
 
 	lock sync.RWMutex
 
@@ -186,14 +218,12 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
 		builder.OrderDesc("avm_transactions.created_at")
 		builder.OrderAsc("avm_transactions.chain_id")
-		builder.Limit(500)
+		builder.Limit(5000)
 
 		var txs []*models.Transaction
 
 		defer func() {
-			r.readerAggregate.txLock.Lock()
-			r.readerAggregate.txList = txs
-			r.readerAggregate.txLock.Unlock()
+			r.readerAggregate.txDesc.Set(txs)
 		}()
 
 		if _, err := builder.LoadContext(ctx, &txs); err != nil {
@@ -209,9 +239,9 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 			return
 		}
 
-		r.readerAggregate.txAscLock.RLock()
-		processed := r.readerAggregate.txAscProcessed
-		r.readerAggregate.txAscLock.RUnlock()
+		r.readerAggregate.txAsc.Lock.RLock()
+		processed := r.readerAggregate.txAsc.Processed
+		r.readerAggregate.txAsc.Lock.RUnlock()
 
 		if !processed {
 			builder := transactionQuery(sess)
@@ -220,20 +250,9 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 			builder.Limit(5000)
 
 			var txsAsc []*models.Transaction
-			txsAscByChain := make(map[models.StringID][]*models.Transaction)
 
 			defer func() {
-				r.readerAggregate.txAscLock.Lock()
-				if txsAsc != nil {
-					r.readerAggregate.txListAsc = txsAsc
-					r.readerAggregate.txListByChainAsc = txsAscByChain
-					r.readerAggregate.txAscProcessed = true
-				} else {
-					r.readerAggregate.txListAsc = nil
-					r.readerAggregate.txListByChainAsc = make(map[models.StringID][]*models.Transaction)
-					r.readerAggregate.txAscProcessed = false
-				}
-				r.readerAggregate.txAscLock.Unlock()
+				r.readerAggregate.txAsc.Set(txsAsc)
 			}()
 
 			if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
@@ -247,13 +266,6 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 				r.sc.Log.Warn("ascending tx dress tx fail %v", err)
 				txsAsc = nil
 				return
-			}
-
-			for _, tx := range txsAsc {
-				if _, ok := txsAscByChain[tx.ChainID]; !ok {
-					txsAscByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
-				}
-				txsAscByChain[tx.ChainID] = append(txsAscByChain[tx.ChainID], tx)
 			}
 		}
 

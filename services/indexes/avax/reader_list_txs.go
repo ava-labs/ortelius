@@ -95,89 +95,71 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 		return ctxs
 	}
 
+	readerAggregateTxList := &r.readerAggregate.txAsc
+	if p.Sort == params.TransactionSortTimestampDesc {
+		readerAggregateTxList = &r.readerAggregate.txDesc
+	}
+
 	var txs []*models.Transaction
-	switch p.Sort {
-	case params.TransactionSortTimestampDesc:
-		for key := range p.ListParams.Values {
-			switch key {
-			case params.KeySortBy:
-			case params.KeyLimit:
-			case params.KeyOffset:
-			case params.KeyDisableCount:
-			default:
-				return nil, false
-			}
-		}
-		r.readerAggregate.txLock.RLock()
-		if r.readerAggregate.txList != nil &&
-			p.ListParams.Limit <= len(r.readerAggregate.txList) {
-			txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
-			txs = append(txs, r.readerAggregate.txList[0:p.ListParams.Limit]...)
-		}
-		r.readerAggregate.txLock.RUnlock()
-		if txs != nil {
-			return dupTxs(txs), true
-		}
-	case params.TransactionSortTimestampAsc:
-		for key := range p.ListParams.Values {
-			switch key {
-			case params.KeySortBy:
-			case params.KeyLimit:
-			case params.KeyOffset:
-			case params.KeyDisableCount:
-			case params.KeyChainID:
-			default:
-				return nil, false
-			}
-		}
-		switch len(p.ChainIDs) {
-		case 1:
-			chainID := p.ChainIDs[0]
-			r.readerAggregate.txAscLock.RLock()
-			if _, ok := r.readerAggregate.txListByChainAsc[models.StringID(chainID)]; ok {
-				if p.ListParams.Limit <= len(r.readerAggregate.txListByChainAsc[models.StringID(chainID)]) {
-					txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
-					txs = append(txs, r.readerAggregate.txListByChainAsc[models.StringID(chainID)][0:p.ListParams.Limit]...)
-				}
-			}
-			r.readerAggregate.txAscLock.RUnlock()
-			if txs != nil {
-				return dupTxs(txs), true
-			}
-		case 0:
-			r.readerAggregate.txAscLock.RLock()
-			if r.readerAggregate.txListAsc != nil &&
-				p.ListParams.Limit <= len(r.readerAggregate.txListAsc) {
-				txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
-				txs = append(txs, r.readerAggregate.txListAsc[0:p.ListParams.Limit]...)
-			}
-			r.readerAggregate.txAscLock.RUnlock()
-			if txs != nil {
-				return dupTxs(txs), true
-			}
+
+	// only allow certain values for this cache to hit..
+	for key := range p.ListParams.Values {
+		switch key {
+		case params.KeySortBy:
+		case params.KeyLimit:
+		case params.KeyOffset:
+		case params.KeyDisableCount:
+		case params.KeyChainID:
 		default:
+			// unknown key, no cache hit
+			return nil, false
 		}
+	}
+
+	switch len(p.ChainIDs) {
+	case 1:
+		chainID := p.ChainIDs[0]
+		readerAggregateTxList.Lock.RLock()
+		if _, ok := readerAggregateTxList.TxsByChain[models.StringID(chainID)]; ok {
+			if p.ListParams.Limit <= len(readerAggregateTxList.TxsByChain[models.StringID(chainID)]) {
+				txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
+				txs = append(txs, readerAggregateTxList.TxsByChain[models.StringID(chainID)][0:p.ListParams.Limit]...)
+			}
+		}
+		readerAggregateTxList.Lock.RUnlock()
+	case 0:
+		readerAggregateTxList.Lock.RLock()
+		if readerAggregateTxList.Txs != nil && p.ListParams.Limit <= len(readerAggregateTxList.Txs) {
+			txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
+			txs = append(txs, readerAggregateTxList.Txs[0:p.ListParams.Limit]...)
+		}
+		readerAggregateTxList.Lock.RUnlock()
 	default:
+	}
+	if txs != nil {
+		return dupTxs(txs), true
 	}
 	return nil, false
 }
 
-func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, dbRunner *dbr.Session) ([]*models.Transaction, bool, error) {
-	var applySort func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt
-	applySort = func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
+func (r *Reader) listTxs(
+	ctx context.Context,
+	p *params.ListTransactionsParams,
+	dbRunner *dbr.Session,
+) ([]*models.Transaction, bool, error) {
+	applySort := func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.Query != "" {
 			return stmt
 		}
 
 		switch sort {
-		case params.TransactionSortTimestampAsc:
-			stmt.OrderAsc("avm_transactions.created_at")
-			stmt.OrderAsc("avm_transactions.chain_id")
 		case params.TransactionSortTimestampDesc:
 			stmt.OrderDesc("avm_transactions.created_at")
 			stmt.OrderAsc("avm_transactions.chain_id")
 		default:
-			stmt = applySort(params.TransactionSortDefault, stmt)
+			// default is ascending...
+			stmt.OrderAsc("avm_transactions.created_at")
+			stmt.OrderAsc("avm_transactions.chain_id")
 		}
 		return stmt
 	}
@@ -260,7 +242,26 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	return txs, false, nil
 }
 
+func (r *Reader) listTxsAdjustStart(p *params.ListTransactionsParams) {
+	if !p.ListParams.StartTimeProvided {
+		return
+	}
+	firstTxs := r.readerAggregate.txAsc.First()
+	if firstTxs == nil {
+		return
+	}
+
+	// Requesting for a time before first tx's created at, clear the startTime
+	if firstTxs.CreatedAt.Before(p.ListParams.StartTime) {
+		p.ListParams.StartTimeProvided = false
+		p.ListParams.StartTime = firstTxs.CreatedAt
+		delete(p.ListParams.Values, params.KeyStartTime)
+	}
+}
+
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
+	r.listTxsAdjustStart(p)
+
 	dbRunner, err := r.conns.DB().NewSession("get_transactions", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
@@ -339,7 +340,7 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 			}
 		}
 	}
-	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
+	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort.String())
 	return &next
 }
 
@@ -357,7 +358,14 @@ type rewardsTypeModel struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
+func dressTransactions(
+	ctx context.Context,
+	dbRunner dbr.SessionRunner,
+	txs []*models.Transaction,
+	avaxAssetID ids.ID,
+	txID *ids.ID,
+	disableGenesis bool,
+) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -471,7 +479,19 @@ func dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*m
 	return nil
 }
 
-func dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.Output, cvmouts map[models.StringID][]models.Output) {
+func dressTransactionsTx(
+	txs []*models.Transaction,
+	disableGenesis bool,
+	txID *ids.ID,
+	avaxAssetID ids.ID,
+	inputsMap map[models.StringID]map[models.StringID]*models.Input,
+	outputsMap map[models.StringID]map[models.StringID]*models.Output,
+	inputTotalsMap map[models.StringID]map[models.StringID]*big.Int,
+	outputTotalsMap map[models.StringID]map[models.StringID]*big.Int,
+	rewardsTypesMap map[models.StringID]rewardsTypeModel,
+	cvmins map[models.StringID][]models.Output,
+	cvmouts map[models.StringID][]models.Output,
+) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
