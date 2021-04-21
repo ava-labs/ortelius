@@ -62,6 +62,31 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 	t.Processed = true
 }
 
+func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.Transaction {
+	var txs []*models.Transaction
+	switch len(chainIDs) {
+	case 1:
+		chainID := chainIDs[0]
+		t.Lock.RLock()
+		if _, ok := t.TxsByChain[models.StringID(chainID)]; ok {
+			if limit <= len(t.TxsByChain[models.StringID(chainID)]) {
+				txs = make([]*models.Transaction, 0, limit)
+				txs = append(txs, t.TxsByChain[models.StringID(chainID)][0:limit]...)
+			}
+		}
+		t.Lock.RUnlock()
+	case 0:
+		t.Lock.RLock()
+		if t.Txs != nil && limit <= len(t.Txs) {
+			txs = make([]*models.Transaction, 0, limit)
+			txs = append(txs, t.Txs[0:limit]...)
+		}
+		t.Lock.RUnlock()
+	default:
+	}
+	return txs
+}
+
 type ReaderAggregate struct {
 	txDesc ReaderAggregateTxList
 	txAsc  ReaderAggregateTxList

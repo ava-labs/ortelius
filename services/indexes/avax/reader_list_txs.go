@@ -84,24 +84,6 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 		return nil, false
 	}
 
-	dupTxs := func(itxs []*models.Transaction) []*models.Transaction {
-		ctxs := make([]*models.Transaction, len(itxs))
-		for ipos, tx := range itxs {
-			// make a copy to avoid overwriting the tx inputs/outputs
-			ntx := &models.Transaction{}
-			*ntx = *tx
-			ctxs[ipos] = ntx
-		}
-		return ctxs
-	}
-
-	readerAggregateTxList := &r.readerAggregate.txAsc
-	if p.Sort == params.TransactionSortTimestampDesc {
-		readerAggregateTxList = &r.readerAggregate.txDesc
-	}
-
-	var txs []*models.Transaction
-
 	// only allow certain values for this cache to hit..
 	for key := range p.ListParams.Values {
 		switch key {
@@ -116,28 +98,21 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 		}
 	}
 
-	switch len(p.ChainIDs) {
-	case 1:
-		chainID := p.ChainIDs[0]
-		readerAggregateTxList.Lock.RLock()
-		if _, ok := readerAggregateTxList.TxsByChain[models.StringID(chainID)]; ok {
-			if p.ListParams.Limit <= len(readerAggregateTxList.TxsByChain[models.StringID(chainID)]) {
-				txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
-				txs = append(txs, readerAggregateTxList.TxsByChain[models.StringID(chainID)][0:p.ListParams.Limit]...)
-			}
-		}
-		readerAggregateTxList.Lock.RUnlock()
-	case 0:
-		readerAggregateTxList.Lock.RLock()
-		if readerAggregateTxList.Txs != nil && p.ListParams.Limit <= len(readerAggregateTxList.Txs) {
-			txs = make([]*models.Transaction, 0, p.ListParams.Limit+1)
-			txs = append(txs, readerAggregateTxList.Txs[0:p.ListParams.Limit]...)
-		}
-		readerAggregateTxList.Lock.RUnlock()
-	default:
+	readerAggregateTxList := &r.readerAggregate.txAsc
+	if p.Sort == params.TransactionSortTimestampDesc {
+		readerAggregateTxList = &r.readerAggregate.txDesc
 	}
+
+	txs := readerAggregateTxList.FindTxs(p.ChainIDs, p.ListParams.Limit)
 	if txs != nil {
-		return dupTxs(txs), true
+		ctxs := make([]*models.Transaction, len(txs))
+		for ipos, tx := range txs {
+			// make a copy to avoid overwriting the tx inputs/outputs
+			ntx := &models.Transaction{}
+			*ntx = *tx
+			ctxs[ipos] = ntx
+		}
+		return ctxs, true
 	}
 	return nil, false
 }
