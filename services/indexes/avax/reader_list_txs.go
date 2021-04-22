@@ -228,7 +228,7 @@ func (r *Reader) listTxsAdjustStart(p *params.ListTransactionsParams) {
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	r.listTxsAdjustStart(p)
+	// r.listTxsAdjustStart(p)
 
 	dbRunner, err := r.conns.DB().NewSession("get_transactions", cfg.RequestTimeout)
 	if err != nil {
