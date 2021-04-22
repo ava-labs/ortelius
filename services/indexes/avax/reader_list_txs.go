@@ -220,7 +220,7 @@ func (r *Reader) listTxsAdjustStart(p *params.ListTransactionsParams) {
 	}
 
 	// Requesting for a time before first tx's created at, clear the startTime
-	if firstTxs.CreatedAt.Before(p.ListParams.StartTime) {
+	if firstTxs.CreatedAt.After(p.ListParams.StartTime) {
 		p.ListParams.StartTimeProvided = false
 		p.ListParams.StartTime = firstTxs.CreatedAt
 		delete(p.ListParams.Values, params.KeyStartTime)
@@ -228,7 +228,9 @@ func (r *Reader) listTxsAdjustStart(p *params.ListTransactionsParams) {
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	// r.listTxsAdjustStart(p)
+	if false {
+		r.listTxsAdjustStart(p)
+	}
 
 	dbRunner, err := r.conns.DB().NewSession("get_transactions", cfg.RequestTimeout)
 	if err != nil {
