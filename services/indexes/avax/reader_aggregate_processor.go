@@ -231,8 +231,8 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
-	go r.aggregateProcessorTxDescFetch(connectionstxsdesc)
-	go r.aggregateProcessorTxAscFetch(connectionstxsasc)
+	go r.processorTxDescFetch(connectionstxsdesc)
+	go r.processorTxAscFetch(connectionstxsasc)
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1m(connections1m)
 	go r.aggregateProcessor1h(connections1h)
@@ -242,7 +242,7 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
-func (r *Reader) aggregateProcessorTxDescFetch(conns *services.Connections) {
+func (r *Reader) processorTxDescFetch(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -251,7 +251,7 @@ func (r *Reader) aggregateProcessorTxDescFetch(conns *services.Connections) {
 
 	runTx := func() {
 		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
 
 		builder := transactionQuery(sess)
 		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
@@ -289,7 +289,7 @@ func (r *Reader) aggregateProcessorTxDescFetch(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessorTxAscFetch(conns *services.Connections) {
+func (r *Reader) processorTxAscFetch(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -300,7 +300,7 @@ func (r *Reader) aggregateProcessorTxAscFetch(conns *services.Connections) {
 
 	runTx := func() {
 		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
 
 		builder := transactionQuery(sess)
 		builder.OrderAsc("avm_transactions.created_at")
