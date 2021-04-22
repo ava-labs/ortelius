@@ -84,6 +84,15 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 		return nil, false
 	}
 
+	readerAggregateTxList := &r.readerAggregate.txAsc
+	if p.Sort == params.TransactionSortTimestampDesc {
+		readerAggregateTxList = &r.readerAggregate.txDesc
+	}
+
+	if !readerAggregateTxList.IsProcessed() {
+		return nil, false
+	}
+
 	// only allow certain values for this cache to hit..
 	for key := range p.ListParams.Values {
 		switch key {
@@ -96,11 +105,6 @@ func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.T
 			// unknown key, no cache hit
 			return nil, false
 		}
-	}
-
-	readerAggregateTxList := &r.readerAggregate.txAsc
-	if p.Sort == params.TransactionSortTimestampDesc {
-		readerAggregateTxList = &r.readerAggregate.txDesc
 	}
 
 	txs := readerAggregateTxList.FindTxs(p.ChainIDs, p.ListParams.Limit)
@@ -210,28 +214,7 @@ func (r *Reader) listTxs(
 	return txs, false, nil
 }
 
-func (r *Reader) listTxsAdjustStart(p *params.ListTransactionsParams) {
-	if !p.ListParams.StartTimeProvided {
-		return
-	}
-	firstTxs := r.readerAggregate.txAsc.First()
-	if firstTxs == nil {
-		return
-	}
-
-	// Requesting for a time before first tx's created at, clear the startTime
-	if firstTxs.CreatedAt.After(p.ListParams.StartTime) {
-		p.ListParams.StartTimeProvided = false
-		p.ListParams.StartTime = firstTxs.CreatedAt
-		delete(p.ListParams.Values, params.KeyStartTime)
-	}
-}
-
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
-	if false {
-		r.listTxsAdjustStart(p)
-	}
-
 	dbRunner, err := r.conns.DB().NewSession("get_transactions", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
