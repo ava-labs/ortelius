@@ -163,7 +163,8 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
-	var connectionstxs *services.Connections
+	var connectionstxsdesc *services.Connections
+	var connectionstxsasc *services.Connections
 	var connectionsaggr *services.Connections
 
 	var connections1m *services.Connections
@@ -179,7 +180,8 @@ func (r *Reader) aggregateProcessor() error {
 				_ = c.Close()
 			}
 		}
-		closeConn(connectionstxs)
+		closeConn(connectionstxsdesc)
+		closeConn(connectionstxsasc)
 		closeConn(connectionsaggr)
 		closeConn(connections1m)
 		closeConn(connections1h)
@@ -188,7 +190,12 @@ func (r *Reader) aggregateProcessor() error {
 		closeConn(connections30d)
 	}
 
-	connectionstxs, err = r.sc.DatabaseRO()
+	connectionstxsdesc, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connectionstxsasc, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
 		return err
@@ -224,7 +231,8 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
-	go r.aggregateProcessorTxFetch(connectionstxs)
+	go r.processorTxDescFetch(connectionstxsdesc)
+	go r.processorTxAscFetch(connectionstxsasc)
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1m(connections1m)
 	go r.aggregateProcessor1h(connections1h)
@@ -234,7 +242,7 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
-func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
+func (r *Reader) processorTxDescFetch(conns *services.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -243,7 +251,7 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 
 	runTx := func() {
 		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
 
 		builder := transactionQuery(sess)
 		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
@@ -269,38 +277,64 @@ func (r *Reader) aggregateProcessorTxFetch(conns *services.Connections) {
 			txs = nil
 			return
 		}
-
-		if !r.readerAggregate.txAsc.IsProcessed() {
-			builder := transactionQuery(sess)
-			builder.OrderAsc("avm_transactions.created_at")
-			builder.OrderAsc("avm_transactions.chain_id")
-			builder.Limit(5000)
-
-			var txsAsc []*models.Transaction
-
-			defer func() {
-				r.readerAggregate.txAsc.Set(txsAsc)
-			}()
-
-			if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
-				r.sc.Log.Warn("ascending tx query fail %v", err)
-				txsAsc = nil
-				return
-			}
-
-			err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
-			if err != nil {
-				r.sc.Log.Warn("ascending tx dress tx fail %v", err)
-				txsAsc = nil
-				return
-			}
-		}
 	}
 	runTx()
 	for {
 		select {
 		case <-ticker.C:
 			runTx()
+		case <-r.doneCh:
+			return
+		}
+	}
+}
+
+func (r *Reader) processorTxAscFetch(conns *services.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ticker := time.NewTicker(time.Second)
+
+	timeaggr := time.Now().Truncate(time.Minute).Truncate(10 * time.Minute)
+
+	runTx := func() {
+		ctx := context.Background()
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
+
+		builder := transactionQuery(sess)
+		builder.OrderAsc("avm_transactions.created_at")
+		builder.OrderAsc("avm_transactions.chain_id")
+		builder.Limit(5000)
+
+		var txsAsc []*models.Transaction
+
+		defer func() {
+			r.readerAggregate.txAsc.Set(txsAsc)
+		}()
+
+		if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
+			r.sc.Log.Warn("ascending tx query fail %v", err)
+			txsAsc = nil
+			return
+		}
+
+		err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
+		if err != nil {
+			r.sc.Log.Warn("ascending tx dress tx fail %v", err)
+			txsAsc = nil
+			return
+		}
+		timeaggr = timeaggr.Add(10 * time.Minute).Truncate(10 * time.Minute)
+	}
+	runTx()
+	for {
+		select {
+		case <-ticker.C:
+			tnow := time.Now()
+			if tnow.After(timeaggr) {
+				runTx()
+			}
 		case <-r.doneCh:
 			return
 		}
