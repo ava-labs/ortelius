@@ -357,7 +357,7 @@ func TestTransactionNext(t *testing.T) {
 	if n[params.KeyStartTime][0] != fmt.Sprintf("%d", tnow3.Unix()) {
 		t.Fatal("invalid next starttime")
 	}
-	if n[params.KeySortBy][0] != params.TransactionSortTimestampAsc {
+	if n[params.KeySortBy][0] != params.TransactionSortTimestampAscStr {
 		t.Fatal("invalid sort")
 	}
 
@@ -388,7 +388,7 @@ func TestTransactionNext(t *testing.T) {
 	if n[params.KeyEndTime][0] != fmt.Sprintf("%d", tnow3.Unix()) {
 		t.Fatal("invalid next endtime")
 	}
-	if n[params.KeySortBy][0] != params.TransactionSortTimestampDesc {
+	if n[params.KeySortBy][0] != params.TransactionSortTimestampDescStr {
 		t.Fatal("invalid sort")
 	}
 

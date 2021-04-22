@@ -18,9 +18,13 @@ import (
 )
 
 const (
-	TransactionSortDefault       TransactionSort = TransactionSortTimestampAsc
-	TransactionSortTimestampAsc                  = "timestamp-asc"
-	TransactionSortTimestampDesc                 = "timestamp-desc"
+	TransactionSortTimestampAsc TransactionSort = iota
+	TransactionSortTimestampDesc
+
+	TransactionSortDefault = TransactionSortTimestampAsc
+
+	TransactionSortTimestampAscStr  = "timestamp-asc"
+	TransactionSortTimestampDescStr = "timestamp-desc"
 )
 
 var (
@@ -171,7 +175,7 @@ func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
-		p.Sort, _ = toTransactionSort(sortBys[0])
+		p.Sort = toTransactionSort(sortBys[0])
 	}
 
 	p.ChainIDs = q[KeyChainID]
@@ -258,7 +262,7 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
-		p.Sort, _ = toTransactionSort(sortBys[0])
+		p.Sort = toTransactionSort(sortBys[0])
 	}
 
 	addressStrs := q[KeyAddress]
@@ -607,16 +611,23 @@ func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
 //
 // Sorting
 //
-type TransactionSort string
+type TransactionSort uint8
 
-func toTransactionSort(s string) (TransactionSort, error) {
+func toTransactionSort(s string) TransactionSort {
 	switch s {
-	case TransactionSortTimestampAsc:
-		return TransactionSortTimestampAsc, nil
-	case TransactionSortTimestampDesc:
-		return TransactionSortTimestampDesc, nil
+	case TransactionSortTimestampAscStr:
+		return TransactionSortTimestampAsc
+	case TransactionSortTimestampDescStr:
+		return TransactionSortTimestampDesc
 	}
-	return TransactionSortDefault, ErrUndefinedSort
+	return TransactionSortDefault
+}
+
+func (t TransactionSort) String() string {
+	if t == TransactionSortTimestampDesc {
+		return TransactionSortTimestampDescStr
+	}
+	return TransactionSortTimestampAscStr
 }
 
 type BlockSort string
