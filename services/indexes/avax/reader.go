@@ -801,7 +801,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 		return time.Time{}, err
 	}
 
-	var ts int64
+	var ts float64
 	builder := dbRunner.
 		Select("COALESCE(UNIX_TIMESTAMP(MIN(created_at)), 0)").
 		From("avm_transactions")
@@ -814,7 +814,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return time.Unix(ts, 0).UTC(), nil
+	return time.Unix(int64(ts), 0).UTC(), nil
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
