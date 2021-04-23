@@ -814,7 +814,7 @@ func (r *Reader) getFirstTransactionTime(ctx context.Context, chainIDs []string)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return time.Unix(int64(ts), 0).UTC(), nil
+	return time.Unix(int64(math.Floor(ts)), 0).UTC(), nil
 }
 
 func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) (*models.SearchResults, error) {
