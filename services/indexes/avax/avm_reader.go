@@ -101,7 +101,6 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 				ListParams:   p.ListParams,
 				AssetID:      &id,
 				IntervalSize: params.IntervalNames[intervalName],
-				Version:      1,
 			}
 			hm, err := r.Aggregate(ctx, &aparams, nil)
 			if err != nil {

@@ -94,7 +94,6 @@ type AggregateParams struct {
 	ChainIDs     []string
 	AssetID      *ids.ID
 	IntervalSize time.Duration
-	Version      int
 }
 
 func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
@@ -115,11 +114,6 @@ func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
 		return err
 	}
 
-	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -133,7 +127,6 @@ func (p *AggregateParams) CacheKey() []string {
 	k = append(k,
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
-		CacheKey(KeyVersion, int64(p.Version)),
 	)
 
 	return append(p.ListParams.CacheKey(), k...)
@@ -409,7 +402,6 @@ type ListAddressesParams struct {
 	ListParams ListParams
 	ChainIDs   []string
 	Address    *ids.ShortID
-	Version    int
 }
 
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
@@ -432,10 +424,6 @@ func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
 		p.Address = &addr
 	}
 
-	if p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -447,8 +435,6 @@ func (p *ListAddressesParams) CacheKey() []string {
 	}
 
 	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
-
-	k = append(k, CacheKey(KeyVersion, int64(p.Version)))
 
 	return k
 }

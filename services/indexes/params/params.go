@@ -34,7 +34,6 @@ const (
 	KeyIntervalSize     = "intervalSize"
 	KeyDisableCount     = "disableCount"
 	KeyDisableGenesis   = "disableGenesis"
-	KeyVersion          = "version"
 	KeyEnableAggregate  = "enableAggregate"
 	KeyOutputOutputType = "outputOutputType"
 	KeyOutputGroupID    = "outputGroupId"
