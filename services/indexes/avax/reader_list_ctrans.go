@@ -72,12 +72,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"created_at",
 	).From(services.TableCvmTransactionsTxdata)
 
-	if len(p.CAddresses) > 0 {
-		subq := dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
-			Where("to_addr in ? or from_addr in ?", p.CAddresses, p.CAddresses)
-		sq.
-			Where("rcpt in ? or hash in ?", p.CAddresses, dbRunner.Select("hash").From(subq.As("a")))
-	}
+	r.listCTransFilter(p, dbRunner, sq)
 	if len(p.Hashes) > 0 {
 		sq.
 			Where("hash in ?", p.Hashes)
@@ -151,6 +146,88 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		StartTime:    listParamsOriginal.StartTime,
 		EndTime:      listParamsOriginal.EndTime,
 	}, nil
+}
+
+func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *dbr.Session, sq *dbr.SelectStmt) {
+	createdatfilter := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
+		if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
+		} else if !p.ListParams.StartTime.IsZero() {
+			b.Where(tbl+".created_at >= ?", p.ListParams.StartTime)
+		}
+		if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
+		} else if !p.ListParams.EndTime.IsZero() {
+			b.Where(tbl+".created_at < ?", p.ListParams.EndTime)
+		}
+		return b
+	}
+
+	blockfilter := func(b *dbr.SelectStmt) *dbr.SelectStmt {
+		if p.BlockStart == nil && p.BlockEnd == nil {
+			return b
+		}
+		b.Join(services.TableCvmTransactionsTxdata,
+			services.TableCvmTransactionsTxdataTrace+".hash = "+services.TableCvmTransactionsTxdata+".hash")
+		if p.BlockStart != nil {
+			b.Where(services.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
+		}
+		if p.BlockEnd != nil {
+			b.Where(services.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
+		}
+		return b
+	}
+
+	blockrcptfilter := func(b *dbr.SelectStmt) *dbr.SelectStmt {
+		if p.BlockStart == nil && p.BlockEnd == nil {
+			return b
+		}
+		if p.BlockStart != nil {
+			b.Where(services.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
+		}
+		if p.BlockEnd != nil {
+			b.Where(services.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
+		}
+		return b
+	}
+
+	if len(p.CAddressesTo) > 0 {
+		subq := createdatfilter(services.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
+				Where(services.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddressesTo)),
+		)
+		sq.
+			Where("hash in ?",
+				dbRunner.Select("hash").From(subq.As("to_sq")),
+			)
+	}
+	if len(p.CAddressesFrom) > 0 {
+		subq := createdatfilter(services.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
+				Where(services.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddressesFrom)),
+		)
+		sq.
+			Where("hash in ?",
+				dbRunner.Select("hash").From(subq.As("from_sq")),
+			)
+	}
+
+	if len(p.CAddresses) > 0 {
+		subqto := createdatfilter(services.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
+				Where(services.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddresses)),
+		)
+		subqfrom := createdatfilter(services.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
+				Where(services.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddresses)),
+		)
+		subqrcpt := createdatfilter(services.TableCvmTransactionsTxdata,
+			blockrcptfilter(dbRunner.Select(services.TableCvmTransactionsTxdata+".hash").From(services.TableCvmTransactionsTxdata).
+				Where("rcpt in ?", p.CAddresses)),
+		)
+		sq.
+			Where("hash in ?",
+				dbRunner.Select("hash").From(dbr.Union(subqto, subqfrom, subqrcpt).As("to_from_sq")),
+			)
+	}
 }
 
 func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, hashes []string, trItemsByHash map[string]*models.CTransactionData) error {

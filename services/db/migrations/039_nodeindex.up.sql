@@ -6,4 +6,22 @@ create table `node_index`
     primary key (instance, topic)
 );
 
+drop index cvm_transactions_txdata_trace_from_addr
+    on cvm_transactions_txdata_trace;
+drop index cvm_transactions_txdata_trace_to_addr
+    on cvm_transactions_txdata_trace;
+
+create index cvm_transactions_txdata_trace_from_addr_created_at
+    on cvm_transactions_txdata_trace (from_addr, created_at);
+
+create index cvm_transactions_txdata_trace_to_addr_created_at
+    on cvm_transactions_txdata_trace (to_addr, created_at);
+
+drop index cvm_transactions_txdata_rcpt
+    on cvm_transactions_txdata;
+
+create index cvm_transactions_txdata_rcpt_created_at
+    on cvm_transactions_txdata (rcpt,created_at);
+
+
 
