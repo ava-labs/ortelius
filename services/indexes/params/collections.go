@@ -4,6 +4,7 @@
 package params
 
 import (
+	"math/big"
 	"net/url"
 	"strconv"
 	"strings"
@@ -251,6 +252,8 @@ type ListCTransactionsParams struct {
 	CAddressesFrom []string
 	Hashes         []string
 	Sort           TransactionSort
+	BlockStart     *big.Int
+	BlockEnd       *big.Int
 }
 
 func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
@@ -288,6 +291,21 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 			addressStr = "0x" + addressStr
 		}
 		p.CAddressesFrom = append(p.CAddressesFrom, addressStr)
+	}
+
+	blockStartStrs := q[KeyBlockStart]
+	for _, blockStartStr := range blockStartStrs {
+		nint := big.NewInt(0)
+		if _, ok := nint.SetString(blockStartStr, 10); ok {
+			p.BlockStart = nint
+		}
+	}
+	blockEndStrs := q[KeyBlockEnd]
+	for _, blockEndStr := range blockEndStrs {
+		nint := big.NewInt(0)
+		if _, ok := nint.SetString(blockEndStr, 10); ok {
+			p.BlockEnd = nint
+		}
 	}
 
 	hashStrs := q[KeyHash]
