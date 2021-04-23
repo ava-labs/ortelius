@@ -245,10 +245,12 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 }
 
 type ListCTransactionsParams struct {
-	ListParams ListParams
-	CAddresses []string
-	Hashes     []string
-	Sort       TransactionSort
+	ListParams     ListParams
+	CAddresses     []string
+	CAddressesTo   []string
+	CAddressesFrom []string
+	Hashes         []string
+	Sort           TransactionSort
 }
 
 func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
@@ -271,6 +273,21 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 			addressStr = "0x" + addressStr
 		}
 		p.CAddresses = append(p.CAddresses, addressStr)
+	}
+
+	addressStrs = q[KeyToAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddressesTo = append(p.CAddressesTo, addressStr)
+	}
+	addressStrs = q[KeyFromAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddressesFrom = append(p.CAddressesFrom, addressStr)
 	}
 
 	hashStrs := q[KeyHash]
@@ -298,14 +315,14 @@ func (p *ListCTransactionsParams) CacheKey() []string {
 func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
 
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-	} else if !p.ListParams.StartTime.IsZero() {
-		b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
-	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-	} else if !p.ListParams.EndTime.IsZero() {
-		b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
-	}
+	// if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
+	// } else if !p.ListParams.StartTime.IsZero() {
+	// 	b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
+	// }
+	// if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
+	// } else if !p.ListParams.EndTime.IsZero() {
+	// 	b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
+	// }
 
 	return b
 }

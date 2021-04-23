@@ -72,11 +72,47 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"created_at",
 	).From(services.TableCvmTransactionsTxdata)
 
-	if len(p.CAddresses) > 0 {
-		subq := dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
-			Where("to_addr in ? or from_addr in ?", p.CAddresses, p.CAddresses)
+	createdat := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
+		if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
+		} else if !p.ListParams.StartTime.IsZero() {
+			b.Where(tbl+".created_at >= ?", p.ListParams.StartTime)
+		}
+		if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
+		} else if !p.ListParams.EndTime.IsZero() {
+			b.Where(tbl+".created_at < ?", p.ListParams.EndTime)
+		}
+		return b
+	}
+
+	if len(p.CAddressesTo) > 0 {
+		subq := createdat(services.TableCvmTransactionsTxdataTrace, dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
+			Where("to_addr in ?", p.CAddressesTo))
 		sq.
-			Where("rcpt in ? or hash in ?", p.CAddresses, dbRunner.Select("hash").From(subq.As("a")))
+			Where("hash in ?",
+				dbRunner.Select("hash").From(subq.As("to_sq")),
+			)
+	}
+	if len(p.CAddressesFrom) > 0 {
+		subq := createdat(services.TableCvmTransactionsTxdataTrace, dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
+			Where("from_addr in ?", p.CAddressesFrom))
+		sq.
+			Where("hash in ?",
+				dbRunner.Select("hash").From(subq.As("from_sq")),
+			)
+	}
+
+	if len(p.CAddresses) > 0 {
+		subqto := createdat(services.TableCvmTransactionsTxdataTrace, dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
+			Where("to_addr in ?", p.CAddresses))
+		subqfrom := createdat(services.TableCvmTransactionsTxdataTrace, dbRunner.Select("hash").From(services.TableCvmTransactionsTxdataTrace).
+			Where("from_addr in ?", p.CAddresses))
+		subqrcpt := createdat(services.TableCvmTransactionsTxdata,
+			dbRunner.Select("hash").From(services.TableCvmTransactionsTxdata).
+				Where("rcpt in ?", p.CAddresses))
+		sq.
+			Where("hash in ?",
+				dbRunner.Select("hash").From(dbr.Union(subqto, subqfrom, subqrcpt).As("to_from_sq")),
+			)
 	}
 	if len(p.Hashes) > 0 {
 		sq.

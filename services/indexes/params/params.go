@@ -17,6 +17,8 @@ const (
 	KeyID               = "id"
 	KeyChainID          = "chainID"
 	KeyAddress          = "address"
+	KeyToAddress        = "to_address"
+	KeyFromAddress      = "from_address"
 	KeyHash             = "hash"
 	KeyAlias            = "alias"
 	KeyAssetID          = "assetID"
