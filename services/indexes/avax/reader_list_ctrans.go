@@ -149,7 +149,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 }
 
 func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *dbr.Session, sq *dbr.SelectStmt) {
-	createdat := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
+	createdatfilter := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
 		} else if !p.ListParams.StartTime.IsZero() {
 			b.Where(tbl+".created_at >= ?", p.ListParams.StartTime)
@@ -190,7 +190,7 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddressesTo) > 0 {
-		subq := createdat(services.TableCvmTransactionsTxdataTrace,
+		subq := createdatfilter(services.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
 				Where(services.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddressesTo)),
 		)
@@ -200,7 +200,7 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 			)
 	}
 	if len(p.CAddressesFrom) > 0 {
-		subq := createdat(services.TableCvmTransactionsTxdataTrace,
+		subq := createdatfilter(services.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
 				Where(services.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddressesFrom)),
 		)
@@ -211,15 +211,15 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddresses) > 0 {
-		subqto := createdat(services.TableCvmTransactionsTxdataTrace,
+		subqto := createdatfilter(services.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
 				Where(services.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddresses)),
 		)
-		subqfrom := createdat(services.TableCvmTransactionsTxdataTrace,
+		subqfrom := createdatfilter(services.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(services.TableCvmTransactionsTxdataTrace+".hash").From(services.TableCvmTransactionsTxdataTrace).
 				Where(services.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddresses)),
 		)
-		subqrcpt := createdat(services.TableCvmTransactionsTxdata,
+		subqrcpt := createdatfilter(services.TableCvmTransactionsTxdata,
 			blockrcptfilter(dbRunner.Select(services.TableCvmTransactionsTxdata+".hash").From(services.TableCvmTransactionsTxdata).
 				Where("rcpt in ?", p.CAddresses)),
 		)
