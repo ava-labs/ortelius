@@ -127,7 +127,7 @@ func (r *Reader) listTxs(
 		switch sort {
 		case params.TransactionSortTimestampDesc:
 			stmt.OrderDesc("avm_transactions.created_at")
-			stmt.OrderAsc("avm_transactions.chain_id")
+			stmt.OrderDesc("avm_transactions.chain_id")
 		default:
 			// default is ascending...
 			stmt.OrderAsc("avm_transactions.created_at")

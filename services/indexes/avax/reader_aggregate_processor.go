@@ -256,7 +256,7 @@ func (r *Reader) processorTxDescFetch(conns *services.Connections) {
 		builder := transactionQuery(sess)
 		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
 		builder.OrderDesc("avm_transactions.created_at")
-		builder.OrderAsc("avm_transactions.chain_id")
+		builder.OrderDesc("avm_transactions.chain_id")
 		builder.Limit(5000)
 
 		var txs []*models.Transaction
