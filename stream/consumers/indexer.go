@@ -29,7 +29,6 @@ const (
 
 	MaximumRecordsRead = 10000
 	MaxTheads          = 10
-	MaxChanSize        = 1000
 )
 
 type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -224,8 +223,14 @@ func IndexerFactories(
 		return err
 	}
 
-	ctrl.msgChan = make(chan *IndexerFactoryContainer, MaxChanSize)
+	ctrl.msgChan = make(chan *IndexerFactoryContainer, cfg.MaxIndexerChanSize)
 	ctrl.doneCh = make(chan struct{})
+
+	enqueueMsgChan := func(txPool *services.TxPool,
+		errs *avlancheGoUtils.AtomicInterface) {
+		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: nil}
+		atomic.AddInt64(&ctrl.msgChanSz, 1)
+	}
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
@@ -244,8 +249,7 @@ func IndexerFactories(
 		for {
 			select {
 			case txPool := <-sc.LocalTxPool:
-				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: nil}
-				atomic.AddInt64(&ctrl.msgChanSz, 1)
+				enqueueMsgChan(txPool, nil)
 			default:
 			}
 		}
@@ -313,8 +317,7 @@ func IndexerFactories(
 					continue
 				}
 
-				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
-				atomic.AddInt64(&ctrl.msgChanSz, 1)
+				enqueueMsgChan(txp, errs)
 			}
 
 			for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
