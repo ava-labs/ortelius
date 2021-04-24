@@ -31,6 +31,9 @@ type evictCache struct {
 func (c *evictCache) Add(key interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	if c.exists(key) {
+		return
+	}
 	c.entryList.PushFront(key)
 	c.entryMap[key] = struct{}{}
 	for c.entryList.Len() > c.MaxSize {
@@ -43,6 +46,10 @@ func (c *evictCache) Add(key interface{}) {
 func (c *evictCache) Exists(key interface{}) bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
+	return c.exists(key)
+}
+
+func (c *evictCache) exists(key interface{}) bool {
 	_, ok := c.entryMap[key]
 	return ok
 }
