@@ -232,9 +232,8 @@ func IndexerFactories(
 		return err
 	}
 
-	enqueueMsgChan := func(txPool *services.TxPool,
-		errs *avlancheGoUtils.AtomicInterface) {
-		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: nil}
+	enqueueMsgChan := func(txPool *services.TxPool, errs *avlancheGoUtils.AtomicInterface) {
+		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: errs}
 		atomic.AddInt64(ctrl.msgChanSz, 1)
 	}
 
@@ -248,6 +247,11 @@ func IndexerFactories(
 		go ctrl.handleTxPool(conns1)
 	}
 
+	quitCh := make(chan struct{})
+	defer func() {
+		close(quitCh)
+	}()
+
 	wg.Add(1)
 	go func() {
 		wg.Done()
@@ -255,7 +259,8 @@ func IndexerFactories(
 			select {
 			case txPool := <-sc.LocalTxPool:
 				enqueueMsgChan(txPool, nil)
-			default:
+			case <-quitCh:
+				return
 			}
 		}
 	}()
