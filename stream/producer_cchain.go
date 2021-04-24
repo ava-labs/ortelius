@@ -504,7 +504,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 	if err != nil {
 		return err
 	}
-	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 	if err != nil {
 		return err
 	}
@@ -533,7 +533,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
 		}
@@ -563,7 +563,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
 		}

@@ -218,7 +218,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		if err != nil {
 			return err
 		}
-		err = UpdateTxPool(dbWriteTimeout, p.conns, p.sc.Persist, txPool)
+		err = UpdateTxPool(dbWriteTimeout, p.conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
 		}

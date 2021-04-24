@@ -151,19 +151,23 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 		select {
 		case txd := <-c.msgChan:
 			atomic.AddInt64(&c.msgChanSz, -1)
-			if txd.errs.GetValue() != nil {
+			if txd.errs != nil && txd.errs.GetValue() != nil {
 				continue
 			}
 			if p, ok := c.fsm[txd.txPool.Topic]; ok {
 				err := p.Process(conns, txd.txPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.errs != nil {
+						txd.errs.SetValue(err)
+					}
 					continue
 				}
 				txd.txPool.Processed = 1
 				err = c.updateTxPollStatus(conns, txd.txPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.errs != nil {
+						txd.errs.SetValue(err)
+					}
 					continue
 				}
 				c.sc.SizedList.Add(txd.txPool.ID)
@@ -232,6 +236,20 @@ func IndexerFactories(
 		}
 		go ctrl.handleTxPool(conns1)
 	}
+
+	wg.Add(1)
+	go func() {
+		wg.Done()
+
+		for {
+			select {
+			case txPool := <-sc.LocalTxPool:
+				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: nil}
+				atomic.AddInt64(&ctrl.msgChanSz, 1)
+			default:
+			}
+		}
+	}()
 
 	wg.Add(1)
 	go func() {

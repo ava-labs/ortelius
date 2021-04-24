@@ -35,9 +35,13 @@ type Control struct {
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
 	SizedList                  sized_list.SizedList
+	LocalTxPool                chan *TxPool
 }
 
 func (s *Control) Init(networkID uint32) error {
+	s.SizedList = sized_list.NewSizedList(cfg.MaxSizedList)
+	s.LocalTxPool = make(chan *TxPool, cfg.MaxTxPoolSize)
+
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
 		s.IsAccumulateBalanceIndexer = true
@@ -100,4 +104,11 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 	c.DB().SetMaxIdleConns(32)
 	c.DB().SetConnMaxIdleTime(10 * time.Second)
 	return c, nil
+}
+
+func (s *Control) Enqueue(pool *TxPool) {
+	select {
+	case s.LocalTxPool <- pool:
+	default:
+	}
 }

@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/ortelius/utils/sized_list"
-
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
 	"github.com/ava-labs/ortelius/services"
@@ -104,7 +102,6 @@ func execute() error {
 				serviceControl.Chains = c.Chains
 				serviceControl.Persist = services.NewPersist()
 				serviceControl.Features = c.Features
-				serviceControl.SizedList = sized_list.NewSizedList(cfg.MaxSizedList)
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {
 					log.Fatalln("Failed to create service control", ":", err.Error())
