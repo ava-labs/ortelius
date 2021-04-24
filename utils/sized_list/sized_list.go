@@ -3,7 +3,6 @@ package sized_list
 import (
 	"container/list"
 	"sync"
-	"sync/atomic"
 )
 
 type SizedList interface {
@@ -11,7 +10,7 @@ type SizedList interface {
 	Exists(key interface{}) bool
 }
 
-func NewSizedList(maxSize int64) SizedList {
+func NewSizedList(maxSize int) SizedList {
 	if maxSize <= 1 {
 		maxSize = 1
 	}
@@ -19,7 +18,6 @@ func NewSizedList(maxSize int64) SizedList {
 		entryMap:  make(map[interface{}]struct{}),
 		entryList: new(list.List),
 		MaxSize:   maxSize,
-		size:      new(int64),
 	}
 }
 
@@ -27,24 +25,18 @@ type evictCache struct {
 	lock      sync.RWMutex
 	entryMap  map[interface{}]struct{}
 	entryList *list.List
-	size      *int64
-	MaxSize   int64
+	MaxSize   int
 }
 
 func (c *evictCache) Add(key interface{}) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.entryList.PushFront(key)
 	c.entryMap[key] = struct{}{}
-	atomic.AddInt64(c.size, 1)
-	c.lock.Unlock()
-
-	for atomic.LoadInt64(c.size) > c.MaxSize {
-		c.lock.Lock()
+	for c.entryList.Len() > c.MaxSize {
 		e := c.entryList.Back()
 		c.entryList.Remove(e)
 		delete(c.entryMap, e.Value)
-		atomic.AddInt64(c.size, -11)
-		c.lock.Unlock()
 	}
 }
 
