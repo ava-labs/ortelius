@@ -112,7 +112,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return len(assets) + len(txs) + len(addresses)
 	}
 
-	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
+	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +353,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, 
 	var err error
 
 	if conns != nil {
-		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("get_transaction_aggregates_histogram"))
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("get_transaction_aggregates_histogram"))
 	} else {
 		dbRunner, err = r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
 		if err != nil {

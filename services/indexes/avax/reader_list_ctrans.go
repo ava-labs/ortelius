@@ -150,12 +150,10 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 
 func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *dbr.Session, sq *dbr.SelectStmt) {
 	createdatfilter := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
-		if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-		} else if !p.ListParams.StartTime.IsZero() {
+		if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
 			b.Where(tbl+".created_at >= ?", p.ListParams.StartTime)
 		}
-		if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-		} else if !p.ListParams.EndTime.IsZero() {
+		if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
 			b.Where(tbl+".created_at < ?", p.ListParams.EndTime)
 		}
 		return b

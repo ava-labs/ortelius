@@ -20,6 +20,7 @@ import (
 type ReaderAggregateTxList struct {
 	Lock       sync.RWMutex
 	Txs        []*models.Transaction
+	TxsMap     map[models.StringID]*models.Transaction
 	TxsByChain map[models.StringID][]*models.Transaction
 	Processed  bool
 }
@@ -28,6 +29,16 @@ func (t *ReaderAggregateTxList) IsProcessed() bool {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
 	return t.Processed
+}
+
+func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	if t.Processed {
+		ftx, ok := t.TxsMap[tx]
+		return ftx, ok
+	}
+	return nil, false
 }
 
 func (t *ReaderAggregateTxList) First() *models.Transaction {
@@ -48,16 +59,19 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 		t.Processed = false
 		return
 	}
+	txsMap := make(map[models.StringID]*models.Transaction)
 	txsListByChain := make(map[models.StringID][]*models.Transaction)
 	for _, tx := range txs {
 		if _, ok := txsListByChain[tx.ChainID]; !ok {
 			txsListByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
 		}
 		txsListByChain[tx.ChainID] = append(txsListByChain[tx.ChainID], tx)
+		txsMap[tx.ID] = tx
 	}
 	t.Lock.Lock()
 	defer t.Lock.Unlock()
 	t.Txs = txs
+	t.TxsMap = txsMap
 	t.TxsByChain = txsListByChain
 	t.Processed = true
 }
@@ -487,7 +501,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			}
 
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
-			lassets, err := r.ListAssets(ctx, pa)
+			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
@@ -512,7 +526,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			}
 
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
-			lassets, err := r.ListAssets(ctx, pa)
+			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return

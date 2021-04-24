@@ -255,8 +255,6 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		return err
 	}
 
-	p.ListParams.ObserveTimeProvided = true
-
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
@@ -326,23 +324,13 @@ func (p *ListCTransactionsParams) CacheKey() []string {
 func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
 
-	// if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-	// } else if !p.ListParams.StartTime.IsZero() {
-	// 	b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
-	// }
-	// if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-	// } else if !p.ListParams.EndTime.IsZero() {
-	// 	b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
-	// }
-
 	return b
 }
 
 type ListAssetsParams struct {
-	ListParams      ListParams
-	Alias           string
-	EnableAggregate []string
-	PathParamID     string
+	ListParams  ListParams
+	Alias       string
+	PathParamID string
 }
 
 func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
@@ -352,25 +340,11 @@ func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
 
 	p.Alias = GetQueryString(q, KeyAlias, "")
 
-	for _, enableAgg := range q[KeyEnableAggregate] {
-		qq := make(url.Values)
-		qq[KeyIntervalSize] = []string{enableAgg}
-		_, err := GetQueryInterval(qq, KeyIntervalSize)
-		if err != nil {
-			return err
-		}
-		if p.EnableAggregate == nil {
-			p.EnableAggregate = make([]string, 0, 1)
-		}
-		p.EnableAggregate = append(p.EnableAggregate, enableAgg)
-	}
-
 	return nil
 }
 
 func (p *ListAssetsParams) CacheKey() []string {
 	return append(p.ListParams.CacheKey(),
-		CacheKey(KeyEnableAggregate, p.EnableAggregate),
 		CacheKey(KeyAlias, p.Alias),
 		CacheKey("PathParamID", p.PathParamID))
 }
@@ -581,6 +555,13 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 
 	if len(p.ChainIDs) > 0 {
 		b.Where("avm_outputs.chain_id = ?", p.ChainIDs)
+	}
+
+	if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
+		b.Where("avm_outputs.created_at >= ?", p.ListParams.StartTime)
+	}
+	if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
+		b.Where("avm_outputs.created_at < ?", p.ListParams.EndTime)
 	}
 
 	return b
