@@ -166,6 +166,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 					txd.errs.SetValue(err)
 					continue
 				}
+				c.sc.SizedList.Add(txd.txPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -288,6 +289,12 @@ func IndexerFactories(
 					break
 				}
 				readMessages++
+
+				// skip previously processed
+				if sc.SizedList.Exists(txp.ID) {
+					continue
+				}
+
 				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
 				atomic.AddInt64(&ctrl.msgChanSz, 1)
 			}

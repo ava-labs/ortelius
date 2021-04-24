@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/ava-labs/ortelius/utils"
 	"time"
 
 	"github.com/ava-labs/ortelius/services/metrics"
@@ -32,6 +33,7 @@ type Control struct {
 	IsAccumulateBalanceReader  bool
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
+	SizedList                  utils.SizedList
 }
 
 func (s *Control) Init(networkID uint32) error {

@@ -13,6 +13,8 @@ const (
 	RequestGetMaxSize = int64(10 * 1024 * 1024)
 
 	ConsumerMaxBytesDefault = 10e8
+
+	MaxSizedList = 5000
 )
 
 // PerformUpdates controls for performing sql update operations.  Disabled by normal operation.

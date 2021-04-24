@@ -102,6 +102,7 @@ func execute() error {
 				serviceControl.Chains = c.Chains
 				serviceControl.Persist = services.NewPersist()
 				serviceControl.Features = c.Features
+				serviceControl.SizedList = utils.NewSizedList(cfg.MaxSizedList)
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {
 					log.Fatalln("Failed to create service control", ":", err.Error())
