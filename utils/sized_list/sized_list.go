@@ -1,4 +1,4 @@
-package utils
+package sized_list
 
 import (
 	"container/list"
@@ -46,7 +46,7 @@ func (c *evictCache) Add(key interface{}) {
 		if l > c.MaxSize {
 			e := c.entryList.Back()
 			c.entryList.Remove(e)
-			delete(c.entryMap, e)
+			delete(c.entryMap, e.Value)
 			l--
 		}
 		c.lock.Unlock()
