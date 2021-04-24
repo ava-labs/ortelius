@@ -131,7 +131,7 @@ type IndexerFactoryControl struct {
 	fsm       map[string]stream.ProcessorDB
 	msgChan   chan *IndexerFactoryContainer
 	doneCh    chan struct{}
-	msgChanSz int64
+	msgChanSz *int64
 }
 
 func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
@@ -149,7 +149,10 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	for {
 		select {
 		case txd := <-c.msgChan:
-			atomic.AddInt64(&c.msgChanSz, -1)
+			atomic.AddInt64(c.msgChanSz, -1)
+			if c.sc.SizedList.Exists(txd.txPool.ID) {
+				continue
+			}
 			if txd.errs != nil && txd.errs.GetValue() != nil {
 				continue
 			}
@@ -185,8 +188,14 @@ func IndexerFactories(
 	wg *sync.WaitGroup,
 	runningControl utils.Running,
 ) error {
-	ctrl := &IndexerFactoryControl{sc: sc}
-	ctrl.fsm = make(map[string]stream.ProcessorDB)
+	ctrl := &IndexerFactoryControl{
+		sc:        sc,
+		msgChanSz: new(int64),
+		fsm:       make(map[string]stream.ProcessorDB),
+		msgChan:   make(chan *IndexerFactoryContainer, cfg.MaxIndexerChanSize),
+		doneCh:    make(chan struct{}),
+	}
+
 	var topicNames []string
 
 	for _, factory := range factoriesChainDB {
@@ -223,13 +232,10 @@ func IndexerFactories(
 		return err
 	}
 
-	ctrl.msgChan = make(chan *IndexerFactoryContainer, cfg.MaxIndexerChanSize)
-	ctrl.doneCh = make(chan struct{})
-
 	enqueueMsgChan := func(txPool *services.TxPool,
 		errs *avlancheGoUtils.AtomicInterface) {
 		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: nil}
-		atomic.AddInt64(&ctrl.msgChanSz, 1)
+		atomic.AddInt64(ctrl.msgChanSz, 1)
 	}
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
@@ -245,7 +251,6 @@ func IndexerFactories(
 	wg.Add(1)
 	go func() {
 		wg.Done()
-
 		for {
 			select {
 			case txPool := <-sc.LocalTxPool:
@@ -320,7 +325,7 @@ func IndexerFactories(
 				enqueueMsgChan(txp, errs)
 			}
 
-			for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
+			for atomic.LoadInt64(ctrl.msgChanSz) > 0 {
 				time.Sleep(1 * time.Millisecond)
 			}
 
