@@ -11,7 +11,6 @@ import (
 	"math/big"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -52,7 +51,6 @@ type producerCChainContainer struct {
 	client *cblock.Client
 
 	msgChan     chan *blockWorkContainer
-	msgChanSz   int64
 	msgChanDone chan struct{}
 
 	runningControl utils.Running
@@ -142,7 +140,6 @@ func (p *producerCChainContainer) getBlock() error {
 
 func (p *producerCChainContainer) enqueue(bw *blockWorkContainer) {
 	p.msgChan <- bw
-	atomic.AddInt64(&p.msgChanSz, 1)
 }
 
 func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
@@ -230,7 +227,7 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 	}
 
-	for atomic.LoadInt64(&p.msgChanSz) > 0 {
+	for len(p.msgChan) > 0 {
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -589,7 +586,6 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 		case <-pc.msgChanDone:
 			return
 		case blockWork := <-pc.msgChan:
-			atomic.AddInt64(&pc.msgChanSz, -1)
 			if blockWork.errs.GetValue() != nil {
 				continue
 			}

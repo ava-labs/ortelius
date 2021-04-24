@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -127,11 +126,10 @@ type IndexerFactoryContainer struct {
 }
 
 type IndexerFactoryControl struct {
-	sc        *services.Control
-	fsm       map[string]stream.ProcessorDB
-	msgChan   chan *IndexerFactoryContainer
-	doneCh    chan struct{}
-	msgChanSz int64
+	sc      *services.Control
+	fsm     map[string]stream.ProcessorDB
+	msgChan chan *IndexerFactoryContainer
+	doneCh  chan struct{}
 }
 
 func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
@@ -149,7 +147,6 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	for {
 		select {
 		case txd := <-c.msgChan:
-			atomic.AddInt64(&c.msgChanSz, -1)
 			if c.sc.SizedList.Exists(txd.txPool.ID) {
 				continue
 			}
@@ -233,7 +230,6 @@ func IndexerFactories(
 
 	enqueueMsgChan := func(txPool *services.TxPool, errs *avlancheGoUtils.AtomicInterface) {
 		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: errs}
-		atomic.AddInt64(&ctrl.msgChanSz, 1)
 	}
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
@@ -324,7 +320,7 @@ func IndexerFactories(
 				enqueueMsgChan(txp, errs)
 			}
 
-			for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
+			for len(ctrl.msgChan) > 0 {
 				time.Sleep(1 * time.Millisecond)
 			}
 
