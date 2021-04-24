@@ -14,9 +14,8 @@ const (
 
 	ConsumerMaxBytesDefault = 10e8
 
-	MaxSizedList       = 20000
-	MaxTxPoolSize      = 10000
-	MaxIndexerChanSize = 10000
+	MaxSizedList  = 20000
+	MaxTxPoolSize = 10000
 )
 
 // PerformUpdates controls for performing sql update operations.  Disabled by normal operation.

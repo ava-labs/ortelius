@@ -120,15 +120,9 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }
 
-type IndexerFactoryContainer struct {
-	txPool *services.TxPool
-	errs   *avlancheGoUtils.AtomicInterface
-}
-
 type IndexerFactoryControl struct {
 	sc      *services.Control
 	fsm     map[string]stream.ProcessorDB
-	msgChan chan *IndexerFactoryContainer
 	doneCh  chan struct{}
 }
 
@@ -146,30 +140,30 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 
 	for {
 		select {
-		case txd := <-c.msgChan:
-			if c.sc.SizedList.Exists(txd.txPool.ID) {
+		case txd := <-c.sc.LocalTxPool:
+			if c.sc.SizedList.Exists(txd.TxPool.ID) {
 				continue
 			}
-			if txd.errs != nil && txd.errs.GetValue() != nil {
+			if txd.Errs != nil && txd.Errs.GetValue() != nil {
 				continue
 			}
-			if p, ok := c.fsm[txd.txPool.Topic]; ok {
-				err := p.Process(conns, txd.txPool)
+			if p, ok := c.fsm[txd.TxPool.Topic]; ok {
+				err := p.Process(conns, txd.TxPool)
 				if err != nil {
-					if txd.errs != nil {
-						txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
 					}
 					continue
 				}
-				txd.txPool.Processed = 1
-				err = c.updateTxPollStatus(conns, txd.txPool)
+				txd.TxPool.Processed = 1
+				err = c.updateTxPollStatus(conns, txd.TxPool)
 				if err != nil {
-					if txd.errs != nil {
-						txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
 					}
 					continue
 				}
-				c.sc.SizedList.Add(txd.txPool.ID)
+				c.sc.SizedList.Add(txd.TxPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -188,7 +182,6 @@ func IndexerFactories(
 	ctrl := &IndexerFactoryControl{
 		sc:      sc,
 		fsm:     make(map[string]stream.ProcessorDB),
-		msgChan: make(chan *IndexerFactoryContainer, cfg.MaxIndexerChanSize),
 		doneCh:  make(chan struct{}),
 	}
 
@@ -228,10 +221,6 @@ func IndexerFactories(
 		return err
 	}
 
-	enqueueMsgChan := func(txPool *services.TxPool, errs *avlancheGoUtils.AtomicInterface) {
-		ctrl.msgChan <- &IndexerFactoryContainer{txPool: txPool, errs: errs}
-	}
-
 	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
 		if err != nil {
@@ -242,18 +231,6 @@ func IndexerFactories(
 		go ctrl.handleTxPool(conns1)
 	}
 
-	wg.Add(1)
-	go func() {
-		wg.Done()
-		for {
-			select {
-			case txPool := <-sc.LocalTxPool:
-				enqueueMsgChan(txPool, nil)
-			case <-ctrl.doneCh:
-				return
-			}
-		}
-	}()
 
 	wg.Add(1)
 	go func() {
@@ -317,10 +294,10 @@ func IndexerFactories(
 					continue
 				}
 
-				enqueueMsgChan(txp, errs)
+				sc.LocalTxPool <- &services.IndexerFactoryContainer{TxPool: txp, Errs: errs}
 			}
 
-			for len(ctrl.msgChan) > 0 {
+			for len(sc.LocalTxPool) > 0 {
 				time.Sleep(1 * time.Millisecond)
 			}
 

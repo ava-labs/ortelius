@@ -3,6 +3,8 @@ package services
 import (
 	"time"
 
+	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+
 	"github.com/ava-labs/ortelius/utils/sized_list"
 
 	"github.com/ava-labs/ortelius/services/metrics"
@@ -22,6 +24,11 @@ const (
 	MetricConsumeFailureCountKey         = "consume_records_failure"
 )
 
+type IndexerFactoryContainer struct {
+	TxPool *TxPool
+	Errs   *avlancheGoUtils.AtomicInterface
+}
+
 type Control struct {
 	Services                   cfg.Services
 	Chains                     map[string]cfg.Chain `json:"chains"`
@@ -35,12 +42,12 @@ type Control struct {
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
 	SizedList                  sized_list.SizedList
-	LocalTxPool                chan *TxPool
+	LocalTxPool                chan *IndexerFactoryContainer
 }
 
 func (s *Control) Init(networkID uint32) error {
 	s.SizedList = sized_list.NewSizedList(cfg.MaxSizedList)
-	s.LocalTxPool = make(chan *TxPool, cfg.MaxTxPoolSize)
+	s.LocalTxPool = make(chan *IndexerFactoryContainer, cfg.MaxTxPoolSize)
 
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
@@ -108,7 +115,7 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 
 func (s *Control) Enqueue(pool *TxPool) {
 	select {
-	case s.LocalTxPool <- pool:
+	case s.LocalTxPool <- &IndexerFactoryContainer{TxPool: pool}:
 	default:
 	}
 }
