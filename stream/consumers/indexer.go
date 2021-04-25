@@ -163,7 +163,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 					}
 					continue
 				}
-				c.sc.IndexedList.Add(txd.TxPool.ID, txd.TxPool.ID)
+				c.sc.IndexedList.PushFront(txd.TxPool.ID, txd.TxPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -286,13 +286,11 @@ func IndexerFactories(
 					sc.Log.Error("scan %v", err)
 					break
 				}
-				readMessages++
-
 				// skip previously processed
 				if sc.IndexedList.Exists(txp.ID) {
 					continue
 				}
-
+				readMessages++
 				sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
 			}
 

@@ -6,7 +6,7 @@ import (
 )
 
 type IndexedList interface {
-	Add(key, val interface{})
+	PushFront(key, val interface{})
 	Exists(key interface{}) bool
 	Value(key interface{}) (interface{}, bool)
 	Copy(f func(interface{}))
@@ -32,7 +32,7 @@ type indexedList struct {
 	MaxSize   int
 }
 
-func (c *indexedList) Add(key, val interface{}) {
+func (c *indexedList) PushFront(key, val interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.exists(key) {
