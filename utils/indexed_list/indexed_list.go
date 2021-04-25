@@ -1,34 +1,34 @@
-package sized_list
+package indexed_list
 
 import (
 	"container/list"
 	"sync"
 )
 
-type SizedList interface {
+type IndexedList interface {
 	Add(key interface{})
 	Exists(key interface{}) bool
 }
 
-func NewSizedList(maxSize int) SizedList {
+func NewIndexedList(maxSize int) IndexedList {
 	if maxSize <= 1 {
 		maxSize = 1
 	}
-	return &evictCache{
+	return &indexedList{
 		entryMap:  make(map[interface{}]struct{}),
 		entryList: new(list.List),
 		MaxSize:   maxSize,
 	}
 }
 
-type evictCache struct {
+type indexedList struct {
 	lock      sync.RWMutex
 	entryMap  map[interface{}]struct{}
 	entryList *list.List
 	MaxSize   int
 }
 
-func (c *evictCache) Add(key interface{}) {
+func (c *indexedList) Add(key interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.exists(key) {
@@ -43,13 +43,13 @@ func (c *evictCache) Add(key interface{}) {
 	}
 }
 
-func (c *evictCache) Exists(key interface{}) bool {
+func (c *indexedList) Exists(key interface{}) bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.exists(key)
 }
 
-func (c *evictCache) exists(key interface{}) bool {
+func (c *indexedList) exists(key interface{}) bool {
 	_, ok := c.entryMap[key]
 	return ok
 }

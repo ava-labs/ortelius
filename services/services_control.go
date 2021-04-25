@@ -5,7 +5,7 @@ import (
 
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
-	"github.com/ava-labs/ortelius/utils/sized_list"
+	"github.com/ava-labs/ortelius/utils/indexed_list"
 
 	"github.com/ava-labs/ortelius/services/metrics"
 
@@ -41,12 +41,12 @@ type Control struct {
 	IsAccumulateBalanceReader  bool
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
-	SizedList                  sized_list.SizedList
+	SizedList                  indexed_list.IndexedList
 	LocalTxPool                chan *IndexerFactoryContainer
 }
 
 func (s *Control) Init(networkID uint32) error {
-	s.SizedList = sized_list.NewSizedList(cfg.MaxSizedList)
+	s.SizedList = indexed_list.NewIndexedList(cfg.MaxSizedList)
 	s.LocalTxPool = make(chan *IndexerFactoryContainer, cfg.MaxTxPoolSize)
 
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
