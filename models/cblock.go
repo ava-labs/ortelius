@@ -139,9 +139,9 @@ type TracerParam struct {
 }
 
 type BlockContainer struct {
-	Block  *types.Block        `json:"block"`
-	Traces []*TransactionTrace `json:"traces"`
-	Logs   []*types.Log        `json:"logs"`
+	Block  *types.Block
+	Traces []*TransactionTrace
+	Logs   []*types.Log
 }
 
 func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*BlockContainer, error) {
