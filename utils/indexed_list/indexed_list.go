@@ -9,6 +9,8 @@ type IndexedList interface {
 	Add(key, val interface{})
 	Exists(key interface{}) bool
 	Value(key interface{}) (interface{}, bool)
+	Copy(f func(interface{}))
+	Len() int
 }
 
 func NewIndexedList(maxSize int) IndexedList {
@@ -60,4 +62,19 @@ func (c *indexedList) Value(key interface{}) (interface{}, bool) {
 	defer c.lock.RUnlock()
 	val, ok := c.entryMap[key]
 	return val, ok
+}
+
+func (c *indexedList) Copy(f func(interface{})) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	for e := c.entryList.Front(); e != nil; e = e.Next() {
+		val := c.entryMap[e.Value]
+		f(val)
+	}
+}
+
+func (c *indexedList) Len() int {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.entryList.Len()
 }
