@@ -90,10 +90,11 @@ type ListParams struct {
 	Offset          int
 	DisableCounting bool
 
-	StartTime         time.Time
-	EndTime           time.Time
 	StartTimeProvided bool
 	EndTimeProvided   bool
+
+	StartTime time.Time
+	EndTime   time.Time
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
