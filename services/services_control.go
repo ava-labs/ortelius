@@ -41,12 +41,12 @@ type Control struct {
 	IsAccumulateBalanceReader  bool
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
-	SizedList                  indexed_list.IndexedList
+	IndexedList                indexed_list.IndexedList
 	LocalTxPool                chan *IndexerFactoryContainer
 }
 
 func (s *Control) Init(networkID uint32) error {
-	s.SizedList = indexed_list.NewIndexedList(cfg.MaxSizedList)
+	s.IndexedList = indexed_list.NewIndexedList(cfg.MaxSizedList)
 	s.LocalTxPool = make(chan *IndexerFactoryContainer, cfg.MaxTxPoolSize)
 
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {

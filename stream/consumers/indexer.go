@@ -121,9 +121,9 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 }
 
 type IndexerFactoryControl struct {
-	sc      *services.Control
-	fsm     map[string]stream.ProcessorDB
-	doneCh  chan struct{}
+	sc     *services.Control
+	fsm    map[string]stream.ProcessorDB
+	doneCh chan struct{}
 }
 
 func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
@@ -141,7 +141,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 	for {
 		select {
 		case txd := <-c.sc.LocalTxPool:
-			if c.sc.SizedList.Exists(txd.TxPool.ID) {
+			if c.sc.IndexedList.Exists(txd.TxPool.ID) {
 				continue
 			}
 			if txd.Errs != nil && txd.Errs.GetValue() != nil {
@@ -163,7 +163,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 					}
 					continue
 				}
-				c.sc.SizedList.Add(txd.TxPool.ID)
+				c.sc.IndexedList.Add(txd.TxPool.ID, txd.TxPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -180,9 +180,9 @@ func IndexerFactories(
 	runningControl utils.Running,
 ) error {
 	ctrl := &IndexerFactoryControl{
-		sc:      sc,
-		fsm:     make(map[string]stream.ProcessorDB),
-		doneCh:  make(chan struct{}),
+		sc:     sc,
+		fsm:    make(map[string]stream.ProcessorDB),
+		doneCh: make(chan struct{}),
 	}
 
 	var topicNames []string
@@ -230,7 +230,6 @@ func IndexerFactories(
 		}
 		go ctrl.handleTxPool(conns1)
 	}
-
 
 	wg.Add(1)
 	go func() {
@@ -290,7 +289,7 @@ func IndexerFactories(
 				readMessages++
 
 				// skip previously processed
-				if sc.SizedList.Exists(txp.ID) {
+				if sc.IndexedList.Exists(txp.ID) {
 					continue
 				}
 

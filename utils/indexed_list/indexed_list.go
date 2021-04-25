@@ -6,8 +6,9 @@ import (
 )
 
 type IndexedList interface {
-	Add(key interface{})
+	Add(key, val interface{})
 	Exists(key interface{}) bool
+	Value(key interface{}) (interface{}, bool)
 }
 
 func NewIndexedList(maxSize int) IndexedList {
@@ -15,7 +16,7 @@ func NewIndexedList(maxSize int) IndexedList {
 		maxSize = 1
 	}
 	return &indexedList{
-		entryMap:  make(map[interface{}]struct{}),
+		entryMap:  make(map[interface{}]interface{}),
 		entryList: new(list.List),
 		MaxSize:   maxSize,
 	}
@@ -23,19 +24,19 @@ func NewIndexedList(maxSize int) IndexedList {
 
 type indexedList struct {
 	lock      sync.RWMutex
-	entryMap  map[interface{}]struct{}
+	entryMap  map[interface{}]interface{}
 	entryList *list.List
 	MaxSize   int
 }
 
-func (c *indexedList) Add(key interface{}) {
+func (c *indexedList) Add(key, val interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if c.exists(key) {
 		return
 	}
 	c.entryList.PushFront(key)
-	c.entryMap[key] = struct{}{}
+	c.entryMap[key] = val
 	for c.entryList.Len() > c.MaxSize {
 		e := c.entryList.Back()
 		c.entryList.Remove(e)
@@ -52,4 +53,11 @@ func (c *indexedList) Exists(key interface{}) bool {
 func (c *indexedList) exists(key interface{}) bool {
 	_, ok := c.entryMap[key]
 	return ok
+}
+
+func (c *indexedList) Value(key interface{}) (interface{}, bool) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	val, ok := c.entryMap[key]
+	return val, ok
 }
