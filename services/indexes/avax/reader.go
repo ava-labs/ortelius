@@ -758,7 +758,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewSession("addressChains", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewQuietSession("addressChains", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
