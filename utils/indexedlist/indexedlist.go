@@ -1,4 +1,4 @@
-package indexed_list
+package indexedlist
 
 import (
 	"container/list"
@@ -11,6 +11,7 @@ type IndexedList interface {
 	Value(key interface{}) (interface{}, bool)
 	Copy(f func(interface{}))
 	Len() int
+	First() (interface{}, bool)
 }
 
 func NewIndexedList(maxSize int) IndexedList {
@@ -77,4 +78,15 @@ func (c *indexedList) Len() int {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.entryList.Len()
+}
+
+func (c *indexedList) First() (interface{}, bool) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	if c.entryList.Len() == 0 {
+		return nil, false
+	}
+	e := c.entryList.Front()
+	val, ok := c.entryMap[e.Value]
+	return val, ok
 }
