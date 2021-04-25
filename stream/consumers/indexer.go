@@ -296,7 +296,7 @@ func IndexerFactories(
 				sc.LocalTxPool <- &services.IndexerFactoryContainer{TxPool: txp, Errs: errs}
 			}
 
-			for len(sc.LocalTxPool) > 0 {
+			for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {
 				time.Sleep(1 * time.Millisecond)
 			}
 
