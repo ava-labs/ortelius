@@ -293,7 +293,7 @@ func IndexerFactories(
 					continue
 				}
 
-				sc.LocalTxPool <- &services.IndexerFactoryContainer{TxPool: txp, Errs: errs}
+				sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
 			}
 
 			for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {

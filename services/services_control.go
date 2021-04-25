@@ -24,7 +24,7 @@ const (
 	MetricConsumeFailureCountKey         = "consume_records_failure"
 )
 
-type IndexerFactoryContainer struct {
+type LocalTxPoolJob struct {
 	TxPool *TxPool
 	Errs   *avlancheGoUtils.AtomicInterface
 }
@@ -42,12 +42,12 @@ type Control struct {
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
 	IndexedList                indexedlist.IndexedList
-	LocalTxPool                chan *IndexerFactoryContainer
+	LocalTxPool                chan *LocalTxPoolJob
 }
 
 func (s *Control) Init(networkID uint32) error {
 	s.IndexedList = indexedlist.NewIndexedList(cfg.MaxSizedList)
-	s.LocalTxPool = make(chan *IndexerFactoryContainer, cfg.MaxTxPoolSize)
+	s.LocalTxPool = make(chan *LocalTxPoolJob, cfg.MaxTxPoolSize)
 
 	if _, ok := s.Features["accumulate_balance_indexer"]; ok {
 		s.Log.Info("enable feature accumulate_balance_indexer")
@@ -115,7 +115,7 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 
 func (s *Control) Enqueue(pool *TxPool) {
 	select {
-	case s.LocalTxPool <- &IndexerFactoryContainer{TxPool: pool}:
+	case s.LocalTxPool <- &LocalTxPoolJob{TxPool: pool}:
 	default:
 	}
 }
