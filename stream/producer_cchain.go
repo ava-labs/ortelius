@@ -138,10 +138,6 @@ func (p *producerCChainContainer) getBlock() error {
 	return nil
 }
 
-func (p *producerCChainContainer) enqueue(bw *blockWorkContainer) {
-	p.msgChan <- bw
-}
-
 func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
@@ -191,7 +187,7 @@ func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catc
 			}
 			if _, ok := blockMap[startBlock.String()]; !ok {
 				p.sc.Log.Info("refill %v", startBlock.String())
-				p.enqueue(&blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock})
+				p.msgChan <- &blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock}
 			}
 			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
 		}
@@ -223,7 +219,7 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 			return p.catchupErrs.GetValue().(error)
 		}
 		ncurrent := big.NewInt(0).Add(p.block, big.NewInt(1))
-		p.enqueue(&blockWorkContainer{errs: errs, blockNumber: ncurrent})
+		p.msgChan <- &blockWorkContainer{errs: errs, blockNumber: ncurrent}
 		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 	}
 
