@@ -40,16 +40,6 @@ func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bo
 	return nil, false
 }
 
-func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
-	t.Lock.RLock()
-	defer t.Lock.RUnlock()
-	if t.Processed {
-		ftx, ok := t.TxsMap[tx]
-		return ftx, ok
-	}
-	return nil, false
-}
-
 func (t *ReaderAggregateTxList) First() *models.Transaction {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
