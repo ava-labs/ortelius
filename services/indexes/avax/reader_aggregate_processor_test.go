@@ -26,3 +26,4 @@ func TestReaderAggregate(t *testing.T) {
 		t.Fatal("first tx.ID != '1'")
 	}
 }
+
