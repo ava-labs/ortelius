@@ -46,8 +46,3 @@ jobs:
       - name: Run tests
         run: make tests
 
-      - name: Save test coverage
-        uses: shogo82148/actions-goveralls@v1
-        if: matrix.go == '1.15.5'
-        with:
-          path-to-profile: coverage.out
