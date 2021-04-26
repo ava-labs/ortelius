@@ -11,7 +11,6 @@ import (
 	"math/big"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -52,7 +51,6 @@ type producerCChainContainer struct {
 	client *cblock.Client
 
 	msgChan     chan *blockWorkContainer
-	msgChanSz   int64
 	msgChanDone chan struct{}
 
 	runningControl utils.Running
@@ -140,11 +138,6 @@ func (p *producerCChainContainer) getBlock() error {
 	return nil
 }
 
-func (p *producerCChainContainer) enqueue(bw *blockWorkContainer) {
-	p.msgChan <- bw
-	atomic.AddInt64(&p.msgChanSz, 1)
-}
-
 func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
@@ -194,7 +187,7 @@ func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catc
 			}
 			if _, ok := blockMap[startBlock.String()]; !ok {
 				p.sc.Log.Info("refill %v", startBlock.String())
-				p.enqueue(&blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock})
+				p.msgChan <- &blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock}
 			}
 			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
 		}
@@ -226,11 +219,11 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 			return p.catchupErrs.GetValue().(error)
 		}
 		ncurrent := big.NewInt(0).Add(p.block, big.NewInt(1))
-		p.enqueue(&blockWorkContainer{errs: errs, blockNumber: ncurrent})
+		p.msgChan <- &blockWorkContainer{errs: errs, blockNumber: ncurrent}
 		p.block = big.NewInt(0).Add(p.block, big.NewInt(1))
 	}
 
-	for atomic.LoadInt64(&p.msgChanSz) > 0 {
+	for len(p.msgChan) > 0 {
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -504,7 +497,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 	if err != nil {
 		return err
 	}
-	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 	if err != nil {
 		return err
 	}
@@ -533,7 +526,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
 		}
@@ -563,7 +556,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
-		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool)
+		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
 		}
@@ -589,7 +582,6 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 		case <-pc.msgChanDone:
 			return
 		case blockWork := <-pc.msgChan:
-			atomic.AddInt64(&pc.msgChanSz, -1)
 			if blockWork.errs.GetValue() != nil {
 				continue
 			}

@@ -31,13 +31,23 @@ type ProcessorDB interface {
 	Topic() []string
 }
 
-func UpdateTxPool(ctxTimeout time.Duration, conns *services.Connections, persist services.Persist, txPool *services.TxPool) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
+func UpdateTxPool(
+	ctxTimeout time.Duration,
+	conns *services.Connections,
+	persist services.Persist,
+	txPool *services.TxPool,
+	sc *services.Control,
+) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-tx-pool"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), ctxTimeout)
 	defer cancelCtx()
 
-	return persist.InsertTxPool(ctx, sess, txPool)
+	err := persist.InsertTxPool(ctx, sess, txPool)
+	if err == nil {
+		sc.Enqueue(txPool)
+	}
+	return err
 }
 
 func TrimNL(msg string) string {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/ortelius/utils"
@@ -29,7 +28,6 @@ const (
 
 	MaximumRecordsRead = 10000
 	MaxTheads          = 10
-	MaxChanSize        = 1000
 )
 
 type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -122,17 +120,10 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }
 
-type IndexerFactoryContainer struct {
-	txPool *services.TxPool
-	errs   *avlancheGoUtils.AtomicInterface
-}
-
 type IndexerFactoryControl struct {
-	sc        *services.Control
-	fsm       map[string]stream.ProcessorDB
-	msgChan   chan *IndexerFactoryContainer
-	doneCh    chan struct{}
-	msgChanSz int64
+	sc     *services.Control
+	fsm    map[string]stream.ProcessorDB
+	doneCh chan struct{}
 }
 
 func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
@@ -149,23 +140,30 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 
 	for {
 		select {
-		case txd := <-c.msgChan:
-			atomic.AddInt64(&c.msgChanSz, -1)
-			if txd.errs.GetValue() != nil {
+		case txd := <-c.sc.LocalTxPool:
+			if c.sc.IndexedList.Exists(txd.TxPool.ID) {
 				continue
 			}
-			if p, ok := c.fsm[txd.txPool.Topic]; ok {
-				err := p.Process(conns, txd.txPool)
+			if txd.Errs != nil && txd.Errs.GetValue() != nil {
+				continue
+			}
+			if p, ok := c.fsm[txd.TxPool.Topic]; ok {
+				err := p.Process(conns, txd.TxPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
+					}
 					continue
 				}
-				txd.txPool.Processed = 1
-				err = c.updateTxPollStatus(conns, txd.txPool)
+				txd.TxPool.Processed = 1
+				err = c.updateTxPollStatus(conns, txd.TxPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
+					}
 					continue
 				}
+				c.sc.IndexedList.PushFront(txd.TxPool.ID, txd.TxPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -181,8 +179,12 @@ func IndexerFactories(
 	wg *sync.WaitGroup,
 	runningControl utils.Running,
 ) error {
-	ctrl := &IndexerFactoryControl{sc: sc}
-	ctrl.fsm = make(map[string]stream.ProcessorDB)
+	ctrl := &IndexerFactoryControl{
+		sc:     sc,
+		fsm:    make(map[string]stream.ProcessorDB),
+		doneCh: make(chan struct{}),
+	}
+
 	var topicNames []string
 
 	for _, factory := range factoriesChainDB {
@@ -218,9 +220,6 @@ func IndexerFactories(
 	if err != nil {
 		return err
 	}
-
-	ctrl.msgChan = make(chan *IndexerFactoryContainer, MaxChanSize)
-	ctrl.doneCh = make(chan struct{})
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
@@ -287,12 +286,15 @@ func IndexerFactories(
 					sc.Log.Error("scan %v", err)
 					break
 				}
+				// skip previously processed
+				if sc.IndexedList.Exists(txp.ID) {
+					continue
+				}
 				readMessages++
-				ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
-				atomic.AddInt64(&ctrl.msgChanSz, 1)
+				sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
 			}
 
-			for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
+			for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {
 				time.Sleep(1 * time.Millisecond)
 			}
 
