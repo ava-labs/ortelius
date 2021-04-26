@@ -23,12 +23,10 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	if p.ListParams.Query != "" {
 		builder.Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
 	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-	} else if !p.ListParams.StartTime.IsZero() {
+	if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
 		builder.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
 	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-	} else if !p.ListParams.EndTime.IsZero() {
+	if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
 		builder.Where("avm_transactions.created_at < ?", p.ListParams.EndTime)
 	}
 	if len(p.ChainIDs) > 0 {
@@ -77,6 +75,26 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	}
 
 	return builder
+}
+
+func (r *Reader) listTxFromCache(p *params.ListTransactionsParams) *models.Transaction {
+	if !r.sc.IsAggregateCache {
+		return nil
+	}
+	if len(p.ListParams.Values) != 0 {
+		return nil
+	}
+	if p.ListParams.ID == nil {
+		return nil
+	}
+
+	if tx, ok := r.readerAggregate.txDesc.Get(models.StringID(p.ListParams.ID.String())); ok {
+		return tx
+	}
+	if tx, ok := r.readerAggregate.txAsc.Get(models.StringID(p.ListParams.ID.String())); ok {
+		return tx
+	}
+	return nil
 }
 
 func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.Transaction, bool) {
@@ -134,6 +152,13 @@ func (r *Reader) listTxs(
 			stmt.OrderAsc("avm_transactions.chain_id")
 		}
 		return stmt
+	}
+
+	if p.ListParams.ID != nil {
+		tx := r.listTxFromCache(p)
+		if tx != nil {
+			return []*models.Transaction{tx}, true, nil
+		}
 	}
 
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
@@ -220,7 +245,6 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	p.ListParams.ObserveTimeProvided = true
 	txs, dressed, err := r.listTxs(ctx, p, dbRunner)
 	if err != nil {
 		return nil, err

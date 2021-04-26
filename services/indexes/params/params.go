@@ -34,7 +34,6 @@ const (
 	KeyIntervalSize     = "intervalSize"
 	KeyDisableCount     = "disableCount"
 	KeyDisableGenesis   = "disableGenesis"
-	KeyEnableAggregate  = "enableAggregate"
 	KeyOutputOutputType = "outputOutputType"
 	KeyOutputGroupID    = "outputGroupId"
 
@@ -83,18 +82,19 @@ func CacheKey(name string, val interface{}) string {
 // Global params
 //
 type ListParams struct {
-	Values    url.Values
-	ID        *ids.ID
-	Query     string
+	Values url.Values
+	ID     *ids.ID
+	Query  string
+
+	Limit           int
+	Offset          int
+	DisableCounting bool
+
+	StartTimeProvided bool
+	EndTimeProvided   bool
+
 	StartTime time.Time
 	EndTime   time.Time
-
-	Limit               int
-	Offset              int
-	DisableCounting     bool
-	StartTimeProvided   bool
-	EndTimeProvided     bool
-	ObserveTimeProvided bool
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {

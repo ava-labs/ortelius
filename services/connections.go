@@ -65,7 +65,7 @@ func NewConnectionsFromConfig(conf cfg.Services, ro bool) (*Connections, error) 
 		// Setup logging kvs
 		kvs := health.Kvs{"driver": conf.DB.Driver}
 		// Create connection
-		dbConn, err = db.New(stream, *conf.DB, ro)
+		dbConn, err = db.New(stream, quietStream, *conf.DB, ro)
 		if err != nil {
 			return nil, stream.EventErrKv("connect.db", err, kvs)
 		}
@@ -92,7 +92,7 @@ func NewDBFromConfig(conf cfg.Services, ro bool) (*Connections, error) {
 	if conf.DB != nil || conf.DB.Driver == db.DriverNone {
 		kvs := health.Kvs{}
 		// Create connection
-		dbConn, err = db.New(stream, *conf.DB, ro)
+		dbConn, err = db.New(stream, quietStream, *conf.DB, ro)
 		if err != nil {
 			return nil, stream.EventErrKv("connect.db", err, kvs)
 		}
