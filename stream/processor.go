@@ -38,7 +38,7 @@ func UpdateTxPool(
 	txPool *services.TxPool,
 	sc *services.Control,
 ) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-tx-pool"))
+	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-tx-pool"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), ctxTimeout)
 	defer cancelCtx()
