@@ -22,13 +22,22 @@ type ReaderAggregateTxList struct {
 	Txs        []*models.Transaction
 	TxsMap     map[models.StringID]*models.Transaction
 	TxsByChain map[models.StringID][]*models.Transaction
-	Processed  bool
 }
 
 func (t *ReaderAggregateTxList) IsProcessed() bool {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
-	return t.Processed
+	return t.Txs != nil
+}
+
+func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	if t.TxsMap != nil {
+		ftx, ok := t.TxsMap[tx]
+		return ftx, ok
+	}
+	return nil, false
 }
 
 func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
@@ -44,7 +53,7 @@ func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bo
 func (t *ReaderAggregateTxList) First() *models.Transaction {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
-	if t.Processed {
+	if t.Txs != nil {
 		return t.Txs[0]
 	}
 	return nil
@@ -55,8 +64,8 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 		t.Lock.Lock()
 		defer t.Lock.Unlock()
 		t.Txs = nil
+		t.TxsMap = nil
 		t.TxsByChain = nil
-		t.Processed = false
 		return
 	}
 	txsMap := make(map[models.StringID]*models.Transaction)
@@ -73,29 +82,34 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 	t.Txs = txs
 	t.TxsMap = txsMap
 	t.TxsByChain = txsListByChain
-	t.Processed = true
 }
 
 func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.Transaction {
 	var txs []*models.Transaction
 	switch len(chainIDs) {
 	case 1:
-		chainID := chainIDs[0]
 		t.Lock.RLock()
-		if _, ok := t.TxsByChain[models.StringID(chainID)]; ok {
-			if limit <= len(t.TxsByChain[models.StringID(chainID)]) {
-				txs = make([]*models.Transaction, 0, limit)
-				txs = append(txs, t.TxsByChain[models.StringID(chainID)][0:limit]...)
+		txsByChain := t.TxsByChain
+		t.Lock.RUnlock()
+		chainID := chainIDs[0]
+		if txsByChain != nil {
+			if txsOfChain, ok := txsByChain[models.StringID(chainID)]; ok {
+				if limit <= len(txsOfChain) {
+					txs = make([]*models.Transaction, 0, limit)
+					txs = append(txs, txsOfChain[0:limit]...)
+				}
 			}
 		}
-		t.Lock.RUnlock()
 	case 0:
 		t.Lock.RLock()
-		if t.Txs != nil && limit <= len(t.Txs) {
-			txs = make([]*models.Transaction, 0, limit)
-			txs = append(txs, t.Txs[0:limit]...)
-		}
+		ltxs := t.Txs
 		t.Lock.RUnlock()
+		if ltxs != nil {
+			if limit <= len(ltxs) {
+				txs = make([]*models.Transaction, 0, limit)
+				txs = append(txs, ltxs[0:limit]...)
+			}
+		}
 	default:
 	}
 	return txs
