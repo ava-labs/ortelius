@@ -81,14 +81,14 @@ func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.
 	switch len(chainIDs) {
 	case 1:
 		t.Lock.RLock()
-		txByChain := t.TxsByChain
+		txsByChain := t.TxsByChain
 		t.Lock.RUnlock()
 		chainID := chainIDs[0]
-		if txByChain != nil {
-			if _, ok := txByChain[models.StringID(chainID)]; ok {
-				if limit <= len(txByChain[models.StringID(chainID)]) {
+		if txsByChain != nil {
+			if _, ok := txsByChain[models.StringID(chainID)]; ok {
+				if limit <= len(txsByChain[models.StringID(chainID)]) {
 					txs = make([]*models.Transaction, 0, limit)
-					txs = append(txs, txByChain[models.StringID(chainID)][0:limit]...)
+					txs = append(txs, txsByChain[models.StringID(chainID)][0:limit]...)
 				}
 			}
 		}
