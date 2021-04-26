@@ -94,9 +94,11 @@ func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.
 		t.Lock.RLock()
 		ltxs := t.Txs
 		t.Lock.RUnlock()
-		if ltxs != nil && limit <= len(ltxs) {
-			txs = make([]*models.Transaction, 0, limit)
-			txs = append(txs, ltxs[0:limit]...)
+		if ltxs != nil {
+			if limit <= len(ltxs) {
+				txs = make([]*models.Transaction, 0, limit)
+				txs = append(txs, ltxs[0:limit]...)
+			}
 		}
 	default:
 	}
