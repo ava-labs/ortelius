@@ -265,6 +265,10 @@ func (r *Reader) processorTxDescFetch(conns *services.Connections) {
 		_ = conns.Close()
 	}()
 
+	if true {
+		return
+	}
+
 	ticker := time.NewTicker(time.Second)
 
 	runTx := func() {
