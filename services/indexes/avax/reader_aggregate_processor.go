@@ -80,22 +80,26 @@ func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.
 	var txs []*models.Transaction
 	switch len(chainIDs) {
 	case 1:
-		chainID := chainIDs[0]
 		t.Lock.RLock()
-		if _, ok := t.TxsByChain[models.StringID(chainID)]; ok {
-			if limit <= len(t.TxsByChain[models.StringID(chainID)]) {
-				txs = make([]*models.Transaction, 0, limit)
-				txs = append(txs, t.TxsByChain[models.StringID(chainID)][0:limit]...)
+		txByChain := t.TxsByChain
+		t.Lock.RUnlock()
+		chainID := chainIDs[0]
+		if txByChain != nil {
+			if _, ok := txByChain[models.StringID(chainID)]; ok {
+				if limit <= len(txByChain[models.StringID(chainID)]) {
+					txs = make([]*models.Transaction, 0, limit)
+					txs = append(txs, txByChain[models.StringID(chainID)][0:limit]...)
+				}
 			}
 		}
-		t.Lock.RUnlock()
 	case 0:
 		t.Lock.RLock()
-		if t.Txs != nil && limit <= len(t.Txs) {
-			txs = make([]*models.Transaction, 0, limit)
-			txs = append(txs, t.Txs[0:limit]...)
-		}
+		ltxs := t.Txs
 		t.Lock.RUnlock()
+		if ltxs != nil && limit <= len(ltxs) {
+			txs = make([]*models.Transaction, 0, limit)
+			txs = append(txs, ltxs[0:limit]...)
+		}
 	default:
 	}
 	return txs
