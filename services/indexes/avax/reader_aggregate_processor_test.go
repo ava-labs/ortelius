@@ -25,4 +25,11 @@ func TestReaderAggregate(t *testing.T) {
 	if ftx.ID != "1" {
 		t.Fatal("first tx.ID != '1'")
 	}
+	ftx, _ = reader.Get("1")
+	if ftx == nil {
+		t.Fatal("first tx is nil")
+	}
+	if ftx.ID != "1" {
+		t.Fatal("first tx.ID != '1'")
+	}
 }

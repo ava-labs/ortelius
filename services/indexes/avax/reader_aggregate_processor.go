@@ -22,19 +22,18 @@ type ReaderAggregateTxList struct {
 	Txs        []*models.Transaction
 	TxsMap     map[models.StringID]*models.Transaction
 	TxsByChain map[models.StringID][]*models.Transaction
-	Processed  bool
 }
 
 func (t *ReaderAggregateTxList) IsProcessed() bool {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
-	return t.Processed
+	return t.Txs != nil
 }
 
 func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
-	if t.Processed {
+	if t.TxsMap != nil {
 		ftx, ok := t.TxsMap[tx]
 		return ftx, ok
 	}
@@ -44,7 +43,7 @@ func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bo
 func (t *ReaderAggregateTxList) First() *models.Transaction {
 	t.Lock.RLock()
 	defer t.Lock.RUnlock()
-	if t.Processed {
+	if t.Txs != nil {
 		return t.Txs[0]
 	}
 	return nil
@@ -55,8 +54,8 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 		t.Lock.Lock()
 		defer t.Lock.Unlock()
 		t.Txs = nil
+		t.TxsMap = nil
 		t.TxsByChain = nil
-		t.Processed = false
 		return
 	}
 	txsMap := make(map[models.StringID]*models.Transaction)
@@ -73,7 +72,6 @@ func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
 	t.Txs = txs
 	t.TxsMap = txsMap
 	t.TxsByChain = txsListByChain
-	t.Processed = true
 }
 
 func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.Transaction {
@@ -85,10 +83,10 @@ func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.
 		t.Lock.RUnlock()
 		chainID := chainIDs[0]
 		if txsByChain != nil {
-			if _, ok := txsByChain[models.StringID(chainID)]; ok {
-				if limit <= len(txsByChain[models.StringID(chainID)]) {
+			if txsOfChain, ok := txsByChain[models.StringID(chainID)]; ok {
+				if limit <= len(txsOfChain) {
 					txs = make([]*models.Transaction, 0, limit)
-					txs = append(txs, txsByChain[models.StringID(chainID)][0:limit]...)
+					txs = append(txs, txsOfChain[0:limit]...)
 				}
 			}
 		}
