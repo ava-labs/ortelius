@@ -28,6 +28,8 @@ const (
 
 	MaximumRecordsRead = 10000
 	MaxTheads          = 10
+
+	IteratorTimeout = 3 * time.Minute
 )
 
 type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -239,75 +241,86 @@ func IndexerFactories(
 			_ = conns.Close()
 		}()
 		for !runningControl.IsStopped() {
-			sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
-			iterator, err := sess.Select(
-				"id",
-				"network_id",
-				"chain_id",
-				"msg_key",
-				"serialization",
-				"processed",
-				"topic",
-				"created_at",
-			).From(services.TableTxPool).
-				Where("processed=? and topic in ?", 0, topicNames).
-				OrderAsc("processed").OrderAsc("created_at").
-				Iterate()
-			if err != nil {
-				sc.Log.Warn("iter %v", err)
-				time.Sleep(250 * time.Millisecond)
-				continue
-			}
+			iterateTxPool := func() {
+				ctx, cancelCTX := context.WithTimeout(context.Background(), IteratorTimeout)
+				defer cancelCTX()
 
-			errs := &avlancheGoUtils.AtomicInterface{}
-
-			var readMessages uint64
-
-			for iterator.Next() {
-				if errs.GetValue() != nil {
-					break
-				}
-
-				if readMessages > MaximumRecordsRead {
-					break
-				}
-
-				err = iterator.Err()
+				sess, err := conns.DB().NewQuietSession("tx-pool", IteratorTimeout)
 				if err != nil {
-					if err != io.EOF {
-						sc.Log.Error("iterator err %v", err)
+					sc.Log.Error("processing err %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
+				}
+				iterator, err := sess.Select(
+					"id",
+					"network_id",
+					"chain_id",
+					"msg_key",
+					"serialization",
+					"processed",
+					"topic",
+					"created_at",
+				).From(services.TableTxPool).
+					Where("processed=? and topic in ?", 0, topicNames).
+					OrderAsc("processed").OrderAsc("created_at").
+					IterateContext(ctx)
+				if err != nil {
+					sc.Log.Warn("iter %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
+				}
+
+				errs := &avlancheGoUtils.AtomicInterface{}
+
+				var readMessages uint64
+
+				for iterator.Next() {
+					if errs.GetValue() != nil {
+						break
 					}
-					break
+
+					if readMessages > MaximumRecordsRead {
+						break
+					}
+
+					err = iterator.Err()
+					if err != nil {
+						if err != io.EOF {
+							sc.Log.Error("iterator err %v", err)
+						}
+						break
+					}
+
+					txp := &services.TxPool{}
+					err = iterator.Scan(txp)
+					if err != nil {
+						sc.Log.Error("scan %v", err)
+						break
+					}
+					// skip previously processed
+					if sc.IndexedList.Exists(txp.ID) {
+						continue
+					}
+					readMessages++
+					sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
 				}
 
-				txp := &services.TxPool{}
-				err = iterator.Scan(txp)
-				if err != nil {
-					sc.Log.Error("scan %v", err)
-					break
+				for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {
+					time.Sleep(1 * time.Millisecond)
 				}
-				// skip previously processed
-				if sc.IndexedList.Exists(txp.ID) {
-					continue
+
+				if errs.GetValue() != nil {
+					err := errs.GetValue().(error)
+					sc.Log.Error("processing err %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
 				}
-				readMessages++
-				sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
-			}
 
-			for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {
-				time.Sleep(1 * time.Millisecond)
+				if readMessages == 0 {
+					time.Sleep(500 * time.Millisecond)
+				}
 			}
-
-			if errs.GetValue() != nil {
-				err := errs.GetValue().(error)
-				sc.Log.Error("processing err %v", err)
-				time.Sleep(250 * time.Millisecond)
-				continue
-			}
-
-			if readMessages == 0 {
-				time.Sleep(500 * time.Millisecond)
-			}
+			iterateTxPool()
 		}
 	}()
 
