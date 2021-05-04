@@ -161,7 +161,7 @@ type ListTransactionsParams struct {
 }
 
 func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
-	err := p.ListParams.ForValues(v, q)
+	err := p.ListParams.ForValuesAllowOffset(v, q)
 	if err != nil {
 		return err
 	}

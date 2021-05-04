@@ -98,6 +98,13 @@ type ListParams struct {
 }
 
 func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
+	return p.forValues(version, q, false)
+}
+func (p *ListParams) ForValuesAllowOffset(version uint8, q url.Values) (err error) {
+	return p.forValues(version, q, true)
+}
+
+func (p *ListParams) forValues(version uint8, q url.Values, allowOffset bool) (err error) {
 	p.Values = q
 	p.Limit, err = GetQueryInt(q, KeyLimit, PaginationMaxLimit)
 	if err != nil {
@@ -115,6 +122,9 @@ func (p *ListParams) ForValues(version uint8, q url.Values) (err error) {
 	}
 	if p.Offset < 0 {
 		p.Offset = 0
+	}
+	if !allowOffset && p.Offset > 0 {
+		return errors.New("offset deprecated")
 	}
 
 	p.ID, err = GetQueryID(q, KeyID)

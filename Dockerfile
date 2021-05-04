@@ -1,5 +1,5 @@
 # Create base builder image
-FROM golang:1.15.5-alpine
+FROM golang:1.16.3-alpine
 WORKDIR /go/src/github.com/ava-labs/ortelius
 RUN apk add git alpine-sdk linux-headers
 
