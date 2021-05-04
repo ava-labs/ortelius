@@ -266,7 +266,7 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		if !strings.HasPrefix(addressStr, "0x") {
 			addressStr = "0x" + addressStr
 		}
-		p.CAddresses = append(p.CAddresses, addressStr)
+		p.CAddresses = append(p.CAddresses, strings.ToLower(addressStr))
 	}
 
 	addressStrs = q[KeyToAddress]
@@ -274,14 +274,14 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		if !strings.HasPrefix(addressStr, "0x") {
 			addressStr = "0x" + addressStr
 		}
-		p.CAddressesTo = append(p.CAddressesTo, addressStr)
+		p.CAddressesTo = append(p.CAddressesTo, strings.ToLower(addressStr))
 	}
 	addressStrs = q[KeyFromAddress]
 	for _, addressStr := range addressStrs {
 		if !strings.HasPrefix(addressStr, "0x") {
 			addressStr = "0x" + addressStr
 		}
-		p.CAddressesFrom = append(p.CAddressesFrom, addressStr)
+		p.CAddressesFrom = append(p.CAddressesFrom, strings.ToLower(addressStr))
 	}
 
 	blockStartStrs := q[KeyBlockStart]
