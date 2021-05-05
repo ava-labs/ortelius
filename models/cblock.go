@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth"
+	"github.com/ava-labs/coreth/interfaces"
 
 	"github.com/ava-labs/coreth/ethclient"
 	"github.com/ava-labs/coreth/rpc"
@@ -183,7 +183,7 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 	}
 
 	blhash := bl.Hash()
-	fq := coreth.FilterQuery{BlockHash: &blhash}
+	fq := interfaces.FilterQuery{BlockHash: &blhash}
 	fls, err := c.ethClient.FilterLogs(ctx, fq)
 	if err != nil {
 		return nil, err
