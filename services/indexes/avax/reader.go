@@ -353,7 +353,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, 
 	var err error
 
 	if conns != nil {
-		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("get_transaction_aggregates_histogram"))
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("get_transaction_aggregates_histogram"))
 	} else {
 		dbRunner, err = r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
 		if err != nil {
@@ -758,7 +758,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewSession("addressChains", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewQuietSession("addressChains", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}

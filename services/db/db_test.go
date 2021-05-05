@@ -25,7 +25,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestNewErrors(t *testing.T) {
-	conn, err := New(nil, cfg.DB{
+	conn, err := New(nil, nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "---",
 	}, false)
@@ -37,7 +37,7 @@ func TestNewErrors(t *testing.T) {
 		t.Fatal("Expected an invalid DSN error")
 	}
 
-	conn, err = New(nil, cfg.DB{
+	conn, err = New(nil, nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "::a.a.a.a.a.a.a.a::",
 	}, false)
@@ -49,7 +49,7 @@ func TestNewErrors(t *testing.T) {
 		t.Fatal("Expected an invalid URI")
 	}
 
-	conn, err = New(nil, cfg.DB{
+	conn, err = New(nil, nil, cfg.DB{
 		Driver: "mysql",
 		DSN:    "a:b@tcp(1.2.3.4)/foo",
 	}, false)
