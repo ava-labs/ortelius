@@ -17,7 +17,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/vms/avm"
 
-	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
@@ -130,11 +129,6 @@ func TestIndexBootstrap(t *testing.T) {
 
 func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer, *avax.Reader, func()) {
 	networkID := uint32(5)
-	// Start test redis
-	s, err := miniredis.Run()
-	if err != nil {
-		t.Fatal("Failed to create miniredis server:", err.Error())
-	}
 
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
@@ -146,9 +140,6 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer,
 		DB: &cfg.DB{
 			Driver: "mysql",
 			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",
-		},
-		Redis: &cfg.Redis{
-			Addr: s.Addr(),
 		},
 	}
 
@@ -167,7 +158,6 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer,
 	cmap := make(map[string]services.Consumer)
 	reader, _ := avax.NewReader(networkID, conns, cmap, nil, sc)
 	return conns, writer, reader, func() {
-		s.Close()
 		_ = conns.Close()
 	}
 }
