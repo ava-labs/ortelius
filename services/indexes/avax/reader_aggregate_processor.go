@@ -297,7 +297,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			}
 
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
-			lassets, err := r.ListAssets(ctx, pa)
+			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return
@@ -322,7 +322,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 			}
 
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
-			lassets, err := r.ListAssets(ctx, pa)
+			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
 				r.sc.Log.Warn("Aggregate %v", err)
 				return

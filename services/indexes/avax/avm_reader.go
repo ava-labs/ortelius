@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/ortelius/services"
+
 	"github.com/ava-labs/ortelius/cfg"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,10 +17,17 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*models.AssetList, error) {
-	dbRunner, err := r.conns.DB().NewSession("list_assets", cfg.RequestTimeout)
-	if err != nil {
-		return nil, err
+func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams, conns *services.Connections) (*models.AssetList, error) {
+	var dbRunner *dbr.Session
+	var err error
+
+	if conns != nil {
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("list_assets"))
+	} else {
+		dbRunner, err = r.conns.DB().NewSession("list_assets", cfg.RequestTimeout)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	assets := make([]*models.Asset, 0, 1)
@@ -31,7 +40,7 @@ func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams) (*m
 	}
 
 	// Add all the addition information we might want
-	if err = r.dressAssets(ctx, dbRunner, assets, p); err != nil {
+	if err = r.dressAssets(ctx, dbRunner, assets); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +71,7 @@ func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStr
 	}
 	p.ListParams.DisableCounting = true
 
-	assetList, err := r.ListAssets(ctx, p)
+	assetList, err := r.ListAssets(ctx, p, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +81,7 @@ func (r *Reader) GetAsset(ctx context.Context, p *params.ListAssetsParams, idStr
 	return nil, err
 }
 
-func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset, p *params.ListAssetsParams) error {
+func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, assets []*models.Asset) error {
 	if len(assets) == 0 {
 		return nil
 	}
@@ -84,31 +93,6 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	assetIDs := make([]models.StringID, len(assets))
 	for i, asset := range assets {
 		assetIDs[i] = asset.ID
-
-		if len(p.EnableAggregate) == 0 {
-			continue
-		}
-
-		id, err := ids.FromString(string(asset.ID))
-		if err != nil {
-			return err
-		}
-
-		asset.Aggregates = make(map[string]*models.Aggregates)
-
-		for _, intervalName := range p.EnableAggregate {
-			aparams := params.AggregateParams{
-				ListParams:   p.ListParams,
-				AssetID:      &id,
-				IntervalSize: params.IntervalNames[intervalName],
-				Version:      1,
-			}
-			hm, err := r.Aggregate(ctx, &aparams, nil)
-			if err != nil {
-				return err
-			}
-			asset.Aggregates[intervalName] = &hm.Aggregates
-		}
 	}
 
 	var rows []*struct {

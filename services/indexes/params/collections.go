@@ -307,10 +307,9 @@ func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder
 }
 
 type ListAssetsParams struct {
-	ListParams      ListParams
-	Alias           string
-	EnableAggregate []string
-	PathParamID     string
+	ListParams  ListParams
+	Alias       string
+	PathParamID string
 }
 
 func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
@@ -320,25 +319,11 @@ func (p *ListAssetsParams) ForValues(v uint8, q url.Values) error {
 
 	p.Alias = GetQueryString(q, KeyAlias, "")
 
-	for _, enableAgg := range q[KeyEnableAggregate] {
-		qq := make(url.Values)
-		qq[KeyIntervalSize] = []string{enableAgg}
-		_, err := GetQueryInterval(qq, KeyIntervalSize)
-		if err != nil {
-			return err
-		}
-		if p.EnableAggregate == nil {
-			p.EnableAggregate = make([]string, 0, 1)
-		}
-		p.EnableAggregate = append(p.EnableAggregate, enableAgg)
-	}
-
 	return nil
 }
 
 func (p *ListAssetsParams) CacheKey() []string {
 	return append(p.ListParams.CacheKey(),
-		CacheKey(KeyEnableAggregate, p.EnableAggregate),
 		CacheKey(KeyAlias, p.Alias),
 		CacheKey("PathParamID", p.PathParamID))
 }
