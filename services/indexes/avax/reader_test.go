@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
-	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -178,12 +177,6 @@ func TestAggregateTxfee(t *testing.T) {
 }
 
 func newTestIndex(t *testing.T) (*Reader, func()) {
-	// Start test redis
-	s, err := miniredis.Run()
-	if err != nil {
-		t.Fatal("Failed to create miniredis server:", err.Error())
-	}
-
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
@@ -194,9 +187,6 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 		DB: &cfg.DB{
 			Driver: "mysql",
 			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",
-		},
-		Redis: &cfg.Redis{
-			Addr: s.Addr(),
 		},
 	}
 
@@ -209,7 +199,6 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 	cmap := make(map[string]services.Consumer)
 	reader, _ := NewReader(5, conns, cmap, nil, sc)
 	return reader, func() {
-		s.Close()
 		_ = conns.Close()
 	}
 }

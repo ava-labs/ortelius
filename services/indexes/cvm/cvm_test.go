@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 
-	"github.com/alicebob/miniredis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
@@ -28,12 +27,6 @@ var (
 )
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Connections, *Writer, func()) {
-	// Start test redis
-	s, err := miniredis.Run()
-	if err != nil {
-		t.Fatal("Failed to create miniredis server:", err.Error())
-	}
-
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
@@ -44,9 +37,6 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 		DB: &cfg.DB{
 			Driver: "mysql",
 			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",
-		},
-		Redis: &cfg.Redis{
-			Addr: s.Addr(),
 		},
 	}
 
@@ -63,7 +53,6 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 	}
 
 	return conns, writer, func() {
-		s.Close()
 		_ = conns.Close()
 	}
 }
