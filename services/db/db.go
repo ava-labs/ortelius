@@ -23,19 +23,21 @@ const (
 
 // Conn is a wrapper around a dbr connection and a health stream
 type Conn struct {
-	stream *health.Stream
-	conn   *dbr.Connection
+	stream      *health.Stream
+	quietStream *health.Stream
+	conn        *dbr.Connection
 }
 
 // New creates a new DB for the given config
-func New(stream *health.Stream, conf cfg.DB, ro bool) (*Conn, error) {
+func New(stream *health.Stream, quietStream *health.Stream, conf cfg.DB, ro bool) (*Conn, error) {
 	conn, err := newDBRConnection(stream, conf, ro)
 	if err != nil {
 		return nil, err
 	}
 	return &Conn{
-		conn:   conn,
-		stream: stream,
+		conn:        conn,
+		stream:      stream,
+		quietStream: quietStream,
 	}, nil
 }
 
@@ -46,6 +48,14 @@ func (c *Conn) Close(context.Context) error {
 
 func (c *Conn) NewSession(name string, timeout time.Duration) (*dbr.Session, error) {
 	session := c.NewSessionForEventReceiver(c.stream.NewJob(name))
+	if _, err := session.Exec(fmt.Sprintf("SET SESSION MAX_EXECUTION_TIME=%d", timeout.Milliseconds())); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (c *Conn) NewQuietSession(name string, timeout time.Duration) (*dbr.Session, error) {
+	session := c.NewSessionForEventReceiver(c.quietStream.NewJob(name))
 	if _, err := session.Exec(fmt.Sprintf("SET SESSION MAX_EXECUTION_TIME=%d", timeout.Milliseconds())); err != nil {
 		return nil, err
 	}

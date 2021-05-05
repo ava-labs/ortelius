@@ -87,7 +87,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	block := &cblock.Block{Header: header}
 
 	persist := services.NewPersistMock()
-	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
@@ -121,7 +121,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	block := &cblock.Block{Header: header}
 
 	persist := services.NewPersistMock()
-	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
+	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
