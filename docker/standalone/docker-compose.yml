@@ -28,7 +28,7 @@ services:
       - producer
     restart: always
   producer: &ortelius-app
-    image: "avaplatform/ortelius:f63d8bfa"
+    image: "avaplatform/ortelius:a3f31e0b"
     command: ["stream", "producer", "-c", "/opt/config.json"]
     networks:
       - services
