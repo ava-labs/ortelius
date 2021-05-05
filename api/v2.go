@@ -522,7 +522,7 @@ func (c *V2Context) ListAssets(w web.ResponseWriter, r *web.Request) {
 	c.WriteCacheable(w, Cacheable{
 		Key: c.cacheKeyForParams("list_assets", p),
 		CacheableFn: func(ctx context.Context) (interface{}, error) {
-			return c.avaxReader.ListAssets(ctx, p)
+			return c.avaxReader.ListAssets(ctx, p, nil)
 		},
 	})
 }

@@ -104,8 +104,6 @@ type Asset struct {
 	Denomination uint8 `json:"denomination"`
 	VariableCap  uint8 `json:"variableCap"`
 	Nft          uint8 `json:"nft"`
-
-	Aggregates map[string]*Aggregates `json:"aggregates"`
 }
 
 type AssetInfo struct {

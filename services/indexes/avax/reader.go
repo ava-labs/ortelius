@@ -112,7 +112,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return len(assets) + len(txs) + len(addresses)
 	}
 
-	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams})
+	assetsResp, err := r.ListAssets(ctx, &params.ListAssetsParams{ListParams: p.ListParams}, nil)
 	if err != nil {
 		return nil, err
 	}
