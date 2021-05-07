@@ -64,6 +64,8 @@ github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj
 github.com/ava-labs/avalanchego v1.3.3-0.20210504165449-9d4329b2c788/go.mod h1:3N/qMvcbrG+X1rAOYzHATt3sQmgzEXmOn4HsxsV1VM0=
 github.com/ava-labs/avalanchego v1.4.1 h1:ifnWslZsQlDGdZTxNVX+MUk4YklIr2YcOnQIm7+Gboc=
 github.com/ava-labs/avalanchego v1.4.1/go.mod h1:tpxS2ZJO0h2IJbUWKWUJhMuiBkMk4p0P22c315ftz4E=
+github.com/ava-labs/avalanchego v1.4.2 h1:I5L17uWYqYHQSK4FB0LjdbNVEPDeaCsfypXBeiwXaps=
+github.com/ava-labs/avalanchego v1.4.2/go.mod h1:tpxS2ZJO0h2IJbUWKWUJhMuiBkMk4p0P22c315ftz4E=
 github.com/ava-labs/coreth v0.5.0-rc.2 h1:OZk2E/aHUwkX2L6iURywIEFdLEtobpK4hKUCwJXD1IM=
 github.com/ava-labs/coreth v0.5.0-rc.2/go.mod h1:n5cTTH2RzKMRpwZ1mRm9aOG1owJkYfBPH/NbastQU8Y=
 github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
