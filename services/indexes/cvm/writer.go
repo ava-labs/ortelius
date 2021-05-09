@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/coreth/core/types"
-
 	"github.com/ava-labs/ortelius/utils"
 
 	cblock "github.com/ava-labs/ortelius/models"
@@ -221,8 +220,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		}
 	}
 
-	for ipos, txdata := range block.TxsBytes {
-		rawtx := block.Txs[ipos]
+	for ipos, rawtx := range block.Txs {
+		txdata, err := json.Marshal(&rawtx)
+		if err != nil {
+			return err
+		}
 		rawhash := rawtx.Hash()
 		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
 		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
@@ -239,6 +241,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			return err
 		}
 	}
+
 	block.TxsBytes = nil
 	block.Txs = nil
 

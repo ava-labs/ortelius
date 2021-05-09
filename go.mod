@@ -2,6 +2,11 @@ module github.com/ava-labs/ortelius
 
 go 1.15
 
+replace (
+	github.com/ava-labs/avalanchego v1.4.2 => /home/todd/go/src/github.com/ava-labs/avalanchego-internal
+	github.com/ava-labs/coreth v0.5.0-rc.2 => /home/todd/go/src/github.com/ava-labs/coreth-internal
+)
+
 require (
 	github.com/ava-labs/avalanchego v1.4.2
 	github.com/ava-labs/coreth v0.5.0-rc.2
@@ -13,6 +18,7 @@ require (
 	github.com/gocraft/health v0.0.0-20170925182251-8675af27fef0
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gorilla/rpc v1.2.0
+	github.com/mattn/go-sqlite3 v1.14.3 // indirect
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.1.1

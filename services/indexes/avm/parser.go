@@ -92,12 +92,13 @@ func newAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 	}
 
 	db := &utils.NoopDatabase{}
+	dbm := utils.NewNoopManager(db)
 
 	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because
 	// we're not using a real DB here.
 	vm := &avm.VM{}
-	err = vm.Initialize(ctx, db, createChainTx.GenesisData, make(chan common.Message, 1), fxs)
+	err = vm.Initialize(ctx, dbm, createChainTx.GenesisData, nil, nil, make(chan common.Message, 1), fxs)
 	if err != nil && err != database.ErrClosed {
 		return nil, nil, nil, nil, err
 	}

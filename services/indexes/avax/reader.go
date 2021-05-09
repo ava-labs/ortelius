@@ -1098,13 +1098,11 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		BlockNumber:    unserializedBlock.Header.Number.String(),
 		Header:         unserializedBlock.Header,
 		Uncles:         unserializedBlock.Uncles,
-		TxsBytes:       unserializedBlock.TxsBytes,
 		Version:        unserializedBlock.Version,
 		ReceivedAt:     unserializedBlock.ReceivedAt,
 		BlockExtraData: unserializedBlock.BlockExtraData,
 		Txs:            unserializedBlock.Txs,
 	}
-	block.TxsBytes = nil
 
 	type RowData struct {
 		Idx           uint64

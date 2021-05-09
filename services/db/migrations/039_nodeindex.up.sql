@@ -23,5 +23,8 @@ drop index cvm_transactions_txdata_rcpt
 create index cvm_transactions_txdata_rcpt_created_at
     on cvm_transactions_txdata (rcpt,created_at);
 
+alter table `rewards` add COLUMN `processed` smallint unsigned default 0;
+create index rewards_processed on rewards (processed, created_at);
+
 
 

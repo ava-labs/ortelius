@@ -70,13 +70,6 @@ func (a *BalanceAccumulatorManager) Start() error {
 		return nil
 	}
 
-	connsTicker, err := a.sc.DatabaseOnly()
-	if err != nil {
-		return err
-	}
-
-	a.runTicker(connsTicker)
-
 	processingFunc := func(id string, managerChannel *managerChannels) error {
 		connsOuts, err := a.sc.DatabaseOnly()
 		if err != nil {
@@ -107,108 +100,13 @@ func (a *BalanceAccumulatorManager) Start() error {
 	for ipos := 0; ipos < 2; ipos++ {
 		managerChannels := newManagerChannels()
 		a.managerChannelsList = append(a.managerChannelsList, managerChannels)
-		err = processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
+		err := processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
-	a.sc.Log.Info("start ticker")
-	go func() {
-		runEvent := func(conns *Connections) {
-			// set rewards outputs as processed...
-			ctx := context.Background()
-			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
-
-			var accumsOut []*OutputAddressAccumulate
-			_, err := session.Select(TableOutputAddressAccumulateOut+".id").
-				From(TableOutputAddressAccumulateOut).
-				Where("processed = ?", 0).
-				Join(TableTransactionsRewardsOwnersOutputs,
-					TableOutputAddressAccumulateOut+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
-				LoadContext(ctx, &accumsOut)
-			if err != nil {
-				a.sc.Log.Error("accumulate ticker error rewards %v", err)
-				return
-			}
-
-			var accumsIn []*OutputAddressAccumulate
-			_, err = session.Select(TableOutputAddressAccumulateIn+".id").
-				From(TableOutputAddressAccumulateIn).
-				Where("processed = ?", 0).
-				Join(TableTransactionsRewardsOwnersOutputs,
-					TableOutputAddressAccumulateIn+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
-				LoadContext(ctx, &accumsIn)
-			if err != nil {
-				a.sc.Log.Error("accumulate ticker error rewards %v", err)
-				return
-			}
-
-			processed := make(map[string]struct{})
-			for _, accum := range append(accumsIn, accumsOut...) {
-				_, ok := processed[accum.ID]
-				if ok {
-					continue
-				}
-				_, err = session.Update(TableOutputAddressAccumulateOut).
-					Set("processed", 1).
-					Where("id=? and processed <> ?", accum.ID, 1).
-					ExecContext(ctx)
-				if err != nil {
-					a.sc.Log.Error("accumulate ticker error rewards %v", err)
-					return
-				}
-				_, err = session.Update(TableOutputAddressAccumulateIn).
-					Set("processed", 1).
-					Where("id=? and processed <> ?", accum.ID, 1).
-					ExecContext(ctx)
-				if err != nil {
-					a.sc.Log.Error("accumulate ticker error rewards %v", err)
-					return
-				}
-				processed[accum.ID] = struct{}{}
-			}
-
-			icnt := 0
-			for ; icnt < retryProcessing; icnt++ {
-				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
-				if db.ErrIsLockError(err) {
-					icnt = 0
-					continue
-				}
-				if err != nil {
-					a.sc.Log.Error("accumulate ticker error %v", err)
-					return
-				}
-				if cnt < RowLimitValue {
-					break
-				}
-				icnt = 0
-			}
-		}
-
-		defer func() {
-			a.ticker.Stop()
-			err := conns.Close()
-			if err != nil {
-				a.sc.Log.Warn("connection close %v", err)
-			}
-			a.sc.Log.Info("stop ticker")
-		}()
-
-		for {
-			select {
-			case <-a.ticker.C:
-				runEvent(conns)
-			case <-a.doneCh:
-				return
-			}
-		}
-	}()
 }
 
 func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
@@ -331,10 +229,8 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	}
 
 	sb := b.
-		OrderAsc(tbl+".processed").
-		OrderAsc(tbl+".created_at").
-		LeftJoin(TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
-		Where(TableTransactionsRewardsOwnersOutputs + ".id is null").
+		OrderAsc(tbl + ".processed").
+		OrderAsc(tbl + ".created_at").
 		Limit(RowLimitValue)
 
 	sc := session.Select(

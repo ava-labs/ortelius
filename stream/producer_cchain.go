@@ -472,43 +472,15 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		return err
 	}
 
-	// wipe before re-encoding
-	cblk.Txs = nil
-	block, err := json.Marshal(cblk)
-	if err != nil {
-		return err
-	}
-
-	id, err := ids.ToID(hashing.ComputeHash256(block))
-	if err != nil {
-		return err
-	}
-
-	txPool := &services.TxPool{
-		NetworkID:     p.conf.NetworkID,
-		ChainID:       p.conf.CchainID,
-		MsgKey:        id.String(),
-		Serialization: block,
-		Processed:     0,
-		Topic:         p.topic,
-		CreatedAt:     localBlock.time,
-	}
-	err = txPool.ComputeID()
-	if err != nil {
-		return err
-	}
-	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
-	if err != nil {
-		return err
-	}
-
 	for _, txTranactionTraces := range localBlock.blockContainer.Traces {
 		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
 		if err != nil {
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(txTransactionTracesBits))
+		idsv := fmt.Sprintf("%s:%d", txTranactionTraces.Hash, txTranactionTraces.Idx)
+
+		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err
 		}
@@ -538,7 +510,9 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(logBits))
+		idsv := fmt.Sprintf("%s:%s:%d", log.BlockHash, log.TxHash, log.Index)
+
+		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err
 		}
@@ -560,6 +534,34 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		if err != nil {
 			return err
 		}
+	}
+
+	block, err := json.Marshal(cblk)
+	if err != nil {
+		return err
+	}
+
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(cblk.Header.Number.String())))
+	if err != nil {
+		return err
+	}
+
+	txPool := &services.TxPool{
+		NetworkID:     p.conf.NetworkID,
+		ChainID:       p.conf.CchainID,
+		MsgKey:        id.String(),
+		Serialization: block,
+		Processed:     0,
+		Topic:         p.topic,
+		CreatedAt:     localBlock.time,
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		return err
+	}
+	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
+	if err != nil {
+		return err
 	}
 
 	return nil
