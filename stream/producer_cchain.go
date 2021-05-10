@@ -596,7 +596,11 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			blTime := time.Unix(int64(blContainer.Block.Header().Time), 0)
+			var nsec int64
+			if blContainer.Block.Header().Time == 0 {
+				nsec = 1
+			}
+			blTime := time.Unix(int64(blContainer.Block.Header().Time), nsec)
 
 			localBlockObject := &localBlockObject{blockContainer: blContainer, time: blTime}
 			err = p.processWork(conns, localBlockObject)
