@@ -3,7 +3,7 @@ package servicesctrl
 import (
 	"time"
 
-	"github.com/ava-labs/ortelius/services/balanche_handler"
+	"github.com/ava-labs/ortelius/services/balancehandler"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesgenesis"
@@ -40,7 +40,7 @@ type Control struct {
 	Log                        logging.Logger
 	Persist                    idb.Persist
 	Features                   map[string]struct{}
-	BalanceAccumulatorManager  *balanche_handler.BalanceAccumulatorManager
+	BalanceAccumulatorManager  *balancehandler.BalanceAccumulatorManager
 	GenesisContainer           *servicesgenesis.GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
@@ -77,7 +77,7 @@ func (s *Control) Init(networkID uint32) error {
 	}
 	var err error
 	persist := idb.NewPersist()
-	s.BalanceAccumulatorManager, err = balanche_handler.NewBalanceAccumulatorManager(persist, s)
+	s.BalanceAccumulatorManager, err = balancehandler.NewBalanceAccumulatorManager(persist, s)
 	if err != nil {
 		return err
 	}

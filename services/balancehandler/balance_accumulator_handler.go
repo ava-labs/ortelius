@@ -1,4 +1,4 @@
-package balanche_handler
+package balancehandler
 
 import (
 	"context"
