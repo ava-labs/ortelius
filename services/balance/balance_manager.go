@@ -1,4 +1,4 @@
-package balancehandler
+package balance
 
 import (
 	"context"
@@ -42,8 +42,8 @@ func newManagerChannels() *managerChannels {
 	}
 }
 
-type BalanceAccumulatorManager struct {
-	handler *BalancerAccumulateHandler
+type Manager struct {
+	handler *Handler
 	sc      controlwrap.ControlWrap
 	persist idb.Persist
 
@@ -52,9 +52,9 @@ type BalanceAccumulatorManager struct {
 	doneCh chan struct{}
 }
 
-func NewBalanceAccumulatorManager(persist idb.Persist, sc controlwrap.ControlWrap) (*BalanceAccumulatorManager, error) {
-	bmanager := &BalanceAccumulatorManager{
-		handler: &BalancerAccumulateHandler{},
+func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, error) {
+	bmanager := &Manager{
+		handler: &Handler{},
 		sc:      sc,
 		persist: persist,
 		doneCh:  make(chan struct{}),
@@ -62,11 +62,11 @@ func NewBalanceAccumulatorManager(persist idb.Persist, sc controlwrap.ControlWra
 	return bmanager, nil
 }
 
-func (a *BalanceAccumulatorManager) Close() {
+func (a *Manager) Close() {
 	close(a.doneCh)
 }
 
-func (a *BalanceAccumulatorManager) Start() error {
+func (a *Manager) Start() error {
 	processingFunc := func(id string, managerChannel *managerChannels) error {
 		connsOuts, err := a.sc.DatabaseOnly()
 		if err != nil {
@@ -106,7 +106,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 	return nil
 }
 
-func (a *BalanceAccumulatorManager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
+func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
 	a.sc.Logger().Info("start processing %v", id)
 	go func() {
 		runEvent := func(conns *servicesconn.Connections) {
@@ -147,7 +147,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *servicesconn
 	}()
 }
 
-func (a *BalanceAccumulatorManager) Run() {
+func (a *Manager) Run() {
 	for _, managerChannels := range a.managerChannelsList {
 		select {
 		case managerChannels.ins <- struct{}{}:
@@ -164,7 +164,7 @@ func (a *BalanceAccumulatorManager) Run() {
 	}
 }
 
-type BalancerAccumulateHandler struct {
+type Handler struct {
 }
 
 func outTable(typ processType) string {
@@ -189,7 +189,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
+func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -252,7 +252,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
@@ -293,7 +293,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 	return uint64(len(rowdataAvail)), nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPost(
+func (a *Handler) processOutputsPost(
 	workRows map[string]*idb.OutputAddressAccumulate,
 	workRowsID []string,
 	typ processType,
@@ -340,7 +340,7 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	return dbTx.Commit()
 }
 
-func (a *BalancerAccumulateHandler) processOutputsBase(
+func (a *Handler) processOutputsBase(
 	ctx context.Context,
 	typ processType,
 	dbTx *dbr.Tx,
@@ -449,7 +449,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxsAccumulate, error) {
+func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -481,7 +481,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processTransactions(conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
@@ -522,7 +522,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *servicesconn.Conn
 	return uint64(len(rowdataAvail)), nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPost(
+func (a *Handler) processTransactionsPost(
 	workRows map[string]*idb.OutputTxsAccumulate,
 	workRowsID []string,
 	session *dbr.Session,
@@ -566,7 +566,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPost(
 	return dbTx.Commit()
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsBase(
+func (a *Handler) processTransactionsBase(
 	ctx context.Context,
 	dbTx *dbr.Tx,
 	persist idb.Persist,
