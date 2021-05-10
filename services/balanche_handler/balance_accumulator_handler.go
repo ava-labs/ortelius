@@ -107,7 +107,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 }
 
 func (a *BalanceAccumulatorManager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
-	a.sc.LogMe().Info("start processing %v", id)
+	a.sc.Logger().Info("start processing %v", id)
 	go func() {
 		runEvent := func(conns *servicesconn.Connections) {
 			icnt := 0
@@ -118,7 +118,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *servicesconn
 					continue
 				}
 				if err != nil {
-					a.sc.LogMe().Error("accumulate error %s %v", id, err)
+					a.sc.Logger().Error("accumulate error %s %v", id, err)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -131,9 +131,9 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *servicesconn
 		defer func() {
 			err := conns.Close()
 			if err != nil {
-				a.sc.LogMe().Warn("connection close %v", err)
+				a.sc.Logger().Warn("connection close %v", err)
 			}
-			a.sc.LogMe().Info("stop processing %v", id)
+			a.sc.Logger().Info("stop processing %v", id)
 		}()
 
 		for {

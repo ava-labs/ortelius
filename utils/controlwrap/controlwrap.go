@@ -8,6 +8,6 @@ import (
 
 type ControlWrap interface {
 	DatabaseOnly() (*servicesconn.Connections, error)
-	LogMe() logging.Logger
+	Logger() logging.Logger
 	Genesis() *servicesgenesis.GenesisContainer
 }

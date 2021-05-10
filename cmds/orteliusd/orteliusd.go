@@ -15,8 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/rewards"
+
 	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/rewards"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"

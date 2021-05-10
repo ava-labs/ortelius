@@ -296,7 +296,7 @@ const (
 
         if (error !== undefined) {
             result.error = error;
-            result.errorOutput = "reverted " + toHex(ctx.output);
+            result.revertReason = "reverted " + toHex(ctx.output);
         } else {
             result.output = toHex(ctx.output);
         }

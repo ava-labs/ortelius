@@ -3,8 +3,6 @@ package servicesctrl
 import (
 	"time"
 
-	"github.com/ava-labs/ortelius/utils/initter"
-
 	"github.com/ava-labs/ortelius/services/balanche_handler"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
@@ -50,14 +48,14 @@ type Control struct {
 	IsAggregateCache           bool
 	IndexedList                indexedlist.IndexedList
 	LocalTxPool                chan *LocalTxPoolJob
-	RewardsHandler             initter.Starter
+	RewardsHandler             interface{}
 }
 
 func (s *Control) Genesis() *servicesgenesis.GenesisContainer {
 	return s.GenesisContainer
 }
 
-func (s *Control) LogMe() logging.Logger {
+func (s *Control) Logger() logging.Logger {
 	return s.Log
 }
 

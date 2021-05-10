@@ -62,7 +62,7 @@ func (r *RewardsHandler) runTicker(sc controlwrap.ControlWrap, conns *servicesco
 		case <-ticker.C:
 			err := r.processRewards()
 			if err != nil {
-				sc.LogMe().Error("process rewards %s", err)
+				sc.Logger().Error("process rewards %s", err)
 			}
 		case <-doneCh:
 			return
