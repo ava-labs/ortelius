@@ -296,13 +296,17 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 		}
 		trItemsByHash[txTransactionTraceService.Hash].TracesMap[txTransactionTraceService.Idx] = txTransactionTraceModel
 
-		txTransactionTraceModel.RevertReason = nilEmpty(txTransactionTraceModel.RevertReason, "revert 0x")
+		txTransactionTraceModel.RevertReason = nilEmpty(txTransactionTraceModel.RevertReason, "reverted 0x")
 		if txTransactionTraceModel.RevertReason != nil {
-			revertReason, err := hex.DecodeString(*txTransactionTraceModel.RevertReason)
-			if err == nil {
-				revertReasonString, err := abi.UnpackRevert(revertReason)
+			revVal := *txTransactionTraceModel.RevertReason
+			if strings.HasPrefix(revVal, "reverted 0x") {
+				*txTransactionTraceModel.RevertReason = "0x" + revVal[11:]
+				revertReason, err := hex.DecodeString(revVal[11:])
 				if err == nil {
-					*txTransactionTraceModel.RevertReason = revertReasonString
+					revertReasonString, err := abi.UnpackRevert(revertReason)
+					if err == nil {
+						txTransactionTraceModel.RevertReasonUnpacked = &revertReasonString
+					}
 				}
 			}
 		}
