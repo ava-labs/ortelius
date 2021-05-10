@@ -5,10 +5,11 @@ package avax
 
 import (
 	"context"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"testing"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 
 	"github.com/ava-labs/ortelius/services"
 

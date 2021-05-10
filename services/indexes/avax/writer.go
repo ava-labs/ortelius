@@ -5,9 +5,10 @@ package avax
 
 import (
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
 	"reflect"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
 
 	"github.com/ava-labs/avalanchego/utils/formatting"
 

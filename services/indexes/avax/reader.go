@@ -9,15 +9,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"math"
 	"math/big"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 
 	cblock "github.com/ava-labs/ortelius/models"
 

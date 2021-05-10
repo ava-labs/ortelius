@@ -2,10 +2,13 @@ package avax
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
-	"github.com/ava-labs/ortelius/services/idb"
 	"math/big"
 	"strings"
+
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 
 	"github.com/ava-labs/ortelius/utils"
 
@@ -292,6 +295,17 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 			trItemsByHash[txTransactionTraceService.Hash].TracesMax = txTransactionTraceService.Idx + 1
 		}
 		trItemsByHash[txTransactionTraceService.Hash].TracesMap[txTransactionTraceService.Idx] = txTransactionTraceModel
+
+		txTransactionTraceModel.RevertReason = nilEmpty(txTransactionTraceModel.RevertReason, "revert 0x")
+		if txTransactionTraceModel.RevertReason != nil {
+			revertReason, err := hex.DecodeString(*txTransactionTraceModel.RevertReason)
+			if err == nil {
+				revertReasonString, err := abi.UnpackRevert(revertReason)
+				if err == nil {
+					*txTransactionTraceModel.RevertReason = revertReasonString
+				}
+			}
+		}
 	}
 
 	return nil
