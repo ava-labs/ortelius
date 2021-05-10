@@ -113,7 +113,7 @@ func (r *RewardsHandler) processRewards() error {
 
 		id, err := ids.FromString(rewardTx.Txid)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		var rewardsUtxos [][]byte
 		arg := &api.GetTxArgs{TxID: id, Encoding: formatting.Hex}

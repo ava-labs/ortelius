@@ -1403,7 +1403,7 @@ func (p *persist) UpdateRewardsProcessed(
 	_, err = sess.
 		Update(TableRewards).
 		Set("processed", v.Processed).
-		Where("id", v.ID).
+		Where("id = ?", v.ID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableRewards, false, err)
