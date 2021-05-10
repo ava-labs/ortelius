@@ -1,7 +1,14 @@
-package services
+package servicesctrl
 
 import (
 	"time"
+
+	"github.com/ava-labs/ortelius/utils/initter"
+
+	"github.com/ava-labs/ortelius/services/balanche_handler"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesgenesis"
 
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
@@ -25,7 +32,7 @@ const (
 )
 
 type LocalTxPoolJob struct {
-	TxPool *TxPool
+	TxPool *idb.TxPool
 	Errs   *avlancheGoUtils.AtomicInterface
 }
 
@@ -33,16 +40,25 @@ type Control struct {
 	Services                   cfg.Services
 	Chains                     map[string]cfg.Chain `json:"chains"`
 	Log                        logging.Logger
-	Persist                    Persist
+	Persist                    idb.Persist
 	Features                   map[string]struct{}
-	BalanceAccumulatorManager  *BalanceAccumulatorManager
-	GenesisContainer           *GenesisContainer
+	BalanceAccumulatorManager  *balanche_handler.BalanceAccumulatorManager
+	GenesisContainer           *servicesgenesis.GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
 	IsDisableBootstrap         bool
 	IsAggregateCache           bool
 	IndexedList                indexedlist.IndexedList
 	LocalTxPool                chan *LocalTxPoolJob
+	RewardsHandler             initter.Starter
+}
+
+func (s *Control) Genesis() *servicesgenesis.GenesisContainer {
+	return s.GenesisContainer
+}
+
+func (s *Control) LogMe() logging.Logger {
+	return s.Log
 }
 
 func (s *Control) Init(networkID uint32) error {
@@ -66,13 +82,13 @@ func (s *Control) Init(networkID uint32) error {
 		s.IsAggregateCache = true
 	}
 	var err error
-	persist := NewPersist()
-	s.BalanceAccumulatorManager, err = NewBalanceAccumulatorManager(persist, s)
+	persist := idb.NewPersist()
+	s.BalanceAccumulatorManager, err = balanche_handler.NewBalanceAccumulatorManager(persist, s)
 	if err != nil {
 		return err
 	}
 
-	s.GenesisContainer, err = NewGenesisContainer(networkID)
+	s.GenesisContainer, err = servicesgenesis.NewGenesisContainer(networkID)
 	if err != nil {
 		return err
 	}
@@ -93,8 +109,8 @@ func (s *Control) InitConsumeMetrics() {
 	metrics.Prometheus.CounterInit(MetricConsumeFailureCountKey, "records failure")
 }
 
-func (s *Control) DatabaseOnly() (*Connections, error) {
-	c, err := NewDBFromConfig(s.Services, false)
+func (s *Control) DatabaseOnly() (*servicesconn.Connections, error) {
+	c, err := servicesconn.NewDBFromConfig(s.Services, false)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +119,8 @@ func (s *Control) DatabaseOnly() (*Connections, error) {
 	return c, nil
 }
 
-func (s *Control) DatabaseRO() (*Connections, error) {
-	c, err := NewConnectionsFromConfig(s.Services, true)
+func (s *Control) DatabaseRO() (*servicesconn.Connections, error) {
+	c, err := servicesconn.NewConnectionsFromConfig(s.Services, true)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +129,7 @@ func (s *Control) DatabaseRO() (*Connections, error) {
 	return c, nil
 }
 
-func (s *Control) Enqueue(pool *TxPool) {
+func (s *Control) Enqueue(pool *idb.TxPool) {
 	select {
 	case s.LocalTxPool <- &LocalTxPoolJob{TxPool: pool}:
 	default:

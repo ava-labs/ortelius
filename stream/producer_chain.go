@@ -6,6 +6,9 @@ package stream
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"io"
 	"strings"
 	"time"
@@ -33,8 +36,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-
-	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/metrics"
@@ -89,12 +90,12 @@ func (t IndexedChain) String() string {
 }
 
 type producerChainContainer struct {
-	sc                      *services.Control
-	conns                   *services.Connections
+	sc                      *servicesctrl.Control
+	conns                   *servicesconn.Connections
 	runningControl          utils.Running
 	nodeIndexer             *indexer.Client
 	conf                    cfg.Config
-	nodeIndex               *services.NodeIndex
+	nodeIndex               *idb.NodeIndex
 	nodeinstance            string
 	topic                   string
 	chainID                 string
@@ -105,7 +106,7 @@ type producerChainContainer struct {
 }
 
 func newContainer(
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	conf cfg.Config,
 	nodeIndexer *indexer.Client,
 	topic string,
@@ -136,7 +137,7 @@ func newContainer(
 	}
 
 	// init the node index table
-	err = pc.insertNodeIndex(pc.conns, &services.NodeIndex{Instance: pc.nodeinstance, Topic: pc.topic, Idx: 0})
+	err = pc.insertNodeIndex(pc.conns, &idb.NodeIndex{Instance: pc.nodeinstance, Topic: pc.topic, Idx: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +165,7 @@ func (p *producerChainContainer) getIndex() error {
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
-	qn := &services.NodeIndex{Instance: p.nodeinstance, Topic: p.topic}
+	qn := &idb.NodeIndex{Instance: p.nodeinstance, Topic: p.topic}
 	nodeIndex, err := p.sc.Persist.QueryNodeIndex(ctx, sess, qn)
 	if err != nil {
 		return err
@@ -205,7 +206,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			return err
 		}
 
-		txPool := &services.TxPool{
+		txPool := &idb.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.chainID,
 			MsgKey:        id.String(),
@@ -224,10 +225,10 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		}
 
 		_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-		_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
+		_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
 	}
 
-	nodeIdx := &services.NodeIndex{
+	nodeIdx := &idb.NodeIndex{
 		Instance: p.nodeinstance,
 		Topic:    p.topic,
 		Idx:      p.nodeIndex.Idx + uint64(len(containers)),
@@ -247,7 +248,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	return nil
 }
 
-func (p *producerChainContainer) insertNodeIndex(conns *services.Connections, nodeIndex *services.NodeIndex) error {
+func (p *producerChainContainer) insertNodeIndex(conns *servicesconn.Connections, nodeIndex *idb.NodeIndex) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
@@ -256,7 +257,7 @@ func (p *producerChainContainer) insertNodeIndex(conns *services.Connections, no
 	return p.sc.Persist.InsertNodeIndex(ctx, sess, nodeIndex, cfg.PerformUpdates)
 }
 
-func (p *producerChainContainer) updateNodeIndex(conns *services.Connections, nodeIndex *services.NodeIndex) error {
+func (p *producerChainContainer) updateNodeIndex(conns *servicesconn.Connections, nodeIndex *idb.NodeIndex) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
@@ -267,7 +268,7 @@ func (p *producerChainContainer) updateNodeIndex(conns *services.Connections, no
 
 type ProducerChain struct {
 	id string
-	sc *services.Control
+	sc *servicesctrl.Control
 
 	// metrics
 	metricProcessedCountKey string
@@ -287,7 +288,7 @@ type ProducerChain struct {
 	indexerChain IndexedChain
 }
 
-func NewProducerChain(sc *services.Control, conf cfg.Config, chainID string, eventType EventType, indexerType IndexType, indexerChain IndexedChain) (*ProducerChain, error) {
+func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string, eventType EventType, indexerType IndexType, indexerChain IndexedChain) (*ProducerChain, error) {
 	topicName := GetTopicName(conf.NetworkID, chainID, eventType)
 
 	var codecMgr codec.Manager
@@ -340,12 +341,12 @@ func (p *ProducerChain) ID() string {
 
 func (p *ProducerChain) Failure() {
 	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
 }
 
 func (p *ProducerChain) Success() {
 	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
 }
 
 func (p *ProducerChain) Listen() error {

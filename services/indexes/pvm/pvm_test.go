@@ -2,10 +2,11 @@ package pvm
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"testing"
 	"time"
-
-	"github.com/ava-labs/avalanchego/vms/components/core"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
@@ -27,7 +28,7 @@ func TestBootstrap(t *testing.T) {
 	conns, w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 	if err := w.Bootstrap(context.Background(), conns, persist); err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func TestBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Connections, *Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*servicesconn.Connections, *Writer, *avax.Reader, func()) {
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
@@ -62,7 +63,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 		},
 	}
 
-	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
+	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
@@ -90,7 +91,7 @@ func TestInsertTxInternal(t *testing.T) {
 	validatorTx := &platformvm.UnsignedAddValidatorTx{}
 	tx.UnsignedTx = validatorTx
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
@@ -118,7 +119,7 @@ func TestInsertTxInternalRewards(t *testing.T) {
 	validatorTx := &platformvm.UnsignedRewardValidatorTx{}
 	tx.UnsignedTx = validatorTx
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
@@ -145,10 +146,10 @@ func TestCommonBlock(t *testing.T) {
 	defer closeFn()
 	ctx := context.Background()
 
-	tx := platformvm.CommonBlock{Block: &core.Block{}}
+	tx := platformvm.CommonBlock{}
 	blkid := ids.ID{}
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)

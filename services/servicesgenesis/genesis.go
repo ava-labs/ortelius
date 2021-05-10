@@ -1,4 +1,4 @@
-package services
+package servicesgenesis
 
 import (
 	"github.com/ava-labs/avalanchego/genesis"

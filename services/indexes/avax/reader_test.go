@@ -5,6 +5,8 @@ package avax
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"testing"
 	"time"
 
@@ -47,9 +49,9 @@ func TestCollectInsAndOuts(t *testing.T) {
 
 	inputIDUnmatched := "inu"
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 
-	outputs := &services.Outputs{
+	outputs := &idb.Outputs{
 		ID:            outputID,
 		ChainID:       chainID,
 		TransactionID: txID,
@@ -66,7 +68,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputs(ctx, session, outputs, false)
 
-	outputAddresses := &services.OutputAddresses{
+	outputAddresses := &idb.OutputAddresses{
 		OutputID:  outputID,
 		Address:   address,
 		CreatedAt: tm,
@@ -74,7 +76,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputAddresses(ctx, session, outputAddresses, false)
 
-	outputsRedeeming := &services.OutputsRedeeming{
+	outputsRedeeming := &idb.OutputsRedeeming{
 		ID:                     inputID,
 		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
@@ -86,7 +88,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
-	outputsRedeeming = &services.OutputsRedeeming{
+	outputsRedeeming = &idb.OutputsRedeeming{
 		ID:                     inputIDUnmatched,
 		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
@@ -129,14 +131,14 @@ func TestAggregateTxfee(t *testing.T) {
 
 	ctx := newTestContext()
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 
 	sess, _ := reader.conns.DB().NewSession("test_aggregate_tx_fee", cfg.RequestTimeout)
 	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
 
 	tnow := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
 
-	transaction := &services.Transactions{
+	transaction := &idb.Transactions{
 		ID:        "id1",
 		ChainID:   "cid",
 		Type:      "type",
@@ -145,7 +147,7 @@ func TestAggregateTxfee(t *testing.T) {
 	}
 	_ = persist.InsertTransactions(ctx, sess, transaction, false)
 
-	transaction = &services.Transactions{
+	transaction = &idb.Transactions{
 		ID:        "id2",
 		ChainID:   "cid",
 		Type:      "type",
@@ -190,7 +192,7 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 		},
 	}
 
-	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
+	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())

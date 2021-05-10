@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"math"
 	"math/big"
 	"sort"
@@ -58,8 +61,8 @@ var (
 )
 
 type Reader struct {
-	conns           *services.Connections
-	sc              *services.Control
+	conns           *servicesconn.Connections
+	sc              *servicesctrl.Control
 	avmLock         sync.RWMutex
 	networkID       uint32
 	chainConsumers  map[string]services.Consumer
@@ -70,7 +73,7 @@ type Reader struct {
 	doneCh chan struct{}
 }
 
-func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) (*Reader, error) {
+func NewReader(networkID uint32, conns *servicesconn.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *servicesctrl.Control) (*Reader, error) {
 	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
@@ -324,7 +327,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	return aggs, nil
 }
 
-func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *services.Connections) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *servicesconn.Connections) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
@@ -1142,7 +1145,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Select(
 			"serialization",
 		).
-		From(services.TableCvmLogs).
+		From(idb.TableCvmLogs).
 		Where("block="+block.Header.Number.String()).
 		LoadContext(ctx, &rowsLog)
 	if err != nil {
@@ -1181,7 +1184,7 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("serialization").
-			From(services.TableCvmTransactions).
+			From(idb.TableCvmTransactions).
 			Where("block="+idInt.String()).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1212,7 +1215,7 @@ func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, 
 
 	err = dbRunner.
 		Select("serialization").
-		From(services.TableTxPool).
+		From(idb.TableTxPool).
 		Where("msg_key=?", id.String()).
 		LoadOneContext(ctx, &serialData)
 	if err != nil {

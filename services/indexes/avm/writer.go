@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
@@ -87,7 +89,7 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(tx)
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections, persist idb.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -141,7 +143,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, per
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, persist idb.Persist) error {
 	var (
 		job  = conns.StreamDBDedup().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
@@ -182,7 +184,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 			return err
 		}
 
-		transactionsEpoch := &services.TransactionsEpoch{
+		transactionsEpoch := &idb.TransactionsEpoch{
 			ID:        txID.String(),
 			Epoch:     vert.Epoch(),
 			VertexID:  vert.ID().String(),
@@ -196,7 +198,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *services.Connectio
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, i services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, i services.Consumable, persist idb.Persist) error {
 	var (
 		err  error
 		job  = conns.StreamDBDedup().NewJob("avm-index")
@@ -394,7 +396,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		}
 	}
 
-	asset := &services.Assets{
+	asset := &idb.Assets{
 		ID:            tx.ID().String(),
 		ChainID:       w.chainID,
 		Name:          tx.Name,
