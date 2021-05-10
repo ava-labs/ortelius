@@ -226,7 +226,7 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 		OrderAsc(tbl + ".created_at").
 		Limit(RowLimitValue)
 
-	sc := session.Select(
+	scq := session.Select(
 		"a.id",
 		"a.output_id",
 		"a.address",
@@ -237,11 +237,11 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	switch typ {
 	case processTypeOut:
 	case processTypeIn:
-		sc = sc.
+		scq = scq.
 			Join("avm_outputs_redeeming", "a.output_id = avm_outputs_redeeming.id ")
 	}
 
-	_, err = sc.
+	_, err = scq.
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return nil, err
