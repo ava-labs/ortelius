@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/utils/controlwrap"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
@@ -28,7 +28,7 @@ type RewardsHandler struct {
 	cid         ids.ID
 }
 
-func (r *RewardsHandler) Start(sc controlwrap.ControlWrap) error {
+func (r *RewardsHandler) Start(sc *servicesctrl.Control) error {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func (r *RewardsHandler) Start(sc controlwrap.ControlWrap) error {
 	return nil
 }
 
-func (r *RewardsHandler) runTicker(sc controlwrap.ControlWrap, conns *servicesconn.Connections) {
+func (r *RewardsHandler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	doneCh := make(chan struct{}, 1)
@@ -46,7 +46,7 @@ func (r *RewardsHandler) runTicker(sc controlwrap.ControlWrap, conns *servicesco
 	r.client = platformvm.NewClient("http://localhost:9650", 1*time.Minute)
 	r.perist = idb.NewPersist()
 
-	r.avaxAssetID = sc.Genesis().AvaxAssetID
+	r.avaxAssetID = sc.GenesisContainer.AvaxAssetID
 
 	r.cid = ids.Empty
 	r.writer = avax.NewWriter(r.cid.String(), r.avaxAssetID)
@@ -62,7 +62,7 @@ func (r *RewardsHandler) runTicker(sc controlwrap.ControlWrap, conns *servicesco
 		case <-ticker.C:
 			err := r.processRewards()
 			if err != nil {
-				sc.Logger().Error("process rewards %s", err)
+				sc.Log.Error("process rewards %s", err)
 			}
 		case <-doneCh:
 			return

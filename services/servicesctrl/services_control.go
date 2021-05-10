@@ -51,10 +51,6 @@ type Control struct {
 	RewardsHandler             interface{}
 }
 
-func (s *Control) Genesis() *servicesgenesis.GenesisContainer {
-	return s.GenesisContainer
-}
-
 func (s *Control) Logger() logging.Logger {
 	return s.Log
 }
