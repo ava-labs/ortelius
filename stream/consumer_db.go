@@ -6,10 +6,11 @@ package stream
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
-	"time"
 
 	"github.com/ava-labs/ortelius/utils"
 

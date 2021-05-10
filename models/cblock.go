@@ -25,7 +25,6 @@ type Block struct {
 	Uncles         []types.Header      `json:"uncles"`
 	TxsBytes       *[][]byte           `json:"txs,omitempty"`
 	Version        uint32              `json:"version"`
-	HasTxs         bool                `json:"hasTxs"`
 	ReceivedAt     time.Time           `json:"received_at"`
 	BlockExtraData []byte              `json:"blockExtraData"`
 	Txs            []types.Transaction `json:"transactions,omitempty"`
@@ -53,7 +52,6 @@ func New(bl *types.Block) (*Block, error) {
 	for _, t := range bl.Transactions() {
 		cblock.Txs = append(cblock.Txs, *t)
 	}
-	cblock.HasTxs = true
 	return &cblock, nil
 }
 
@@ -75,7 +73,7 @@ func Unmarshal(data []byte) (*Block, error) {
 		return nil, err
 	}
 
-	if !block.HasTxs && block.TxsBytes != nil {
+	if block.TxsBytes != nil && len(*block.TxsBytes) != 0 {
 		// convert the tx bytes into transactions.
 		for _, t := range *block.TxsBytes {
 			var tr types.Transaction

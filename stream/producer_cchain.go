@@ -7,14 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"io"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 
 	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
 
@@ -595,7 +596,9 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now().UTC()}
+			blTime := time.Unix(int64(blContainer.Block.Header().Time), 0)
+
+			localBlockObject := &localBlockObject{blockContainer: blContainer, time: blTime}
 			err = p.processWork(conns, localBlockObject)
 			if err != nil {
 				blockWork.errs.SetValue(err)
