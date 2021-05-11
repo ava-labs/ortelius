@@ -5,6 +5,7 @@ package avax
 
 import (
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
 	"reflect"
 	"time"
 

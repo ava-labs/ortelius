@@ -2,6 +2,8 @@ package avax
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 	"net/url"
 	"sort"
 	"sync"

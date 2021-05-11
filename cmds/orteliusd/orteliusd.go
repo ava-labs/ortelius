@@ -6,6 +6,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"log"
 	"math/rand"
 	"net/http"
@@ -17,8 +19,6 @@ import (
 
 	"github.com/ava-labs/ortelius/services/rewards"
 
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 

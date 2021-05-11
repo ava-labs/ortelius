@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/ava-labs/ortelius/services/idb"
 	"math/big"
 	"strings"
 
