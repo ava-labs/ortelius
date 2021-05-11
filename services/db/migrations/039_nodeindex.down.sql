@@ -18,4 +18,6 @@ drop index cvm_transactions_txdata_rcpt_created_at
 create index cvm_transactions_txdata_rcpt
     on cvm_transactions_txdata (rcpt);
 
+alter table `rewards` drop COLUMN `processed`;
+drop index rewards_processed on rewards;
 

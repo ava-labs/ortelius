@@ -219,6 +219,11 @@ type Persist interface {
 		*Rewards,
 		bool,
 	) error
+	UpdateRewardsProcessed(
+		context.Context,
+		dbr.SessionRunner,
+		*Rewards,
+	) error
 
 	QueryTransactionsValidator(
 		context.Context,
@@ -1329,6 +1334,7 @@ type Rewards struct {
 	Txid               string
 	Shouldprefercommit bool
 	CreatedAt          time.Time
+	Processed          int
 }
 
 func (p *persist) QueryRewards(
@@ -1343,6 +1349,7 @@ func (p *persist) QueryRewards(
 		"txid",
 		"shouldprefercommit",
 		"created_at",
+		"processed",
 	).From(TableRewards).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1363,6 +1370,7 @@ func (p *persist) InsertRewards(
 		Pair("txid", v.Txid).
 		Pair("shouldprefercommit", v.Shouldprefercommit).
 		Pair("created_at", v.CreatedAt).
+		Pair("processed", v.Processed).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableRewards, false, err)
@@ -1373,6 +1381,7 @@ func (p *persist) InsertRewards(
 			Set("block_id", v.BlockID).
 			Set("txid", v.Txid).
 			Set("shouldprefercommit", v.Shouldprefercommit).
+			Set("processed", v.Processed).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1380,6 +1389,23 @@ func (p *persist) InsertRewards(
 		}
 	}
 
+	return nil
+}
+
+func (p *persist) UpdateRewardsProcessed(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *Rewards,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableRewards).
+		Set("processed", v.Processed).
+		Where("id = ?", v.ID).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableRewards, false, err)
+	}
 	return nil
 }
 

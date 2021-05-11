@@ -44,7 +44,6 @@ func newManagerChannels() *managerChannels {
 
 type Manager struct {
 	handler *Handler
-	ticker  *time.Ticker
 	sc      controlwrap.ControlWrap
 	persist idb.Persist
 
@@ -56,7 +55,6 @@ type Manager struct {
 func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, error) {
 	bmanager := &Manager{
 		handler: &Handler{},
-		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
 		doneCh:  make(chan struct{}),
@@ -66,17 +64,9 @@ func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, erro
 
 func (a *Manager) Close() {
 	close(a.doneCh)
-	a.ticker.Stop()
 }
 
 func (a *Manager) Start() error {
-	connsTicker, err := a.sc.DatabaseOnly()
-	if err != nil {
-		return err
-	}
-
-	a.runTicker(connsTicker)
-
 	processingFunc := func(id string, managerChannel *managerChannels) error {
 		connsOuts, err := a.sc.DatabaseOnly()
 		if err != nil {
@@ -114,101 +104,6 @@ func (a *Manager) Start() error {
 	}
 
 	return nil
-}
-
-func (a *Manager) runTicker(conns *servicesconn.Connections) {
-	a.sc.Logger().Info("start ticker")
-	go func() {
-		runEvent := func(conns *servicesconn.Connections) {
-			// set rewards outputs as processed...
-			ctx := context.Background()
-			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
-
-			var accumsOut []*idb.OutputAddressAccumulate
-			_, err := session.Select(idb.TableOutputAddressAccumulateOut+".id").
-				From(idb.TableOutputAddressAccumulateOut).
-				Where("processed = ?", 0).
-				Join(idb.TableTransactionsRewardsOwnersOutputs,
-					idb.TableOutputAddressAccumulateOut+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
-				LoadContext(ctx, &accumsOut)
-			if err != nil {
-				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
-				return
-			}
-
-			var accumsIn []*idb.OutputAddressAccumulate
-			_, err = session.Select(idb.TableOutputAddressAccumulateIn+".id").
-				From(idb.TableOutputAddressAccumulateIn).
-				Where("processed = ?", 0).
-				Join(idb.TableTransactionsRewardsOwnersOutputs,
-					idb.TableOutputAddressAccumulateIn+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
-				LoadContext(ctx, &accumsIn)
-			if err != nil {
-				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
-				return
-			}
-
-			processed := make(map[string]struct{})
-			for _, accum := range append(accumsIn, accumsOut...) {
-				_, ok := processed[accum.ID]
-				if ok {
-					continue
-				}
-				_, err = session.Update(idb.TableOutputAddressAccumulateOut).
-					Set("processed", 1).
-					Where("id=? and processed <> ?", accum.ID, 1).
-					ExecContext(ctx)
-				if err != nil {
-					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
-					return
-				}
-				_, err = session.Update(idb.TableOutputAddressAccumulateIn).
-					Set("processed", 1).
-					Where("id=? and processed <> ?", accum.ID, 1).
-					ExecContext(ctx)
-				if err != nil {
-					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
-					return
-				}
-				processed[accum.ID] = struct{}{}
-			}
-
-			icnt := 0
-			for ; icnt < retryProcessing; icnt++ {
-				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
-				if db.ErrIsLockError(err) {
-					icnt = 0
-					continue
-				}
-				if err != nil {
-					a.sc.Logger().Error("accumulate ticker error %v", err)
-					return
-				}
-				if cnt < RowLimitValue {
-					break
-				}
-				icnt = 0
-			}
-		}
-
-		defer func() {
-			a.ticker.Stop()
-			err := conns.Close()
-			if err != nil {
-				a.sc.Logger().Warn("connection close %v", err)
-			}
-			a.sc.Logger().Info("stop ticker")
-		}()
-
-		for {
-			select {
-			case <-a.ticker.C:
-				runEvent(conns)
-			case <-a.doneCh:
-				return
-			}
-		}
-	}()
 }
 
 func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
@@ -327,10 +222,8 @@ func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, sessi
 	}
 
 	sb := b.
-		OrderAsc(tbl+".processed").
-		OrderAsc(tbl+".created_at").
-		LeftJoin(idb.TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
-		Where(idb.TableTransactionsRewardsOwnersOutputs + ".id is null").
+		OrderAsc(tbl + ".processed").
+		OrderAsc(tbl + ".created_at").
 		Limit(RowLimitValue)
 
 	scq := session.Select(
