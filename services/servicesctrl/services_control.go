@@ -55,10 +55,6 @@ func (s *Control) Logger() logging.Logger {
 	return s.Log
 }
 
-func (s *Control) Logger() logging.Logger {
-	return s.Log
-}
-
 func (s *Control) Init(networkID uint32) error {
 	s.IndexedList = indexedlist.NewIndexedList(cfg.MaxSizedList)
 	s.LocalTxPool = make(chan *LocalTxPoolJob, cfg.MaxTxPoolSize)

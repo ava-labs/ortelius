@@ -10,12 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth/interfaces"
-
-	"github.com/ava-labs/coreth/ethclient"
-	"github.com/ava-labs/coreth/rpc"
-
 	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/coreth/ethclient"
+	"github.com/ava-labs/coreth/interfaces"
+	"github.com/ava-labs/coreth/rpc"
 )
 
 var ErrNotFound = errors.New("block not found")

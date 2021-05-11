@@ -4,20 +4,17 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/ava-labs/ortelius/services/idb"
 	"math/big"
 	"strings"
-
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-
-	"github.com/ava-labs/ortelius/utils"
 
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
 	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/utils"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/gocraft/dbr/v2"
 )
 

@@ -5,11 +5,12 @@ package cvm
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
-	"testing"
-	"time"
 
 	cblock "github.com/ava-labs/ortelius/models"
 

@@ -7,32 +7,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"io"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/metrics"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
-
-	avalancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
-	"github.com/ava-labs/avalanchego/ids"
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-
 	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/avalanchego/utils/hashing"
-
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/metrics"
 )
 
 const (
