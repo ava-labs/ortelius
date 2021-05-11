@@ -107,7 +107,7 @@ func (a *Manager) Start() error {
 	for ipos := 0; ipos < 2; ipos++ {
 		managerChannels := newManagerChannels()
 		a.managerChannelsList = append(a.managerChannelsList, managerChannels)
-		err = processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
+		err := processingFunc(fmt.Sprintf("%d", ipos), managerChannels)
 		if err != nil {
 			return err
 		}
