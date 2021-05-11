@@ -5,8 +5,9 @@ package avax
 
 import (
 	"context"
-	"github.com/ava-labs/ortelius/services/servicesconn"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/servicesconn"
 
 	"github.com/ava-labs/ortelius/cfg"
 

@@ -6,19 +6,16 @@ package stream
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"time"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/services/db"
-
-	"github.com/ava-labs/ortelius/services/metrics"
 
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/metrics"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 // consumer takes events from db and sends them to a service consumer

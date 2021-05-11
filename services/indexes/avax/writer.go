@@ -5,24 +5,21 @@ package avax
 
 import (
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
 	"reflect"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/formatting"
-
-	"github.com/ava-labs/avalanchego/vms/platformvm"
-
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 

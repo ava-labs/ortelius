@@ -4,12 +4,13 @@
 package params
 
 import (
-	"github.com/ava-labs/ortelius/services/idb"
 	"math/big"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"

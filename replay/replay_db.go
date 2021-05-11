@@ -4,32 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"log"
 	"sort"
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/coreth/core/types"
-
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/ortelius/services/indexes/cvm"
-
-	"github.com/ava-labs/ortelius/services/db"
-
-	"github.com/ava-labs/ortelius/utils"
-
 	"github.com/ava-labs/avalanchego/ids"
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 type Replay interface {

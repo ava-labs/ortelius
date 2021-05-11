@@ -8,17 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/gocraft/health"
 	"github.com/gocraft/web"
 )

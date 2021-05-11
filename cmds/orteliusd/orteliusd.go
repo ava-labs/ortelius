@@ -6,8 +6,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"log"
 	"math/rand"
 	"net/http"
@@ -17,30 +15,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/gorilla/rpc/v2"
-	"github.com/gorilla/rpc/v2/json2"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/replay"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/spf13/cobra"
-
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/replay"
+	oreliusRpc "github.com/ava-labs/ortelius/rpc"
+	"github.com/ava-labs/ortelius/services/idb"
+	_ "github.com/ava-labs/ortelius/services/indexes/avm"
+	"github.com/ava-labs/ortelius/services/indexes/models"
+	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
-
-	// Register service plugins
-	_ "github.com/ava-labs/ortelius/services/indexes/avm"
-	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
-
-	oreliusRpc "github.com/ava-labs/ortelius/rpc"
+	"github.com/ava-labs/ortelius/utils"
+	"github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/cobra"
 )
 
 const (

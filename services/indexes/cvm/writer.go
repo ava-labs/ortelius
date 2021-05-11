@@ -8,29 +8,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
 	"time"
-
-	"github.com/ava-labs/coreth/core/types"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
+	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
