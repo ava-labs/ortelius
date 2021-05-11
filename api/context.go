@@ -12,13 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
-
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/gocraft/health"
 	"github.com/gocraft/web"
 )
@@ -34,7 +33,7 @@ var (
 
 // Context is the base context for APIs in the ortelius systems
 type Context struct {
-	sc *services.Control
+	sc *servicesctrl.Control
 
 	job *health.Job
 	err error
@@ -44,7 +43,7 @@ type Context struct {
 
 	delayCache  *DelayCache
 	avaxReader  *avax.Reader
-	connections *services.Connections
+	connections *servicesconn.Connections
 }
 
 // NetworkID returns the networkID this request is for
@@ -142,7 +141,7 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(sc *services.Control, networkID uint32, stream *health.Stream, connections *services.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(sc *servicesctrl.Control, networkID uint32, stream *health.Stream, connections *servicesconn.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		c.sc = sc
 		c.connections = connections

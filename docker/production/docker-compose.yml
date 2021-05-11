@@ -3,7 +3,7 @@ volumes:
   avalanche-ipcs:
 services:
   mysql:
-    image: "mysql:8.0.23"
+    image: "mysql:8.0.24"
     volumes:
       - /var/lib/ortelius/mysql:/var/lib/mysql
       - ./../my.cnf:/etc/mysql/my.cnf

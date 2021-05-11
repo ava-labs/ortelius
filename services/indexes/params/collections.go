@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/gocraft/dbr/v2"
@@ -322,7 +322,7 @@ func (p *ListCTransactionsParams) CacheKey() []string {
 }
 
 func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
+	p.ListParams.ApplyPk(idb.TableCvmTransactionsTxdata, b, "hash", false)
 
 	return b
 }

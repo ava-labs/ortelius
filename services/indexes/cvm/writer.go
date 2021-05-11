@@ -10,25 +10,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/core/types"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
+	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -76,7 +73,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	return json.Marshal(atomicTX)
 }
 
-func (w *Writer) ConsumeLogs(ctx context.Context, conns *services.Connections, c services.Consumable, txLogs *types.Log, persist services.Persist) error {
+func (w *Writer) ConsumeLogs(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, txLogs *types.Log, persist idb.Persist) error {
 	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -92,7 +89,7 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *services.Connections, c
 	if len(txLogs.Topics) > 0 {
 		firstTopic = txLogs.Topics[0].Hex()
 	}
-	cvmLogs := &services.CvmLogs{
+	cvmLogs := &idb.CvmLogs{
 		BlockHash:     txLogs.BlockHash.Hex(),
 		TxHash:        txLogs.TxHash.Hex(),
 		LogIndex:      uint64(txLogs.Index),
@@ -114,7 +111,7 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *services.Connections, c
 	return dbTx.Commit()
 }
 
-func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist services.Persist) error {
+func (w *Writer) ConsumeTrace(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist idb.Persist) error {
 	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -132,7 +129,7 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, 
 
 	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
-	txTraceService := &services.CvmTransactionsTxdataTrace{
+	txTraceService := &idb.CvmTransactionsTxdataTrace{
 		Hash:          transactionTrace.Hash,
 		Idx:           transactionTrace.Idx,
 		ToAddr:        txTraceModel.ToAddr,
@@ -151,7 +148,7 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *services.Connections, 
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, block *cblock.Block, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, block *cblock.Block, persist idb.Persist) error {
 	job := conns.StreamDBDedup().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -225,7 +222,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		rawtx := block.Txs[ipos]
 		rawhash := rawtx.Hash()
 		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
-		cvmTransactionTxdata := &services.CvmTransactionsTxdata{
+		cvmTransactionTxdata := &idb.CvmTransactionsTxdata{
 			Hash:          rawhash.String(),
 			Block:         block.Header.Number.String(),
 			Idx:           uint64(ipos),
@@ -252,7 +249,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		htime = 1
 	}
 	tm := time.Unix(htime, 0)
-	cvmTransaction := &services.CvmTransactions{
+	cvmTransaction := &idb.CvmTransactions{
 		ID:            id.String(),
 		TransactionID: txIDString,
 		Type:          typ,
@@ -314,7 +311,7 @@ func (w *Writer) insertAddress(
 ) error {
 	idprefix := id.Prefix(idx)
 
-	cvmAddress := &services.CvmAddresses{
+	cvmAddress := &idb.CvmAddresses{
 		ID:            idprefix.String(),
 		Type:          typ,
 		Idx:           idx,

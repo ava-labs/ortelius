@@ -9,26 +9,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/coreth/core/types"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/ortelius/services/indexes/cvm"
-
-	"github.com/ava-labs/ortelius/services"
-
+	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/metrics"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 type consumerCChainDB struct {
 	id string
-	sc *services.Control
+	sc *servicesctrl.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -48,7 +45,7 @@ type consumerCChainDB struct {
 }
 
 func NewConsumerCChainDB() ProcessorFactoryInstDB {
-	return func(sc *services.Control, conf cfg.Config) (ProcessorDB, error) {
+	return func(sc *servicesctrl.Control, conf cfg.Config) (ProcessorDB, error) {
 		c := &consumerCChainDB{
 			conf:                          conf,
 			sc:                            sc,
@@ -94,7 +91,7 @@ func (c *consumerCChainDB) Topic() []string {
 	return []string{c.topicName, c.topicTrcName, c.topicLogsName}
 }
 
-func (c *consumerCChainDB) Process(conns *services.Connections, row *services.TxPool) error {
+func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
 	switch row.Topic {
 	case c.topicName:
 		msg := &Message{
@@ -128,7 +125,7 @@ func (c *consumerCChainDB) Process(conns *services.Connections, row *services.Tx
 	return nil
 }
 
-func (c *consumerCChainDB) ConsumeLogs(conns *services.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) ConsumeLogs(conns *servicesconn.Connections, msg services.Consumable) error {
 	txLogs := &types.Log{}
 	err := json.Unmarshal(msg.Body(), txLogs)
 	if err != nil {
@@ -137,8 +134,8 @@ func (c *consumerCChainDB) ConsumeLogs(conns *services.Connections, msg services
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -171,7 +168,7 @@ func (c *consumerCChainDB) ConsumeLogs(conns *services.Connections, msg services
 	return nil
 }
 
-func (c *consumerCChainDB) ConsumeTrace(conns *services.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) ConsumeTrace(conns *servicesconn.Connections, msg services.Consumable) error {
 	transactionTrace := &cblock.TransactionTrace{}
 	err := json.Unmarshal(msg.Body(), transactionTrace)
 	if err != nil {
@@ -180,8 +177,8 @@ func (c *consumerCChainDB) ConsumeTrace(conns *services.Connections, msg service
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -214,7 +211,7 @@ func (c *consumerCChainDB) ConsumeTrace(conns *services.Connections, msg service
 	return nil
 }
 
-func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services.Consumable) error {
 	block, err := cblock.Unmarshal(msg.Body())
 	if err != nil {
 		return err
@@ -223,8 +220,8 @@ func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -257,24 +254,26 @@ func (c *consumerCChainDB) Consume(conns *services.Connections, msg services.Con
 	}
 	c.Success()
 
-	c.sc.BalanceAccumulatorManager.Run(c.sc)
+	if c.sc.IsAccumulateBalanceIndexer {
+		c.sc.BalanceAccumulatorManager.Run()
+	}
 
 	return nil
 }
 
-func (c *consumerCChainDB) persistConsumeLogs(conns *services.Connections, msg services.Consumable, txLogs *types.Log) error {
+func (c *consumerCChainDB) persistConsumeLogs(conns *servicesconn.Connections, msg services.Consumable, txLogs *types.Log) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.ConsumeLogs(ctx, conns, msg, txLogs, c.sc.Persist)
 }
 
-func (c *consumerCChainDB) persistConsumeTrace(conns *services.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
+func (c *consumerCChainDB) persistConsumeTrace(conns *servicesconn.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.ConsumeTrace(ctx, conns, msg, transactionTrace, c.sc.Persist)
 }
 
-func (c *consumerCChainDB) persistConsume(conns *services.Connections, msg services.Consumable, block *cblock.Block) error {
+func (c *consumerCChainDB) persistConsume(conns *servicesconn.Connections, msg services.Consumable, block *cblock.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.Consume(ctx, conns, msg, block, c.sc.Persist)
@@ -282,10 +281,10 @@ func (c *consumerCChainDB) persistConsume(conns *services.Connections, msg servi
 
 func (c *consumerCChainDB) Failure() {
 	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
 }
 
 func (c *consumerCChainDB) Success() {
 	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
 }
