@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
-	"github.com/ava-labs/ortelius/cfg"
 )
 
 var (

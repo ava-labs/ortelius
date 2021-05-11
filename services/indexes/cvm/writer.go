@@ -219,7 +219,8 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 	}
 
 	for ipos, rawtx := range block.Txs {
-		txdata, err := json.Marshal(&rawtx)
+		rawtxCp := rawtx
+		txdata, err := json.Marshal(&rawtxCp)
 		if err != nil {
 			return err
 		}
