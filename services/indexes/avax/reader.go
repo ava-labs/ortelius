@@ -1083,7 +1083,6 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Uncles         []corethType.Header      `json:"uncles"`
 		TxsBytes       [][]byte                 `json:"txs"`
 		Version        uint32                   `json:"version"`
-		ReceivedAt     time.Time                `json:"received_at"`
 		BlockExtraData []byte                   `json:"blockExtraData"`
 		Txs            []corethType.Transaction `json:"transactions,omitempty"`
 		Logs           []corethType.Log         `json:"logs,omitempty"`
@@ -1098,13 +1097,10 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		BlockNumber:    unserializedBlock.Header.Number.String(),
 		Header:         unserializedBlock.Header,
 		Uncles:         unserializedBlock.Uncles,
-		TxsBytes:       unserializedBlock.TxsBytes,
 		Version:        unserializedBlock.Version,
-		ReceivedAt:     unserializedBlock.ReceivedAt,
 		BlockExtraData: unserializedBlock.BlockExtraData,
 		Txs:            unserializedBlock.Txs,
 	}
-	block.TxsBytes = nil
 
 	type RowData struct {
 		Idx           uint64

@@ -468,16 +468,14 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 		return err
 	}
 
-	// wipe before re-encoding
-	cblk.Txs = nil
-
 	for _, txTranactionTraces := range localBlock.blockContainer.Traces {
 		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
 		if err != nil {
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(txTransactionTracesBits))
+		idsv := fmt.Sprintf("%s:%d", txTranactionTraces.Hash, txTranactionTraces.Idx)
+		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err
 		}
@@ -507,7 +505,8 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(logBits))
+		idsv := fmt.Sprintf("%s:%s:%d", log.BlockHash, log.TxHash, log.Index)
+		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err
 		}
@@ -536,7 +535,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 		return err
 	}
 
-	id, err := ids.ToID(hashing.ComputeHash256(block))
+	id, err := ids.ToID(hashing.ComputeHash256([]byte(cblk.Header.Number.String())))
 	if err != nil {
 		return err
 	}

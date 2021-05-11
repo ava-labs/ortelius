@@ -218,8 +218,12 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		}
 	}
 
-	for ipos, txdata := range block.TxsBytes {
-		rawtx := block.Txs[ipos]
+	for ipos, rawtx := range block.Txs {
+		rawtxCp := rawtx
+		txdata, err := json.Marshal(&rawtxCp)
+		if err != nil {
+			return err
+		}
 		rawhash := rawtx.Hash()
 		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
 		cvmTransactionTxdata := &idb.CvmTransactionsTxdata{
