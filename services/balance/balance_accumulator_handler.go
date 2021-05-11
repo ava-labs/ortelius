@@ -1,10 +1,14 @@
-package services
+package balance
 
 import (
 	"context"
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils/controlwrap"
 
 	"github.com/ava-labs/ortelius/services/db"
 
@@ -38,20 +42,20 @@ func newManagerChannels() *managerChannels {
 	}
 }
 
-type BalanceAccumulatorManager struct {
-	handler *BalancerAccumulateHandler
+type Manager struct {
+	handler *Handler
 	ticker  *time.Ticker
-	sc      *Control
-	persist Persist
+	sc      controlwrap.ControlWrap
+	persist idb.Persist
 
 	managerChannelsList []*managerChannels
 
 	doneCh chan struct{}
 }
 
-func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumulatorManager, error) {
-	bmanager := &BalanceAccumulatorManager{
-		handler: &BalancerAccumulateHandler{},
+func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, error) {
+	bmanager := &Manager{
+		handler: &Handler{},
 		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
@@ -60,16 +64,12 @@ func NewBalanceAccumulatorManager(persist Persist, sc *Control) (*BalanceAccumul
 	return bmanager, nil
 }
 
-func (a *BalanceAccumulatorManager) Close() {
+func (a *Manager) Close() {
 	close(a.doneCh)
 	a.ticker.Stop()
 }
 
-func (a *BalanceAccumulatorManager) Start() error {
-	if !a.sc.IsAccumulateBalanceIndexer {
-		return nil
-	}
-
+func (a *Manager) Start() error {
 	connsTicker, err := a.sc.DatabaseOnly()
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 		if err != nil {
 			return err
 		}
-		a.runProcessing("out_"+id, connsOuts, func(conns *Connections) (uint64, error) {
+		a.runProcessing("out_"+id, connsOuts, func(conns *servicesconn.Connections) (uint64, error) {
 			return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
 		}, managerChannel.ins)
 
@@ -90,7 +90,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 		if err != nil {
 			return err
 		}
-		a.runProcessing("in_"+id, connsIns, func(conns *Connections) (uint64, error) {
+		a.runProcessing("in_"+id, connsIns, func(conns *servicesconn.Connections) (uint64, error) {
 			return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
 		}, managerChannel.outs)
 
@@ -98,7 +98,7 @@ func (a *BalanceAccumulatorManager) Start() error {
 		if err != nil {
 			return err
 		}
-		a.runProcessing("tx_"+id, connsTxs, func(conns *Connections) (uint64, error) {
+		a.runProcessing("tx_"+id, connsTxs, func(conns *servicesconn.Connections) (uint64, error) {
 			return a.handler.processTransactions(conns, a.persist)
 		}, managerChannel.txs)
 		return nil
@@ -116,35 +116,35 @@ func (a *BalanceAccumulatorManager) Start() error {
 	return nil
 }
 
-func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
-	a.sc.Log.Info("start ticker")
+func (a *Manager) runTicker(conns *servicesconn.Connections) {
+	a.sc.Logger().Info("start ticker")
 	go func() {
-		runEvent := func(conns *Connections) {
+		runEvent := func(conns *servicesconn.Connections) {
 			// set rewards outputs as processed...
 			ctx := context.Background()
 			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
 
-			var accumsOut []*OutputAddressAccumulate
-			_, err := session.Select(TableOutputAddressAccumulateOut+".id").
-				From(TableOutputAddressAccumulateOut).
+			var accumsOut []*idb.OutputAddressAccumulate
+			_, err := session.Select(idb.TableOutputAddressAccumulateOut+".id").
+				From(idb.TableOutputAddressAccumulateOut).
 				Where("processed = ?", 0).
-				Join(TableTransactionsRewardsOwnersOutputs,
-					TableOutputAddressAccumulateOut+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				Join(idb.TableTransactionsRewardsOwnersOutputs,
+					idb.TableOutputAddressAccumulateOut+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
 				LoadContext(ctx, &accumsOut)
 			if err != nil {
-				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
 				return
 			}
 
-			var accumsIn []*OutputAddressAccumulate
-			_, err = session.Select(TableOutputAddressAccumulateIn+".id").
-				From(TableOutputAddressAccumulateIn).
+			var accumsIn []*idb.OutputAddressAccumulate
+			_, err = session.Select(idb.TableOutputAddressAccumulateIn+".id").
+				From(idb.TableOutputAddressAccumulateIn).
 				Where("processed = ?", 0).
-				Join(TableTransactionsRewardsOwnersOutputs,
-					TableOutputAddressAccumulateIn+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
+				Join(idb.TableTransactionsRewardsOwnersOutputs,
+					idb.TableOutputAddressAccumulateIn+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
 				LoadContext(ctx, &accumsIn)
 			if err != nil {
-				a.sc.Log.Error("accumulate ticker error rewards %v", err)
+				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
 				return
 			}
 
@@ -154,20 +154,20 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 				if ok {
 					continue
 				}
-				_, err = session.Update(TableOutputAddressAccumulateOut).
+				_, err = session.Update(idb.TableOutputAddressAccumulateOut).
 					Set("processed", 1).
 					Where("id=? and processed <> ?", accum.ID, 1).
 					ExecContext(ctx)
 				if err != nil {
-					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
 					return
 				}
-				_, err = session.Update(TableOutputAddressAccumulateIn).
+				_, err = session.Update(idb.TableOutputAddressAccumulateIn).
 					Set("processed", 1).
 					Where("id=? and processed <> ?", accum.ID, 1).
 					ExecContext(ctx)
 				if err != nil {
-					a.sc.Log.Error("accumulate ticker error rewards %v", err)
+					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
 					return
 				}
 				processed[accum.ID] = struct{}{}
@@ -181,7 +181,7 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 					continue
 				}
 				if err != nil {
-					a.sc.Log.Error("accumulate ticker error %v", err)
+					a.sc.Logger().Error("accumulate ticker error %v", err)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -195,9 +195,9 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 			a.ticker.Stop()
 			err := conns.Close()
 			if err != nil {
-				a.sc.Log.Warn("connection close %v", err)
+				a.sc.Logger().Warn("connection close %v", err)
 			}
-			a.sc.Log.Info("stop ticker")
+			a.sc.Logger().Info("stop ticker")
 		}()
 
 		for {
@@ -211,10 +211,10 @@ func (a *BalanceAccumulatorManager) runTicker(conns *Connections) {
 	}()
 }
 
-func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections, f func(conns *Connections) (uint64, error), trigger chan struct{}) {
-	a.sc.Log.Info("start processing %v", id)
+func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
+	a.sc.Logger().Info("start processing %v", id)
 	go func() {
-		runEvent := func(conns *Connections) {
+		runEvent := func(conns *servicesconn.Connections) {
 			icnt := 0
 			for ; icnt < retryProcessing; icnt++ {
 				cnt, err := f(conns)
@@ -223,7 +223,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 					continue
 				}
 				if err != nil {
-					a.sc.Log.Error("accumulate error %s %v", id, err)
+					a.sc.Logger().Error("accumulate error %s %v", id, err)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -236,9 +236,9 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 		defer func() {
 			err := conns.Close()
 			if err != nil {
-				a.sc.Log.Warn("connection close %v", err)
+				a.sc.Logger().Warn("connection close %v", err)
 			}
-			a.sc.Log.Info("stop processing %v", id)
+			a.sc.Logger().Info("stop processing %v", id)
 		}()
 
 		for {
@@ -252,11 +252,7 @@ func (a *BalanceAccumulatorManager) runProcessing(id string, conns *Connections,
 	}()
 }
 
-func (a *BalanceAccumulatorManager) Run(sc *Control) {
-	if !sc.IsAccumulateBalanceIndexer {
-		return
-	}
-
+func (a *Manager) Run() {
 	for _, managerChannels := range a.managerChannelsList {
 		select {
 		case managerChannels.ins <- struct{}{}:
@@ -273,16 +269,16 @@ func (a *BalanceAccumulatorManager) Run(sc *Control) {
 	}
 }
 
-type BalancerAccumulateHandler struct {
+type Handler struct {
 }
 
 func outTable(typ processType) string {
 	tbl := ""
 	switch typ {
 	case processTypeOut:
-		tbl = TableOutputAddressAccumulateOut
+		tbl = idb.TableOutputAddressAccumulateOut
 	case processTypeIn:
-		tbl = TableOutputAddressAccumulateIn
+		tbl = idb.TableOutputAddressAccumulateIn
 	}
 	return tbl
 }
@@ -291,18 +287,18 @@ func balanceTable(typ processType) string {
 	tbl := ""
 	switch typ {
 	case processTypeOut:
-		tbl = TableAccumulateBalancesReceived
+		tbl = idb.TableAccumulateBalancesReceived
 	case processTypeIn:
-		tbl = TableAccumulateBalancesSent
+		tbl = idb.TableAccumulateBalancesSent
 	}
 	return tbl
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*OutputAddressAccumulate, error) {
+func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
-	var rowdata []*OutputAddressAccumulate
+	var rowdata []*idb.OutputAddressAccumulate
 	var err error
 
 	tbl := outTable(typ)
@@ -333,11 +329,11 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	sb := b.
 		OrderAsc(tbl+".processed").
 		OrderAsc(tbl+".created_at").
-		LeftJoin(TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+TableTransactionsRewardsOwnersOutputs+".id").
-		Where(TableTransactionsRewardsOwnersOutputs + ".id is null").
+		LeftJoin(idb.TableTransactionsRewardsOwnersOutputs, tbl+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
+		Where(idb.TableTransactionsRewardsOwnersOutputs + ".id is null").
 		Limit(RowLimitValue)
 
-	sc := session.Select(
+	scq := session.Select(
 		"a.id",
 		"a.output_id",
 		"a.address",
@@ -348,11 +344,11 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	switch typ {
 	case processTypeOut:
 	case processTypeIn:
-		sc = sc.
+		scq = scq.
 			Join("avm_outputs_redeeming", "a.output_id = avm_outputs_redeeming.id ")
 	}
 
-	_, err = sc.
+	_, err = scq.
 		LoadContext(ctx, &rowdata)
 	if err != nil {
 		return nil, err
@@ -363,12 +359,12 @@ func (a *BalancerAccumulateHandler) processOutputsPre(outputProcessed bool, typ 
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ processType, conns *Connections, persist Persist) (uint64, error) {
+func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*OutputAddressAccumulate
+	var rowdataAvail []*idb.OutputAddressAccumulate
 	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
@@ -379,7 +375,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*OutputAddressAccumulate)
+		trows := make(map[string]*idb.OutputAddressAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -388,7 +384,7 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*OutputAddressAccumulate)
+				trows = make(map[string]*idb.OutputAddressAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -404,12 +400,12 @@ func (a *BalancerAccumulateHandler) processOutputs(outputProcessed bool, typ pro
 	return uint64(len(rowdataAvail)), nil
 }
 
-func (a *BalancerAccumulateHandler) processOutputsPost(
-	workRows map[string]*OutputAddressAccumulate,
+func (a *Handler) processOutputsPost(
+	workRows map[string]*idb.OutputAddressAccumulate,
 	workRowsID []string,
 	typ processType,
 	session *dbr.Session,
-	persist Persist,
+	persist idb.Persist,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -424,7 +420,7 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*OutputAddressAccumulate
+	var rowdata []*idb.OutputAddressAccumulate
 
 	_, err = dbTx.Select(
 		"id",
@@ -451,12 +447,12 @@ func (a *BalancerAccumulateHandler) processOutputsPost(
 	return dbTx.Commit()
 }
 
-func (a *BalancerAccumulateHandler) processOutputsBase(
+func (a *Handler) processOutputsBase(
 	ctx context.Context,
 	typ processType,
 	dbTx *dbr.Tx,
-	persist Persist,
-	row *OutputAddressAccumulate,
+	persist idb.Persist,
+	row *idb.OutputAddressAccumulate,
 ) error {
 	var err error
 
@@ -471,7 +467,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 		return err
 	}
 
-	var balances []*AccumulateBalancesAmount
+	var balances []*idb.AccumulateBalancesAmount
 
 	_, err = dbTx.Select(
 		"avm_outputs.chain_id",
@@ -493,7 +489,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 
 	for _, b := range balances {
 		// add any missing txs rows.
-		outputsTxsAccumulate := &OutputTxsAccumulate{
+		outputsTxsAccumulate := &idb.OutputTxsAccumulate{
 			ChainID:       b.ChainID,
 			AssetID:       b.AssetID,
 			Address:       b.Address,
@@ -525,7 +521,7 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 			return err
 		}
 
-		var balancesLocked []*AccumulateBalancesAmount
+		var balancesLocked []*idb.AccumulateBalancesAmount
 
 		_, err = dbTx.Select("id").
 			From(balancetbl).
@@ -560,12 +556,12 @@ func (a *BalancerAccumulateHandler) processOutputsBase(
 	return nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session) ([]*OutputTxsAccumulate, error) {
+func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
 	var err error
-	var rowdata []*OutputTxsAccumulate
+	var rowdata []*idb.OutputTxsAccumulate
 
 	b := session.Select(
 		"id",
@@ -575,7 +571,7 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 		"transaction_id",
 		"processed",
 	).
-		From(TableOutputTxsAccumulate)
+		From(idb.TableOutputTxsAccumulate)
 
 	_, err = b.
 		Where("processed = ?", 0).
@@ -592,12 +588,12 @@ func (a *BalancerAccumulateHandler) processTransactionsPre(session *dbr.Session)
 	return rowdata, nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, persist Persist) (uint64, error) {
+func (a *Handler) processTransactions(conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*OutputTxsAccumulate
+	var rowdataAvail []*idb.OutputTxsAccumulate
 	rowdataAvail, err = a.processTransactionsPre(session)
 	if err != nil {
 		return 0, err
@@ -608,7 +604,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*OutputTxsAccumulate)
+		trows := make(map[string]*idb.OutputTxsAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -617,7 +613,7 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*OutputTxsAccumulate)
+				trows = make(map[string]*idb.OutputTxsAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -633,11 +629,11 @@ func (a *BalancerAccumulateHandler) processTransactions(conns *Connections, pers
 	return uint64(len(rowdataAvail)), nil
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsPost(
-	workRows map[string]*OutputTxsAccumulate,
+func (a *Handler) processTransactionsPost(
+	workRows map[string]*idb.OutputTxsAccumulate,
 	workRowsID []string,
 	session *dbr.Session,
-	persist Persist,
+	persist idb.Persist,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -650,12 +646,12 @@ func (a *BalancerAccumulateHandler) processTransactionsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*OutputTxsAccumulate
+	var rowdata []*idb.OutputTxsAccumulate
 
 	_, err = dbTx.Select(
 		"id",
 	).
-		From(TableOutputTxsAccumulate).
+		From(idb.TableOutputTxsAccumulate).
 		Where("processed = ? and id in ?", 0, workRowsID).
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
@@ -677,15 +673,15 @@ func (a *BalancerAccumulateHandler) processTransactionsPost(
 	return dbTx.Commit()
 }
 
-func (a *BalancerAccumulateHandler) processTransactionsBase(
+func (a *Handler) processTransactionsBase(
 	ctx context.Context,
 	dbTx *dbr.Tx,
-	persist Persist,
-	row *OutputTxsAccumulate,
+	persist idb.Persist,
+	row *idb.OutputTxsAccumulate,
 ) error {
 	var err error
 
-	_, err = dbTx.Update(TableOutputTxsAccumulate).
+	_, err = dbTx.Update(idb.TableOutputTxsAccumulate).
 		Set("processed", 1).
 		Where("id = ?", row.ID).
 		ExecContext(ctx)
@@ -693,7 +689,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 		return err
 	}
 
-	b := &AccumulateBalancesTransactions{
+	b := &idb.AccumulateBalancesTransactions{
 		ChainID:   row.ChainID,
 		AssetID:   row.AssetID,
 		Address:   row.Address,
@@ -708,9 +704,9 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 		return err
 	}
 
-	var balancesLocked []*AccumulateBalancesTransactions
+	var balancesLocked []*idb.AccumulateBalancesTransactions
 	_, err = dbTx.Select("id").
-		From(TableAccumulateBalancesTransactions).
+		From(idb.TableAccumulateBalancesTransactions).
 		Where("id = ?", b.ID).
 		Suffix("for update").
 		LoadContext(ctx, &balancesLocked)
@@ -727,7 +723,7 @@ func (a *BalancerAccumulateHandler) processTransactionsBase(
 		return fmt.Errorf("balancesLocked failed")
 	}
 
-	_, err = dbTx.UpdateBySql("update "+TableAccumulateBalancesTransactions+" "+
+	_, err = dbTx.UpdateBySql("update "+idb.TableAccumulateBalancesTransactions+" "+
 		"set "+
 		"transaction_count = transaction_count+1, "+
 		"updated_at = ? "+

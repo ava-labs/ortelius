@@ -6,6 +6,9 @@ package avm
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"net/url"
 	"testing"
 	"time"
@@ -36,7 +39,7 @@ func TestIndexBootstrap(t *testing.T) {
 	conns, writer, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 	err := writer.Bootstrap(newTestContext(), conns, persist)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
@@ -67,7 +70,7 @@ func TestIndexBootstrap(t *testing.T) {
 	// inject a txfee for testing
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 
-	transaction := &services.Transactions{
+	transaction := &idb.Transactions{
 		ID: string(txList.Transactions[0].ID),
 	}
 	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
@@ -86,7 +89,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	sess, _ := conns.DB().NewSession("address_chain", cfg.RequestTimeout)
 
-	addressChain := &services.AddressChain{
+	addressChain := &idb.AddressChain{
 		Address:   addr.String(),
 		ChainID:   "ch1",
 		CreatedAt: time.Now().UTC(),
@@ -127,7 +130,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, chainID ids.ID) (*servicesconn.Connections, *Writer, *avax.Reader, func()) {
 	networkID := uint32(5)
 
 	logConf, err := logging.DefaultConfig()
@@ -143,7 +146,7 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*services.Connections, *Writer,
 		},
 	}
 
-	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
+	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
@@ -198,7 +201,7 @@ func TestInsertTxInternal(t *testing.T) {
 
 	tx.UnsignedTx = baseTx
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
@@ -253,7 +256,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 
 	tx.UnsignedTx = baseTx
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
@@ -293,12 +296,12 @@ func TestTransactionNext(t *testing.T) {
 
 	_, _ = session.DeleteFrom("avm_transactions").ExecContext(ctx)
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 
 	tnow0 := time.Now().Truncate(time.Second)
 
 	tnow1 := tnow0.Add(time.Second)
-	tx1 := &services.Transactions{
+	tx1 := &idb.Transactions{
 		ID:        "1",
 		ChainID:   "1",
 		CreatedAt: tnow1,
@@ -306,7 +309,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx1, false)
 
 	tnow2 := tnow1.Add(time.Second)
-	tx2 := &services.Transactions{
+	tx2 := &idb.Transactions{
 		ID:        "2",
 		ChainID:   "1",
 		CreatedAt: tnow2,
@@ -314,7 +317,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx2, false)
 
 	tnow3 := tnow2.Add(time.Second)
-	tx3 := &services.Transactions{
+	tx3 := &idb.Transactions{
 		ID:        "3",
 		ChainID:   "1",
 		CreatedAt: tnow3,
@@ -322,7 +325,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx3, false)
 
 	tnow4 := tnow3.Add(time.Second)
-	tx4 := &services.Transactions{
+	tx4 := &idb.Transactions{
 		ID:        "4",
 		ChainID:   "1",
 		CreatedAt: tnow4,

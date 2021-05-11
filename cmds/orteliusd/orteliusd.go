@@ -6,6 +6,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"log"
 	"math/rand"
 	"net/http"
@@ -16,8 +18,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/ava-labs/ortelius/services"
 
 	"github.com/gorilla/rpc/v2"
 	"github.com/gorilla/rpc/v2/json2"
@@ -80,7 +80,7 @@ func execute() error {
 	var (
 		runErr             error
 		config             = &cfg.Config{}
-		serviceControl     = &services.Control{}
+		serviceControl     = &servicesctrl.Control{}
 		configFile         = func() *string { s := ""; return &s }()
 		replayqueuesize    = func() *int { i := defaultReplayQueueSize; return &i }()
 		replayqueuethreads = func() *int { i := defaultReplayQueueThreads; return &i }()
@@ -100,7 +100,7 @@ func execute() error {
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
 				serviceControl.Chains = c.Chains
-				serviceControl.Persist = services.NewPersist()
+				serviceControl.Persist = idb.NewPersist()
 				serviceControl.Features = c.Features
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {
@@ -163,7 +163,7 @@ func execute() error {
 	return runErr
 }
 
-func createAPICmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
+func createAPICmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	return &cobra.Command{
 		Use:   apiCmdUse,
 		Short: apiCmdDesc,
@@ -179,7 +179,7 @@ func createAPICmds(sc *services.Control, config *cfg.Config, runErr *error) *cob
 	}
 }
 
-func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
+func createReplayCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
 	replayCmd := &cobra.Command{
 		Use:   streamReplayCmdUse,
 		Short: streamReplayCmdDesc,
@@ -196,7 +196,7 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 	return replayCmd
 }
 
-func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
+func createStreamCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
 		Short: streamCmdDesc,
@@ -235,7 +235,7 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 	return streamCmd
 }
 
-func producerFactories(sc *services.Control, cfg *cfg.Config) []utils.ListenCloser {
+func producerFactories(sc *servicesctrl.Control, cfg *cfg.Config) []utils.ListenCloser {
 	var factories []utils.ListenCloser
 	factories = append(factories, stream.NewProducerCChain(sc, *cfg))
 	for _, v := range cfg.Chains {
@@ -302,7 +302,7 @@ func runListenCloser(lc utils.ListenCloser) {
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
 func runStreamProcessorManagers(
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	config *cfg.Config,
 	runError *error,
 	listenCloseFactories []utils.ListenCloser,
@@ -313,20 +313,23 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		err := sc.BalanceAccumulatorManager.Start()
+		if sc.IsAccumulateBalanceIndexer {
+			err := sc.BalanceAccumulatorManager.Start()
+			if err != nil {
+				*runError = err
+				return
+			}
+		}
+
+		err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 		if err != nil {
 			*runError = err
 			return
 		}
 
-		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
-		if err != nil {
-			*runError = err
-			return
+		if sc.IsAccumulateBalanceIndexer {
+			sc.BalanceAccumulatorManager.Run()
 		}
-
-		// start the accumulator at startup
-		sc.BalanceAccumulatorManager.Run(sc)
 
 		runningControl := utils.NewRunning()
 

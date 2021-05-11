@@ -6,6 +6,9 @@ package consumers
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"io"
 	"sync"
 	"time"
@@ -56,7 +59,7 @@ var IndexerDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeDec
 var IndexerConsensusDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeConsensus)
 var IndexerCChainDB = stream.NewConsumerCChainDB
 
-func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
+func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
 	if sc.IsDisableBootstrap {
 		return nil
 	}
@@ -69,7 +72,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 		_ = conns.Close()
 	}()
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 	ctx := context.Background()
 	job := conns.QuietStream().NewJob("bootstrap-key-value")
 	sess := conns.DB().NewSessionForEventReceiver(job)
@@ -77,7 +80,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	bootstrapValue := "true"
 
 	// check if we have bootstrapped..
-	keyValueStore := &services.KeyValueStore{
+	keyValueStore := &idb.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 	}
 	keyValueStore, _ = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
@@ -115,7 +118,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	}
 
 	// write a complete row.
-	keyValueStore = &services.KeyValueStore{
+	keyValueStore = &idb.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 		V: bootstrapValue,
 	}
@@ -123,19 +126,19 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 }
 
 type IndexerFactoryControl struct {
-	sc     *services.Control
+	sc     *servicesctrl.Control
 	fsm    map[string]stream.ProcessorDB
 	doneCh chan struct{}
 }
 
-func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
+func (c *IndexerFactoryControl) updateTxPollStatus(conns *servicesconn.Connections, txPoll *idb.TxPool) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-txpoll-status"))
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 }
 
-func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
+func (c *IndexerFactoryControl) handleTxPool(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -174,7 +177,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 }
 
 func IndexerFactories(
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	config *cfg.Config,
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
 	factoriesInstDB []stream.ProcessorFactoryInstDB,
@@ -260,7 +263,7 @@ func IndexerFactories(
 					"processed",
 					"topic",
 					"created_at",
-				).From(services.TableTxPool).
+				).From(idb.TableTxPool).
 					Where("processed=? and topic in ?", 0, topicNames).
 					OrderAsc("processed").OrderAsc("created_at").
 					IterateContext(ctx)
@@ -291,7 +294,7 @@ func IndexerFactories(
 						break
 					}
 
-					txp := &services.TxPool{}
+					txp := &idb.TxPool{}
 					err = iterator.Scan(txp)
 					if err != nil {
 						sc.Log.Error("scan %v", err)
@@ -302,7 +305,7 @@ func IndexerFactories(
 						continue
 					}
 					readMessages++
-					sc.LocalTxPool <- &services.LocalTxPoolJob{TxPool: txp, Errs: errs}
+					sc.LocalTxPool <- &servicesctrl.LocalTxPoolJob{TxPool: txp, Errs: errs}
 				}
 
 				for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {

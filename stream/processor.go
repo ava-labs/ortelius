@@ -6,10 +6,11 @@ package stream
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"strings"
 	"time"
-
-	"github.com/ava-labs/ortelius/services"
 
 	"github.com/ava-labs/ortelius/cfg"
 )
@@ -21,11 +22,11 @@ var (
 	ErrNoMessage = errors.New("no message")
 )
 
-type ProcessorFactoryChainDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
-type ProcessorFactoryInstDB func(*services.Control, cfg.Config) (ProcessorDB, error)
+type ProcessorFactoryChainDB func(*servicesctrl.Control, cfg.Config, string, string) (ProcessorDB, error)
+type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB, error)
 
 type ProcessorDB interface {
-	Process(*services.Connections, *services.TxPool) error
+	Process(*servicesconn.Connections, *idb.TxPool) error
 	Close() error
 	ID() string
 	Topic() []string
@@ -33,10 +34,10 @@ type ProcessorDB interface {
 
 func UpdateTxPool(
 	ctxTimeout time.Duration,
-	conns *services.Connections,
-	persist services.Persist,
-	txPool *services.TxPool,
-	sc *services.Control,
+	conns *servicesconn.Connections,
+	persist idb.Persist,
+	txPool *idb.TxPool,
+	sc *servicesctrl.Control,
 ) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-tx-pool"))
 

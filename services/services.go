@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 	"time"
 
 	cblock "github.com/ava-labs/ortelius/models"
@@ -21,15 +23,15 @@ type Consumable interface {
 // Consumer takes in Consumables and adds them to the service's backend
 type Consumer interface {
 	Name() string
-	Bootstrap(context.Context, *Connections, Persist) error
-	Consume(context.Context, *Connections, Consumable, Persist) error
-	ConsumeConsensus(context.Context, *Connections, Consumable, Persist) error
+	Bootstrap(context.Context, *servicesconn.Connections, idb.Persist) error
+	Consume(context.Context, *servicesconn.Connections, Consumable, idb.Persist) error
+	ConsumeConsensus(context.Context, *servicesconn.Connections, Consumable, idb.Persist) error
 	ParseJSON([]byte) ([]byte, error)
 }
 
 type ConsumerCChain interface {
 	Name() string
-	Consume(context.Context, *Connections, Consumable, *cblock.Block, Persist) error
+	Consume(context.Context, *servicesconn.Connections, Consumable, *cblock.Block, idb.Persist) error
 	ParseJSON([]byte) ([]byte, error)
 }
 
@@ -39,7 +41,7 @@ type ConsumerCtx struct {
 	job     *health.Job
 	db      dbr.SessionRunner
 	time    time.Time
-	persist Persist
+	persist idb.Persist
 }
 
 func NewConsumerContext(
@@ -48,7 +50,7 @@ func NewConsumerContext(
 	db dbr.SessionRunner,
 	ts int64,
 	nanosecond int64,
-	persist Persist,
+	persist idb.Persist,
 ) ConsumerCtx {
 	return ConsumerCtx{
 		ctx:     ctx,
@@ -62,5 +64,5 @@ func NewConsumerContext(
 func (ic *ConsumerCtx) Time() time.Time       { return ic.time }
 func (ic *ConsumerCtx) Job() *health.Job      { return ic.job }
 func (ic *ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
-func (ic *ConsumerCtx) Ctx() context.Context  { return ic.ctx }
-func (ic *ConsumerCtx) Persist() Persist      { return ic.persist }
+func (ic *ConsumerCtx) Ctx() context.Context { return ic.ctx }
+func (ic *ConsumerCtx) Persist() idb.Persist { return ic.persist }

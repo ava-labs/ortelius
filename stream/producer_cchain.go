@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"io"
 	"math/big"
 	"strings"
@@ -24,8 +27,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/metrics"
 )
@@ -42,9 +43,9 @@ const (
 )
 
 type producerCChainContainer struct {
-	sc *services.Control
+	sc *servicesctrl.Control
 
-	conns      *services.Connections
+	conns      *servicesconn.Connections
 	block      *big.Int
 	blockCount *big.Int
 
@@ -59,7 +60,7 @@ type producerCChainContainer struct {
 }
 
 func newContainerC(
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	conf cfg.Config,
 ) (*producerCChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
@@ -118,7 +119,7 @@ func (p *producerCChainContainer) getBlock() error {
 		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
 		"cast(count(*) as char) as block_count",
 	).
-		From(services.TableCvmBlocks).
+		From(idb.TableCvmBlocks).
 		LoadContext(ctx, &maxBlock)
 	if err != nil {
 		return err
@@ -138,7 +139,7 @@ func (p *producerCChainContainer) getBlock() error {
 	return nil
 }
 
-func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
+func (p *producerCChainContainer) catchupBlock(conns *servicesconn.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
 		_ = conns.Close()
@@ -163,10 +164,10 @@ func (p *producerCChainContainer) catchupBlock(conns *services.Connections, catc
 			endBlock.Set(catchupBlock)
 		}
 
-		var cvmBlocks []*services.CvmBlocks
+		var cvmBlocks []*idb.CvmBlocks
 		_, err = sess.Select(
 			"block",
-		).From(services.TableCvmBlocks).
+		).From(idb.TableCvmBlocks).
 			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
 			LoadContext(ctx, &cvmBlocks)
 		if err != nil {
@@ -236,7 +237,7 @@ func (p *producerCChainContainer) ProcessNextMessage() error {
 
 type ProducerCChain struct {
 	id string
-	sc *services.Control
+	sc *servicesctrl.Control
 
 	// metrics
 	metricProcessedCountKey string
@@ -252,7 +253,7 @@ type ProducerCChain struct {
 	topicLogs string
 }
 
-func NewProducerCChain(sc *services.Control, conf cfg.Config) utils.ListenCloser {
+func NewProducerCChain(sc *servicesctrl.Control, conf cfg.Config) utils.ListenCloser {
 	topicName := fmt.Sprintf("%d-%s-cchain", conf.NetworkID, conf.CchainID)
 	topicTrcName := fmt.Sprintf("%d-%s-cchain-trc", conf.NetworkID, conf.CchainID)
 	topicLogsName := fmt.Sprintf("%d-%s-cchain-logs", conf.NetworkID, conf.CchainID)
@@ -286,13 +287,13 @@ func (p *ProducerCChain) ID() string {
 	return p.id
 }
 
-func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *big.Int, updateTime time.Time) error {
+func (p *ProducerCChain) updateBlock(conns *servicesconn.Connections, blockNumber *big.Int, updateTime time.Time) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-block"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	cvmBlocks := &services.CvmBlocks{
+	cvmBlocks := &idb.CvmBlocks{
 		Block:     blockNumber.String(),
 		CreatedAt: updateTime,
 	}
@@ -301,12 +302,12 @@ func (p *ProducerCChain) updateBlock(conns *services.Connections, blockNumber *b
 
 func (p *ProducerCChain) Failure() {
 	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
 }
 
 func (p *ProducerCChain) Success() {
 	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricProduceSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
 }
 
 func (p *ProducerCChain) Listen() error {
@@ -466,7 +467,7 @@ type localBlockObject struct {
 	time           time.Time
 }
 
-func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *localBlockObject) error {
+func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock *localBlockObject) error {
 	cblk, err := cblock.New(localBlock.blockContainer.Block)
 	if err != nil {
 		return err
@@ -474,33 +475,6 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 
 	// wipe before re-encoding
 	cblk.Txs = nil
-	block, err := json.Marshal(cblk)
-	if err != nil {
-		return err
-	}
-
-	id, err := ids.ToID(hashing.ComputeHash256(block))
-	if err != nil {
-		return err
-	}
-
-	txPool := &services.TxPool{
-		NetworkID:     p.conf.NetworkID,
-		ChainID:       p.conf.CchainID,
-		MsgKey:        id.String(),
-		Serialization: block,
-		Processed:     0,
-		Topic:         p.topic,
-		CreatedAt:     localBlock.time,
-	}
-	err = txPool.ComputeID()
-	if err != nil {
-		return err
-	}
-	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
-	if err != nil {
-		return err
-	}
 
 	for _, txTranactionTraces := range localBlock.blockContainer.Traces {
 		txTransactionTracesBits, err := json.Marshal(txTranactionTraces)
@@ -513,7 +487,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 			return err
 		}
 
-		txPool := &services.TxPool{
+		txPool := &idb.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -543,7 +517,7 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 			return err
 		}
 
-		txPool := &services.TxPool{
+		txPool := &idb.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -562,6 +536,34 @@ func (p *ProducerCChain) processWork(conns *services.Connections, localBlock *lo
 		}
 	}
 
+	block, err := json.Marshal(cblk)
+	if err != nil {
+		return err
+	}
+
+	id, err := ids.ToID(hashing.ComputeHash256(block))
+	if err != nil {
+		return err
+	}
+
+	txPool := &idb.TxPool{
+		NetworkID:     p.conf.NetworkID,
+		ChainID:       p.conf.CchainID,
+		MsgKey:        id.String(),
+		Serialization: block,
+		Processed:     0,
+		Topic:         p.topic,
+		CreatedAt:     localBlock.time,
+	}
+	err = txPool.ComputeID()
+	if err != nil {
+		return err
+	}
+	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -570,7 +572,7 @@ type blockWorkContainer struct {
 	blockNumber *big.Int
 }
 
-func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *services.Connections, wg *sync.WaitGroup) {
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *servicesconn.Connections, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
 		_ = conns.Close()
@@ -592,7 +594,7 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now().UTC()}
+			localBlockObject := &localBlockObject{blockContainer: blContainer, time: time.Now()}
 			err = p.processWork(conns, localBlockObject)
 			if err != nil {
 				blockWork.errs.SetValue(err)
@@ -606,7 +608,7 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 			}
 
 			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-			_ = metrics.Prometheus.CounterInc(services.MetricProduceProcessedCountKey)
+			_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
 		}
 	}
 }

@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"net/http"
 	"time"
 
@@ -20,12 +21,12 @@ import (
 
 // Server is an HTTP server configured with various ortelius APIs
 type Server struct {
-	sc     *services.Control
+	sc     *servicesctrl.Control
 	server *http.Server
 }
 
 // NewServer creates a new *Server based on the given config
-func NewServer(sc *services.Control, conf cfg.Config) (*Server, error) {
+func NewServer(sc *servicesctrl.Control, conf cfg.Config) (*Server, error) {
 	router, err := newRouter(sc, conf)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
+func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 	sc.Log.Info("Router chainID %s", sc.GenesisContainer.XChainID.String())
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, sc.GenesisContainer.XChainID, sc.GenesisContainer.AvaxAssetID)
