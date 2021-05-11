@@ -2,9 +2,10 @@ package services
 
 import (
 	"context"
+	"time"
+
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
-	"time"
 
 	cblock "github.com/ava-labs/ortelius/models"
 
@@ -64,5 +65,5 @@ func NewConsumerContext(
 func (ic *ConsumerCtx) Time() time.Time       { return ic.time }
 func (ic *ConsumerCtx) Job() *health.Job      { return ic.job }
 func (ic *ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
-func (ic *ConsumerCtx) Ctx() context.Context { return ic.ctx }
-func (ic *ConsumerCtx) Persist() idb.Persist { return ic.persist }
+func (ic *ConsumerCtx) Ctx() context.Context  { return ic.ctx }
+func (ic *ConsumerCtx) Persist() idb.Persist  { return ic.persist }
