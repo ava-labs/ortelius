@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/dbr/v2/dialect"
 	"github.com/gocraft/health"
-
-	"github.com/ava-labs/ortelius/cfg"
 )
 
 const (

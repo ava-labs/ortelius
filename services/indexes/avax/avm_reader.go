@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 
 	"github.com/ava-labs/ortelius/cfg"
 
@@ -17,7 +17,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams, conns *services.Connections) (*models.AssetList, error) {
+func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams, conns *servicesconn.Connections) (*models.AssetList, error) {
 	var dbRunner *dbr.Session
 	var err error
 

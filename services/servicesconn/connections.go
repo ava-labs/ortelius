@@ -1,7 +1,7 @@
 // (c) 2020, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package services
+package servicesconn
 
 import (
 	"bytes"
@@ -15,12 +15,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/go-redis/redis/v8"
-	"github.com/gocraft/health"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/db"
+	"github.com/go-redis/redis/v8"
+	"github.com/gocraft/health"
 )
 
 type Connections struct {

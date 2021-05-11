@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
+
 	cblock "github.com/ava-labs/ortelius/models"
 
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
@@ -26,7 +30,7 @@ var (
 	testXChainID = ids.ID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
 )
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Connections, *Writer, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*servicesconn.Connections, *Writer, func()) {
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
@@ -40,7 +44,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*services.Con
 		},
 	}
 
-	sc := &services.Control{Log: logging.NoLog{}, Services: conf}
+	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
@@ -75,7 +79,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	header := types.Header{}
 	block := &cblock.Block{Header: header}
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
@@ -109,7 +113,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	header := types.Header{}
 	block := &cblock.Block{Header: header}
 
-	persist := services.NewPersistMock()
+	persist := idb.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	job := conns.Stream().NewJob("")
 	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)

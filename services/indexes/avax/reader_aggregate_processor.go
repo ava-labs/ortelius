@@ -7,13 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+
 	"github.com/gocraft/dbr/v2"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
 
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 
@@ -181,19 +183,19 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
-	var connectionstxsdesc *services.Connections
-	var connectionstxsasc *services.Connections
-	var connectionsaggr *services.Connections
+	var connectionstxsdesc *servicesconn.Connections
+	var connectionstxsasc *servicesconn.Connections
+	var connectionsaggr *servicesconn.Connections
 
-	var connections1m *services.Connections
-	var connections1h *services.Connections
-	var connections24h *services.Connections
-	var connections7d *services.Connections
-	var connections30d *services.Connections
+	var connections1m *servicesconn.Connections
+	var connections1h *servicesconn.Connections
+	var connections24h *servicesconn.Connections
+	var connections7d *servicesconn.Connections
+	var connections30d *servicesconn.Connections
 	var err error
 
 	closeDBForError := func() {
-		closeConn := func(c *services.Connections) {
+		closeConn := func(c *servicesconn.Connections) {
 			if c != nil {
 				_ = c.Close()
 			}
@@ -260,7 +262,7 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
-func (r *Reader) processorTxDescFetch(conns *services.Connections) {
+func (r *Reader) processorTxDescFetch(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -311,7 +313,7 @@ func (r *Reader) processorTxDescFetch(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) processorTxAscFetch(conns *services.Connections) {
+func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -369,7 +371,7 @@ func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(services.TableAddressChain).
+		From(idb.TableAddressChain).
 		GroupBy("chain_id").
 		LoadContext(ctx, &addressCountl)
 	if err != nil {
@@ -396,7 +398,7 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(services.TableTransactions).
+		From(idb.TableTransactions).
 		GroupBy("chain_id").
 		LoadContext(ctx, &txCountl)
 	if err != nil {
@@ -456,7 +458,7 @@ func (r *Reader) fetchAssets(
 	return append(assets, assetsFound...), addlAssetsFound, nil
 }
 
-func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
+func (r *Reader) aggregateProcessorAssetAggr(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -576,7 +578,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) processAggregate(conns *services.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
+func (r *Reader) processAggregate(conns *servicesconn.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
 	ctx := context.Background()
 	p := &params.AggregateParams{}
 	urlv := url.Values{}
@@ -593,7 +595,7 @@ func (r *Reader) processAggregate(conns *services.Connections, runTm time.Time, 
 	return r.Aggregate(ctx, p, conns)
 }
 
-func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
+func (r *Reader) aggregateProcessor1m(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -627,7 +629,7 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
+func (r *Reader) aggregateProcessor1h(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -661,7 +663,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
+func (r *Reader) aggregateProcessor24h(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -695,7 +697,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
+func (r *Reader) aggregateProcessor7d(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -729,7 +731,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
+func (r *Reader) aggregateProcessor30d(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
