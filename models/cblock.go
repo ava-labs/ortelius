@@ -23,7 +23,6 @@ type Block struct {
 	Uncles         []types.Header      `json:"uncles"`
 	TxsBytes       *[][]byte           `json:"txs,omitempty"`
 	Version        uint32              `json:"version"`
-	ReceivedAt     time.Time           `json:"received_at"`
 	BlockExtraData []byte              `json:"blockExtraData"`
 	Txs            []types.Transaction `json:"transactions,omitempty"`
 }

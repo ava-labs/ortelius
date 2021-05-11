@@ -475,7 +475,6 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 		}
 
 		idsv := fmt.Sprintf("%s:%d", txTranactionTraces.Hash, txTranactionTraces.Idx)
-
 		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err
@@ -507,7 +506,6 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 		}
 
 		idsv := fmt.Sprintf("%s:%s:%d", log.BlockHash, log.TxHash, log.Index)
-
 		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
 		if err != nil {
 			return err

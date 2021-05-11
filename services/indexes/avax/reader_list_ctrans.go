@@ -125,11 +125,11 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 	}
 
 	for _, trItem := range trItemsByHash {
-		if cblock, ok := cblocksMap[trItem.Block]; ok {
-			trItem.BlockGasUsed = cblock.Header.GasUsed
-			trItem.BlockGasLimit = cblock.Header.GasLimit
-			trItem.BlockNonce = cblock.Header.Nonce.Uint64()
-			trItem.BlockHash = cblock.Header.Hash().String()
+		if cblockv, ok := cblocksMap[trItem.Block]; ok {
+			trItem.BlockGasUsed = cblockv.Header.GasUsed
+			trItem.BlockGasLimit = cblockv.Header.GasLimit
+			trItem.BlockNonce = cblockv.Header.Nonce.Uint64()
+			trItem.BlockHash = cblockv.Header.Hash().String()
 		}
 		if trItem.TracesMax != 0 {
 			trItem.Traces = make([]*models.CvmTransactionsTxDataTrace, trItem.TracesMax)
@@ -330,11 +330,11 @@ func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Sessio
 		}
 
 		for _, cvmTx := range cvmTxs {
-			cblock, err := cblock.Unmarshal(cvmTx.Serialization)
+			cblockv, err := cblock.Unmarshal(cvmTx.Serialization)
 			if err != nil {
 				return nil, err
 			}
-			cblocksMap[cvmTx.Block] = cblock
+			cblocksMap[cvmTx.Block] = cblockv
 		}
 	}
 
