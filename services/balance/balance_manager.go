@@ -44,6 +44,7 @@ func newManagerChannels() *managerChannels {
 
 type Manager struct {
 	handler *Handler
+	ticker  *time.Ticker
 	sc      controlwrap.ControlWrap
 	persist idb.Persist
 
@@ -55,6 +56,7 @@ type Manager struct {
 func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, error) {
 	bmanager := &Manager{
 		handler: &Handler{},
+		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
 		doneCh:  make(chan struct{}),
@@ -64,16 +66,24 @@ func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, erro
 
 func (a *Manager) Close() {
 	close(a.doneCh)
+	a.ticker.Stop()
 }
 
 func (a *Manager) Start() error {
+	connsTicker, err := a.sc.DatabaseOnly()
+	if err != nil {
+		return err
+	}
+
+	a.runTicker(connsTicker)
+
 	processingFunc := func(id string, managerChannel *managerChannels) error {
 		connsOuts, err := a.sc.DatabaseOnly()
 		if err != nil {
 			return err
 		}
 		a.runProcessing("out_"+id, connsOuts, func(conns *servicesconn.Connections) (uint64, error) {
-			return a.handler.processOutputs(processTypeOut, conns, a.persist)
+			return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
 		}, managerChannel.ins)
 
 		connsIns, err := a.sc.DatabaseOnly()
@@ -81,7 +91,7 @@ func (a *Manager) Start() error {
 			return err
 		}
 		a.runProcessing("in_"+id, connsIns, func(conns *servicesconn.Connections) (uint64, error) {
-			return a.handler.processOutputs(processTypeIn, conns, a.persist)
+			return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
 		}, managerChannel.outs)
 
 		connsTxs, err := a.sc.DatabaseOnly()
@@ -104,6 +114,101 @@ func (a *Manager) Start() error {
 	}
 
 	return nil
+}
+
+func (a *Manager) runTicker(conns *servicesconn.Connections) {
+	a.sc.Logger().Info("start ticker")
+	go func() {
+		runEvent := func(conns *servicesconn.Connections) {
+			// set rewards outputs as processed...
+			ctx := context.Background()
+			session := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("rewards-poll"))
+
+			var accumsOut []*idb.OutputAddressAccumulate
+			_, err := session.Select(idb.TableOutputAddressAccumulateOut+".id").
+				From(idb.TableOutputAddressAccumulateOut).
+				Where("processed = ?", 0).
+				Join(idb.TableTransactionsRewardsOwnersOutputs,
+					idb.TableOutputAddressAccumulateOut+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsOut)
+			if err != nil {
+				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			var accumsIn []*idb.OutputAddressAccumulate
+			_, err = session.Select(idb.TableOutputAddressAccumulateIn+".id").
+				From(idb.TableOutputAddressAccumulateIn).
+				Where("processed = ?", 0).
+				Join(idb.TableTransactionsRewardsOwnersOutputs,
+					idb.TableOutputAddressAccumulateIn+".output_id = "+idb.TableTransactionsRewardsOwnersOutputs+".id").
+				LoadContext(ctx, &accumsIn)
+			if err != nil {
+				a.sc.Logger().Error("accumulate ticker error rewards %v", err)
+				return
+			}
+
+			processed := make(map[string]struct{})
+			for _, accum := range append(accumsIn, accumsOut...) {
+				_, ok := processed[accum.ID]
+				if ok {
+					continue
+				}
+				_, err = session.Update(idb.TableOutputAddressAccumulateOut).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				_, err = session.Update(idb.TableOutputAddressAccumulateIn).
+					Set("processed", 1).
+					Where("id=? and processed <> ?", accum.ID, 1).
+					ExecContext(ctx)
+				if err != nil {
+					a.sc.Logger().Error("accumulate ticker error rewards %v", err)
+					return
+				}
+				processed[accum.ID] = struct{}{}
+			}
+
+			icnt := 0
+			for ; icnt < retryProcessing; icnt++ {
+				cnt, err := a.handler.processOutputs(false, processTypeIn, conns, a.persist)
+				if db.ErrIsLockError(err) {
+					icnt = 0
+					continue
+				}
+				if err != nil {
+					a.sc.Logger().Error("accumulate ticker error %v", err)
+					return
+				}
+				if cnt < RowLimitValue {
+					break
+				}
+				icnt = 0
+			}
+		}
+
+		defer func() {
+			a.ticker.Stop()
+			err := conns.Close()
+			if err != nil {
+				a.sc.Logger().Warn("connection close %v", err)
+			}
+			a.sc.Logger().Info("stop ticker")
+		}()
+
+		for {
+			select {
+			case <-a.ticker.C:
+				runEvent(conns)
+			case <-a.doneCh:
+				return
+			}
+		}
+	}()
 }
 
 func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
@@ -189,7 +294,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *Handler) processOutputsPre(typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
+func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -211,9 +316,14 @@ func (a *Handler) processOutputsPre(typ processType, session *dbr.Session) ([]*i
 	switch typ {
 	case processTypeOut:
 	case processTypeIn:
-		b = b.
-			Where(tbl+".output_processed = ?", 1).
-			OrderAsc(tbl + ".output_processed")
+		if outputProcessed {
+			b = b.
+				Where(tbl+".output_processed = ?", 1).
+				OrderAsc(tbl + ".output_processed")
+		} else {
+			b = b.
+				Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
+		}
 	}
 
 	sb := b.
@@ -247,13 +357,13 @@ func (a *Handler) processOutputsPre(typ processType, session *dbr.Session) ([]*i
 	return rowdata, nil
 }
 
-func (a *Handler) processOutputs(typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*idb.OutputAddressAccumulate
-	rowdataAvail, err = a.processOutputsPre(typ, session)
+	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
 	}
