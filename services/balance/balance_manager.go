@@ -73,7 +73,7 @@ func (a *Manager) Start() error {
 			return err
 		}
 		a.runProcessing("out_"+id, connsOuts, func(conns *servicesconn.Connections) (uint64, error) {
-			return a.handler.processOutputs(true, processTypeOut, conns, a.persist)
+			return a.handler.processOutputs(processTypeOut, conns, a.persist)
 		}, managerChannel.ins)
 
 		connsIns, err := a.sc.DatabaseOnly()
@@ -81,7 +81,7 @@ func (a *Manager) Start() error {
 			return err
 		}
 		a.runProcessing("in_"+id, connsIns, func(conns *servicesconn.Connections) (uint64, error) {
-			return a.handler.processOutputs(true, processTypeIn, conns, a.persist)
+			return a.handler.processOutputs(processTypeIn, conns, a.persist)
 		}, managerChannel.outs)
 
 		connsTxs, err := a.sc.DatabaseOnly()
@@ -189,7 +189,7 @@ func balanceTable(typ processType) string {
 	return tbl
 }
 
-func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
+func (a *Handler) processOutputsPre(typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
@@ -211,14 +211,9 @@ func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, sessi
 	switch typ {
 	case processTypeOut:
 	case processTypeIn:
-		if outputProcessed {
-			b = b.
-				Where(tbl+".output_processed = ?", 1).
-				OrderAsc(tbl + ".output_processed")
-		} else {
-			b = b.
-				Join("avm_outputs_redeeming", tbl+".output_id = avm_outputs_redeeming.id ")
-		}
+		b = b.
+			Where(tbl+".output_processed = ?", 1).
+			OrderAsc(tbl + ".output_processed")
 	}
 
 	sb := b.
@@ -252,13 +247,13 @@ func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, sessi
 	return rowdata, nil
 }
 
-func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processOutputs(typ processType, conns *servicesconn.Connections, persist idb.Persist) (uint64, error) {
 	job := conns.QuietStream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
 	var rowdataAvail []*idb.OutputAddressAccumulate
-	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
+	rowdataAvail, err = a.processOutputsPre(typ, session)
 	if err != nil {
 		return 0, err
 	}
