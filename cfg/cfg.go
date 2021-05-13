@@ -132,8 +132,8 @@ func NewFromFile(filePath string) (*Config, error) {
 				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
-		CchainID:     servicesViper.GetString(keysStreamProducerCchainID),
-		AvalancheGO:  servicesViper.GetString(keysStreamProducerAvalanchego),
-		NodeInstance: servicesViper.GetString(keysStreamProducerNodeInstance),
+		CchainID:     v.GetString(keysStreamProducerCchainID),
+		AvalancheGO:  v.GetString(keysStreamProducerAvalanchego),
+		NodeInstance: v.GetString(keysStreamProducerNodeInstance),
 	}, nil
 }
