@@ -6,7 +6,6 @@ package cfg
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -63,25 +62,14 @@ type Redis struct {
 }
 
 type Stream struct {
-	Producer     Producer `json:"producer"`
-	Consumer     Consumer `json:"consumer"`
-	CchainID     string   `json:"cchainId"`
-	AvalancheGO  string   `json:"avalanchego"`
-	NodeInstance string   `json:"nodeInstance"`
+	CchainID     string `json:"cchainId"`
+	AvalancheGO  string `json:"avalanchego"`
+	NodeInstance string `json:"nodeInstance"`
 }
 
 type Filter struct {
 	Min uint32 `json:"min"`
 	Max uint32 `json:"max"`
-}
-
-type Producer struct {
-	IPCRoot   string `json:"ipcRoot"`
-	CChainRPC string `json:"cChainRpc"`
-}
-
-type Consumer struct {
-	StartTime time.Time `json:"startTime"`
 }
 
 // NewFromFile creates a new *Config with the defaults replaced by the config  in
@@ -98,8 +86,6 @@ func NewFromFile(filePath string) (*Config, error) {
 	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
 
 	streamViper := newSubViper(v, keysStream)
-	streamProducerViper := newSubViper(streamViper, keysStreamProducer)
-	streamConsumerViper := newSubViper(streamViper, keysStreamConsumer)
 
 	// Get chains config
 	chains, err := newChainsConfig(v)
@@ -156,13 +142,6 @@ func NewFromFile(filePath string) (*Config, error) {
 			CchainID:     streamViper.GetString(keysStreamProducerCchainID),
 			AvalancheGO:  streamViper.GetString(keysStreamProducerAvalanchego),
 			NodeInstance: streamViper.GetString(keysStreamProducerNodeInstance),
-			Producer: Producer{
-				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
-				CChainRPC: streamProducerViper.GetString(keysStreamProducerCchainRPC),
-			},
-			Consumer: Consumer{
-				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),
-			},
 		},
 	}, nil
 }

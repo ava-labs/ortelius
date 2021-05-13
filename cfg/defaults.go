@@ -15,10 +15,5 @@ const defaultJSON = `{
     }
   },
   "stream": {
-    "producer": {
-      "ipcRoot": "/tmp"
-    },
-    "consumer": {
-    }
   }
 }`
