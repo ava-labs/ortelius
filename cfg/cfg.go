@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
@@ -24,11 +26,13 @@ var (
 type Config struct {
 	NetworkID         uint32 `json:"networkID"`
 	Chains            `json:"chains"`
-	Stream            `json:"stream"`
 	Services          `json:"services"`
 	MetricsListenAddr string `json:"metricsListenAddr"`
 	AdminListenAddr   string `json:"adminListenAddr"`
 	Features          map[string]struct{}
+	CchainID          string `json:"cchainId"`
+	AvalancheGO       string `json:"avalanchego"`
+	NodeInstance      string `json:"nodeInstance"`
 }
 
 type Chain struct {
@@ -61,12 +65,6 @@ type Redis struct {
 	DB       int    `json:"db"`
 }
 
-type Stream struct {
-	CchainID     string `json:"cchainId"`
-	AvalancheGO  string `json:"avalanchego"`
-	NodeInstance string `json:"nodeInstance"`
-}
-
 type Filter struct {
 	Min uint32 `json:"min"`
 	Max uint32 `json:"max"`
@@ -84,8 +82,6 @@ func NewFromFile(filePath string) (*Config, error) {
 	servicesViper := newSubViper(v, keysServices)
 	servicesDBViper := newSubViper(servicesViper, keysServicesDB)
 	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
-
-	streamViper := newSubViper(v, keysStream)
 
 	// Get chains config
 	chains, err := newChainsConfig(v)
@@ -115,6 +111,12 @@ func NewFromFile(filePath string) (*Config, error) {
 		}
 		featuresMap[featurec] = struct{}{}
 	}
+
+	cchainID, err := ids.FromString(servicesRedisViper.GetString(keysStreamProducerCchainID))
+	if err != nil {
+		return nil, err
+	}
+
 	// Put it all together
 	return &Config{
 		NetworkID:         v.GetUint32(keysNetworkID),
@@ -138,10 +140,8 @@ func NewFromFile(filePath string) (*Config, error) {
 				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
-		Stream: Stream{
-			CchainID:     streamViper.GetString(keysStreamProducerCchainID),
-			AvalancheGO:  streamViper.GetString(keysStreamProducerAvalanchego),
-			NodeInstance: streamViper.GetString(keysStreamProducerNodeInstance),
-		},
+		CchainID:     cchainID.String(),
+		AvalancheGO:  servicesRedisViper.GetString(keysStreamProducerAvalanchego),
+		NodeInstance: servicesRedisViper.GetString(keysStreamProducerNodeInstance),
 	}, nil
 }

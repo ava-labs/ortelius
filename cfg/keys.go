@@ -9,7 +9,6 @@ const (
 	keysFeatures     = "features"
 
 	keysChains       = "chains"
-	keysChainsID     = "id"
 	keysChainsVMType = "vmtype"
 
 	keysServices = "services"
@@ -27,8 +26,6 @@ const (
 	keysServicesRedisAddr     = "addr"
 	keysServicesRedisPassword = "password"
 	keysServicesRedisDB       = "db"
-
-	keysStream = "stream"
 
 	keysStreamProducerAvalanchego  = "avalanchego"
 	keysStreamProducerNodeInstance = "nodeInstance"
