@@ -77,7 +77,7 @@ func newContainerC(
 		return nil, err
 	}
 
-	cl, err := cblock.NewClient(conf.Stream.AvalancheGO + "/ext/bc/C/rpc")
+	cl, err := cblock.NewClient(conf.AvalancheGO + "/ext/bc/C/rpc")
 	if err != nil {
 		_ = conns.Close()
 		return nil, err
@@ -387,7 +387,7 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	for icnt := 0; icnt < maxWorkers; icnt++ {
-		cl, err := cblock.NewClient(p.conf.Stream.AvalancheGO + "/ext/bc/C/rpc")
+		cl, err := cblock.NewClient(p.conf.AvalancheGO + "/ext/bc/C/rpc")
 		if err != nil {
 			return err
 		}

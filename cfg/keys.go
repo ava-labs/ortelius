@@ -28,8 +28,6 @@ const (
 	keysServicesRedisPassword = "password"
 	keysServicesRedisDB       = "db"
 
-	keysStream = "stream"
-
 	keysStreamProducerAvalanchego  = "avalanchego"
 	keysStreamProducerNodeInstance = "nodeInstance"
 
