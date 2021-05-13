@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/services/indexes/models"
-
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 )

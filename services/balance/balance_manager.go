@@ -6,12 +6,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/utils/controlwrap"
-
-	"github.com/ava-labs/ortelius/services/db"
-
 	"github.com/gocraft/dbr/v2"
 )
 

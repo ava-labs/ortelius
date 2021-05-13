@@ -3,19 +3,15 @@ package servicesctrl
 import (
 	"time"
 
-	"github.com/ava-labs/ortelius/services/balance"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesgenesis"
-
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
-	"github.com/ava-labs/ortelius/utils/indexedlist"
-
-	"github.com/ava-labs/ortelius/services/metrics"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/balance"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/metrics"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesgenesis"
+	"github.com/ava-labs/ortelius/utils/indexedlist"
 )
 
 const (
