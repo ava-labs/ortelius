@@ -43,7 +43,7 @@ func (r *RewardsHandler) runTicker(sc *servicesctrl.Control, conns *servicesconn
 	doneCh := make(chan struct{}, 1)
 
 	r.conns = conns
-	r.client = platformvm.NewClient("http://localhost:9650", 1*time.Minute)
+	r.client = platformvm.NewClient(sc.ServicesStream.AvalancheGO, 1*time.Minute)
 	r.perist = idb.NewPersist()
 
 	r.avaxAssetID = sc.GenesisContainer.AvaxAssetID
