@@ -30,15 +30,8 @@ const (
 
 	keysStream = "stream"
 
-	keysStreamProducer        = "producer"
-	keysStreamProducerIPCRoot = "ipcRoot"
-
 	keysStreamProducerAvalanchego  = "avalanchego"
 	keysStreamProducerNodeInstance = "nodeInstance"
 
-	keysStreamProducerCchainRPC = "cchainRpc"
-	keysStreamProducerCchainID  = "cchainID"
-
-	keysStreamConsumer          = "consumer"
-	keysStreamConsumerStartTime = "startTime"
+	keysStreamProducerCchainID = "cchainID"
 )

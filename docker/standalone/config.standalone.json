@@ -17,13 +17,7 @@
   "stream": {
     "avalanchego": "http://avalanche:9650",
     "nodeInstance": "default",
-    "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
-    "producer": {
-      "ipcRoot": "/tmp",
-      "cchainRpc": "http://avalanche:9650/ext/bc/C/rpc"
-    },
-    "consumer": {
-    }
+    "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp"
   },
   "services": {
     "redis": {
