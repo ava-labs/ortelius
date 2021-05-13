@@ -2,18 +2,19 @@ package avax
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"strings"
 
-	"github.com/ava-labs/ortelius/services/idb"
-
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
 	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/ava-labs/ortelius/utils"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/gocraft/dbr/v2"
 )
 
@@ -124,11 +125,11 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 	}
 
 	for _, trItem := range trItemsByHash {
-		if cblock, ok := cblocksMap[trItem.Block]; ok {
-			trItem.BlockGasUsed = cblock.Header.GasUsed
-			trItem.BlockGasLimit = cblock.Header.GasLimit
-			trItem.BlockNonce = cblock.Header.Nonce.Uint64()
-			trItem.BlockHash = cblock.Header.Hash().String()
+		if cblockv, ok := cblocksMap[trItem.Block]; ok {
+			trItem.BlockGasUsed = cblockv.Header.GasUsed
+			trItem.BlockGasLimit = cblockv.Header.GasLimit
+			trItem.BlockNonce = cblockv.Header.Nonce.Uint64()
+			trItem.BlockHash = cblockv.Header.Hash().String()
 		}
 		if trItem.TracesMax != 0 {
 			trItem.Traces = make([]*models.CvmTransactionsTxDataTrace, trItem.TracesMax)
@@ -292,6 +293,21 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 			trItemsByHash[txTransactionTraceService.Hash].TracesMax = txTransactionTraceService.Idx + 1
 		}
 		trItemsByHash[txTransactionTraceService.Hash].TracesMap[txTransactionTraceService.Idx] = txTransactionTraceModel
+
+		txTransactionTraceModel.RevertReason = nilEmpty(txTransactionTraceModel.RevertReason, "reverted 0x")
+		if txTransactionTraceModel.RevertReason != nil {
+			revVal := *txTransactionTraceModel.RevertReason
+			if strings.HasPrefix(revVal, "reverted 0x") {
+				*txTransactionTraceModel.RevertReason = "0x" + revVal[11:]
+				revertReason, err := hex.DecodeString(revVal[11:])
+				if err == nil {
+					revertReasonString, err := abi.UnpackRevert(revertReason)
+					if err == nil {
+						txTransactionTraceModel.RevertReasonUnpacked = &revertReasonString
+					}
+				}
+			}
+		}
 	}
 
 	return nil
@@ -314,11 +330,11 @@ func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Sessio
 		}
 
 		for _, cvmTx := range cvmTxs {
-			cblock, err := cblock.Unmarshal(cvmTx.Serialization)
+			cblockv, err := cblock.Unmarshal(cvmTx.Serialization)
 			if err != nil {
 				return nil, err
 			}
-			cblocksMap[cvmTx.Block] = cblock
+			cblocksMap[cvmTx.Block] = cblockv
 		}
 	}
 

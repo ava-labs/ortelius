@@ -45,6 +45,8 @@ type CvmTransactionsTxDataTrace struct {
 	Init                       *string `json:"init,omitempty"`
 	CreatedContractCode        *string `json:"createdContractCode,omitempty"`
 	Error                      *string `json:"error,omitempty"`
+	RevertReason               *string `json:"revertReason,omitempty"`
+	RevertReasonUnpacked       *string `json:"revertReasonUnpacked,omitempty"`
 	TraceAddress               []int   `json:"traceAddress,omitempty"`
 }
 

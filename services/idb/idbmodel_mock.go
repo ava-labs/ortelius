@@ -340,6 +340,15 @@ func (m *MockPersist) InsertRewards(ctx context.Context, runner dbr.SessionRunne
 	return nil
 }
 
+func (m *MockPersist) UpdateRewardsProcessed(ctx context.Context, sess dbr.SessionRunner, v *Rewards) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if fv, ok := m.Rewards[v.ID]; ok {
+		fv.Processed = v.Processed
+	}
+	return nil
+}
+
 func (m *MockPersist) QueryTransactionsValidator(ctx context.Context, runner dbr.SessionRunner, v *TransactionsValidator) (*TransactionsValidator, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
