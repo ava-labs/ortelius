@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
@@ -109,6 +111,12 @@ func NewFromFile(filePath string) (*Config, error) {
 		}
 		featuresMap[featurec] = struct{}{}
 	}
+
+	cchainID, err := ids.FromString(servicesRedisViper.GetString(keysStreamProducerCchainID))
+	if err != nil {
+		return nil, err
+	}
+
 	// Put it all together
 	return &Config{
 		NetworkID:         v.GetUint32(keysNetworkID),
@@ -132,7 +140,7 @@ func NewFromFile(filePath string) (*Config, error) {
 				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
-		CchainID:     servicesRedisViper.GetString(keysStreamProducerCchainID),
+		CchainID:     cchainID.String(),
 		AvalancheGO:  servicesRedisViper.GetString(keysStreamProducerAvalanchego),
 		NodeInstance: servicesRedisViper.GetString(keysStreamProducerNodeInstance),
 	}, nil

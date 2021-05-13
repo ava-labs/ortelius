@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"log"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/spf13/viper"
 )
 
@@ -55,24 +57,20 @@ func newSubViper(v *viper.Viper, name string) *viper.Viper {
 func newChainsConfig(v *viper.Viper) (Chains, error) {
 	chainsConf := v.GetStringMap(keysChains)
 	chains := make(Chains, len(chainsConf))
-	for _, chainConf := range chainsConf {
+	for chainConfStr, chainConf := range chainsConf {
 		confMap, ok := chainConf.(map[string]interface{})
 		if !ok {
 			return nil, ErrChainsConfigMustBeStringMap
 		}
 
-		// Check for empty values
-		switch {
-		case confMap[keysChainsID] == nil:
-			return nil, ErrChainsConfigIDEmpty
-		case confMap[keysChainsVMType] == nil:
-			return nil, ErrChainsConfigVMEmpty
+		chainID, err := ids.FromString(chainConfStr)
+		if err != nil {
+			return nil, err
 		}
 
-		// Convert to proper types
-		id, ok := confMap[keysChainsID].(string)
-		if !ok {
-			return nil, ErrChainsConfigIDNotString
+		// Check for empty values
+		if confMap[keysChainsVMType] == nil {
+			return nil, ErrChainsConfigVMEmpty
 		}
 
 		vmType, ok := confMap[keysChainsVMType].(string)
@@ -80,7 +78,7 @@ func newChainsConfig(v *viper.Viper) (Chains, error) {
 			return nil, ErrChainsConfigVMNotString
 		}
 
-		chains[id] = Chain{ID: id, VMType: vmType}
+		chains[chainID.String()] = Chain{ID: chainID.String(), VMType: vmType}
 	}
 	return chains, nil
 }

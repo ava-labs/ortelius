@@ -9,11 +9,9 @@
   "cchainId": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
-      "id": "11111111111111111111111111111111LpoYY",
       "vmType": "pvm"
     },
     "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm": {
-      "id": "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm",
       "vmType": "avm"
     }
   },
