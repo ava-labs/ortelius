@@ -227,21 +227,21 @@ func createStreamCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *erro
 func producerFactories(sc *servicesctrl.Control, cfg *cfg.Config) []utils.ListenCloser {
 	var factories []utils.ListenCloser
 	factories = append(factories, stream.NewProducerCChain(sc, *cfg))
-	for _, v := range cfg.Chains {
+	for chainID, v := range cfg.Chains {
 		switch v.VMType {
 		case consumers.IndexerAVMName:
-			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeTransactions, stream.IndexXChain)
+			p, err := stream.NewProducerChain(sc, *cfg, chainID.String(), stream.EventTypeDecisions, stream.IndexTypeTransactions, stream.IndexXChain)
 			if err != nil {
 				panic(err)
 			}
 			factories = append(factories, p)
-			p, err = stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeConsensus, stream.IndexTypeVertices, stream.IndexXChain)
+			p, err = stream.NewProducerChain(sc, *cfg, chainID.String(), stream.EventTypeConsensus, stream.IndexTypeVertices, stream.IndexXChain)
 			if err != nil {
 				panic(err)
 			}
 			factories = append(factories, p)
 		case consumers.IndexerPVMName:
-			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeBlocks, stream.IndexPChain)
+			p, err := stream.NewProducerChain(sc, *cfg, chainID.String(), stream.EventTypeDecisions, stream.IndexTypeBlocks, stream.IndexPChain)
 			if err != nil {
 				panic(err)
 			}

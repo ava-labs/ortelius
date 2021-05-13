@@ -90,13 +90,13 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 	errs := avlancheGoUtils.AtomicInterface{}
 
 	wg := sync.WaitGroup{}
-	for _, chain := range chains {
+	for chainID, chain := range chains {
 		for _, factory := range factories {
-			bootstrapfactory, err := factory(networkID, chain.VMType, chain.ID)
+			bootstrapfactory, err := factory(networkID, chain.VMType, chainID.String())
 			if err != nil {
 				return err
 			}
-			sc.Log.Info("bootstrap %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+			sc.Log.Info("bootstrap %d vm %s chain %s", networkID, chain.VMType, chainID)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -104,7 +104,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 				if err != nil {
 					errs.SetValue(err)
 				}
-				sc.Log.Info("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+				sc.Log.Info("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chainID)
 			}()
 		}
 	}
@@ -191,8 +191,8 @@ func IndexerFactories(
 	var topicNames []string
 
 	for _, factory := range factoriesChainDB {
-		for _, chainConfig := range config.Chains {
-			f, err := factory(sc, *config, chainConfig.VMType, chainConfig.ID)
+		for chainConfigID, chainConfig := range config.Chains {
+			f, err := factory(sc, *config, chainConfig.VMType, chainConfigID.String())
 			if err != nil {
 				return err
 			}

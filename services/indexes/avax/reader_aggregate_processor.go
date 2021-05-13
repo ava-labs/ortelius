@@ -378,7 +378,11 @@ func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
 	// counts for the chains only..
 	var addressCountlpruned []*models.ChainCounts
 	for _, aCount := range addressCountl {
-		if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
+		chID, err := ids.FromString(string(aCount.ChainID))
+		if err != nil {
+			continue
+		}
+		if _, ok := r.sc.Chains[chID]; ok {
 			addressCountlpruned = append(addressCountlpruned, aCount)
 		}
 	}
@@ -405,7 +409,11 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 	// counts for the chains only..
 	var txCountlpruned []*models.ChainCounts
 	for _, aCount := range txCountl {
-		if _, ok := r.sc.Chains[string(aCount.ChainID)]; ok {
+		chID, err := ids.FromString(string(aCount.ChainID))
+		if err != nil {
+			continue
+		}
+		if _, ok := r.sc.Chains[chID]; ok {
 			txCountlpruned = append(txCountlpruned, aCount)
 		}
 	}

@@ -87,13 +87,13 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 
 	consumersmap := make(map[string]services.Consumer)
 	for chid, chain := range conf.Chains {
-		consumer, err := consumers.IndexerConsumer(conf.NetworkID, chain.VMType, chid)
+		consumer, err := consumers.IndexerConsumer(conf.NetworkID, chain.VMType, chid.String())
 		if err != nil {
 			return nil, err
 		}
-		consumersmap[chid] = consumer
+		consumersmap[chid.String()] = consumer
 	}
-	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.CchainID)
+	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.CchainID.String())
 	if err != nil {
 		return nil, err
 	}

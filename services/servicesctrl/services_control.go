@@ -32,7 +32,7 @@ type LocalTxPoolJob struct {
 
 type Control struct {
 	Services                   cfg.Services
-	Chains                     map[string]cfg.Chain `json:"chains"`
+	Chains                     cfg.Chains
 	Log                        logging.Logger
 	Persist                    idb.Persist
 	Features                   map[string]struct{}

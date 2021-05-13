@@ -482,7 +482,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 
 		txPool := &idb.TxPool{
 			NetworkID:     p.conf.NetworkID,
-			ChainID:       p.conf.CchainID,
+			ChainID:       p.conf.CchainID.String(),
 			MsgKey:        id.String(),
 			Serialization: txTransactionTracesBits,
 			Processed:     0,
@@ -513,7 +513,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 
 		txPool := &idb.TxPool{
 			NetworkID:     p.conf.NetworkID,
-			ChainID:       p.conf.CchainID,
+			ChainID:       p.conf.CchainID.String(),
 			MsgKey:        id.String(),
 			Serialization: logBits,
 			Processed:     0,
@@ -542,7 +542,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 
 	txPool := &idb.TxPool{
 		NetworkID:     p.conf.NetworkID,
-		ChainID:       p.conf.CchainID,
+		ChainID:       p.conf.CchainID.String(),
 		MsgKey:        id.String(),
 		Serialization: block,
 		Processed:     0,

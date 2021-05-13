@@ -96,15 +96,15 @@ func (replay *dbReplay) Start() error {
 
 	replay.conns = conns
 
-	for _, chainID := range replay.config.Chains {
-		err := replay.handleReader(chainID, waitGroup, worker, conns)
+	for chainID, chain := range replay.config.Chains {
+		err := replay.handleReader(chainID, chain, waitGroup, worker, conns)
 		if err != nil {
 			log.Fatalln("reader failed", chainID, ":", err.Error())
 			return err
 		}
 	}
 
-	err = replay.handleCReader(replay.config.CchainID, waitGroup, worker)
+	err = replay.handleCReader(replay.config.CchainID.String(), waitGroup, worker)
 	if err != nil {
 		log.Fatalln("reader failed", replay.config.CchainID, ":", err.Error())
 		return err
@@ -196,17 +196,17 @@ func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker uti
 	return nil
 }
 
-func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *servicesconn.Connections) error {
+func (replay *dbReplay) handleReader(chainID ids.ID, chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *servicesconn.Connections) error {
 	var err error
 	var writer services.Consumer
 	switch chain.VMType {
 	case consumers.IndexerAVMName:
-		writer, err = avm.NewWriter(replay.config.NetworkID, chain.ID)
+		writer, err = avm.NewWriter(replay.config.NetworkID, chainID.String())
 		if err != nil {
 			return err
 		}
 	case consumers.IndexerPVMName:
-		writer, err = pvm.NewWriter(replay.config.NetworkID, chain.ID)
+		writer, err = pvm.NewWriter(replay.config.NetworkID, chainID.String())
 		if err != nil {
 			return err
 		}
@@ -215,7 +215,7 @@ func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker u
 	}
 
 	{
-		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
+		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chainID)
 		ctx := context.Background()
 		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
 		err := writer.Bootstrap(ctx, conns, replay.persist)
@@ -226,11 +226,11 @@ func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker u
 		}
 	}
 
-	err = replay.startDecision(chain, waitGroup, worker, writer)
+	err = replay.startDecision(chainID, chain, waitGroup, worker, writer)
 	if err != nil {
 		return err
 	}
-	err = replay.startConsensus(chain, waitGroup, worker, writer)
+	err = replay.startConsensus(chainID, chain, waitGroup, worker, writer)
 	if err != nil {
 		return err
 	}
@@ -543,8 +543,8 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 	return nil
 }
 
-func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
-	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
+func (replay *dbReplay) startConsensus(chainID ids.ID, chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chainID.String(), stream.EventTypeConsensus)
 
 	replay.counterWaits.Inc(tn)
 	replay.counterAdded.Add(tn, 0)
@@ -598,7 +598,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 
 			msgc := stream.NewMessage(
 				id.String(),
-				chain.ID,
+				chainID.String(),
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
@@ -611,8 +611,8 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 	return nil
 }
 
-func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
-	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
+func (replay *dbReplay) startDecision(chainID ids.ID, chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+	tn := stream.GetTopicName(replay.config.NetworkID, chainID.String(), stream.EventTypeDecisions)
 
 	replay.counterWaits.Inc(tn)
 	replay.counterAdded.Add(tn, 0)
@@ -666,7 +666,7 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 
 			msgc := stream.NewMessage(
 				id.String(),
-				chain.ID,
+				chainID.String(),
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
@@ -14,10 +16,7 @@ const appName = "ortelius"
 
 var (
 	ErrChainsConfigMustBeStringMap = errors.New("Chain config must a string map")
-	ErrChainsConfigIDEmpty         = errors.New("Chain config ID is empty")
 	ErrChainsConfigVMEmpty         = errors.New("Chain config vm type is empty")
-	ErrChainsConfigIDNotString     = errors.New("Chain config ID is not a string")
-	ErrChainsConfigAliasNotString  = errors.New("Chain config alias is not a string")
 	ErrChainsConfigVMNotString     = errors.New("Chain config vm type is not a string")
 )
 
@@ -28,17 +27,16 @@ type Config struct {
 	MetricsListenAddr string `json:"metricsListenAddr"`
 	AdminListenAddr   string `json:"adminListenAddr"`
 	Features          map[string]struct{}
-	CchainID          string `json:"cchainId"`
+	CchainID          ids.ID `json:"cchainId"`
 	AvalancheGO       string `json:"avalanchego"`
 	NodeInstance      string `json:"nodeInstance"`
 }
 
 type Chain struct {
-	ID     string `json:"id"`
 	VMType string `json:"vmType"`
 }
 
-type Chains map[string]Chain
+type Chains map[ids.ID]Chain
 
 type Services struct {
 	Logging logging.Config `json:"logging"`
@@ -109,6 +107,11 @@ func NewFromFile(filePath string) (*Config, error) {
 		}
 		featuresMap[featurec] = struct{}{}
 	}
+
+	cchainID, err := ids.FromString(servicesRedisViper.GetString(keysStreamProducerCchainID))
+	if err != nil {
+		return nil, err
+	}
 	// Put it all together
 	return &Config{
 		NetworkID:         v.GetUint32(keysNetworkID),
@@ -132,7 +135,7 @@ func NewFromFile(filePath string) (*Config, error) {
 				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
-		CchainID:     servicesRedisViper.GetString(keysStreamProducerCchainID),
+		CchainID:     cchainID,
 		AvalancheGO:  servicesRedisViper.GetString(keysStreamProducerAvalanchego),
 		NodeInstance: servicesRedisViper.GetString(keysStreamProducerNodeInstance),
 	}, nil

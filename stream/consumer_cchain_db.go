@@ -64,7 +64,7 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 		sc.InitConsumeMetrics()
 
 		var err error
-		c.consumer, err = cvm.NewWriter(c.conf.NetworkID, c.conf.CchainID)
+		c.consumer, err = cvm.NewWriter(c.conf.NetworkID, c.conf.CchainID.String())
 		if err != nil {
 			_ = c.Close()
 			return nil, err
@@ -96,7 +96,7 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 	case c.topicName:
 		msg := &Message{
 			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
+			chainID:    c.conf.CchainID.String(),
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
@@ -105,7 +105,7 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 	case c.topicTrcName:
 		msg := &Message{
 			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
+			chainID:    c.conf.CchainID.String(),
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
@@ -114,7 +114,7 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 	case c.topicLogsName:
 		msg := &Message{
 			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
+			chainID:    c.conf.CchainID.String(),
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
