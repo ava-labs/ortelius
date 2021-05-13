@@ -106,7 +106,7 @@ func newDBRConnection(stream *health.Stream, conf cfg.DB, ro bool) (*dbr.Connect
 		return nil, err
 	}
 
-	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancelFn := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFn()
 	if err := rawDBConn.PingContext(ctx); err != nil {
 		rawDBConn.Close()
