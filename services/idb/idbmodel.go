@@ -1381,7 +1381,6 @@ func (p *persist) InsertRewards(
 			Set("block_id", v.BlockID).
 			Set("txid", v.Txid).
 			Set("shouldprefercommit", v.Shouldprefercommit).
-			Set("processed", v.Processed).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
