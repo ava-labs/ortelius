@@ -45,6 +45,10 @@ func NewNoopManager(db database.Database) *NoopManager {
 	}
 }
 
+func (n *NoopManager) NewCompleteMeterDBManager(namespace string, registerer prometheus.Registerer) (manager.Manager, error) {
+	panic("undefined")
+}
+
 func (n *NoopManager) Current() *manager.VersionedDatabase {
 	return n.Databases[0]
 }
