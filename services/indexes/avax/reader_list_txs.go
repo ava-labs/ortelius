@@ -665,6 +665,8 @@ func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
 	cols = append(cols, "avm_output_addresses.redeeming_signature AS signature")
 	cols = append(cols, "addresses.public_key AS public_key")
 	cols = append(cols, tbl+".chain_id")
+	cols = append(cols, "case when avm_outputs.chain_id is null then '' else avm_outputs.chain_id end as out_chain_id")
+	cols = append(cols, "case when avm_outputs_redeeming.chain_id is null then '' else avm_outputs_redeeming.chain_id end as in_chain_id")
 	cols = append(cols, "case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload")
 	cols = append(cols, "case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake")
 	cols = append(cols, "case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout")

@@ -68,6 +68,8 @@ type Output struct {
 	CreatedAt              time.Time   `json:"timestamp"`
 	RedeemingTransactionID StringID    `json:"redeemingTransactionID"`
 	ChainID                StringID    `json:"chainID"`
+	InChainID              StringID    `json:"inChainID"`
+	OutChainID             StringID    `json:"outChainID"`
 	GroupID                uint64      `json:"groupID"`
 	Payload                []byte      `json:"payload"`
 	Block                  string      `json:"block"`
