@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	github.com/ava-labs/avalanchego v1.4.3
+	github.com/ava-labs/avalanchego v1.4.4
 	github.com/ava-labs/coreth v0.5.1-rc.2
 	github.com/ethereum/go-ethereum v1.10.2
 	github.com/go-redis/cache/v8 v8.2.1
