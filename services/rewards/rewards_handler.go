@@ -122,7 +122,7 @@ func (r *RewardsHandler) processRewards() error {
 			return err
 		}
 
-		err = r.processRewardUtxos(rewardsUtxos)
+		err = r.processRewardUtxos(rewardsUtxos, rewardTx.CreatedAt)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func (r *RewardsHandler) processRewards() error {
 	return nil
 }
 
-func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte) error {
+func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time) error {
 	job := r.conns.StreamDBDedup().NewJob("rewards-handler-persist")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
@@ -147,7 +147,6 @@ func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte) error {
 	defer dbTx.RollbackUnlessCommitted()
 
 	ctx := context.Background()
-	tnow := time.Now()
 
 	for _, reawrdUtxo := range rewardsUtxos {
 		var utxo *avalancheGoAvax.UTXO
@@ -156,7 +155,7 @@ func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte) error {
 			return err
 		}
 
-		cCtx := services.NewConsumerContext(ctx, job, sess, tnow.Unix(), int64(tnow.Nanosecond()), r.perist)
+		cCtx := services.NewConsumerContext(ctx, job, sess, createdAt.Unix(), int64(createdAt.Nanosecond()), r.perist)
 
 		_, _, err = r.writer.ProcessStateOut(
 			cCtx,

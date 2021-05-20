@@ -3,8 +3,8 @@ module github.com/ava-labs/ortelius
 go 1.15
 
 replace (
-	github.com/ava-labs/avalanchego v1.4.2 => /home/todd/go/src/github.com/ava-labs/avalanchego-internal
-	github.com/ava-labs/coreth v0.5.0-rc.2 => /home/todd/go/src/github.com/ava-labs/coreth-internal
+	github.com/ava-labs/avalanchego v1.4.4 => /home/todd/go/src/github.com/ava-labs/avalanchego-internal
+	github.com/ava-labs/coreth v0.5.1-rc.2 => /home/todd/go/src/github.com/ava-labs/coreth-internal
 )
 
 require (
