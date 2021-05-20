@@ -51,23 +51,22 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 
 		subquery := dbr.Select("avm_outputs.transaction_id").
 			From("avm_outputs").
-			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
+			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+			Where("avm_output_addresses.address IN ?", addrs)
+
 		subqueryRedeem := dbr.Select("avm_outputs_redeeming.redeeming_transaction_id as transaction_id").
 			From("avm_outputs_redeeming").
 			LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
-			Where("avm_outputs_redeeming.redeeming_transaction_id is not null")
-
-		subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
-		subqueryRedeem = subqueryRedeem.Where("avm_output_addresses.address IN ?", addrs)
+			Where("avm_outputs_redeeming.redeeming_transaction_id is not null").
+			Where("avm_output_addresses.address IN ?", addrs)
 
 		if p.AssetID != nil {
 			assetCheck(subquery)
 		}
 
-		uq := dbr.Union(subquery, subqueryRedeem).As("union_q")
-		// builder.Join(uq, "avm_transactions.id = union_q.transaction_id")
-		builder.Where("avm_transactions.id in ?",
-			dbr.Select("union_q.transaction_id").From(uq),
+		builder.Where("avm_transactions.id in ? or avm_transactions.id in ?",
+			dbr.Select("uq1.transaction_id").From(subquery.As("uq1")),
+			dbr.Select("uq2.transaction_id").From(subqueryRedeem.As("uq2")),
 		)
 	} else if p.AssetID != nil {
 		builder.Join("avm_outputs", "avm_transactions.id = avm_outputs.transaction_id")
