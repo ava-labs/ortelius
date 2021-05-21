@@ -4,19 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/servicesctrl"
-
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 )
 
 type Handler struct {
@@ -71,7 +69,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 }
 
 func (r *Handler) processRewards() error {
-	job := r.conns.StreamDBDedup().NewJob("rewards-handler")
+	job := r.conns.QuietStream().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx := context.Background()
