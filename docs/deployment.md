@@ -95,11 +95,12 @@ https://docs.docker.com/engine/install/linux-postinstall/
 | 1 | processed transactions|
 
 As items are consumed into the indexer the count of processed = 0 transactions decreases.
+*NOTE* It can take a while for tx_pool records to appear on a fresh install.
 
 # Docker containers
 
-There are 2 ortelius services, the api/indexer.
-The avalanchego node will be running.
+There are 2 ortelius services api and indexer.
+There will be an avalanchego, redis, and mysql container.
 
 ```
 # docker ps -a
