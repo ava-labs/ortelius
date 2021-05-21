@@ -240,7 +240,6 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 			return err
 		}
 	}
-
 	block.TxsBytes = nil
 	block.Txs = nil
 
