@@ -62,8 +62,8 @@ github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hC
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/ava-labs/avalanchego v1.4.4-0.20210518192636-4396f53743c3/go.mod h1:oHodtkyFwJ9x9XUol7t2YcR1t8HnGIXiHGpNB/PC9zQ=
-github.com/ava-labs/avalanchego v1.4.6-0.20210521221011-43a20c37774b h1:cJqO/u1cAVT7tL4lML3TVZQvmQzXfPTwfUflm0i11Zc=
-github.com/ava-labs/avalanchego v1.4.6-0.20210521221011-43a20c37774b/go.mod h1:oHodtkyFwJ9x9XUol7t2YcR1t8HnGIXiHGpNB/PC9zQ=
+github.com/ava-labs/avalanchego v1.4.5 h1:5N4EwmFsLwnJLHZu0qidMDDtKdDE/4EBhdOb9NDhWAA=
+github.com/ava-labs/avalanchego v1.4.5/go.mod h1:oHodtkyFwJ9x9XUol7t2YcR1t8HnGIXiHGpNB/PC9zQ=
 github.com/ava-labs/coreth v0.5.2-rc.5 h1:cW/UiDgZ7cPvq1sxkUGYKCGgxsXgLrii2Sg3gIOPmZA=
 github.com/ava-labs/coreth v0.5.2-rc.5/go.mod h1:WpJeE9/lOxlB6V+LsFqSNou/dhHYhGIg11pn/TBJ540=
 github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=

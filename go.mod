@@ -3,7 +3,7 @@ module github.com/ava-labs/ortelius
 go 1.15
 
 require (
-	github.com/ava-labs/avalanchego v1.4.6-0.20210521221011-43a20c37774b
+	github.com/ava-labs/avalanchego v1.4.5
 	github.com/ava-labs/coreth v0.5.2-rc.5
 	github.com/ethereum/go-ethereum v1.10.2
 	github.com/go-redis/cache/v8 v8.2.1
