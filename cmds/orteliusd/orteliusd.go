@@ -22,6 +22,7 @@ import (
 	oreliusRpc "github.com/ava-labs/ortelius/rpc"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/rewards"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
@@ -88,6 +89,7 @@ func execute() error {
 
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
+				serviceControl.ServicesCfg = *c
 				serviceControl.Chains = c.Chains
 				serviceControl.Persist = idb.NewPersist()
 				serviceControl.Features = c.Features
@@ -310,7 +312,15 @@ func runStreamProcessorManagers(
 			}
 		}
 
-		err := consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+		rh := &rewards.Handler{}
+		sc.RewardsHandler = rh
+		err := rh.Start(sc)
+		if err != nil {
+			*runError = err
+			return
+		}
+
+		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 		if err != nil {
 			*runError = err
 			return

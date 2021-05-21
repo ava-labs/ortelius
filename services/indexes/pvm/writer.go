@@ -202,9 +202,9 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
-	case *platformvm.Abort:
+	case *platformvm.AbortBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
-	case *platformvm.Commit:
+	case *platformvm.CommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
 		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)

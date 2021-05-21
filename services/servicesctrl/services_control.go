@@ -32,6 +32,7 @@ type LocalTxPoolJob struct {
 
 type Control struct {
 	Services                   cfg.Services
+	ServicesCfg                cfg.Config
 	Chains                     map[string]cfg.Chain `json:"chains"`
 	Log                        logging.Logger
 	Persist                    idb.Persist
@@ -44,6 +45,7 @@ type Control struct {
 	IsAggregateCache           bool
 	IndexedList                indexedlist.IndexedList
 	LocalTxPool                chan *LocalTxPoolJob
+	RewardsHandler             interface{}
 }
 
 func (s *Control) Logger() logging.Logger {

@@ -1,6 +1,81 @@
 package utils
 
-import "github.com/ava-labs/avalanchego/database"
+import (
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/manager"
+	"github.com/ava-labs/avalanchego/version"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+type Vers struct {
+}
+
+func (*Vers) Major() int {
+	return 0
+}
+
+func (*Vers) Minor() int {
+	return 0
+}
+func (*Vers) Patch() int {
+	return 0
+}
+func (*Vers) Compare(v version.Version) int {
+	return 1
+}
+
+func (*Vers) String() string {
+	return ""
+}
+
+type NoopManager struct {
+	Databases []*manager.VersionedDatabase
+}
+
+func NewNoopManager(db database.Database) *NoopManager {
+	vers := &Vers{}
+
+	return &NoopManager{
+		Databases: []*manager.VersionedDatabase{
+			{
+				Database: db,
+				Version:  vers,
+			},
+		},
+	}
+}
+
+func (n *NoopManager) NewCompleteMeterDBManager(namespace string, registerer prometheus.Registerer) (manager.Manager, error) {
+	panic("undefined")
+}
+
+func (n *NoopManager) Current() *manager.VersionedDatabase {
+	return n.Databases[0]
+}
+
+func (n *NoopManager) Previous() (*manager.VersionedDatabase, bool) {
+	return n.Databases[0], true
+}
+
+func (n *NoopManager) GetDatabases() []*manager.VersionedDatabase {
+	return n.Databases
+}
+
+func (n *NoopManager) Close() error {
+	return nil
+}
+
+func (n *NoopManager) NewPrefixDBManager(prefix []byte) manager.Manager {
+	return n
+}
+
+func (n *NoopManager) NewNestedPrefixDBManager(prefix []byte) manager.Manager {
+	return n
+}
+
+func (n *NoopManager) NewMeterDBManager(namespace string, registerer prometheus.Registerer) (manager.Manager, error) {
+	return n, nil
+}
 
 // NoopDatabase is a lightning fast key value store with probabilistic operations.
 type NoopDatabase struct{}

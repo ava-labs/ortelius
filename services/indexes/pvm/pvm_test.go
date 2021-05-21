@@ -7,7 +7,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/components/core"
+	_ "github.com/ava-labs/avalanchego/vms/components/core"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
@@ -145,7 +145,7 @@ func TestCommonBlock(t *testing.T) {
 	defer closeFn()
 	ctx := context.Background()
 
-	tx := platformvm.CommonBlock{Block: &core.Block{}}
+	tx := platformvm.CommonBlock{}
 	blkid := ids.ID{}
 
 	persist := idb.NewPersistMock()
