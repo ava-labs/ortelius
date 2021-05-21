@@ -33,8 +33,8 @@ const (
 
 	readRPCTimeout = 500 * time.Millisecond
 
-	maxWorkerQueue = 1000
-	maxWorkers     = 4
+	maxWorkerQueue = 4000
+	maxWorkers     = 8
 )
 
 type producerCChainContainer struct {
