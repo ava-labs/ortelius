@@ -312,7 +312,7 @@ func runStreamProcessorManagers(
 			}
 		}
 
-		rh := &rewards.RewardsHandler{}
+		rh := &rewards.Handler{}
 		sc.RewardsHandler = rh
 		err := rh.Start(sc)
 		if err != nil {

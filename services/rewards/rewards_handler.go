@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
-type RewardsHandler struct {
+type Handler struct {
 	client      *platformvm.Client
 	conns       *servicesconn.Connections
 	perist      idb.Persist
@@ -28,7 +28,7 @@ type RewardsHandler struct {
 	cid         ids.ID
 }
 
-func (r *RewardsHandler) Start(sc *servicesctrl.Control) error {
+func (r *Handler) Start(sc *servicesctrl.Control) error {
 	conns, err := sc.DatabaseOnly()
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func (r *RewardsHandler) Start(sc *servicesctrl.Control) error {
 	return nil
 }
 
-func (r *RewardsHandler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
+func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	doneCh := make(chan struct{}, 1)
@@ -70,7 +70,7 @@ func (r *RewardsHandler) runTicker(sc *servicesctrl.Control, conns *servicesconn
 	}
 }
 
-func (r *RewardsHandler) processRewards() error {
+func (r *Handler) processRewards() error {
 	job := r.conns.StreamDBDedup().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
@@ -136,7 +136,7 @@ func (r *RewardsHandler) processRewards() error {
 	return nil
 }
 
-func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time) error {
+func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time) error {
 	job := r.conns.StreamDBDedup().NewJob("rewards-handler-persist")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
@@ -177,7 +177,7 @@ func (r *RewardsHandler) processRewardUtxos(rewardsUtxos [][]byte, createdAt tim
 	return dbTx.Commit()
 }
 
-func (r *RewardsHandler) markRewardProcessed(id string) error {
+func (r *Handler) markRewardProcessed(id string) error {
 	job := r.conns.StreamDBDedup().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
