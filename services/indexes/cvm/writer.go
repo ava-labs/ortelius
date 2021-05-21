@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
@@ -339,7 +340,12 @@ func (w *Writer) indexExportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		if err != nil {
 			return err
 		}
-		totalin += in.Amount
+		if in.AssetID == w.avaxAssetID {
+			totalin, err = math.Add64(totalin, in.Amount)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	var totalout uint64
@@ -365,7 +371,12 @@ func (w *Writer) indexImportTx(ctx services.ConsumerCtx, txID ids.ID, tx *evm.Un
 		if err != nil {
 			return err
 		}
-		totalout += out.Amount
+		if out.AssetID == w.avaxAssetID {
+			totalout, err = math.Add64(totalout, out.Amount)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	var totalin uint64
