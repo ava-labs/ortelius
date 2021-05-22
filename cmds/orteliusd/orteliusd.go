@@ -149,8 +149,6 @@ func execute() error {
 		return err
 	}
 
-	serviceControl.BalanceAccumulatorManager.Close()
-
 	return runErr
 }
 
@@ -304,21 +302,24 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		if sc.IsAccumulateBalanceIndexer {
-			err := sc.BalanceAccumulatorManager.Start()
-			if err != nil {
-				*runError = err
-				return
-			}
-		}
-
-		rh := &rewards.Handler{}
-		sc.RewardsHandler = rh
-		err := rh.Start(sc)
+		err := sc.BalancheManager.Start(sc.IsAccumulateBalanceIndexer)
 		if err != nil {
 			*runError = err
 			return
 		}
+		defer func() {
+			sc.BalancheManager.Close()
+		}()
+
+		rh := &rewards.Handler{}
+		err = rh.Start(sc)
+		if err != nil {
+			*runError = err
+			return
+		}
+		defer func() {
+			rh.Close()
+		}()
 
 		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
 		if err != nil {
@@ -326,9 +327,7 @@ func runStreamProcessorManagers(
 			return
 		}
 
-		if sc.IsAccumulateBalanceIndexer {
-			sc.BalanceAccumulatorManager.Run()
-		}
+		sc.BalancheManager.Run()
 
 		runningControl := utils.NewRunning()
 

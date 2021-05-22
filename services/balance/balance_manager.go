@@ -42,32 +42,34 @@ func newManagerChannels() *managerChannels {
 
 type Manager struct {
 	handler *Handler
-	ticker  *time.Ticker
 	sc      controlwrap.ControlWrap
 	persist idb.Persist
 
 	managerChannelsList []*managerChannels
 
-	doneCh chan struct{}
+	doneCh  chan struct{}
+	enabled bool
 }
 
-func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) (*Manager, error) {
-	bmanager := &Manager{
+func NewManager(persist idb.Persist, sc controlwrap.ControlWrap) *Manager {
+	return &Manager{
 		handler: &Handler{},
-		ticker:  time.NewTicker(30 * time.Second),
 		sc:      sc,
 		persist: persist,
 		doneCh:  make(chan struct{}),
 	}
-	return bmanager, nil
 }
 
 func (a *Manager) Close() {
 	close(a.doneCh)
-	a.ticker.Stop()
 }
 
-func (a *Manager) Start() error {
+func (a *Manager) Start(enabled bool) error {
+	a.enabled = enabled
+	if !a.enabled {
+		return nil
+	}
+
 	connsTicker, err := a.sc.DatabaseOnly()
 	if err != nil {
 		return err
@@ -115,8 +117,12 @@ func (a *Manager) Start() error {
 }
 
 func (a *Manager) runTicker(conns *servicesconn.Connections) {
-	a.sc.Logger().Info("start ticker")
+	a.sc.Logger().Info("start")
 	go func() {
+		a.sc.Logger().Info("stop")
+
+		ticker := time.NewTicker(30 * time.Second)
+
 		runEvent := func(conns *servicesconn.Connections) {
 			icnt := 0
 			for ; icnt < retryProcessing; icnt++ {
@@ -137,7 +143,7 @@ func (a *Manager) runTicker(conns *servicesconn.Connections) {
 		}
 
 		defer func() {
-			a.ticker.Stop()
+			ticker.Stop()
 			err := conns.Close()
 			if err != nil {
 				a.sc.Logger().Warn("connection close %v", err)
@@ -147,7 +153,7 @@ func (a *Manager) runTicker(conns *servicesconn.Connections) {
 
 		for {
 			select {
-			case <-a.ticker.C:
+			case <-ticker.C:
 				runEvent(conns)
 			case <-a.doneCh:
 				return
@@ -159,6 +165,7 @@ func (a *Manager) runTicker(conns *servicesconn.Connections) {
 func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
 	a.sc.Logger().Info("start processing %v", id)
 	go func() {
+		defer a.sc.Logger().Info("stop processing %v", id)
 		runEvent := func(conns *servicesconn.Connections) {
 			icnt := 0
 			for ; icnt < retryProcessing; icnt++ {
@@ -198,6 +205,10 @@ func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f fu
 }
 
 func (a *Manager) Run() {
+	if !a.enabled {
+		return
+	}
+
 	for _, managerChannels := range a.managerChannelsList {
 		select {
 		case managerChannels.ins <- struct{}{}:

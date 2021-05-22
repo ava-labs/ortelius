@@ -37,7 +37,7 @@ type Control struct {
 	Log                        logging.Logger
 	Persist                    idb.Persist
 	Features                   map[string]struct{}
-	BalanceAccumulatorManager  *balance.Manager
+	BalancheManager            *balance.Manager
 	GenesisContainer           *servicesgenesis.GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
@@ -45,7 +45,6 @@ type Control struct {
 	IsAggregateCache           bool
 	IndexedList                indexedlist.IndexedList
 	LocalTxPool                chan *LocalTxPoolJob
-	RewardsHandler             interface{}
 }
 
 func (s *Control) Logger() logging.Logger {
@@ -74,10 +73,7 @@ func (s *Control) Init(networkID uint32) error {
 	}
 	var err error
 	persist := idb.NewPersist()
-	s.BalanceAccumulatorManager, err = balance.NewManager(persist, s)
-	if err != nil {
-		return err
-	}
+	s.BalancheManager = balance.NewManager(persist, s)
 
 	s.GenesisContainer, err = servicesgenesis.NewGenesisContainer(networkID)
 	if err != nil {
