@@ -95,21 +95,21 @@ https://docs.docker.com/engine/install/linux-postinstall/
 | 1 | processed transactions|
 
 As items are consumed into the indexer the count of processed = 0 transactions decreases.
+*NOTE* It can take a while for tx_pool records to appear on a fresh install.
 
 # Docker containers
 
-There are 3 ortelius services, the api/producer/indexer.
-The avalanchego node will be running.
+There are 2 ortelius services api and indexer.
+There will be an avalanchego, redis, and mysql container.
 
 ```
 # docker ps -a
 CONTAINER ID   IMAGE                             COMMAND                  CREATED          STATUS                      PORTS                                              NAMES
 f9bd3c9d6f74   avaplatform/avalanchego:v1.2.3    "/bin/sh -cx 'exec .…"   19 minutes ago   Up 19 minutes               0.0.0.0:9650->9650/tcp                             production_avalanche_1
-f5050fca06be   avaplatform/ortelius:140ac5c      "/opt/orteliusd stre…"   19 minutes ago   Up 19 minutes                                                                  production_producer_1
 70c5b875c07d   avaplatform/ortelius:140ac5c      "/opt/orteliusd api …"   19 minutes ago   Up 19 minutes               0.0.0.0:8080->8080/tcp                             production_api_1
 ee28fdea61c2   avaplatform/ortelius:140ac5c      "/opt/orteliusd stre…"   19 minutes ago   Up 19 minutes                                                                  production_indexer_1
 06ed45c21615   redis:6.0.9-alpine3.12            "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:6379->6379/tcp                             production_redis_1
-ae923d0489f0   mysql:8.0.23                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
+ae923d0489f0   mysql:8.0.24                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
 ```
 
 # Stop ortelius
@@ -133,7 +133,7 @@ Ortelius requires an updated mysql compatible DB.  This will work with aurora in
 ## *optional* mysql docker container -- adjust as necessary
 [dockerhub mysql](https://hub.docker.com/_/mysql)
 ```
-docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.23
+docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.24
 ```
 The standard mysql defaults can cause issues, please configure the customizations [here](https://github.com/ava-labs/ortelius/blob/master/docker/my.cnf)
 
@@ -160,9 +160,9 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 ### Avalanche.go
 
-The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--ipcs-chain-ids` flag, example:
+The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--index-enabled` and `--ipcs-chain-ids` flag, example:
 
-`./build/avalanchego --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
+`./build/avalanchego --index-enabled=true --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
 
 ### MySQL
 
@@ -184,10 +184,9 @@ Example: `docker run --rm avaplatform/ortelius --help`
 
 ## Running Ortelius
 
-Ortelius is a collection of services. The full stack consists of the Producer, Indexer, and API which can all be started from the single binary:
+Ortelius is a collection of services. The full stack consists of the Indexer, and API which can all be started from the single binary:
 
 ```
-ortelius stream producer -c path/to/config.json
 ortelius stream indexer -c path/to/config.json
 ortelius api -c path/to/config.json
 ```
@@ -214,7 +213,5 @@ Stop [ortelius](#stop-ortelius)
 Remove the directory /var/lib/ortelius/avalanche/mainnet/
 
 Restart [ortelius](#start-ortelius).
-
-
 
 

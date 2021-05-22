@@ -13,12 +13,5 @@ const defaultJSON = `{
       "dsn": "root:password@tcp(127.0.0.1:3306)/ortelius_dev",
       "driver": "mysql"
     }
-  },
-  "stream": {
-    "producer": {
-      "ipcRoot": "/tmp"
-    },
-    "consumer": {
-    }
   }
 }`

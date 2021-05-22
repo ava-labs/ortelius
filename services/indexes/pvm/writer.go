@@ -11,22 +11,21 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-
-	"github.com/ava-labs/avalanchego/vms/components/verify"
-
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/servicesconn"
 )
 
 var (
@@ -77,11 +76,11 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(&blockTx)
 }
 
-func (w *Writer) ConsumeConsensus(_ context.Context, _ *services.Connections, _ services.Consumable, _ services.Persist) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, _ *servicesconn.Connections, _ services.Consumable, _ idb.Persist) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c services.Consumable, persist services.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, persist idb.Persist) error {
 	job := conns.StreamDBDedup().NewJob("pvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
@@ -99,7 +98,7 @@ func (w *Writer) Consume(ctx context.Context, conns *services.Connections, c ser
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *services.Connections, persist services.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections, persist idb.Persist) error {
 	job := conns.QuietStream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
@@ -203,9 +202,9 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 			w.indexCommonBlock(ctx, blkID, models.BlockTypeProposal, blk.CommonBlock, blockBytes),
 			w.indexTransaction(ctx, blkID, blk.Tx, false),
 		)
-	case *platformvm.Abort:
+	case *platformvm.AbortBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
-	case *platformvm.Commit:
+	case *platformvm.CommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
 		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
@@ -225,7 +224,7 @@ func (w *Writer) indexCommonBlock(
 		blockBytes = []byte("")
 	}
 
-	pvmBlocks := &services.PvmBlocks{
+	pvmBlocks := &idb.PvmBlocks{
 		ID:            blkID.String(),
 		ChainID:       w.chainID,
 		Type:          blkType,
@@ -338,7 +337,7 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 	case *platformvm.UnsignedAdvanceTimeTx:
 		return nil
 	case *platformvm.UnsignedRewardValidatorTx:
-		rewards := &services.Rewards{
+		rewards := &idb.Rewards{
 			ID:                 castTx.ID().String(),
 			BlockID:            blkID.String(),
 			Txid:               castTx.TxID.String(),
@@ -374,7 +373,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 	for ipos, addr := range owner.Addresses() {
 		addrid := ids.ShortID{}
 		copy(addrid[:], addr)
-		txRewardsOwnerAddress := &services.TransactionsRewardsOwnersAddress{
+		txRewardsOwnerAddress := &idb.TransactionsRewardsOwnersAddress{
 			ID:          baseTx.ID().String(),
 			Address:     addrid.String(),
 			OutputIndex: uint32(ipos),
@@ -392,7 +391,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 	for ipos := outcnt; ipos < outcnt+2; ipos++ {
 		outputID := baseTx.ID().Prefix(uint64(ipos))
 
-		txRewardsOutputs := &services.TransactionsRewardsOwnersOutputs{
+		txRewardsOutputs := &idb.TransactionsRewardsOwnersOutputs{
 			ID:            outputID.String(),
 			TransactionID: baseTx.ID().String(),
 			OutputIndex:   uint32(ipos),
@@ -405,7 +404,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 		}
 	}
 
-	txRewardsOwner := &services.TransactionsRewardsOwners{
+	txRewardsOwner := &idb.TransactionsRewardsOwners{
 		ID:        baseTx.ID().String(),
 		ChainID:   w.chainID,
 		Threshold: owner.Threshold,
@@ -417,7 +416,7 @@ func (w *Writer) insertTransactionsRewardsOwners(ctx services.ConsumerCtx, rewar
 }
 
 func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.ID, validator platformvm.Validator) error {
-	transactionsValidator := &services.TransactionsValidator{
+	transactionsValidator := &idb.TransactionsValidator{
 		ID:        txID.String(),
 		NodeID:    validator.NodeID.String(),
 		Start:     validator.Start,
@@ -428,7 +427,7 @@ func (w *Writer) InsertTransactionValidator(ctx services.ConsumerCtx, txID ids.I
 }
 
 func (w *Writer) InsertTransactionBlock(ctx services.ConsumerCtx, txID ids.ID, blkTxID ids.ID) error {
-	transactionsBlock := &services.TransactionsBlock{
+	transactionsBlock := &idb.TransactionsBlock{
 		ID:        txID.String(),
 		TxBlockID: blkTxID.String(),
 		CreatedAt: ctx.Time(),

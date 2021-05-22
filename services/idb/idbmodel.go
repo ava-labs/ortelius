@@ -1,4 +1,4 @@
-package services
+package idb
 
 import (
 	"context"
@@ -7,10 +7,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-
-	"github.com/ava-labs/ortelius/services/indexes/models"
-
 	"github.com/ava-labs/ortelius/services/db"
+	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/gocraft/dbr/v2"
 )
 
@@ -44,6 +42,7 @@ const (
 	TableTxPool                           = "tx_pool"
 	TableKeyValueStore                    = "key_value_store"
 	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
+	TableNodeIndex                        = "node_index"
 	TableCvmLogs                          = "cvm_logs"
 )
 
@@ -219,6 +218,11 @@ type Persist interface {
 		dbr.SessionRunner,
 		*Rewards,
 		bool,
+	) error
+	UpdateRewardsProcessed(
+		context.Context,
+		dbr.SessionRunner,
+		*Rewards,
 	) error
 
 	QueryTransactionsValidator(
@@ -404,6 +408,23 @@ type Persist interface {
 		dbr.SessionRunner,
 		*CvmTransactionsTxdataTrace,
 		bool,
+	) error
+
+	QueryNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
+	) (*NodeIndex, error)
+	InsertNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
+		bool,
+	) error
+	UpdateNodeIndex(
+		context.Context,
+		dbr.SessionRunner,
+		*NodeIndex,
 	) error
 
 	QueryCvmLogs(
@@ -1313,6 +1334,7 @@ type Rewards struct {
 	Txid               string
 	Shouldprefercommit bool
 	CreatedAt          time.Time
+	Processed          int
 }
 
 func (p *persist) QueryRewards(
@@ -1327,6 +1349,7 @@ func (p *persist) QueryRewards(
 		"txid",
 		"shouldprefercommit",
 		"created_at",
+		"processed",
 	).From(TableRewards).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -1347,6 +1370,7 @@ func (p *persist) InsertRewards(
 		Pair("txid", v.Txid).
 		Pair("shouldprefercommit", v.Shouldprefercommit).
 		Pair("created_at", v.CreatedAt).
+		Pair("processed", v.Processed).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableRewards, false, err)
@@ -1364,6 +1388,23 @@ func (p *persist) InsertRewards(
 		}
 	}
 
+	return nil
+}
+
+func (p *persist) UpdateRewardsProcessed(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *Rewards,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableRewards).
+		Set("processed", v.Processed).
+		Where("id = ?", v.ID).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableRewards, false, err)
+	}
 	return nil
 }
 
@@ -2261,6 +2302,74 @@ func (p *persist) InsertCvmTransactionsTxdataTrace(
 		if err != nil {
 			return EventErr(TableCvmTransactionsTxdataTrace, true, err)
 		}
+	}
+	return nil
+}
+
+type NodeIndex struct {
+	Instance string
+	Topic    string
+	Idx      uint64
+}
+
+func (p *persist) QueryNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *NodeIndex,
+) (*NodeIndex, error) {
+	v := &NodeIndex{}
+	err := sess.Select(
+		"instance",
+		"topic",
+		"idx",
+	).From(TableNodeIndex).
+		Where("instance=? and topic=?", q.Instance, q.Topic).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *NodeIndex,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TableNodeIndex).
+		Pair("instance", v.Instance).
+		Pair("topic", v.Topic).
+		Pair("idx", v.Idx).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableNodeIndex, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TableNodeIndex).
+			Set("idx", v.Idx).
+			Where("instance=? and topic=?", v.Instance, v.Topic).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TableNodeIndex, true, err)
+		}
+	}
+	return nil
+}
+
+func (p *persist) UpdateNodeIndex(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *NodeIndex,
+) error {
+	var err error
+	_, err = sess.
+		Update(TableNodeIndex).
+		Set("idx", v.Idx).
+		Where("instance=? and topic=?", v.Instance, v.Topic).
+		ExecContext(ctx)
+	if err != nil {
+		return EventErr(TableNodeIndex, true, err)
 	}
 	return nil
 }

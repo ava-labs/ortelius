@@ -15,32 +15,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/ava-labs/ortelius/services"
-
-	"github.com/gorilla/rpc/v2"
-	"github.com/gorilla/rpc/v2/json2"
-
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/replay"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/spf13/cobra"
-
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/replay"
+	oreliusRpc "github.com/ava-labs/ortelius/rpc"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/rewards"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
-
-	// Register service plugins
-	_ "github.com/ava-labs/ortelius/services/indexes/avm"
-	_ "github.com/ava-labs/ortelius/services/indexes/pvm"
-
-	oreliusRpc "github.com/ava-labs/ortelius/rpc"
+	"github.com/ava-labs/ortelius/utils"
+	"github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -56,9 +46,6 @@ const (
 
 	streamReplayCmdUse  = "replay"
 	streamReplayCmdDesc = "Runs the replay"
-
-	streamProducerCmdUse  = "producer"
-	streamProducerCmdDesc = "Runs the stream producer daemon"
 
 	streamIndexerCmdUse  = "indexer"
 	streamIndexerCmdDesc = "Runs the stream indexer daemon"
@@ -83,7 +70,7 @@ func execute() error {
 	var (
 		runErr             error
 		config             = &cfg.Config{}
-		serviceControl     = &services.Control{}
+		serviceControl     = &servicesctrl.Control{}
 		configFile         = func() *string { s := ""; return &s }()
 		replayqueuesize    = func() *int { i := defaultReplayQueueSize; return &i }()
 		replayqueuethreads = func() *int { i := defaultReplayQueueThreads; return &i }()
@@ -102,8 +89,9 @@ func execute() error {
 
 				serviceControl.Log = alog
 				serviceControl.Services = c.Services
+				serviceControl.ServicesCfg = *c
 				serviceControl.Chains = c.Chains
-				serviceControl.Persist = services.NewPersist()
+				serviceControl.Persist = idb.NewPersist()
 				serviceControl.Features = c.Features
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {
@@ -166,7 +154,7 @@ func execute() error {
 	return runErr
 }
 
-func createAPICmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
+func createAPICmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	return &cobra.Command{
 		Use:   apiCmdUse,
 		Short: apiCmdDesc,
@@ -182,7 +170,7 @@ func createAPICmds(sc *services.Control, config *cfg.Config, runErr *error) *cob
 	}
 }
 
-func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
+func createReplayCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error, replayqueuesize *int, replayqueuethreads *int) *cobra.Command {
 	replayCmd := &cobra.Command{
 		Use:   streamReplayCmdUse,
 		Short: streamReplayCmdDesc,
@@ -199,12 +187,7 @@ func createReplayCmds(sc *services.Control, config *cfg.Config, runErr *error, r
 	return replayCmd
 }
 
-type ProcessorFactoryControl struct {
-	Factory   stream.ProcessorFactory
-	Instances int
-}
-
-func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *cobra.Command {
+func createStreamCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *error) *cobra.Command {
 	streamCmd := &cobra.Command{
 		Use:   streamCmdUse,
 		Short: streamCmdDesc,
@@ -217,36 +200,14 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 
 	// Add sub commands
 	streamCmd.AddCommand(&cobra.Command{
-		Use:   streamProducerCmdUse,
-		Short: streamProducerCmdDesc,
-		Long:  streamProducerCmdDesc,
-		Run: func(cmd *cobra.Command, arg []string) {
-			runStreamProcessorManagers(
-				false,
-				sc,
-				config,
-				runErr,
-				[]ProcessorFactoryControl{
-					{Factory: stream.NewConsensusProducerProcessor, Instances: 1},
-					{Factory: stream.NewDecisionsProducerProcessor, Instances: 1},
-				},
-				nil,
-				nil,
-				nil,
-				nil,
-			)(cmd, arg)
-		},
-	}, &cobra.Command{
 		Use:   streamIndexerCmdUse,
 		Short: streamIndexerCmdDesc,
 		Long:  streamIndexerCmdDesc,
 		Run: func(cmd *cobra.Command, arg []string) {
 			runStreamProcessorManagers(
-				true,
 				sc,
 				config,
 				runErr,
-				nil,
 				producerFactories(sc, config),
 				[]consumers.ConsumerFactory{
 					consumers.IndexerConsumer,
@@ -265,9 +226,30 @@ func createStreamCmds(sc *services.Control, config *cfg.Config, runErr *error) *
 	return streamCmd
 }
 
-func producerFactories(sc *services.Control, cfg *cfg.Config) []utils.ListenCloser {
+func producerFactories(sc *servicesctrl.Control, cfg *cfg.Config) []utils.ListenCloser {
 	var factories []utils.ListenCloser
 	factories = append(factories, stream.NewProducerCChain(sc, *cfg))
+	for _, v := range cfg.Chains {
+		switch v.VMType {
+		case consumers.IndexerAVMName:
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeTransactions, stream.IndexXChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+			p, err = stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeConsensus, stream.IndexTypeVertices, stream.IndexXChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+		case consumers.IndexerPVMName:
+			p, err := stream.NewProducerChain(sc, *cfg, v.ID, stream.EventTypeDecisions, stream.IndexTypeBlocks, stream.IndexPChain)
+			if err != nil {
+				panic(err)
+			}
+			factories = append(factories, p)
+		}
+	}
 	return factories
 }
 
@@ -311,11 +293,9 @@ func runListenCloser(lc utils.ListenCloser) {
 // runStreamProcessorManagers returns a cobra command that instantiates and runs
 // a set of stream process managers
 func runStreamProcessorManagers(
-	indexer bool,
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	config *cfg.Config,
 	runError *error,
-	factories []ProcessorFactoryControl,
 	listenCloseFactories []utils.ListenCloser,
 	consumerFactories []consumers.ConsumerFactory,
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
@@ -324,56 +304,64 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		if indexer {
+		if sc.IsAccumulateBalanceIndexer {
 			err := sc.BalanceAccumulatorManager.Start()
 			if err != nil {
 				*runError = err
 				return
 			}
-			err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
-			if err != nil {
-				*runError = err
-				return
-			}
+		}
 
-			// start the accumulator at startup
-			sc.BalanceAccumulatorManager.Run(sc)
+		rh := &rewards.Handler{}
+		sc.RewardsHandler = rh
+		err := rh.Start(sc)
+		if err != nil {
+			*runError = err
+			return
+		}
 
-			for _, listenCloseFactory := range listenCloseFactories {
-				wg.Add(1)
-				go func(lc utils.ListenCloser) {
-					defer wg.Done()
-					runListenCloser(lc)
-				}(listenCloseFactory)
-			}
+		err = consumers.Bootstrap(sc, config.NetworkID, config.Chains, consumerFactories)
+		if err != nil {
+			*runError = err
+			return
+		}
 
-			err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB)
-			if err != nil {
-				*runError = err
-				return
-			}
-		} else {
-			for _, factory := range factories {
-				for instpos := 0; instpos < factory.Instances; instpos++ {
-					wg.Add(1)
-					go func(factory stream.ProcessorFactory, idx int, maxidx int) {
-						defer wg.Done()
+		if sc.IsAccumulateBalanceIndexer {
+			sc.BalanceAccumulatorManager.Run()
+		}
 
-						// Create and start processor manager
-						pm := stream.NewProcessorManager(sc, *config, factory, idx, maxidx)
-						runListenCloser(pm)
-					}(factory.Factory, instpos, factory.Instances)
+		runningControl := utils.NewRunning()
+
+		err = consumers.IndexerFactories(sc, config, factoriesChainDB, factoriesInstDB, wg, runningControl)
+		if err != nil {
+			*runError = err
+			return
+		}
+
+		for _, listenCloseFactory := range listenCloseFactories {
+			wg.Add(1)
+			go func(lc utils.ListenCloser) {
+				wg.Done()
+				if err := lc.Listen(); err != nil {
+					log.Fatalln("Daemon listen error:", err.Error())
 				}
-			}
+			}(listenCloseFactory)
+		}
 
-			for _, listenCloseFactory := range listenCloseFactories {
-				wg.Add(1)
-				go func(lc utils.ListenCloser) {
-					defer wg.Done()
-					runListenCloser(lc)
-				}(listenCloseFactory)
+		// Wait for exit signal
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		<-sigCh
+
+		for _, listenCloseFactory := range listenCloseFactories {
+			// Stop server
+			if err := listenCloseFactory.Close(); err != nil {
+				log.Println("Daemon shutdown error:", err.Error())
 			}
 		}
+
+		runningControl.Close()
+
 		wg.Wait()
 	}
 }

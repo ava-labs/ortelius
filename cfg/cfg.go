@@ -6,7 +6,6 @@ package cfg
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
@@ -25,11 +24,13 @@ var (
 type Config struct {
 	NetworkID         uint32 `json:"networkID"`
 	Chains            `json:"chains"`
-	Stream            `json:"stream"`
 	Services          `json:"services"`
 	MetricsListenAddr string `json:"metricsListenAddr"`
 	AdminListenAddr   string `json:"adminListenAddr"`
 	Features          map[string]struct{}
+	CchainID          string `json:"cchainId"`
+	AvalancheGO       string `json:"avalanchego"`
+	NodeInstance      string `json:"nodeInstance"`
 }
 
 type Chain struct {
@@ -62,24 +63,9 @@ type Redis struct {
 	DB       int    `json:"db"`
 }
 
-type Stream struct {
-	Producer Producer `json:"producer"`
-	Consumer Consumer `json:"consumer"`
-	CchainID string   `json:"cchainId"`
-}
-
 type Filter struct {
 	Min uint32 `json:"min"`
 	Max uint32 `json:"max"`
-}
-
-type Producer struct {
-	IPCRoot   string `json:"ipcRoot"`
-	CChainRPC string `json:"cChainRpc"`
-}
-
-type Consumer struct {
-	StartTime time.Time `json:"startTime"`
 }
 
 // NewFromFile creates a new *Config with the defaults replaced by the config  in
@@ -94,10 +80,6 @@ func NewFromFile(filePath string) (*Config, error) {
 	servicesViper := newSubViper(v, keysServices)
 	servicesDBViper := newSubViper(servicesViper, keysServicesDB)
 	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
-
-	streamViper := newSubViper(v, keysStream)
-	streamProducerViper := newSubViper(streamViper, keysStreamProducer)
-	streamConsumerViper := newSubViper(streamViper, keysStreamConsumer)
 
 	// Get chains config
 	chains, err := newChainsConfig(v)
@@ -150,15 +132,8 @@ func NewFromFile(filePath string) (*Config, error) {
 				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
-		Stream: Stream{
-			CchainID: streamViper.GetString(keysStreamProducerCchainID),
-			Producer: Producer{
-				IPCRoot:   streamProducerViper.GetString(keysStreamProducerIPCRoot),
-				CChainRPC: streamProducerViper.GetString(keysStreamProducerCchainRPC),
-			},
-			Consumer: Consumer{
-				StartTime: streamConsumerViper.GetTime(keysStreamConsumerStartTime),
-			},
-		},
+		CchainID:     v.GetString(keysStreamProducerCchainID),
+		AvalancheGO:  v.GetString(keysStreamProducerAvalanchego),
+		NodeInstance: v.GetString(keysStreamProducerNodeInstance),
 	}, nil
 }

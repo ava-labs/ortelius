@@ -9,7 +9,7 @@ networks:
     name: ortelius_services
 services:
   mysql:
-    image: "mysql:8.0.23"
+    image: "mysql:8.0.24"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./../my.cnf:/etc/mysql/my.cnf

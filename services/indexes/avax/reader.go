@@ -16,17 +16,17 @@ import (
 	"sync"
 	"time"
 
-	cblock "github.com/ava-labs/ortelius/models"
-
-	"github.com/ava-labs/ortelius/cfg"
-
 	"github.com/ava-labs/avalanchego/ids"
+	corethType "github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/ortelius/cfg"
+	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/gocraft/dbr/v2"
-
-	corethType "github.com/ava-labs/coreth/core/types"
 )
 
 const (
@@ -58,8 +58,8 @@ var (
 )
 
 type Reader struct {
-	conns           *services.Connections
-	sc              *services.Control
+	conns           *servicesconn.Connections
+	sc              *servicesctrl.Control
 	avmLock         sync.RWMutex
 	networkID       uint32
 	chainConsumers  map[string]services.Consumer
@@ -70,7 +70,7 @@ type Reader struct {
 	doneCh chan struct{}
 }
 
-func NewReader(networkID uint32, conns *services.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *services.Control) (*Reader, error) {
+func NewReader(networkID uint32, conns *servicesconn.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *servicesctrl.Control) (*Reader, error) {
 	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
@@ -139,7 +139,7 @@ func (r *Reader) Search(ctx context.Context, p *params.SearchParams, avaxAssetID
 		return nil, err
 	}
 
-	builder1 := r.transactionQuery(dbRunner).
+	builder1 := transactionQuery(dbRunner).
 		Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%")).
 		OrderDesc("avm_transactions.created_at").
 		Limit(uint64(p.ListParams.Limit))
@@ -324,7 +324,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	return aggs, nil
 }
 
-func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *services.Connections) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *servicesconn.Connections) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
@@ -824,7 +824,7 @@ func (r *Reader) searchByID(ctx context.Context, id ids.ID, avaxAssetID ids.ID) 
 	}
 
 	var txs []*models.Transaction
-	builder := r.transactionQuery(dbRunner).
+	builder := transactionQuery(dbRunner).
 		Where("avm_transactions.id = ?", id.String()).Limit(1)
 	if _, err := builder.LoadContext(ctx, &txs); err != nil {
 		return nil, err
@@ -899,7 +899,7 @@ func collateSearchResults(assets []*models.Asset, addresses []*models.AddressInf
 	return collatedResults, nil
 }
 
-func (r *Reader) transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
+func transactionQuery(dbRunner *dbr.Session) *dbr.SelectStmt {
 	return dbRunner.
 		Select(
 			"avm_transactions.id",
@@ -1083,7 +1083,6 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Uncles         []corethType.Header      `json:"uncles"`
 		TxsBytes       [][]byte                 `json:"txs"`
 		Version        uint32                   `json:"version"`
-		ReceivedAt     time.Time                `json:"received_at"`
 		BlockExtraData []byte                   `json:"blockExtraData"`
 		Txs            []corethType.Transaction `json:"transactions,omitempty"`
 		Logs           []corethType.Log         `json:"logs,omitempty"`
@@ -1098,13 +1097,10 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		BlockNumber:    unserializedBlock.Header.Number.String(),
 		Header:         unserializedBlock.Header,
 		Uncles:         unserializedBlock.Uncles,
-		TxsBytes:       unserializedBlock.TxsBytes,
 		Version:        unserializedBlock.Version,
-		ReceivedAt:     unserializedBlock.ReceivedAt,
 		BlockExtraData: unserializedBlock.BlockExtraData,
 		Txs:            unserializedBlock.Txs,
 	}
-	block.TxsBytes = nil
 
 	type RowData struct {
 		Idx           uint64
@@ -1144,7 +1140,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Select(
 			"serialization",
 		).
-		From(services.TableCvmLogs).
+		From(idb.TableCvmLogs).
 		Where("block="+block.Header.Number.String()).
 		LoadContext(ctx, &rowsLog)
 	if err != nil {
@@ -1183,7 +1179,7 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("serialization").
-			From(services.TableCvmTransactions).
+			From(idb.TableCvmTransactions).
 			Where("block="+idInt.String()).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1214,7 +1210,7 @@ func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, 
 
 	err = dbRunner.
 		Select("serialization").
-		From(services.TableTxPool).
+		From(idb.TableTxPool).
 		Where("msg_key=?", id.String()).
 		LoadOneContext(ctx, &serialData)
 	if err != nil {

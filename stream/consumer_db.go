@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/ortelius/utils"
-
-	"github.com/ava-labs/ortelius/services/db"
-
-	"github.com/ava-labs/ortelius/services/metrics"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/db"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/metrics"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 // consumer takes events from db and sends them to a service consumer
@@ -25,7 +25,7 @@ type consumerDB struct {
 
 	chainID  string
 	consumer services.Consumer
-	sc       *services.Control
+	sc       *servicesctrl.Control
 
 	// metrics
 	metricProcessedCountKey       string
@@ -40,7 +40,7 @@ type serviceConsumerFactory func(uint32, string, string) (services.Consumer, err
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
 func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChainDB {
-	return func(sc *services.Control, conf cfg.Config, chainVM string, chainID string) (ProcessorDB, error) {
+	return func(sc *servicesctrl.Control, conf cfg.Config, chainVM string, chainID string) (ProcessorDB, error) {
 		c := &consumerDB{
 			eventType: eventType,
 			chainID:   chainID,
@@ -94,7 +94,7 @@ func (c *consumerDB) Close() error {
 	return nil
 }
 
-func (c *consumerDB) Process(conns *services.Connections, row *services.TxPool) error {
+func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
 	msg := &Message{
 		id:         row.MsgKey,
 		chainID:    c.chainID,
@@ -105,12 +105,12 @@ func (c *consumerDB) Process(conns *services.Connections, row *services.TxPool) 
 	return c.Consume(conns, msg)
 }
 
-func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
+func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) error {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(services.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(services.MetricConsumeProcessMillisCounterKey),
+		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -120,7 +120,7 @@ func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
 	}()
 
 	var err error
-	rsleep := utils.NewRetrySleeper(5, 100*time.Millisecond, time.Second)
+	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, msg)
 		if !db.ErrIsLockError(err) {
@@ -136,11 +136,13 @@ func (c *consumerDB) Consume(conns *services.Connections, msg *Message) error {
 	}
 	c.Success()
 
-	c.sc.BalanceAccumulatorManager.Run(c.sc)
+	if c.sc.IsAccumulateBalanceIndexer {
+		c.sc.BalanceAccumulatorManager.Run()
+	}
 	return err
 }
 
-func (c *consumerDB) persistConsume(conns *services.Connections, msg *Message) error {
+func (c *consumerDB) persistConsume(conns *servicesconn.Connections, msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	switch c.eventType {
@@ -155,10 +157,10 @@ func (c *consumerDB) persistConsume(conns *services.Connections, msg *Message) e
 
 func (c *consumerDB) Failure() {
 	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricConsumeFailureCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
 }
 
 func (c *consumerDB) Success() {
 	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(services.MetricConsumeSuccessCountKey)
+	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
 }

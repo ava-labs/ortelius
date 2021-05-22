@@ -28,14 +28,8 @@ const (
 	keysServicesRedisPassword = "password"
 	keysServicesRedisDB       = "db"
 
-	keysStream = "stream"
+	keysStreamProducerAvalanchego  = "avalanchego"
+	keysStreamProducerNodeInstance = "nodeInstance"
 
-	keysStreamProducer        = "producer"
-	keysStreamProducerIPCRoot = "ipcRoot"
-
-	keysStreamProducerCchainRPC = "cchainRpc"
-	keysStreamProducerCchainID  = "cchainID"
-
-	keysStreamConsumer          = "consumer"
-	keysStreamConsumerStartTime = "startTime"
+	keysStreamProducerCchainID = "cchainID"
 )

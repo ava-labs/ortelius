@@ -4,23 +4,26 @@
 package params
 
 import (
+	"math/big"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/gocraft/dbr/v2"
-
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/gocraft/dbr/v2"
 )
 
 const (
-	TransactionSortDefault       TransactionSort = TransactionSortTimestampAsc
-	TransactionSortTimestampAsc                  = "timestamp-asc"
-	TransactionSortTimestampDesc                 = "timestamp-desc"
+	TransactionSortTimestampAsc TransactionSort = iota
+	TransactionSortTimestampDesc
+
+	TransactionSortDefault = TransactionSortTimestampAsc
+
+	TransactionSortTimestampAscStr  = "timestamp-asc"
+	TransactionSortTimestampDescStr = "timestamp-desc"
 )
 
 var (
@@ -89,7 +92,6 @@ type AggregateParams struct {
 	ChainIDs     []string
 	AssetID      *ids.ID
 	IntervalSize time.Duration
-	Version      int
 }
 
 func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
@@ -110,11 +112,6 @@ func (p *AggregateParams) ForValues(version uint8, q url.Values) (err error) {
 		return err
 	}
 
-	p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -128,7 +125,6 @@ func (p *AggregateParams) CacheKey() []string {
 	k = append(k,
 		CacheKey(KeyIntervalSize, int64(p.IntervalSize.Seconds())),
 		CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")),
-		CacheKey(KeyVersion, int64(p.Version)),
 	)
 
 	return append(p.ListParams.CacheKey(), k...)
@@ -163,7 +159,7 @@ type ListTransactionsParams struct {
 }
 
 func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
-	err := p.ListParams.ForValues(v, q)
+	err := p.ListParams.ForValuesAllowOffset(v, q)
 	if err != nil {
 		return err
 	}
@@ -171,7 +167,7 @@ func (p *ListTransactionsParams) ForValues(v uint8, q url.Values) error {
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
-		p.Sort, _ = toTransactionSort(sortBys[0])
+		p.Sort = toTransactionSort(sortBys[0])
 	}
 
 	p.ChainIDs = q[KeyChainID]
@@ -241,10 +237,14 @@ func (p *ListTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder 
 }
 
 type ListCTransactionsParams struct {
-	ListParams ListParams
-	CAddresses []string
-	Hashes     []string
-	Sort       TransactionSort
+	ListParams     ListParams
+	CAddresses     []string
+	CAddressesTo   []string
+	CAddressesFrom []string
+	Hashes         []string
+	Sort           TransactionSort
+	BlockStart     *big.Int
+	BlockEnd       *big.Int
 }
 
 func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
@@ -253,12 +253,10 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		return err
 	}
 
-	p.ListParams.ObserveTimeProvided = true
-
 	p.Sort = TransactionSortDefault
 	sortBys, ok := q[KeySortBy]
 	if ok && len(sortBys) >= 1 {
-		p.Sort, _ = toTransactionSort(sortBys[0])
+		p.Sort = toTransactionSort(sortBys[0])
 	}
 
 	addressStrs := q[KeyAddress]
@@ -266,7 +264,37 @@ func (p *ListCTransactionsParams) ForValues(v uint8, q url.Values) error {
 		if !strings.HasPrefix(addressStr, "0x") {
 			addressStr = "0x" + addressStr
 		}
-		p.CAddresses = append(p.CAddresses, addressStr)
+		p.CAddresses = append(p.CAddresses, strings.ToLower(addressStr))
+	}
+
+	addressStrs = q[KeyToAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddressesTo = append(p.CAddressesTo, strings.ToLower(addressStr))
+	}
+	addressStrs = q[KeyFromAddress]
+	for _, addressStr := range addressStrs {
+		if !strings.HasPrefix(addressStr, "0x") {
+			addressStr = "0x" + addressStr
+		}
+		p.CAddressesFrom = append(p.CAddressesFrom, strings.ToLower(addressStr))
+	}
+
+	blockStartStrs := q[KeyBlockStart]
+	for _, blockStartStr := range blockStartStrs {
+		nint := big.NewInt(0)
+		if _, ok := nint.SetString(blockStartStr, 10); ok {
+			p.BlockStart = nint
+		}
+	}
+	blockEndStrs := q[KeyBlockEnd]
+	for _, blockEndStr := range blockEndStrs {
+		nint := big.NewInt(0)
+		if _, ok := nint.SetString(blockEndStr, 10); ok {
+			p.BlockEnd = nint
+		}
 	}
 
 	hashStrs := q[KeyHash]
@@ -292,16 +320,7 @@ func (p *ListCTransactionsParams) CacheKey() []string {
 }
 
 func (p *ListCTransactionsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
-	p.ListParams.ApplyPk(services.TableCvmTransactionsTxdata, b, "hash", false)
-
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-	} else if !p.ListParams.StartTime.IsZero() {
-		b.Where(services.TableCvmTransactionsTxdata+".created_at >= ?", p.ListParams.StartTime)
-	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-	} else if !p.ListParams.EndTime.IsZero() {
-		b.Where(services.TableCvmTransactionsTxdata+".created_at < ?", p.ListParams.EndTime)
-	}
+	p.ListParams.ApplyPk(idb.TableCvmTransactionsTxdata, b, "hash", false)
 
 	return b
 }
@@ -355,7 +374,6 @@ type ListAddressesParams struct {
 	ListParams ListParams
 	ChainIDs   []string
 	Address    *ids.ShortID
-	Version    int
 }
 
 func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
@@ -378,10 +396,6 @@ func (p *ListAddressesParams) ForValues(v uint8, q url.Values) error {
 		p.Address = &addr
 	}
 
-	if p.Version, err = GetQueryInt(q, KeyVersion, VersionDefault); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -393,8 +407,6 @@ func (p *ListAddressesParams) CacheKey() []string {
 	}
 
 	k = append(k, CacheKey(KeyChainID, strings.Join(p.ChainIDs, "|")))
-
-	k = append(k, CacheKey(KeyVersion, int64(p.Version)))
 
 	return k
 }
@@ -543,6 +555,13 @@ func (p *ListOutputsParams) Apply(b *dbr.SelectBuilder) *dbr.SelectBuilder {
 		b.Where("avm_outputs.chain_id = ?", p.ChainIDs)
 	}
 
+	if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
+		b.Where("avm_outputs.created_at >= ?", p.ListParams.StartTime)
+	}
+	if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
+		b.Where("avm_outputs.created_at < ?", p.ListParams.EndTime)
+	}
+
 	return b
 }
 
@@ -592,16 +611,23 @@ func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
 //
 // Sorting
 //
-type TransactionSort string
+type TransactionSort uint8
 
-func toTransactionSort(s string) (TransactionSort, error) {
+func toTransactionSort(s string) TransactionSort {
 	switch s {
-	case TransactionSortTimestampAsc:
-		return TransactionSortTimestampAsc, nil
-	case TransactionSortTimestampDesc:
-		return TransactionSortTimestampDesc, nil
+	case TransactionSortTimestampAscStr:
+		return TransactionSortTimestampAsc
+	case TransactionSortTimestampDescStr:
+		return TransactionSortTimestampDesc
 	}
-	return TransactionSortDefault, ErrUndefinedSort
+	return TransactionSortDefault
+}
+
+func (t TransactionSort) String() string {
+	if t == TransactionSortTimestampDesc {
+		return TransactionSortTimestampDescStr
+	}
+	return TransactionSortTimestampAscStr
 }
 
 type BlockSort string

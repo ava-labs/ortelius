@@ -11,7 +11,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2.3.0
         with:
-          version: v1.35.2
+          version: v1.39.0
           args: --timeout 5m
   test-and-build:
     name: Test and build on Go ${{ matrix.go }}
@@ -19,10 +19,10 @@ jobs:
     strategy:
       matrix:
         go:
-          - '1.16.3'
+          - '1.16.4'
     services:
       mysql:
-        image: mysql:8.0.23
+        image: mysql:8.0.24
         ports:
           - 3306:3306
         env:

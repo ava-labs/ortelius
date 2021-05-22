@@ -8,19 +8,19 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/ortelius/utils"
-
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
-
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 const (
@@ -29,7 +29,8 @@ const (
 
 	MaximumRecordsRead = 10000
 	MaxTheads          = 10
-	MaxChanSize        = 1000
+
+	IteratorTimeout = 3 * time.Minute
 )
 
 type ConsumerFactory func(uint32, string, string) (services.Consumer, error)
@@ -56,7 +57,7 @@ var IndexerDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeDec
 var IndexerConsensusDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeConsensus)
 var IndexerCChainDB = stream.NewConsumerCChainDB
 
-func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
+func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
 	if sc.IsDisableBootstrap {
 		return nil
 	}
@@ -69,7 +70,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 		_ = conns.Close()
 	}()
 
-	persist := services.NewPersist()
+	persist := idb.NewPersist()
 	ctx := context.Background()
 	job := conns.QuietStream().NewJob("bootstrap-key-value")
 	sess := conns.DB().NewSessionForEventReceiver(job)
@@ -77,7 +78,7 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	bootstrapValue := "true"
 
 	// check if we have bootstrapped..
-	keyValueStore := &services.KeyValueStore{
+	keyValueStore := &idb.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 	}
 	keyValueStore, _ = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
@@ -115,57 +116,57 @@ func Bootstrap(sc *services.Control, networkID uint32, chains cfg.Chains, factor
 	}
 
 	// write a complete row.
-	keyValueStore = &services.KeyValueStore{
+	keyValueStore = &idb.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 		V: bootstrapValue,
 	}
 	return persist.InsertKeyValueStore(ctx, sess, keyValueStore)
 }
 
-type IndexerFactoryContainer struct {
-	txPool *services.TxPool
-	errs   *avlancheGoUtils.AtomicInterface
-}
-
 type IndexerFactoryControl struct {
-	sc        *services.Control
-	fsm       map[string]stream.ProcessorDB
-	msgChan   chan *IndexerFactoryContainer
-	doneCh    chan struct{}
-	msgChanSz int64
+	sc     *servicesctrl.Control
+	fsm    map[string]stream.ProcessorDB
+	doneCh chan struct{}
 }
 
-func (c *IndexerFactoryControl) updateTxPollStatus(conns *services.Connections, txPoll *services.TxPool) error {
+func (c *IndexerFactoryControl) updateTxPollStatus(conns *servicesconn.Connections, txPoll *idb.TxPool) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-txpoll-status"))
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 }
 
-func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
+func (c *IndexerFactoryControl) handleTxPool(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
 
 	for {
 		select {
-		case txd := <-c.msgChan:
-			atomic.AddInt64(&c.msgChanSz, -1)
-			if txd.errs.GetValue() != nil {
+		case txd := <-c.sc.LocalTxPool:
+			if c.sc.IndexedList.Exists(txd.TxPool.ID) {
 				continue
 			}
-			if p, ok := c.fsm[txd.txPool.Topic]; ok {
-				err := p.Process(conns, txd.txPool)
+			if txd.Errs != nil && txd.Errs.GetValue() != nil {
+				continue
+			}
+			if p, ok := c.fsm[txd.TxPool.Topic]; ok {
+				err := p.Process(conns, txd.TxPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
+					}
 					continue
 				}
-				txd.txPool.Processed = 1
-				err = c.updateTxPollStatus(conns, txd.txPool)
+				txd.TxPool.Processed = 1
+				err = c.updateTxPollStatus(conns, txd.TxPool)
 				if err != nil {
-					txd.errs.SetValue(err)
+					if txd.Errs != nil {
+						txd.Errs.SetValue(err)
+					}
 					continue
 				}
+				c.sc.IndexedList.PushFront(txd.TxPool.ID, txd.TxPool.ID)
 			}
 		case <-c.doneCh:
 			return
@@ -174,13 +175,19 @@ func (c *IndexerFactoryControl) handleTxPool(conns *services.Connections) {
 }
 
 func IndexerFactories(
-	sc *services.Control,
+	sc *servicesctrl.Control,
 	config *cfg.Config,
 	factoriesChainDB []stream.ProcessorFactoryChainDB,
 	factoriesInstDB []stream.ProcessorFactoryInstDB,
+	wg *sync.WaitGroup,
+	runningControl utils.Running,
 ) error {
-	ctrl := &IndexerFactoryControl{sc: sc}
-	ctrl.fsm = make(map[string]stream.ProcessorDB)
+	ctrl := &IndexerFactoryControl{
+		sc:     sc,
+		fsm:    make(map[string]stream.ProcessorDB),
+		doneCh: make(chan struct{}),
+	}
+
 	var topicNames []string
 
 	for _, factory := range factoriesChainDB {
@@ -216,91 +223,107 @@ func IndexerFactories(
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = conns.Close()
-	}()
-
-	ctrl.msgChan = make(chan *IndexerFactoryContainer, MaxChanSize)
-	ctrl.doneCh = make(chan struct{})
-
-	defer func() {
-		close(ctrl.doneCh)
-	}()
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
 		conns1, err := sc.DatabaseOnly()
 		if err != nil {
+			_ = conns.Close()
+			close(ctrl.doneCh)
 			return err
 		}
 		go ctrl.handleTxPool(conns1)
 	}
 
-	for {
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("tx-poll"))
-		iterator, err := sess.Select(
-			"id",
-			"network_id",
-			"chain_id",
-			"msg_key",
-			"serialization",
-			"processed",
-			"topic",
-			"created_at",
-		).From(services.TableTxPool).
-			Where("processed=? and topic in ?", 0, topicNames).
-			OrderAsc("processed").OrderAsc("created_at").
-			Iterate()
-		if err != nil {
-			sc.Log.Warn("iter %v", err)
-			time.Sleep(250 * time.Millisecond)
-			continue
-		}
+	wg.Add(1)
+	go func() {
+		defer func() {
+			wg.Done()
+			close(ctrl.doneCh)
+			_ = conns.Close()
+		}()
+		for !runningControl.IsStopped() {
+			iterateTxPool := func() {
+				ctx, cancelCTX := context.WithTimeout(context.Background(), IteratorTimeout)
+				defer cancelCTX()
 
-		errs := &avlancheGoUtils.AtomicInterface{}
-
-		var readMessages uint64
-
-		for iterator.Next() {
-			if errs.GetValue() != nil {
-				break
-			}
-
-			if readMessages > MaximumRecordsRead {
-				break
-			}
-
-			err = iterator.Err()
-			if err != nil {
-				if err != io.EOF {
-					sc.Log.Error("iterator err %v", err)
+				sess, err := conns.DB().NewQuietSession("tx-pool", IteratorTimeout)
+				if err != nil {
+					sc.Log.Error("processing err %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
 				}
-				break
+				iterator, err := sess.Select(
+					"id",
+					"network_id",
+					"chain_id",
+					"msg_key",
+					"serialization",
+					"processed",
+					"topic",
+					"created_at",
+				).From(idb.TableTxPool).
+					Where("processed=? and topic in ?", 0, topicNames).
+					OrderAsc("processed").OrderAsc("created_at").
+					IterateContext(ctx)
+				if err != nil {
+					sc.Log.Warn("iter %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
+				}
+
+				errs := &avlancheGoUtils.AtomicInterface{}
+
+				var readMessages uint64
+
+				for iterator.Next() {
+					if errs.GetValue() != nil {
+						break
+					}
+
+					if readMessages > MaximumRecordsRead {
+						break
+					}
+
+					err = iterator.Err()
+					if err != nil {
+						if err != io.EOF {
+							sc.Log.Error("iterator err %v", err)
+						}
+						break
+					}
+
+					txp := &idb.TxPool{}
+					err = iterator.Scan(txp)
+					if err != nil {
+						sc.Log.Error("scan %v", err)
+						break
+					}
+					// skip previously processed
+					if sc.IndexedList.Exists(txp.ID) {
+						continue
+					}
+					readMessages++
+					sc.LocalTxPool <- &servicesctrl.LocalTxPoolJob{TxPool: txp, Errs: errs}
+				}
+
+				for ipos := 0; ipos < (5*1000) && len(sc.LocalTxPool) > 0; ipos++ {
+					time.Sleep(1 * time.Millisecond)
+				}
+
+				if errs.GetValue() != nil {
+					err := errs.GetValue().(error)
+					sc.Log.Error("processing err %v", err)
+					time.Sleep(250 * time.Millisecond)
+					return
+				}
+
+				if readMessages == 0 {
+					time.Sleep(500 * time.Millisecond)
+				}
 			}
-
-			txp := &services.TxPool{}
-			err = iterator.Scan(txp)
-			if err != nil {
-				sc.Log.Error("scan %v", err)
-				break
-			}
-			readMessages++
-			ctrl.msgChan <- &IndexerFactoryContainer{txPool: txp, errs: errs}
-			atomic.AddInt64(&ctrl.msgChanSz, 1)
+			iterateTxPool()
 		}
+	}()
 
-		for atomic.LoadInt64(&ctrl.msgChanSz) > 0 {
-			time.Sleep(1 * time.Millisecond)
-		}
-
-		if errs.GetValue() != nil {
-			err := errs.GetValue().(error)
-			sc.Log.Error("processing err %v", err)
-			time.Sleep(250 * time.Millisecond)
-			continue
-		}
-
-		if readMessages == 0 {
-			time.Sleep(500 * time.Millisecond)
-		}
-	}
+	return nil
 }

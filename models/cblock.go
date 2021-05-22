@@ -10,12 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/coreth/interfaces"
-
-	"github.com/ava-labs/coreth/ethclient"
-	"github.com/ava-labs/coreth/rpc"
-
 	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/coreth/ethclient"
+	"github.com/ava-labs/coreth/interfaces"
+	"github.com/ava-labs/coreth/rpc"
 )
 
 var ErrNotFound = errors.New("block not found")
@@ -23,9 +21,8 @@ var ErrNotFound = errors.New("block not found")
 type Block struct {
 	Header         types.Header        `json:"header"`
 	Uncles         []types.Header      `json:"uncles"`
-	TxsBytes       [][]byte            `json:"txs"`
+	TxsBytes       *[][]byte           `json:"txs,omitempty"`
 	Version        uint32              `json:"version"`
-	ReceivedAt     time.Time           `json:"received_at"`
 	BlockExtraData []byte              `json:"blockExtraData"`
 	Txs            []types.Transaction `json:"transactions,omitempty"`
 }
@@ -33,11 +30,6 @@ type Block struct {
 func New(bl *types.Block) (*Block, error) {
 	var cblock Block
 	cblock.Version = bl.Version()
-	tm1, err := time.Parse(time.RFC3339, "0001-01-01T00:00:00Z")
-	if err != nil {
-		return nil, err
-	}
-	cblock.ReceivedAt = tm1.UTC()
 	cblock.BlockExtraData = bl.ExtData()
 	if cblock.BlockExtraData != nil {
 		if len(cblock.BlockExtraData) == 0 {
@@ -55,11 +47,7 @@ func New(bl *types.Block) (*Block, error) {
 		cblock.Uncles = append(cblock.Uncles, *u)
 	}
 	for _, t := range bl.Transactions() {
-		bdata, err := t.MarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-		cblock.TxsBytes = append(cblock.TxsBytes, bdata)
+		cblock.Txs = append(cblock.Txs, *t)
 	}
 	return &cblock, nil
 }
@@ -82,14 +70,16 @@ func Unmarshal(data []byte) (*Block, error) {
 		return nil, err
 	}
 
-	// convert the tx bytes into transactions.
-	for _, t := range block.TxsBytes {
-		var tr types.Transaction
-		err := tr.UnmarshalJSON(t)
-		if err != nil {
-			return nil, err
+	if block.TxsBytes != nil && len(*block.TxsBytes) != 0 {
+		// convert the tx bytes into transactions.
+		for _, t := range *block.TxsBytes {
+			var tr types.Transaction
+			err := tr.UnmarshalJSON(t)
+			if err != nil {
+				return nil, err
+			}
+			block.Txs = append(block.Txs, tr)
 		}
-		block.Txs = append(block.Txs, tr)
 	}
 	return &block, err
 }

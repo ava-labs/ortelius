@@ -3,7 +3,7 @@ volumes:
   avalanche-ipcs:
 services:
   mysql:
-    image: "mysql:8.0.23"
+    image: "mysql:8.0.24"
     volumes:
       - /var/lib/ortelius/mysql:/var/lib/mysql
       - ./../my.cnf:/etc/mysql/my.cnf
@@ -34,13 +34,14 @@ services:
   avalanche:
     env_file:
       - production.env
-    image: "avaplatform/avalanchego:v1.4.4"
+    image: "avaplatform/avalanchego:v1.4.5"
     command: /bin/sh -cx "exec ./build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
       --log-level=info
       --http-host=0.0.0.0
       --ipcs-chain-ids=$${P_CHAINID},$${X_CHAINID}
+      --index-enabled=true
       --coreth-config='{\"rpc-gas-cap\":2500000000,\"rpc-tx-fee-cap\":100,\"eth-api-enabled\":true,\"debug-api-enabled\":true,\"tx-pool-api-enabled\":true}'
       "
     ports:
@@ -49,11 +50,11 @@ services:
       - /var/lib/ortelius/avalanche:/var/lib/avalanche
       - avalanche-ipcs:/tmp
     depends_on:
-      - producer
+      - indexer
     restart: always
-  producer: &ortelius-app
+  indexer: &ortelius-app
     image: "avaplatform/ortelius:v1.4.4"
-    command: ["stream", "producer", "-c", "/opt/config.json"]
+    command: ["stream", "indexer", "-c", "/opt/config.json"]
     external_links:
       - mysql
       - redis
@@ -65,9 +66,6 @@ services:
       - avalanche-ipcs:/tmp
       - ./../config.json:/opt/config.json
     restart: on-failure
-  indexer:
-    <<: *ortelius-app
-    command: ["stream", "indexer", "-c", "/opt/config.json"]
   api:
     <<: *ortelius-app
     command: ["api", "-c", "/opt/config.json"]

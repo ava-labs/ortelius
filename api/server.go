@@ -8,24 +8,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/ortelius/stream/consumers"
-
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/stream/consumers"
 	"github.com/gocraft/web"
 )
 
 // Server is an HTTP server configured with various ortelius APIs
 type Server struct {
-	sc     *services.Control
+	sc     *servicesctrl.Control
 	server *http.Server
 }
 
 // NewServer creates a new *Server based on the given config
-func NewServer(sc *services.Control, conf cfg.Config) (*Server, error) {
+func NewServer(sc *servicesctrl.Control, conf cfg.Config) (*Server, error) {
 	router, err := newRouter(sc, conf)
 	if err != nil {
 		return nil, err
@@ -60,7 +59,7 @@ func (s *Server) Close() error {
 	return s.server.Shutdown(ctx)
 }
 
-func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
+func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 	sc.Log.Info("Router chainID %s", sc.GenesisContainer.XChainID.String())
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, sc.GenesisContainer.XChainID, sc.GenesisContainer.AvaxAssetID)
@@ -94,7 +93,7 @@ func newRouter(sc *services.Control, conf cfg.Config) (*web.Router, error) {
 		}
 		consumersmap[chid] = consumer
 	}
-	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.Stream.CchainID)
+	consumercchain, err := consumers.IndexerConsumerCChain(conf.NetworkID, conf.CchainID)
 	if err != nil {
 		return nil, err
 	}

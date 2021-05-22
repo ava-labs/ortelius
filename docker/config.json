@@ -5,6 +5,9 @@
   "listenAddr": ":8080",
   "features": [
   ],
+  "avalanchego": "http://avalanche:9650",
+  "nodeInstance": "default",
+  "cchainId": "2q9e4r6Mu3U68nU1fYjgbR6JvwrRx36CohpAX5UQxse55x1Q5",
   "chains": {
     "11111111111111111111111111111111LpoYY": {
       "id": "11111111111111111111111111111111LpoYY",
@@ -13,15 +16,6 @@
     "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM": {
       "id": "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
       "vmType": "avm"
-    }
-  },
-  "stream": {
-    "cchainId": "2q9e4r6Mu3U68nU1fYjgbR6JvwrRx36CohpAX5UQxse55x1Q5",
-    "producer": {
-      "ipcRoot": "/tmp",
-      "cchainRpc": "http://avalanche:9650/ext/bc/C/rpc"
-    },
-    "consumer": {
     }
   },
   "services": {

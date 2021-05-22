@@ -6,185 +6,67 @@ package stream
 import (
 	"context"
 	"errors"
-	"io"
-	"sync"
+	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/services"
-
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/idb"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/services/servicesctrl"
 )
 
 var (
 	processorFailureRetryInterval = 200 * time.Millisecond
 
-	// ErrUnknownProcessorType is returned when encountering a client type with no
-	// known implementation
-	ErrUnknownProcessorType = errors.New("unknown processor type")
-
 	// ErrNoMessage is no message
 	ErrNoMessage = errors.New("no message")
 )
 
-// ProcessorFactory takes in configuration and returns a stream Processor
-type ProcessorFactory func(*services.Control, cfg.Config, string, string, int, int) (Processor, error)
-
-// Processor handles writing and reading to/from the event stream
-type Processor interface {
-	ProcessNextMessage() error
-	Close() error
-	Failure()
-	Success()
-	ID() string
-}
-
-type ProcessorFactoryChainDB func(*services.Control, cfg.Config, string, string) (ProcessorDB, error)
-type ProcessorFactoryInstDB func(*services.Control, cfg.Config) (ProcessorDB, error)
+type ProcessorFactoryChainDB func(*servicesctrl.Control, cfg.Config, string, string) (ProcessorDB, error)
+type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB, error)
 
 type ProcessorDB interface {
-	Process(*services.Connections, *services.TxPool) error
+	Process(*servicesconn.Connections, *idb.TxPool) error
 	Close() error
 	ID() string
 	Topic() []string
 }
 
-// ProcessorManager supervises the Processor lifecycle; it will use the given
-// configuration and ProcessorFactory to keep a Processor active
-type ProcessorManager struct {
-	conf    cfg.Config
-	sc      *services.Control
-	factory ProcessorFactory
+func UpdateTxPool(
+	ctxTimeout time.Duration,
+	conns *servicesconn.Connections,
+	persist idb.Persist,
+	txPool *idb.TxPool,
+	sc *servicesctrl.Control,
+) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-tx-pool"))
 
-	// Concurrency control
-	quitCh chan struct{}
-	doneCh chan struct{}
+	ctx, cancelCtx := context.WithTimeout(context.Background(), ctxTimeout)
+	defer cancelCtx()
 
-	idx    int
-	maxIdx int
+	err := persist.InsertTxPool(ctx, sess, txPool)
+	if err == nil {
+		sc.Enqueue(txPool)
+	}
+	return err
 }
 
-// NewProcessorManager creates a new *ProcessorManager ready for listening
-func NewProcessorManager(sc *services.Control, conf cfg.Config, factory ProcessorFactory, idx int, maxIdx int) *ProcessorManager {
-	return &ProcessorManager{
-		conf: conf,
-		sc:   sc,
-
-		factory: factory,
-
-		quitCh: make(chan struct{}),
-		doneCh: make(chan struct{}),
-
-		idx:    idx,
-		maxIdx: maxIdx,
-	}
-}
-
-// Listen sets a client to listen for and handle incoming messages
-func (c *ProcessorManager) Listen() error {
-	// Create a backend for each chain we want to watch and wait for them to exit
-	wg := &sync.WaitGroup{}
-	wg.Add(len(c.conf.Chains))
-	for _, chainConfig := range c.conf.Chains {
-		go func(chainConfig cfg.Chain) {
-			c.sc.Log.Info("Started worker manager for chain %s", chainConfig.ID)
-			defer c.sc.Log.Info("Exiting worker manager for chain %s", chainConfig.ID)
-			defer wg.Done()
-
-			// Keep running the worker until we're asked to stop
-			var err error
-			for !c.isStopping() {
-				err = c.runProcessor(chainConfig)
-
-				// If there was an error we want to log it, and iff we are not stopping
-				// we want to add a retry delay.
-				if err != nil {
-					c.sc.Log.Error("Error running worker: %v", err)
-				}
-				if c.isStopping() {
-					return
-				}
-				if err != nil {
-					<-time.After(processorFailureRetryInterval)
-				}
-			}
-		}(chainConfig)
-	}
-
-	// Wait for all workers to finish
-	wg.Wait()
-	c.sc.Log.Info("All workers stopped")
-	close(c.doneCh)
-
-	return nil
-}
-
-// Close tells the workers to shutdown and waits for them to all stop
-func (c *ProcessorManager) Close() error {
-	close(c.quitCh)
-	<-c.doneCh
-	return nil
-}
-
-// isStopping returns true iff quitCh has been signaled
-func (c *ProcessorManager) isStopping() bool {
-	select {
-	case <-c.quitCh:
-		return true
-	default:
-		return false
-	}
-}
-
-// runProcessor starts the processing loop for the backend and closes it when
-// finished
-func (c *ProcessorManager) runProcessor(chainConfig cfg.Chain) error {
-	if c.isStopping() {
-		c.sc.Log.Info("Not starting worker for chain %s because we're stopping", chainConfig.ID)
-		return nil
-	}
-
-	c.sc.Log.Info("Starting worker for chain %s", chainConfig.ID)
-	defer c.sc.Log.Info("Exiting worker for chain %s", chainConfig.ID)
-
-	// Create a backend to get messages from
-	backend, err := c.factory(c.sc, c.conf, chainConfig.VMType, chainConfig.ID, c.idx, c.maxIdx)
-	if err != nil {
-		return err
-	}
-	defer backend.Close()
-
-	// Create a closure that processes the next message from the backend
-	processNextMessage := func() error {
-		err := backend.ProcessNextMessage()
-		switch err {
-		case nil:
-			backend.Success()
-			return nil
-
-		// This error is expected when the upstream service isn't producing
-		case context.DeadlineExceeded:
-			c.sc.Log.Debug("context deadline exceeded")
-			return nil
-
-		case ErrNoMessage:
-			return nil
-
-		case io.EOF:
-			c.sc.Log.Error("EOF")
-			return io.EOF
-		default:
-			backend.Failure()
-			c.sc.Log.Error("Unknown error: %v", err)
-			return err
+func TrimNL(msg string) string {
+	oldmsg := msg
+	for {
+		msg = strings.TrimPrefix(msg, "\n")
+		if msg == oldmsg {
+			break
 		}
+		oldmsg = msg
 	}
-
-	// Process messages until asked to stop
-	for !c.isStopping() {
-		err := processNextMessage()
-		if err != nil {
-			return err
+	oldmsg = msg
+	for {
+		msg = strings.TrimSuffix(msg, "\n")
+		if msg == oldmsg {
+			break
 		}
+		oldmsg = msg
 	}
-	return nil
+	return msg
 }

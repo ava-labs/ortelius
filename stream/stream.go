@@ -6,7 +6,6 @@ package stream
 import (
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/ava-labs/ortelius/services"
 )
@@ -48,10 +47,6 @@ func NewMessage(id string,
 	nanosecond int64,
 ) services.Consumable {
 	return &Message{id: id, chainID: chainID, body: body, timestamp: timestamp, nanosecond: nanosecond}
-}
-
-func getSocketName(root string, networkID uint32, chainID string, eventType EventType) string {
-	return path.Join(root, fmt.Sprintf("%d-%s-%s", networkID, chainID, eventType))
 }
 
 func GetTopicName(networkID uint32, chainID string, eventType EventType) string {

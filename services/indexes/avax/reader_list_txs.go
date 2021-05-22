@@ -23,12 +23,10 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	if p.ListParams.Query != "" {
 		builder.Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
 	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.StartTimeProvided {
-	} else if !p.ListParams.StartTime.IsZero() {
+	if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
 		builder.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
 	}
-	if p.ListParams.ObserveTimeProvided && !p.ListParams.EndTimeProvided {
-	} else if !p.ListParams.EndTime.IsZero() {
+	if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
 		builder.Where("avm_transactions.created_at < ?", p.ListParams.EndTime)
 	}
 	if len(p.ChainIDs) > 0 {
@@ -79,27 +77,96 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 	return builder
 }
 
-func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, dbRunner *dbr.Session) ([]*models.Transaction, error) {
-	var applySort func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt
-	applySort = func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
+func (r *Reader) listTxFromCache(p *params.ListTransactionsParams) *models.Transaction {
+	if !r.sc.IsAggregateCache {
+		return nil
+	}
+	if len(p.ListParams.Values) != 0 {
+		return nil
+	}
+	if p.ListParams.ID == nil {
+		return nil
+	}
+
+	if tx, ok := r.readerAggregate.txDesc.Get(models.StringID(p.ListParams.ID.String())); ok {
+		return tx
+	}
+	if tx, ok := r.readerAggregate.txAsc.Get(models.StringID(p.ListParams.ID.String())); ok {
+		return tx
+	}
+	return nil
+}
+
+func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.Transaction, bool) {
+	if !r.sc.IsAggregateCache || p.ListParams.Limit == 0 || p.ListParams.Offset != 0 {
+		return nil, false
+	}
+
+	readerAggregateTxList := &r.readerAggregate.txAsc
+	if p.Sort == params.TransactionSortTimestampDesc {
+		readerAggregateTxList = &r.readerAggregate.txDesc
+	}
+
+	if !readerAggregateTxList.IsProcessed() {
+		return nil, false
+	}
+
+	// only allow certain values for this cache to hit..
+	for key := range p.ListParams.Values {
+		switch key {
+		case params.KeySortBy:
+		case params.KeyLimit:
+		case params.KeyOffset:
+		case params.KeyDisableCount:
+		case params.KeyChainID:
+		default:
+			// unknown key, no cache hit
+			return nil, false
+		}
+	}
+
+	txs := readerAggregateTxList.FindTxs(p.ChainIDs, p.ListParams.Limit)
+	if txs != nil {
+		return txs, true
+	}
+	return nil, false
+}
+
+func (r *Reader) listTxs(
+	ctx context.Context,
+	p *params.ListTransactionsParams,
+	dbRunner *dbr.Session,
+) ([]*models.Transaction, bool, error) {
+	applySort := func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.Query != "" {
 			return stmt
 		}
 
 		switch sort {
-		case params.TransactionSortTimestampAsc:
-			stmt.OrderAsc("avm_transactions.created_at")
-			stmt.OrderAsc("avm_transactions.chain_id")
 		case params.TransactionSortTimestampDesc:
 			stmt.OrderDesc("avm_transactions.created_at")
-			stmt.OrderAsc("avm_transactions.chain_id")
+			stmt.OrderDesc("avm_transactions.chain_id")
 		default:
-			stmt = applySort(params.TransactionSortDefault, stmt)
+			// default is ascending...
+			stmt.OrderAsc("avm_transactions.created_at")
+			stmt.OrderAsc("avm_transactions.chain_id")
 		}
 		return stmt
 	}
 
+	if p.ListParams.ID != nil {
+		tx := r.listTxFromCache(p)
+		if tx != nil {
+			return []*models.Transaction{tx}, true, nil
+		}
+	}
+
 	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
+		txsAggr, dressed := r.listTxsFromCache(p)
+		if txsAggr != nil {
+			return txsAggr, dressed, nil
+		}
+
 		builderBase := applySort(
 			p.Sort,
 			r.listTxsQuery(dbRunner.Select("avm_transactions.id").From("avm_transactions"), p),
@@ -113,20 +180,21 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 
 		builder := applySort(
 			p.Sort,
-			r.transactionQuery(dbRunner).
+			transactionQuery(dbRunner).
 				Join(builderBase.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
 		)
 
 		var txs []*models.Transaction
 		if _, err := builder.LoadContext(ctx, &txs); err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		return txs, nil
+
+		return txs, false, nil
 	}
 
 	builder := applySort(
 		p.Sort,
-		r.listTxsQuery(r.transactionQuery(dbRunner), p),
+		r.listTxsQuery(transactionQuery(dbRunner), p),
 	).Limit(100000)
 
 	txs := make([]*models.Transaction, 0, params.PaginationMaxLimit+1)
@@ -135,7 +203,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 
 	itr, err := builder.IterateContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	defer func() {
@@ -145,12 +213,12 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 	for itr.Next() {
 		err = itr.Err()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		var tx *models.Transaction
 		err = itr.Scan(&tx)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if p.ListParams.Offset > 0 && len(txsmoffset) < p.ListParams.Offset {
 			txsmoffset[tx.ID] = struct{}{}
@@ -168,7 +236,7 @@ func (r *Reader) listTxs(ctx context.Context, p *params.ListTransactionsParams, 
 		}
 	}
 
-	return txs, nil
+	return txs, false, nil
 }
 
 func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransactionsParams, avaxAssetID ids.ID) (*models.TransactionList, error) {
@@ -177,15 +245,15 @@ func (r *Reader) ListTransactions(ctx context.Context, p *params.ListTransaction
 		return nil, err
 	}
 
-	p.ListParams.ObserveTimeProvided = true
-	txs, err := r.listTxs(ctx, p, dbRunner)
+	txs, dressed, err := r.listTxs(ctx, p, dbRunner)
 	if err != nil {
 		return nil, err
 	}
 
-	// Add all the addition information we might want
-	if err := r.dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
-		return nil, err
+	if !dressed {
+		if err := dressTransactions(ctx, dbRunner, txs, avaxAssetID, p.ListParams.ID, p.DisableGenesis); err != nil {
+			return nil, err
+		}
 	}
 
 	listParamsOriginal := p.ListParams
@@ -249,7 +317,7 @@ func (r *Reader) transactionProcessNext(txs []*models.Transaction, listParams pa
 			}
 		}
 	}
-	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort)
+	next = fmt.Sprintf("%s&%s=%s", next, params.KeySortBy, transactionsParams.Sort.String())
 	return &next
 }
 
@@ -267,7 +335,14 @@ type rewardsTypeModel struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txs []*models.Transaction, avaxAssetID ids.ID, txID *ids.ID, disableGenesis bool) error {
+func dressTransactions(
+	ctx context.Context,
+	dbRunner dbr.SessionRunner,
+	txs []*models.Transaction,
+	avaxAssetID ids.ID,
+	txID *ids.ID,
+	disableGenesis bool,
+) error {
 	if len(txs) == 0 {
 		return nil
 	}
@@ -281,12 +356,12 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		txIDs[i] = tx.ID
 	}
 
-	rewardsTypesMap, err := r.resolveRewarded(ctx, dbRunner, txIDs)
+	rewardsTypesMap, err := resolveRewarded(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
 
-	outputs, err := r.collectInsAndOuts(ctx, dbRunner, txIDs)
+	outputs, err := collectInsAndOuts(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
@@ -372,16 +447,28 @@ func (r *Reader) dressTransactions(ctx context.Context, dbRunner dbr.SessionRunn
 		}
 	}
 
-	cvmin, cvmout, err := r.collectCvmTransactions(ctx, dbRunner, txIDs)
+	cvmin, cvmout, err := collectCvmTransactions(ctx, dbRunner, txIDs)
 	if err != nil {
 		return err
 	}
 
-	r.dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
+	dressTransactionsTx(txs, disableGenesis, txID, avaxAssetID, inputsMap, outputsMap, inputTotalsMap, outputTotalsMap, rewardsTypesMap, cvmin, cvmout)
 	return nil
 }
 
-func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis bool, txID *ids.ID, avaxAssetID ids.ID, inputsMap map[models.StringID]map[models.StringID]*models.Input, outputsMap map[models.StringID]map[models.StringID]*models.Output, inputTotalsMap map[models.StringID]map[models.StringID]*big.Int, outputTotalsMap map[models.StringID]map[models.StringID]*big.Int, rewardsTypesMap map[models.StringID]rewardsTypeModel, cvmins map[models.StringID][]models.Output, cvmouts map[models.StringID][]models.Output) {
+func dressTransactionsTx(
+	txs []*models.Transaction,
+	disableGenesis bool,
+	txID *ids.ID,
+	avaxAssetID ids.ID,
+	inputsMap map[models.StringID]map[models.StringID]*models.Input,
+	outputsMap map[models.StringID]map[models.StringID]*models.Output,
+	inputTotalsMap map[models.StringID]map[models.StringID]*big.Int,
+	outputTotalsMap map[models.StringID]map[models.StringID]*big.Int,
+	rewardsTypesMap map[models.StringID]rewardsTypeModel,
+	cvmins map[models.StringID][]models.Output,
+	cvmouts map[models.StringID][]models.Output,
+) {
 	// Add the data we've built up for each transaction
 	for _, tx := range txs {
 		if disableGenesis && (txID == nil && string(tx.ID) == avaxAssetID.String()) {
@@ -430,7 +517,7 @@ func (r *Reader) dressTransactionsTx(txs []*models.Transaction, disableGenesis b
 	}
 }
 
-func (r *Reader) resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {
+func resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {
 	rewardsTypes := []rewardsTypeModel{}
 	blocktypes := []models.BlockType{models.BlockTypeAbort, models.BlockTypeCommit}
 	_, err := dbRunner.Select("rewards.txid",
@@ -452,7 +539,7 @@ func (r *Reader) resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner
 	return rewardsTypesMap, nil
 }
 
-func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
+func collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) ([]*compositeRecord, error) {
 	s1_0 := dbRunner.Select("avm_outputs.id").
 		From("avm_outputs").
 		Where("avm_outputs.transaction_id IN ?", txIDs)
@@ -485,7 +572,7 @@ func (r *Reader) collectInsAndOuts(ctx context.Context, dbRunner dbr.SessionRunn
 	return append(outputs, outputs2...), nil
 }
 
-func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
+func collectCvmTransactions(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID][]models.Output, map[models.StringID][]models.Output, error) {
 	var cvmAddress []models.CvmOutput
 	_, err := dbRunner.Select(
 		"cvm_addresses.type",
@@ -521,16 +608,16 @@ func (r *Reader) collectCvmTransactions(ctx context.Context, dbRunner dbr.Sessio
 		}
 		switch a.Type {
 		case models.CChainIn:
-			ins[a.TransactionID] = append(ins[a.TransactionID], r.mapOutput(a))
+			ins[a.TransactionID] = append(ins[a.TransactionID], mapOutput(a))
 		case models.CchainOut:
-			outs[a.TransactionID] = append(outs[a.TransactionID], r.mapOutput(a))
+			outs[a.TransactionID] = append(outs[a.TransactionID], mapOutput(a))
 		}
 	}
 
 	return ins, outs, nil
 }
 
-func (r *Reader) mapOutput(a models.CvmOutput) models.Output {
+func mapOutput(a models.CvmOutput) models.Output {
 	var o models.Output
 	o.TransactionID = a.TransactionID
 	o.ID = a.ID
@@ -578,6 +665,8 @@ func selectOutputs(dbRunner dbr.SessionRunner, redeem bool) *dbr.SelectBuilder {
 	cols = append(cols, "avm_output_addresses.redeeming_signature AS signature")
 	cols = append(cols, "addresses.public_key AS public_key")
 	cols = append(cols, tbl+".chain_id")
+	cols = append(cols, "case when avm_outputs.chain_id is null then '' else avm_outputs.chain_id end as out_chain_id")
+	cols = append(cols, "case when avm_outputs_redeeming.chain_id is null then '' else avm_outputs_redeeming.chain_id end as in_chain_id")
 	cols = append(cols, "case when avm_outputs.payload is null then '' else avm_outputs.payload end as payload")
 	cols = append(cols, "case when avm_outputs.stake is null then 0 else avm_outputs.stake end as stake")
 	cols = append(cols, "case when avm_outputs.stakeableout is null then 0 else avm_outputs.stakeableout end as stakeableout")

@@ -7,17 +7,106 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gocraft/dbr/v2"
-
 	"github.com/ava-labs/avalanchego/ids"
-
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
-
-	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/params"
+	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/gocraft/dbr/v2"
 )
 
+type ReaderAggregateTxList struct {
+	Lock       sync.RWMutex
+	Txs        []*models.Transaction
+	TxsMap     map[models.StringID]*models.Transaction
+	TxsByChain map[models.StringID][]*models.Transaction
+}
+
+func (t *ReaderAggregateTxList) IsProcessed() bool {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	return t.Txs != nil
+}
+
+func (t *ReaderAggregateTxList) Get(tx models.StringID) (*models.Transaction, bool) {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	if t.TxsMap != nil {
+		ftx, ok := t.TxsMap[tx]
+		return ftx, ok
+	}
+	return nil, false
+}
+
+func (t *ReaderAggregateTxList) First() *models.Transaction {
+	t.Lock.RLock()
+	defer t.Lock.RUnlock()
+	if t.Txs != nil {
+		return t.Txs[0]
+	}
+	return nil
+}
+
+func (t *ReaderAggregateTxList) Set(txs []*models.Transaction) {
+	if txs == nil {
+		t.Lock.Lock()
+		defer t.Lock.Unlock()
+		t.Txs = nil
+		t.TxsMap = nil
+		t.TxsByChain = nil
+		return
+	}
+	txsMap := make(map[models.StringID]*models.Transaction)
+	txsListByChain := make(map[models.StringID][]*models.Transaction)
+	for _, tx := range txs {
+		if _, ok := txsListByChain[tx.ChainID]; !ok {
+			txsListByChain[tx.ChainID] = make([]*models.Transaction, 0, 5000)
+		}
+		txsListByChain[tx.ChainID] = append(txsListByChain[tx.ChainID], tx)
+		txsMap[tx.ID] = tx
+	}
+	t.Lock.Lock()
+	defer t.Lock.Unlock()
+	t.Txs = txs
+	t.TxsMap = txsMap
+	t.TxsByChain = txsListByChain
+}
+
+func (t *ReaderAggregateTxList) FindTxs(chainIDs []string, limit int) []*models.Transaction {
+	var txs []*models.Transaction
+	switch len(chainIDs) {
+	case 1:
+		t.Lock.RLock()
+		txsByChain := t.TxsByChain
+		t.Lock.RUnlock()
+		chainID := chainIDs[0]
+		if txsByChain != nil {
+			if txsOfChain, ok := txsByChain[models.StringID(chainID)]; ok {
+				if limit <= len(txsOfChain) {
+					txs = make([]*models.Transaction, 0, limit)
+					txs = append(txs, txsOfChain[0:limit]...)
+				}
+			}
+		}
+	case 0:
+		t.Lock.RLock()
+		ltxs := t.Txs
+		t.Lock.RUnlock()
+		if ltxs != nil {
+			if limit <= len(ltxs) {
+				txs = make([]*models.Transaction, 0, limit)
+				txs = append(txs, ltxs[0:limit]...)
+			}
+		}
+	default:
+	}
+	return txs
+}
+
 type ReaderAggregate struct {
+	txDesc ReaderAggregateTxList
+	txAsc  ReaderAggregateTxList
+
 	lock sync.RWMutex
 
 	assetm        map[ids.ID]*models.Asset
@@ -90,43 +179,48 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
-	var connectionsaggr *services.Connections
+	var connectionstxsdesc *servicesconn.Connections
+	var connectionstxsasc *servicesconn.Connections
+	var connectionsaggr *servicesconn.Connections
 
-	var connections1m *services.Connections
-	var connections1h *services.Connections
-	var connections24h *services.Connections
-	var connections7d *services.Connections
-	var connections30d *services.Connections
+	var connections1m *servicesconn.Connections
+	var connections1h *servicesconn.Connections
+	var connections24h *servicesconn.Connections
+	var connections7d *servicesconn.Connections
+	var connections30d *servicesconn.Connections
 	var err error
 
 	closeDBForError := func() {
-		if connectionsaggr != nil {
-			_ = connectionsaggr.Close()
+		closeConn := func(c *servicesconn.Connections) {
+			if c != nil {
+				_ = c.Close()
+			}
 		}
-
-		if connections1m != nil {
-			_ = connections1m.Close()
-		}
-		if connections1h != nil {
-			_ = connections1h.Close()
-		}
-		if connections24h != nil {
-			_ = connections24h.Close()
-		}
-		if connections7d != nil {
-			_ = connections7d.Close()
-		}
-		if connections30d != nil {
-			_ = connections30d.Close()
-		}
+		closeConn(connectionstxsdesc)
+		closeConn(connectionstxsasc)
+		closeConn(connectionsaggr)
+		closeConn(connections1m)
+		closeConn(connections1h)
+		closeConn(connections24h)
+		closeConn(connections7d)
+		closeConn(connections30d)
 	}
 
+	connectionstxsdesc, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
+	connectionstxsasc, err = r.sc.DatabaseRO()
+	if err != nil {
+		closeDBForError()
+		return err
+	}
 	connectionsaggr, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
 		return err
 	}
-
 	connections1m, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
@@ -153,6 +247,8 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
+	go r.processorTxDescFetch(connectionstxsdesc)
+	go r.processorTxAscFetch(connectionstxsasc)
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1m(connections1m)
 	go r.aggregateProcessor1h(connections1h)
@@ -162,13 +258,116 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
+func (r *Reader) processorTxDescFetch(conns *servicesconn.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	if true {
+		return
+	}
+
+	ticker := time.NewTicker(time.Second)
+
+	runTx := func() {
+		ctx := context.Background()
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
+
+		builder := transactionQuery(sess)
+		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
+		builder.OrderDesc("avm_transactions.created_at")
+		builder.OrderDesc("avm_transactions.chain_id")
+		builder.Limit(5000)
+
+		var txs []*models.Transaction
+
+		defer func() {
+			r.readerAggregate.txDesc.Set(txs)
+		}()
+
+		if _, err := builder.LoadContext(ctx, &txs); err != nil {
+			r.sc.Log.Warn("descending tx query fail %v", err)
+			txs = nil
+			return
+		}
+
+		err := dressTransactions(ctx, sess, txs, r.sc.GenesisContainer.AvaxAssetID, nil, false)
+		if err != nil {
+			r.sc.Log.Warn("descending tx dress tx fail %v", err)
+			txs = nil
+			return
+		}
+	}
+	runTx()
+	for {
+		select {
+		case <-ticker.C:
+			runTx()
+		case <-r.doneCh:
+			return
+		}
+	}
+}
+
+func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
+	defer func() {
+		_ = conns.Close()
+	}()
+
+	ticker := time.NewTicker(time.Second)
+
+	timeaggr := time.Now().Truncate(time.Minute).Truncate(10 * time.Minute)
+
+	runTx := func() {
+		ctx := context.Background()
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
+
+		builder := transactionQuery(sess)
+		builder.OrderAsc("avm_transactions.created_at")
+		builder.OrderAsc("avm_transactions.chain_id")
+		builder.Limit(5000)
+
+		var txsAsc []*models.Transaction
+
+		defer func() {
+			r.readerAggregate.txAsc.Set(txsAsc)
+		}()
+
+		if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
+			r.sc.Log.Warn("ascending tx query fail %v", err)
+			txsAsc = nil
+			return
+		}
+
+		err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
+		if err != nil {
+			r.sc.Log.Warn("ascending tx dress tx fail %v", err)
+			txsAsc = nil
+			return
+		}
+		timeaggr = timeaggr.Add(10 * time.Minute).Truncate(10 * time.Minute)
+	}
+	runTx()
+	for {
+		select {
+		case <-ticker.C:
+			tnow := time.Now()
+			if tnow.After(timeaggr) {
+				runTx()
+			}
+		case <-r.doneCh:
+			return
+		}
+	}
+}
+
 func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
 	var addressCountl []*models.ChainCounts
 	_, err := sess.Select(
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(services.TableAddressChain).
+		From(idb.TableAddressChain).
 		GroupBy("chain_id").
 		LoadContext(ctx, &addressCountl)
 	if err != nil {
@@ -195,7 +394,7 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(services.TableTransactions).
+		From(idb.TableTransactions).
 		GroupBy("chain_id").
 		LoadContext(ctx, &txCountl)
 	if err != nil {
@@ -216,7 +415,46 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 	r.readerAggregate.lock.Unlock()
 }
 
-func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
+func (r *Reader) fetchAssets(
+	ctx context.Context,
+	sess *dbr.Session,
+	runTm time.Time,
+	runDuration time.Duration,
+) ([]string, []string, error) {
+	var assetsFound []string
+	_, err := sess.Select(
+		"asset_id",
+		"count(distinct(transaction_id)) as tamt",
+	).
+		From("avm_outputs").
+		Where("created_at > ? and asset_id <> ?",
+			runTm.Add(-runDuration),
+			r.sc.GenesisContainer.AvaxAssetID.String(),
+		).
+		GroupBy("asset_id").
+		OrderDesc("tamt").
+		LoadContext(ctx, &assetsFound)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var addlAssetsFound []string
+	_, err = sess.Select(
+		"id",
+	).
+		From("avm_assets").
+		OrderDesc("created_at").
+		Limit(params.PaginationMaxLimit).
+		LoadContext(ctx, &addlAssetsFound)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
+	return append(assets, assetsFound...), addlAssetsFound, nil
+}
+
+func (r *Reader) aggregateProcessorAssetAggr(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -235,39 +473,11 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 		r.addressCounts(ctx, sess)
 		r.txCounts(ctx, sess)
 
-		var assetsFound []string
-		_, err := sess.Select(
-			"asset_id",
-			"count(distinct(transaction_id)) as tamt",
-		).
-			From("avm_outputs").
-			Where("created_at > ? and asset_id <> ?",
-				runTm.Add(-runDuration),
-				r.sc.GenesisContainer.AvaxAssetID.String(),
-			).
-			GroupBy("asset_id").
-			OrderDesc("tamt").
-			LoadContext(ctx, &assetsFound)
+		assets, addlAssetsFound, err := r.fetchAssets(ctx, sess, runTm, runDuration)
 		if err != nil {
 			r.sc.Log.Warn("Aggregate %v", err)
 			return
 		}
-
-		var addlAssetsFound []string
-		_, err = sess.Select(
-			"id",
-		).
-			From("avm_assets").
-			OrderDesc("created_at").
-			Limit(params.PaginationMaxLimit).
-			LoadContext(ctx, &addlAssetsFound)
-		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
-			return
-		}
-
-		assets := append([]string{}, r.sc.GenesisContainer.AvaxAssetID.String())
-		assets = append(assets, assetsFound...)
 
 		aggrMap := make(map[ids.ID]*models.AggregatesHistogram)
 		assetMap := make(map[ids.ID]*models.Asset)
@@ -364,7 +574,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) processAggregate(conns *services.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
+func (r *Reader) processAggregate(conns *servicesconn.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
 	ctx := context.Background()
 	p := &params.AggregateParams{}
 	urlv := url.Values{}
@@ -381,7 +591,7 @@ func (r *Reader) processAggregate(conns *services.Connections, runTm time.Time, 
 	return r.Aggregate(ctx, p, conns)
 }
 
-func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
+func (r *Reader) aggregateProcessor1m(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -415,7 +625,7 @@ func (r *Reader) aggregateProcessor1m(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
+func (r *Reader) aggregateProcessor1h(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -449,7 +659,7 @@ func (r *Reader) aggregateProcessor1h(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
+func (r *Reader) aggregateProcessor24h(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -483,7 +693,7 @@ func (r *Reader) aggregateProcessor24h(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
+func (r *Reader) aggregateProcessor7d(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -517,7 +727,7 @@ func (r *Reader) aggregateProcessor7d(conns *services.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor30d(conns *services.Connections) {
+func (r *Reader) aggregateProcessor30d(conns *servicesconn.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
