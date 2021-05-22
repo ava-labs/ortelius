@@ -119,7 +119,7 @@ func (a *Manager) Start(enabled bool) error {
 func (a *Manager) runTicker(conns *servicesconn.Connections) {
 	a.sc.Logger().Info("start")
 	go func() {
-		a.sc.Logger().Info("stop")
+		defer a.sc.Logger().Info("stop")
 
 		ticker := time.NewTicker(30 * time.Second)
 
