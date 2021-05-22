@@ -353,7 +353,6 @@ func runStreamProcessorManagers(
 		<-sigCh
 
 		for _, listenCloseFactory := range listenCloseFactories {
-			// Stop server
 			if err := listenCloseFactory.Close(); err != nil {
 				log.Println("Daemon shutdown error:", err.Error())
 			}

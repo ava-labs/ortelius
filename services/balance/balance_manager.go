@@ -13,8 +13,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-var RowLimitValueBase = 5000
-var RowLimitValue = uint64(RowLimitValueBase)
+var RowLimitValue = uint64(5000)
 var LockSize = 5
 
 var retryProcessing = 3
@@ -119,7 +118,9 @@ func (a *Manager) Start(enabled bool) error {
 func (a *Manager) runTicker(conns *servicesconn.Connections) {
 	a.sc.Logger().Info("start")
 	go func() {
-		defer a.sc.Logger().Info("stop")
+		defer func() {
+			a.sc.Logger().Info("stop")
+		}()
 
 		ticker := time.NewTicker(30 * time.Second)
 
@@ -165,7 +166,9 @@ func (a *Manager) runTicker(conns *servicesconn.Connections) {
 func (a *Manager) runProcessing(id string, conns *servicesconn.Connections, f func(conns *servicesconn.Connections) (uint64, error), trigger chan struct{}) {
 	a.sc.Logger().Info("start processing %v", id)
 	go func() {
-		defer a.sc.Logger().Info("stop processing %v", id)
+		defer func() {
+			a.sc.Logger().Info("stop processing %v", id)
+		}()
 		runEvent := func(conns *servicesconn.Connections) {
 			icnt := 0
 			for ; icnt < retryProcessing; icnt++ {

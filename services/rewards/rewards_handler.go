@@ -42,7 +42,9 @@ func (r *Handler) Close() {
 
 func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
 	sc.Log.Info("start")
-	defer sc.Log.Info("stop")
+	defer func() {
+		sc.Log.Info("stop")
+	}()
 
 	ticker := time.NewTicker(1 * time.Second)
 
