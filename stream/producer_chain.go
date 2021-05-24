@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/services/avmcodec"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
@@ -279,7 +281,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 	var codecMgr codec.Manager
 	switch indexerChain {
 	case IndexXChain:
-		_, _, avmCodec, _, err := servicesctrl.NewAVMCodec(conf.NetworkID, chainID)
+		_, _, avmCodec, _, err := avmcodec.NewAVMCodec(conf.NetworkID, chainID)
 		if err != nil {
 			return nil, err
 		}
@@ -446,5 +448,3 @@ func ChainNotReady(err error) bool {
 	}
 	return false
 }
-
-

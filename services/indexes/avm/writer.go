@@ -8,8 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"reflect"
+
+	"github.com/ava-labs/ortelius/services/avmcodec"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/database"
@@ -51,7 +52,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	_, _, avmCodec, _, err := servicesctrl.NewAVMCodec(networkID, chainID)
+	_, _, avmCodec, _, err := avmcodec.NewAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
