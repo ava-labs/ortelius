@@ -2,6 +2,7 @@ package rewards
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/api"
@@ -36,7 +37,7 @@ func (r *Handler) Start(sc *servicesctrl.Control) error {
 }
 
 func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	doneCh := make(chan struct{}, 1)
 
@@ -91,7 +92,7 @@ func (r *Handler) processRewards() error {
 	).
 		From(idb.TableRewards).
 		Join(idb.TablePvmBlocks, idb.TableRewards+".block_id = "+idb.TablePvmBlocks+".parent_id").
-		Where(idb.TableRewards+".processed = ? and "+idb.TableRewards+".created_at < ?", 0, time.Now()).
+		Where(idb.TableRewards+".processed = ? and "+idb.TableRewards+".created_at < ?", 0, time.Now().Add(-3*time.Second)).
 		LoadContext(ctx, &reardsTxs)
 	if err != nil {
 		return err
@@ -118,6 +119,10 @@ func (r *Handler) processRewards() error {
 		rewardsUtxos, err = r.client.GetRewardUTXOs(arg)
 		if err != nil {
 			return err
+		}
+
+		if len(rewardsUtxos) == 0 {
+			return fmt.Errorf("no rewards %s", rewardTx.Txid)
 		}
 
 		err = r.processRewardUtxos(rewardsUtxos, rewardTx.CreatedAt)
