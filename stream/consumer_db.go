@@ -136,7 +136,7 @@ func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) erro
 	}
 	c.Success()
 
-	c.sc.BalancheManager.Run()
+	c.sc.BalanceManager.Run()
 	return err
 }
 

@@ -302,13 +302,13 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		err := sc.BalancheManager.Start(sc.IsAccumulateBalanceIndexer)
+		err := sc.BalanceManager.Start(sc.IsAccumulateBalanceIndexer)
 		if err != nil {
 			*runError = err
 			return
 		}
 		defer func() {
-			sc.BalancheManager.Close()
+			sc.BalanceManager.Close()
 		}()
 
 		rh := &rewards.Handler{}
@@ -327,7 +327,7 @@ func runStreamProcessorManagers(
 			return
 		}
 
-		sc.BalancheManager.Run()
+		sc.BalanceManager.Run()
 
 		runningControl := utils.NewRunning()
 

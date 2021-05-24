@@ -37,7 +37,7 @@ type Control struct {
 	Log                        logging.Logger
 	Persist                    idb.Persist
 	Features                   map[string]struct{}
-	BalancheManager            *balance.Manager
+	BalanceManager             *balance.Manager
 	GenesisContainer           *servicesgenesis.GenesisContainer
 	IsAccumulateBalanceIndexer bool
 	IsAccumulateBalanceReader  bool
@@ -73,7 +73,7 @@ func (s *Control) Init(networkID uint32) error {
 	}
 	var err error
 	persist := idb.NewPersist()
-	s.BalancheManager = balance.NewManager(persist, s)
+	s.BalanceManager = balance.NewManager(persist, s)
 
 	s.GenesisContainer, err = servicesgenesis.NewGenesisContainer(networkID)
 	if err != nil {
