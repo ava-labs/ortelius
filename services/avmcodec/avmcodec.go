@@ -25,30 +25,30 @@ var (
 
 const MaxCodecSize = 100_000_000
 
-func NewAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, codec.Manager, database.Database, error) {
+func NewAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 	genesisBytes, _, err := genesis.Genesis(networkID, "")
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil
 	}
 
 	g, err := genesis.VMGenesis(genesisBytes, avm.ID)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
 	if !ok {
-		return nil, nil, nil, nil, ErrIncorrectGenesisChainTxType
+		return nil, ErrIncorrectGenesisChainTxType
 	}
 
 	bcLookup := &ids.Aliaser{}
 	bcLookup.Initialize()
 	id, err := ids.FromString(chainID)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 	if err = bcLookup.Alias(id, "X"); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	var (
@@ -89,10 +89,10 @@ func NewAVMCodec(networkID uint32, chainID string) (*avm.VM, *snow.Context, code
 	vm := &avm.VM{}
 	err = vm.Initialize(ctx, dbm, createChainTx.GenesisData, nil, nil, make(chan common.Message, 1), fxs)
 	if err != nil && err != database.ErrClosed {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	vm.Codec().SetMaxSize(MaxCodecSize)
 
-	return vm, ctx, vm.Codec(), db, nil
+	return vm.Codec(), nil
 }

@@ -281,7 +281,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 	var codecMgr codec.Manager
 	switch indexerChain {
 	case IndexXChain:
-		_, _, avmCodec, _, err := avmcodec.NewAVMCodec(conf.NetworkID, chainID)
+		avmCodec, err := avmcodec.NewAVMCodec(conf.NetworkID, chainID)
 		if err != nil {
 			return nil, err
 		}
