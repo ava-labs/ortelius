@@ -71,10 +71,10 @@ func (s *Control) Init(networkID uint32) error {
 	if _, ok := s.Features["aggregate_cache"]; ok {
 		s.IsAggregateCache = true
 	}
-	var err error
 	persist := idb.NewPersist()
 	s.BalanceManager = balance.NewManager(persist, s)
 
+	var err error
 	s.GenesisContainer, err = servicesgenesis.NewGenesisContainer(networkID)
 	if err != nil {
 		return err

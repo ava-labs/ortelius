@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	RemovedPassword = "[removed]"
-
 	DeadlockDBErrorMessage = "Deadlock found when trying to get lock; try restarting transaction"
 	TimeoutDBErrorMessage  = "Lock wait timeout exceeded; try restarting transaction"
 )

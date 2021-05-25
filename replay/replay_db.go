@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils/worker"
+
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
@@ -84,7 +86,7 @@ func (replay *dbReplay) Start() error {
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
-	worker := utils.NewWorker(replay.queueSize, replay.queueTheads, replay.workerProcessor())
+	worker := worker.NewWorker(replay.queueSize, replay.queueTheads, replay.workerProcessor())
 
 	waitGroup := new(int64)
 
@@ -173,7 +175,7 @@ func (replay *dbReplay) Start() error {
 	return nil
 }
 
-func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker utils.Worker) error {
+func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker worker.Worker) error {
 	writer, err := cvm.NewWriter(replay.config.NetworkID, chain)
 	if err != nil {
 		return err
@@ -195,7 +197,7 @@ func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker uti
 	return nil
 }
 
-func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *servicesconn.Connections) error {
+func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker worker.Worker, conns *servicesconn.Connections) error {
 	var err error
 	var writer services.Consumer
 	switch chain.VMType {
@@ -328,7 +330,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 	}
 }
 
-func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker worker.Worker, writer *cvm.Writer) error {
 	tn := fmt.Sprintf("%d-%s-cchain", replay.config.NetworkID, chain)
 
 	replay.counterWaits.Inc(tn)
@@ -398,7 +400,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 	return nil
 }
 
-func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker worker.Worker, writer *cvm.Writer) error {
 	tn := fmt.Sprintf("%d-%s-cchain-trc", replay.config.NetworkID, chain)
 
 	replay.counterWaits.Inc(tn)
@@ -458,7 +460,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 	return nil
 }
 
-func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker utils.Worker, writer *cvm.Writer) error {
+func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker worker.Worker, writer *cvm.Writer) error {
 	tn := fmt.Sprintf("%d-%s-cchain-logs", replay.config.NetworkID, chain)
 
 	replay.counterWaits.Inc(tn)
@@ -518,7 +520,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 	return nil
 }
 
-func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker worker.Worker, writer services.Consumer) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeConsensus)
 
 	replay.counterWaits.Inc(tn)
@@ -578,7 +580,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 	return nil
 }
 
-func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker utils.Worker, writer services.Consumer) error {
+func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker worker.Worker, writer services.Consumer) error {
 	tn := stream.GetTopicName(replay.config.NetworkID, chain.ID, stream.EventTypeDecisions)
 
 	replay.counterWaits.Inc(tn)

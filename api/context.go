@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ava-labs/ortelius/cache"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -23,12 +25,7 @@ import (
 )
 
 var (
-	// ErrCacheableFnFailed is returned when the execution of a CacheableFn
-	// fails.
 	ErrCacheableFnFailed = errors.New("failed to load resource")
-
-	workerQueueSize   = 10
-	workerThreadCount = 1
 )
 
 // Context is the base context for APIs in the ortelius systems
@@ -41,7 +38,7 @@ type Context struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	delayCache  *DelayCache
+	delayCache  *cache.DelayCache
 	avaxReader  *avax.Reader
 	connections *servicesconn.Connections
 }
@@ -58,7 +55,7 @@ func (c *Context) cacheGet(key string) ([]byte, error) {
 	return c.delayCache.Cache.Get(ctxget, key)
 }
 
-func (c *Context) cacheRun(reqTime time.Duration, cacheable Cacheable) (interface{}, error) {
+func (c *Context) cacheRun(reqTime time.Duration, cacheable cache.Cacheable) (interface{}, error) {
 	ctxreq, cancelFnReq := context.WithTimeout(context.Background(), reqTime)
 	defer cancelFnReq()
 
@@ -67,8 +64,8 @@ func (c *Context) cacheRun(reqTime time.Duration, cacheable Cacheable) (interfac
 
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
-func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
-	key := cacheKey(c.NetworkID(), cacheable.Key...)
+func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable cache.Cacheable) {
+	key := cache.CacheKey(c.NetworkID(), cacheable.Key...)
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
 	resp, err := c.cacheGet(key)
@@ -83,10 +80,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable Cacheable) {
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
-				// if we have room in the queue, enque the cache job..
-				if c.delayCache.worker.JobCnt() < int64(workerQueueSize) {
-					c.delayCache.worker.Enque(&CacheJob{key: key, body: &resp, ttl: cacheable.TTL})
-				}
+				c.delayCache.Enque(&cache.CacheJob{Key: key, Body: &resp, TTL: cacheable.TTL})
 			}
 		}
 	}
@@ -141,7 +135,7 @@ func (c *Context) cacheKeyForParams(name string, p params.Param) []string {
 	return append([]string{"avax", name}, p.CacheKey()...)
 }
 
-func newContextSetter(sc *servicesctrl.Control, networkID uint32, stream *health.Stream, connections *servicesconn.Connections, delayCache *DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
+func newContextSetter(sc *servicesctrl.Control, networkID uint32, stream *health.Stream, connections *servicesconn.Connections, delayCache *cache.DelayCache) func(*Context, web.ResponseWriter, *web.Request, web.NextMiddlewareFunc) {
 	return func(c *Context, w web.ResponseWriter, r *web.Request, next web.NextMiddlewareFunc) {
 		c.sc = sc
 		c.connections = connections

@@ -40,8 +40,7 @@ func New(stream *health.Stream, quietStream *health.Stream, conf cfg.DB, ro bool
 	}, nil
 }
 
-func (c *Conn) Close(context.Context) error {
-	c.stream.Event("close")
+func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 

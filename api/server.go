@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	cache2 "github.com/ava-labs/ortelius/cache"
+
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -80,10 +82,10 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 
 	cache := connections.Cache()
 	if cache == nil {
-		cache = NewNullCache()
+		cache = cache2.NewNullCache()
 	}
 
-	delayCache := NewDelayCache(cache)
+	delayCache := cache2.NewDelayCache(cache)
 
 	consumersmap := make(map[string]services.Consumer)
 	for chid, chain := range conf.Chains {

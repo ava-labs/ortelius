@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/ava-labs/ortelius/cache"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/cache"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/go-redis/redis/v8"
 	"github.com/gocraft/health"
@@ -129,7 +129,7 @@ func (c Connections) Cache() cache.Cache   { return c.cache }
 
 func (c Connections) Close() error {
 	errs := wrappers.Errs{}
-	errs.Add(c.db.Close(context.Background()))
+	errs.Add(c.db.Close())
 	if c.redis != nil {
 		errs.Add(c.redis.Close())
 	}

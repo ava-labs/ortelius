@@ -5,6 +5,8 @@ package cache
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,8 +24,38 @@ var (
 	DefaultTTL = 5 * time.Minute
 )
 
+// CacheableFn is a function whose output can safely be cached
+type CacheableFn func(context.Context) (interface{}, error)
+
+// Cacheable is a keyed CacheableFn
+type Cacheable struct {
+	Key         []string
+	CacheableFn CacheableFn
+	TTL         time.Duration
+}
+
 func KeyFromParts(parts ...string) string {
 	return strings.Join(parts, CacheSeparator)
+}
+
+func CacheKey(networkID uint32, parts ...string) string {
+	k := make([]string, 1, len(parts)+1)
+	k[0] = strconv.Itoa(int(networkID))
+	return KeyFromParts(append(k, parts...)...)
+}
+
+type nullCache struct{}
+
+func NewNullCache() Cache {
+	return &nullCache{}
+}
+
+func (nullCache) Get(_ context.Context, _ string) ([]byte, error) {
+	return nil, fmt.Errorf("invalid")
+}
+
+func (nullCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	return nil
 }
 
 type Cache interface {
