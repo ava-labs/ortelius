@@ -27,8 +27,6 @@ type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB
 
 type ProcessorDB interface {
 	Process(*servicesconn.Connections, *idb.TxPool) error
-	Close() error
-	ID() string
 	Topic() []string
 }
 

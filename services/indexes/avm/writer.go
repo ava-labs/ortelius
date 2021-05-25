@@ -134,8 +134,6 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *servicesconn.Conne
 		job  = conns.StreamDBDedup().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
-	job.KeyValue("id", c.ID())
-	job.KeyValue("chain_id", c.ChainID())
 
 	var err error
 
@@ -190,8 +188,6 @@ func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, i
 		job  = conns.StreamDBDedup().NewJob("avm-index")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
-	job.KeyValue("id", i.ID())
-	job.KeyValue("chain_id", i.ChainID())
 
 	defer func() {
 		if err != nil {

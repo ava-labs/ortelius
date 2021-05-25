@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
 	cblock "github.com/ava-labs/ortelius/models"
@@ -35,8 +34,6 @@ type consumerCChainDB struct {
 
 	conf cfg.Config
 
-	// Concurrency control
-	quitCh   chan struct{}
 	consumer *cvm.Writer
 
 	topicName     string
@@ -54,8 +51,6 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 			metricSuccessCountKey:         fmt.Sprintf("consume_records_success_%s_cchain", conf.CchainID),
 			metricFailureCountKey:         fmt.Sprintf("consume_records_failure_%s_cchain", conf.CchainID),
 			id:                            fmt.Sprintf("consumer %d %s cchain", conf.NetworkID, conf.CchainID),
-
-			quitCh: make(chan struct{}),
 		}
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
 		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
@@ -66,7 +61,6 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 		var err error
 		c.consumer, err = cvm.NewWriter(c.conf.NetworkID, c.conf.CchainID)
 		if err != nil {
-			_ = c.Close()
 			return nil, err
 		}
 
@@ -78,15 +72,6 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 	}
 }
 
-// Close shuts down the producer
-func (c *consumerCChainDB) Close() error {
-	return nil
-}
-
-func (c *consumerCChainDB) ID() string {
-	return c.id
-}
-
 func (c *consumerCChainDB) Topic() []string {
 	return []string{c.topicName, c.topicTrcName, c.topicLogsName}
 }
@@ -95,8 +80,6 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 	switch row.Topic {
 	case c.topicName:
 		msg := &Message{
-			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
@@ -104,8 +87,6 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 		return c.Consume(conns, msg)
 	case c.topicTrcName:
 		msg := &Message{
-			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
@@ -113,8 +94,6 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 		return c.ConsumeTrace(conns, msg)
 	case c.topicLogsName:
 		msg := &Message{
-			id:         row.MsgKey,
-			chainID:    c.conf.CchainID,
 			body:       row.Serialization,
 			timestamp:  row.CreatedAt.UTC().Unix(),
 			nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),
@@ -144,13 +123,9 @@ func (c *consumerCChainDB) ConsumeLogs(conns *servicesconn.Connections, msg serv
 		}
 	}()
 
-	id := hashing.ComputeHash256(msg.Body())
-
-	nmsg := NewMessage(string(id), msg.ChainID(), msg.Body(), msg.Timestamp(), msg.Nanosecond())
-
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
-		err = c.persistConsumeLogs(conns, nmsg, txLogs)
+		err = c.persistConsumeLogs(conns, msg, txLogs)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -187,13 +162,9 @@ func (c *consumerCChainDB) ConsumeTrace(conns *servicesconn.Connections, msg ser
 		}
 	}()
 
-	id := hashing.ComputeHash256(transactionTrace.Trace)
-
-	nmsg := NewMessage(string(id), msg.ChainID(), transactionTrace.Trace, msg.Timestamp(), msg.Nanosecond())
-
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
-		err = c.persistConsumeTrace(conns, nmsg, transactionTrace)
+		err = c.persistConsumeTrace(conns, msg, transactionTrace)
 		if !db.ErrIsLockError(err) {
 			break
 		}
@@ -234,8 +205,7 @@ func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services
 		block.BlockExtraData = []byte("")
 	}
 
-	id := hashing.ComputeHash256(block.BlockExtraData)
-	nmsg := NewMessage(string(id), msg.ChainID(), block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
+	nmsg := NewMessage(block.BlockExtraData, msg.Timestamp(), msg.Nanosecond())
 
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {

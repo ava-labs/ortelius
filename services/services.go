@@ -12,8 +12,6 @@ import (
 )
 
 type Consumable interface {
-	ID() string
-	ChainID() string
 	Body() []byte
 	Timestamp() int64
 	Nanosecond() int64

@@ -71,7 +71,6 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 		var err error
 		c.consumer, err = factory(conf.NetworkID, chainVM, chainID)
 		if err != nil {
-			_ = c.Close()
 			return nil, err
 		}
 
@@ -81,23 +80,12 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 	}
 }
 
-func (c *consumerDB) ID() string {
-	return c.id
-}
-
 func (c *consumerDB) Topic() []string {
 	return []string{c.topicName}
 }
 
-// Close closes the consumer
-func (c *consumerDB) Close() error {
-	return nil
-}
-
 func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
 	msg := &Message{
-		id:         row.MsgKey,
-		chainID:    c.chainID,
 		body:       row.Serialization,
 		timestamp:  row.CreatedAt.UTC().Unix(),
 		nanosecond: int64(row.CreatedAt.UTC().Nanosecond()),

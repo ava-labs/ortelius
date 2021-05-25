@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
@@ -374,12 +373,6 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			id, err := ids.FromString(txPool.MsgKey)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
 			replay.counterAdded.Inc(tn)
 
 			block, err := cblock.Unmarshal(txPool.Serialization)
@@ -393,8 +386,6 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 			}
 
 			msgc := stream.NewMessage(
-				id.String(),
-				chain,
 				block.BlockExtraData,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
@@ -452,17 +443,9 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			id, err := ids.FromString(txPool.MsgKey)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
 			replay.counterAdded.Inc(tn)
 
 			msgc := stream.NewMessage(
-				id.String(),
-				chain,
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
@@ -520,17 +503,9 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			id, err := ids.FromString(txPool.MsgKey)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
 			replay.counterAdded.Inc(tn)
 
 			msgc := stream.NewMessage(
-				id.String(),
-				chain,
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
@@ -588,17 +563,9 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			id, err := ids.FromString(txPool.MsgKey)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
 			replay.counterAdded.Inc(tn)
 
 			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
@@ -656,17 +623,9 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				time.Sleep(500 * time.Millisecond)
 			}
 
-			id, err := ids.FromString(txPool.MsgKey)
-			if err != nil {
-				replay.errs.SetValue(err)
-				return
-			}
-
 			replay.counterAdded.Inc(tn)
 
 			msgc := stream.NewMessage(
-				id.String(),
-				chain.ID,
 				txPool.Serialization,
 				txPool.CreatedAt.UTC().Unix(),
 				int64(txPool.CreatedAt.UTC().Nanosecond()),
