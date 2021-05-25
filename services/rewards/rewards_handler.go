@@ -25,6 +25,7 @@ type Handler struct {
 	avaxAssetID ids.ID
 	writer      *avax.Writer
 	cid         ids.ID
+	doneCh      chan struct{}
 }
 
 func (r *Handler) Start(sc *servicesctrl.Control) error {
@@ -36,10 +37,19 @@ func (r *Handler) Start(sc *servicesctrl.Control) error {
 	return nil
 }
 
+func (r *Handler) Close() {
+	close(r.doneCh)
+}
+
 func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
+	sc.Log.Info("start")
+	defer func() {
+		sc.Log.Info("stop")
+	}()
+
 	ticker := time.NewTicker(5 * time.Second)
 
-	doneCh := make(chan struct{}, 1)
+	r.doneCh = make(chan struct{}, 1)
 
 	r.conns = conns
 	r.client = platformvm.NewClient(sc.ServicesCfg.AvalancheGO, 1*time.Minute)
@@ -51,7 +61,6 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 	r.writer = avax.NewWriter(r.cid.String(), r.avaxAssetID)
 
 	defer func() {
-		close(doneCh)
 		ticker.Stop()
 		_ = conns.Close()
 	}()
@@ -63,7 +72,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 			if err != nil {
 				sc.Log.Error("process rewards %s", err)
 			}
-		case <-doneCh:
+		case <-r.doneCh:
 			return
 		}
 	}

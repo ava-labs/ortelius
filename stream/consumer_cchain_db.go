@@ -254,9 +254,7 @@ func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services
 	}
 	c.Success()
 
-	if c.sc.IsAccumulateBalanceIndexer {
-		c.sc.BalanceAccumulatorManager.Run()
-	}
+	c.sc.BalanceManager.Run()
 
 	return nil
 }

@@ -11,10 +11,8 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/codec"
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/avm"
@@ -24,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
+	"github.com/ava-labs/ortelius/services/avmcodec"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
@@ -44,13 +43,10 @@ type Writer struct {
 
 	codec codec.Manager
 	avax  *avax.Writer
-	vm    *avm.VM
-	ctx   *snow.Context
-	db    database.Database
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	vm, ctx, avmCodec, db, err := newAVMCodec(networkID, chainID)
+	avmCodec, err := avmcodec.NewAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +58,6 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 	return &Writer{
 		chainID:     chainID,
-		db:          db,
-		vm:          vm,
-		ctx:         ctx,
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
