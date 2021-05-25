@@ -8,8 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/avm"
 )
 
-const MaxCodecSize = 100_000_000
-
 func parseTx(c codec.Manager, bytes []byte) (*avm.Tx, error) {
 	tx := &avm.Tx{}
 	ver, err := c.Unmarshal(bytes, tx)
