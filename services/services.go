@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/cblock"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/gocraft/dbr/v2"

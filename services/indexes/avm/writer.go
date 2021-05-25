@@ -21,12 +21,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/avmcodec"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 	"github.com/palantir/stacktrace"
@@ -46,7 +46,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := avmcodec.NewAVMCodec(networkID, chainID)
+	avmCodec, err := utils.NewAVMCodec(networkID, chainID)
 	if err != nil {
 		return nil, err
 	}

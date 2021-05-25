@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/models"
 )
 
 const (

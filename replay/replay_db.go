@@ -13,8 +13,8 @@ import (
 
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/ortelius/cblock"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/idb"

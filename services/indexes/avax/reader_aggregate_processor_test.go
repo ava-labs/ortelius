@@ -3,7 +3,7 @@ package avax
 import (
 	"testing"
 
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/models"
 )
 
 func TestReaderAggregate(t *testing.T) {

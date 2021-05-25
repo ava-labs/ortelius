@@ -7,8 +7,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/db"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/gocraft/dbr/v2"
 )
 

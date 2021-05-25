@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"time"
 
-	cache2 "github.com/ava-labs/ortelius/cache"
+	"github.com/ava-labs/ortelius/cache"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream/consumers"
 	"github.com/gocraft/web"
@@ -80,12 +80,12 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 		return nil, err
 	}
 
-	cache := connections.Cache()
-	if cache == nil {
-		cache = cache2.NewNullCache()
+	ccache := connections.Cache()
+	if ccache == nil {
+		ccache = cache.NewNullCache()
 	}
 
-	delayCache := cache2.NewDelayCache(cache)
+	delayCache := cache.NewDelayCache(ccache)
 
 	consumersmap := make(map[string]services.Consumer)
 	for chid, chain := range conf.Chains {

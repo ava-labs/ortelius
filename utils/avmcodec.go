@@ -1,4 +1,4 @@
-package avmcodec
+package utils
 
 import (
 	"errors"
@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/ava-labs/ortelius/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -80,8 +79,8 @@ func NewAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 		}
 	}
 
-	db := &utils.NoopDatabase{}
-	dbm := utils.NewNoopManager(db)
+	db := &NoopDatabase{}
+	dbm := NewNoopManager(db)
 
 	// Initialize an producer to use for tx parsing
 	// An error is returned about the DB being closed but this is expected because

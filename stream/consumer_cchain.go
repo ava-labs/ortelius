@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/ortelius/utils"
+
 	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/ortelius/cblock"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/idb"
@@ -19,7 +21,6 @@ import (
 	"github.com/ava-labs/ortelius/services/metrics"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
-	"github.com/ava-labs/ortelius/utils"
 )
 
 type consumerCChain struct {
