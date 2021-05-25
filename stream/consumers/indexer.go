@@ -53,9 +53,9 @@ var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer serv
 
 type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryChain, error)
 
-var IndexerDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeDecisions)
-var IndexerConsensusDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeConsensus)
-var IndexerCChainDB = stream.NewConsumerCChainDB
+var IndexerDB = stream.NewConsumer(IndexerConsumer, stream.EventTypeDecisions)
+var IndexerConsensusDB = stream.NewConsumer(IndexerConsumer, stream.EventTypeConsensus)
+var IndexerCChainDB = stream.NewConsumerCChain
 
 func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, factories []ConsumerFactory) error {
 	if sc.IsDisableBootstrap {

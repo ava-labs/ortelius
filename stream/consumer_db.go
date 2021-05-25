@@ -19,15 +19,13 @@ import (
 )
 
 // consumer takes events from db and sends them to a service consumer
-type consumerDB struct {
-	id        string
+type consumer struct {
 	eventType EventType
 
 	chainID  string
 	consumer services.Consumer
 	sc       *servicesctrl.Control
 
-	// metrics
 	metricProcessedCountKey       string
 	metricFailureCountKey         string
 	metricProcessMillisCounterKey string
@@ -38,10 +36,9 @@ type consumerDB struct {
 
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
-// NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChain {
+func NewConsumer(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChain {
 	return func(sc *servicesctrl.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
-		c := &consumerDB{
+		c := &consumer{
 			eventType: eventType,
 			chainID:   chainID,
 			sc:        sc,
@@ -53,13 +50,11 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 			c.metricProcessMillisCounterKey = fmt.Sprintf("consume_records_process_millis_%s", chainID)
 			c.metricSuccessCountKey = fmt.Sprintf("consume_records_success_%s", chainID)
 			c.metricFailureCountKey = fmt.Sprintf("consume_records_failure_%s", chainID)
-			c.id = fmt.Sprintf("consumer %d %s %s", conf.NetworkID, chainVM, chainID)
 		case EventTypeConsensus:
 			c.metricProcessedCountKey = fmt.Sprintf("consume_consensus_records_processed_%s", chainID)
 			c.metricProcessMillisCounterKey = fmt.Sprintf("consume_consensus_records_process_millis_%s", chainID)
 			c.metricSuccessCountKey = fmt.Sprintf("consume_consensus_records_success_%s", chainID)
 			c.metricFailureCountKey = fmt.Sprintf("consume_consensus_records_failure_%s", chainID)
-			c.id = fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID)
 		}
 
 		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
@@ -80,11 +75,11 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 	}
 }
 
-func (c *consumerDB) Topic() []string {
+func (c *consumer) Topic() []string {
 	return []string{c.topicName}
 }
 
-func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
+func (c *consumer) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
 	msg := &Message{
 		body:       row.Serialization,
 		timestamp:  row.CreatedAt.UTC().Unix(),
@@ -93,7 +88,7 @@ func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) e
 	return c.Consume(conns, msg)
 }
 
-func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) error {
+func (c *consumer) Consume(conns *servicesconn.Connections, msg *Message) error {
 	collectors := metrics.NewCollectors(
 		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
 		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
@@ -128,7 +123,7 @@ func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) erro
 	return err
 }
 
-func (c *consumerDB) persistConsume(conns *servicesconn.Connections, msg *Message) error {
+func (c *consumer) persistConsume(conns *servicesconn.Connections, msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	switch c.eventType {
@@ -141,12 +136,12 @@ func (c *consumerDB) persistConsume(conns *servicesconn.Connections, msg *Messag
 	}
 }
 
-func (c *consumerDB) Failure() {
+func (c *consumer) Failure() {
 	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
 	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
 }
 
-func (c *consumerDB) Success() {
+func (c *consumer) Success() {
 	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
 	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
 }
