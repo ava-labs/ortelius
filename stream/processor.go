@@ -22,10 +22,10 @@ var (
 	ErrNoMessage = errors.New("no message")
 )
 
-type ProcessorFactoryChainDB func(*servicesctrl.Control, cfg.Config, string, string) (ProcessorDB, error)
-type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB, error)
+type ProcessorFactoryChain func(*servicesctrl.Control, cfg.Config, string, string) (Processor, error)
+type ProcessorFactoryInst func(*servicesctrl.Control, cfg.Config) (Processor, error)
 
-type ProcessorDB interface {
+type Processor interface {
 	Process(*servicesconn.Connections, *idb.TxPool) error
 	Topic() []string
 }

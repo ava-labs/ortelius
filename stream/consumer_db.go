@@ -39,8 +39,8 @@ type consumerDB struct {
 type serviceConsumerFactory func(uint32, string, string) (services.Consumer, error)
 
 // NewConsumerFactory returns a processorFactory for the given service consumer
-func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChainDB {
-	return func(sc *servicesctrl.Control, conf cfg.Config, chainVM string, chainID string) (ProcessorDB, error) {
+func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) ProcessorFactoryChain {
+	return func(sc *servicesctrl.Control, conf cfg.Config, chainVM string, chainID string) (Processor, error) {
 		c := &consumerDB{
 			eventType: eventType,
 			chainID:   chainID,

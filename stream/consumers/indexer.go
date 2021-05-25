@@ -51,7 +51,7 @@ var IndexerConsumerCChain = func(networkID uint32, chainID string) (indexer serv
 	return cvm.NewWriter(networkID, chainID)
 }
 
-type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryChainDB, error)
+type ConsumerDBFactory func(uint32, string, string) (stream.ProcessorFactoryChain, error)
 
 var IndexerDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeDecisions)
 var IndexerConsensusDB = stream.NewConsumerDBFactory(IndexerConsumer, stream.EventTypeConsensus)
@@ -124,9 +124,9 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 }
 
 type IndexerFactoryControl struct {
-	sc     *servicesctrl.Control
-	fsm    map[string]stream.ProcessorDB
-	doneCh chan struct{}
+	sc              *servicesctrl.Control
+	topicProcessors map[string]stream.Processor
+	doneCh          chan struct{}
 }
 
 func (c *IndexerFactoryControl) updateTxPollStatus(conns *servicesconn.Connections, txPoll *idb.TxPool) error {
@@ -150,7 +150,7 @@ func (c *IndexerFactoryControl) handleTxPool(conns *servicesconn.Connections) {
 			if txd.Errs != nil && txd.Errs.GetValue() != nil {
 				continue
 			}
-			if p, ok := c.fsm[txd.TxPool.Topic]; ok {
+			if p, ok := c.topicProcessors[txd.TxPool.Topic]; ok {
 				err := p.Process(conns, txd.TxPool)
 				if err != nil {
 					if txd.Errs != nil {
@@ -177,44 +177,44 @@ func (c *IndexerFactoryControl) handleTxPool(conns *servicesconn.Connections) {
 func IndexerFactories(
 	sc *servicesctrl.Control,
 	config *cfg.Config,
-	factoriesChainDB []stream.ProcessorFactoryChainDB,
-	factoriesInstDB []stream.ProcessorFactoryInstDB,
+	factoriesChain []stream.ProcessorFactoryChain,
+	factoriesInst []stream.ProcessorFactoryInst,
 	wg *sync.WaitGroup,
 	runningControl utils.Running,
 ) error {
 	ctrl := &IndexerFactoryControl{
-		sc:     sc,
-		fsm:    make(map[string]stream.ProcessorDB),
-		doneCh: make(chan struct{}),
+		sc:              sc,
+		topicProcessors: make(map[string]stream.Processor),
+		doneCh:          make(chan struct{}),
 	}
 
 	var topicNames []string
 
-	for _, factory := range factoriesChainDB {
+	for _, factory := range factoriesChain {
 		for _, chainConfig := range config.Chains {
 			f, err := factory(sc, *config, chainConfig.VMType, chainConfig.ID)
 			if err != nil {
 				return err
 			}
 			for _, topic := range f.Topic() {
-				if _, ok := ctrl.fsm[topic]; ok {
+				if _, ok := ctrl.topicProcessors[topic]; ok {
 					return fmt.Errorf("duplicate topic %v", topic)
 				}
-				ctrl.fsm[topic] = f
+				ctrl.topicProcessors[topic] = f
 				topicNames = append(topicNames, topic)
 			}
 		}
 	}
-	for _, factory := range factoriesInstDB {
+	for _, factory := range factoriesInst {
 		f, err := factory(sc, *config)
 		if err != nil {
 			return err
 		}
 		for _, topic := range f.Topic() {
-			if _, ok := ctrl.fsm[topic]; ok {
+			if _, ok := ctrl.topicProcessors[topic]; ok {
 				return fmt.Errorf("duplicate topic %v", topic)
 			}
-			ctrl.fsm[topic] = f
+			ctrl.topicProcessors[topic] = f
 			topicNames = append(topicNames, topic)
 		}
 	}

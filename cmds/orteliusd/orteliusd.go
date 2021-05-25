@@ -210,11 +210,11 @@ func createStreamCmds(sc *servicesctrl.Control, config *cfg.Config, runErr *erro
 				[]consumers.ConsumerFactory{
 					consumers.IndexerConsumer,
 				},
-				[]stream.ProcessorFactoryChainDB{
+				[]stream.ProcessorFactoryChain{
 					consumers.IndexerDB,
 					consumers.IndexerConsensusDB,
 				},
-				[]stream.ProcessorFactoryInstDB{
+				[]stream.ProcessorFactoryInst{
 					consumers.IndexerCChainDB(),
 				},
 			)(cmd, arg)
@@ -296,8 +296,8 @@ func runStreamProcessorManagers(
 	runError *error,
 	listenCloseFactories []utils.ListenCloser,
 	consumerFactories []consumers.ConsumerFactory,
-	factoriesChainDB []stream.ProcessorFactoryChainDB,
-	factoriesInstDB []stream.ProcessorFactoryInstDB,
+	factoriesChainDB []stream.ProcessorFactoryChain,
+	factoriesInstDB []stream.ProcessorFactoryInst,
 ) func(_ *cobra.Command, _ []string) {
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}

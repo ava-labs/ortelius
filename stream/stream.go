@@ -12,18 +12,14 @@ import (
 
 var (
 	ErrUnknownVM = errors.New("unknown VM")
-
-	ErrInvalidTopicName    = errors.New("invalid topic name")
-	ErrWrongTopicEventType = errors.New("wrong topic event type")
-	ErrWrongTopicNetworkID = errors.New("wrong topic networkID")
 )
+
+type EventType string
 
 const (
 	EventTypeConsensus EventType = "consensus"
 	EventTypeDecisions EventType = "decisions"
 )
-
-type EventType string
 
 // Message is a message on the event stream
 type Message struct {

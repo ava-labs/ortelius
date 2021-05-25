@@ -41,8 +41,8 @@ type consumerCChainDB struct {
 	topicLogsName string
 }
 
-func NewConsumerCChainDB() ProcessorFactoryInstDB {
-	return func(sc *servicesctrl.Control, conf cfg.Config) (ProcessorDB, error) {
+func NewConsumerCChainDB() ProcessorFactoryInst {
+	return func(sc *servicesctrl.Control, conf cfg.Config) (Processor, error) {
 		c := &consumerCChainDB{
 			conf:                          conf,
 			sc:                            sc,
