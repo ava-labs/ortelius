@@ -65,7 +65,7 @@ func (c *Context) cacheRun(reqTime time.Duration, cacheable cache.Cacheable) (in
 // WriteCacheable writes to the http response the output of the given Cacheable's
 // function, either from the cache or from a new execution of the function
 func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable cache.Cacheable) {
-	key := cache.CacheKey(c.NetworkID(), cacheable.Key...)
+	key := cache.Key(c.NetworkID(), cacheable.Key...)
 
 	// Get from cache or, if there is a cache miss, from the cacheablefn
 	resp, err := c.cacheGet(key)
@@ -80,7 +80,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable cache.Cacheabl
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
-				c.delayCache.Enque(&cache.CacheJob{Key: key, Body: &resp, TTL: cacheable.TTL})
+				c.delayCache.Enque(&cache.Job{Key: key, Body: &resp, TTL: cacheable.TTL})
 			}
 		}
 	}

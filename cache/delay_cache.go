@@ -13,7 +13,7 @@ var (
 	workerThreadCount = 1
 )
 
-type CacheJob struct {
+type Job struct {
 	Key  string
 	Body *[]byte
 	TTL  time.Duration
@@ -30,7 +30,7 @@ func NewDelayCache(cache Cache) *DelayCache {
 	return c
 }
 
-func (c *DelayCache) Enque(j *CacheJob) {
+func (c *DelayCache) Enque(j *Job) {
 	if c.worker.JobCnt() < int64(workerQueueSize) {
 		return
 	}
@@ -38,7 +38,7 @@ func (c *DelayCache) Enque(j *CacheJob) {
 }
 
 func (c *DelayCache) Processor(_ int, job interface{}) {
-	if j, ok := job.(*CacheJob); ok {
+	if j, ok := job.(*Job); ok {
 		ctxset, cancelFnSet := context.WithTimeout(context.Background(), cfg.CacheTimeout)
 		defer cancelFnSet()
 

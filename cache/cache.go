@@ -34,14 +34,14 @@ type Cacheable struct {
 	TTL         time.Duration
 }
 
-func KeyFromParts(parts ...string) string {
+func keyFromParts(parts ...string) string {
 	return strings.Join(parts, CacheSeparator)
 }
 
-func CacheKey(networkID uint32, parts ...string) string {
+func Key(networkID uint32, parts ...string) string {
 	k := make([]string, 1, len(parts)+1)
 	k[0] = strconv.Itoa(int(networkID))
-	return KeyFromParts(append(k, parts...)...)
+	return keyFromParts(append(k, parts...)...)
 }
 
 type nullCache struct{}
