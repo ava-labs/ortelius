@@ -12,9 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/cache"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/ortelius/cache"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/params"
