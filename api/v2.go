@@ -13,8 +13,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/metrics"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/metrics"
 	"github.com/gocraft/web"
 )
 

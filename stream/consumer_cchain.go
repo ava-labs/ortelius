@@ -14,11 +14,11 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cblock"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/metrics"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/db"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
-	"github.com/ava-labs/ortelius/services/metrics"
 	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/services/servicesctrl"
 )
