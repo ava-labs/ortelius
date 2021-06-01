@@ -13,7 +13,7 @@ services:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ortelius_test
   migrate:
-    image: migrate/migrate:v4.13.0
+    image: migrate/migrate:v4.14.1
     volumes:
       - ../../services/db/migrations:/migrations
       - ./migrate.sh:/migrate.sh

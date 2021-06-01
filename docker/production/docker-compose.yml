@@ -14,7 +14,7 @@ services:
       MYSQL_DATABASE: ortelius
     restart: on-failure
   migrate:
-    image: "migrate/migrate:v4.13.0"
+    image: "migrate/migrate:v4.14.1"
     volumes:
       - ../../services/db/migrations:/migrations
     depends_on:
