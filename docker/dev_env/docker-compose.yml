@@ -20,7 +20,7 @@ services:
       MYSQL_DATABASE: ortelius
     restart: on-failure
   migrate:
-    image: "migrate/migrate:v4.13.0"
+    image: "migrate/migrate:v4.14.1"
     volumes:
       - ../../services/db/migrations:/migrations
     depends_on:
@@ -32,7 +32,7 @@ services:
       done'
     restart: on-failure
   redis:
-    image: "redis:6.0.9-alpine3.12"
+    image: "redis:6.2.3-alpine3.13"
     command: redis-server
     ports:
       - "6379:6379"
