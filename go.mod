@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/ava-labs/avalanchego v1.4.7
-	github.com/ava-labs/coreth v0.5.2-rc.5
+	github.com/ava-labs/coreth v0.5.3-rc.2
 	github.com/ethereum/go-ethereum v1.10.2
 	github.com/go-redis/cache/v8 v8.2.1
 	github.com/go-redis/redis/v8 v8.3.2
