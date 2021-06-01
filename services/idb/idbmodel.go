@@ -521,6 +521,7 @@ func (p *persist) InsertTransactions(
 			Set("txfee", v.Txfee).
 			Set("genesis", v.Genesis).
 			Set("network_id", v.NetworkID).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -595,6 +596,7 @@ func (p *persist) InsertOutputsRedeeming(
 			Set("intx", v.Intx).
 			Set("asset_id", v.AssetID).
 			Set("chain_id", v.ChainID).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -702,6 +704,7 @@ func (p *persist) InsertOutputs(
 			Set("frozen", v.Frozen).
 			Set("stakeableout", v.Stakeableout).
 			Set("genesisutxo", v.Genesisutxo).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -773,6 +776,7 @@ func (p *persist) InsertAssets(
 			Set("denomination", v.Denomination).
 			Set("alias", v.Alias).
 			Set("current_supply", v.CurrentSupply).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -828,6 +832,7 @@ func (p *persist) InsertAddresses(
 			Update(TableAddresses).
 			Set("public_key", v.PublicKey).
 			Set("updated_at", v.UpdatedAt).
+			Set("created_at", v.CreatedAt).
 			Where("address = ?", v.Address).
 			ExecContext(ctx)
 		if err != nil {
@@ -883,6 +888,7 @@ func (p *persist) InsertAddressChain(
 		_, err = sess.
 			Update(TableAddressChain).
 			Set("updated_at", v.UpdatedAt).
+			Set("created_at", v.CreatedAt).
 			Where("address = ? and chain_id=?", v.Address, v.ChainID).
 			ExecContext(ctx)
 		if err != nil {
@@ -946,6 +952,7 @@ func (p *persist) InsertOutputAddresses(
 		}
 		_, err = stmt.
 			Set("updated_at", v.UpdatedAt).
+			Set("created_at", v.CreatedAt).
 			Where("output_id = ? and address=?", v.OutputID, v.Address).
 			ExecContext(ctx)
 		if err != nil {
@@ -1019,6 +1026,7 @@ func (p *persist) InsertTransactionsEpoch(
 			Update(TableTransactionsEpochs).
 			Set("epoch", v.Epoch).
 			Set("vertex_id", v.VertexID).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1131,6 +1139,7 @@ func (p *persist) InsertCvmAddresses(
 			Set("asset_id", v.AssetID).
 			Set("amount", v.Amount).
 			Set("nonce", v.Nonce).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1194,8 +1203,8 @@ func (p *persist) InsertCvmTransactions(
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=?,tx_time=?,nonce=?,hash=?,parent_hash=? where id=?",
-				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.TxTime, v.Nonce, v.Hash, v.ParentHash, v.ID).
+			UpdateBySql("update "+TableCvmTransactions+" set transaction_id=?,type=?,blockchain_id=?,block="+v.Block+",serialization=?,tx_time=?,nonce=?,hash=?,parent_hash=?,created_at=? where id=?",
+				v.TransactionID, v.Type, v.BlockchainID, v.Serialization, v.TxTime, v.Nonce, v.Hash, v.ParentHash, v.CreatedAt, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmTransactions, true, err)
@@ -1318,6 +1327,7 @@ func (p *persist) InsertPvmBlocks(
 			Set("parent_id", v.ParentID).
 			Set("serialization", v.Serialization).
 			Set("height", v.Height).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1381,6 +1391,7 @@ func (p *persist) InsertRewards(
 			Set("block_id", v.BlockID).
 			Set("txid", v.Txid).
 			Set("shouldprefercommit", v.Shouldprefercommit).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1458,6 +1469,7 @@ func (p *persist) InsertTransactionsValidator(
 			Set("node_id", v.NodeID).
 			Set("start", v.Start).
 			Set("end", v.End).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1509,6 +1521,7 @@ func (p *persist) InsertTransactionsBlock(
 		_, err = sess.
 			Update(TableTransactionsBlock).
 			Set("tx_block_id", v.TxBlockID).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1638,6 +1651,7 @@ func (p *persist) InsertOutputAddressAccumulateOut(
 			Set("address", v.Address).
 			Set("transaction_id", v.TransactionID).
 			Set("output_index", v.OutputIndex).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -1694,6 +1708,7 @@ func (p *persist) InsertOutputAddressAccumulateIn(
 			Set("address", v.Address).
 			Set("transaction_id", v.TransactionID).
 			Set("output_index", v.OutputIndex).
+			Set("created_at", v.CreatedAt).
 			Where("id = ?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -2045,6 +2060,7 @@ func (p *persist) InsertTransactionsRewardsOwnersOutputs(
 			Update(TableTransactionsRewardsOwnersOutputs).
 			Set("transaction_id", v.TransactionID).
 			Set("output_index", v.OutputIndex).
+			Set("created_at", v.CreatedAt).
 			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -2104,6 +2120,7 @@ func (p *persist) InsertTransactionsRewardsOwners(
 			Set("chain_id", v.ChainID).
 			Set("locktime", v.Locktime).
 			Set("threshold", v.Threshold).
+			Set("created_at", v.CreatedAt).
 			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
@@ -2434,8 +2451,8 @@ func (p *persist) InsertCvmLogs(
 	}
 	if upd {
 		_, err = sess.
-			UpdateBySql("update "+TableCvmLogs+" set block_hash=?,tx_hash=?,log_index=?,first_topic=?,block="+v.Block+",removed=?,serialization=? where id=?",
-				v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.Serialization, v.ID).
+			UpdateBySql("update "+TableCvmLogs+" set block_hash=?,tx_hash=?,log_index=?,first_topic=?,block="+v.Block+",removed=?,serialization=?,created_at=? where id=?",
+				v.BlockHash, v.TxHash, v.LogIndex, v.FirstTopic, v.Removed, v.Serialization, v.CreatedAt, v.ID).
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmLogs, true, err)
