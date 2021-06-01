@@ -48,6 +48,19 @@ https://docs.docker.com/engine/install/linux-postinstall/
 # make production_start
 ```
 
+# Upgrade ortelius (with a specific tag)
+```
+# make production_stop
+```
+```
+git fetch --all
+git checkout tags/{tag-id}
+```
+*note* [ortelius tags](https://github.com/ava-labs/ortelius/tags)
+```
+# make production_start
+```
+
 # Test api connectivity
 ```
 # curl 'localhost:8080/' | jq "."
