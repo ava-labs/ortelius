@@ -153,7 +153,7 @@ The standard mysql defaults can cause issues, please configure the customization
 ## run migrations -- *required* for all ortelius updates.
 [dockerhub migrate](https://hub.docker.com/r/migrate/migrate)
 ```
-docker run --volume .../github.com/ava-labs/ortelius/services/db/migrations:/migrations --network host "migrate/migrate:v4.13.0"  -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up
+docker run --volume .../github.com/ava-labs/ortelius/services/db/migrations:/migrations --network host "migrate/migrate:v4.14.1"  -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up
 ```
 Update the docker params as needed to match the user/password/host/database as appropriate.
 
