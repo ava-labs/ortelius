@@ -14,15 +14,14 @@ import (
 	"github.com/gocraft/dbr/v2"
 )
 
-func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactionsParams) *dbr.SelectStmt {
-	builder := baseStmt
+//nolint:gocyclo
+func (r *Reader) listTxsQuery(
+	ctx context.Context,
+	sess *dbr.Session,
+	p *params.ListTransactionsParams,
+) (*dbr.SelectStmt, error) {
+	builder := sess.Select("avm_transactions.id").From("avm_transactions")
 
-	if p.ListParams.ID != nil {
-		builder.Where("avm_transactions.id = ?", p.ListParams.ID.String())
-	}
-	if p.ListParams.Query != "" {
-		builder.Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
-	}
 	if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
 		builder.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
 	}
@@ -33,64 +32,127 @@ func (r *Reader) listTxsQuery(baseStmt *dbr.SelectStmt, p *params.ListTransactio
 		builder.Where("avm_transactions.chain_id in ?", p.ChainIDs)
 	}
 
-	assetCheck := func(stmt *dbr.SelectStmt) {
-		stmt.Where("avm_outputs.asset_id = ?", p.AssetID.String())
-		if len(p.OutputOutputTypes) != 0 {
-			stmt.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
+	switch {
+	case p.ListParams.ID != nil:
+		builder.Where("avm_transactions.id = ?", p.ListParams.ID.String())
+	case p.ListParams.Query != "":
+		builder.Where(dbr.Like("avm_transactions.id", p.ListParams.Query+"%"))
+		if p.ListParams.Limit != 0 {
+			builder.Limit(uint64(p.ListParams.Limit))
 		}
-		if len(p.OutputGroupIDs) != 0 {
-			stmt.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
+		if p.ListParams.Offset != 0 {
+			builder.Offset(uint64(p.ListParams.Offset))
 		}
-	}
+	case len(p.Addresses) > 0 || p.AssetID != nil:
+		applySort := func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
+			if p.ListParams.Query != "" {
+				return stmt
+			}
 
-	if len(p.Addresses) > 0 {
-		addrs := make([]string, len(p.Addresses))
-		for i, id := range p.Addresses {
-			addrs[i] = id.String()
+			switch sort {
+			case params.TransactionSortTimestampDesc:
+				stmt.OrderDesc("avm_transactions.created_at")
+				stmt.OrderDesc("avm_transactions.chain_id")
+			default:
+				stmt.OrderAsc("avm_transactions.created_at")
+				stmt.OrderAsc("avm_transactions.chain_id")
+			}
+			return stmt
 		}
 
-		subquery := dbr.Select("avm_outputs.transaction_id").
-			From("avm_outputs").
-			LeftJoin("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id")
-		subqueryRedeem := dbr.Select("avm_outputs_redeeming.redeeming_transaction_id as transaction_id").
-			From("avm_outputs_redeeming").
-			LeftJoin("avm_output_addresses", "avm_outputs_redeeming.id = avm_output_addresses.output_id").
-			Where("avm_outputs_redeeming.redeeming_transaction_id is not null")
+		type SubQ struct {
+			ID string
+		}
 
-		subquery = subquery.Where("avm_output_addresses.address IN ?", addrs)
-		subqueryRedeem = subqueryRedeem.Where("avm_output_addresses.address IN ?", addrs)
-
+		subq := sess.Select(
+			"avm_transactions.id",
+		).
+			From("avm_transactions").
+			Join("avm_outputs", "avm_transactions.id = avm_outputs.transaction_id").
+			Join("avm_output_addresses", "avm_outputs.id = avm_output_addresses.output_id").
+			LeftJoin("avm_outputs_redeeming", "avm_outputs_redeeming.id = avm_outputs.id").
+			Where("(avm_transactions.id = avm_outputs.transaction_id or avm_transactions.id = avm_outputs_redeeming.redeeming_transaction_id)")
+		if len(p.Addresses) > 0 {
+			addrs := make([]string, len(p.Addresses))
+			for i, id := range p.Addresses {
+				addrs[i] = id.String()
+			}
+			subq.Where("avm_output_addresses.address IN ?", addrs)
+		}
 		if p.AssetID != nil {
-			assetCheck(subquery)
+			subq.Where("avm_outputs.asset_id = ?", p.AssetID.String())
+			if len(p.OutputOutputTypes) != 0 {
+				subq.Where("avm_outputs.output_type in ?", p.OutputOutputTypes)
+			}
+			if len(p.OutputGroupIDs) != 0 {
+				subq.Where("avm_outputs.group_id in ?", p.OutputGroupIDs)
+			}
+		}
+		if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
+			subq.Where("avm_transactions.created_at >= ?", p.ListParams.StartTime)
+		}
+		if p.ListParams.EndTimeProvided && !p.ListParams.EndTime.IsZero() {
+			subq.Where("avm_transactions.created_at < ?", p.ListParams.EndTime)
+		}
+		if len(p.ChainIDs) > 0 {
+			subq.Where("avm_transactions.chain_id in ?", p.ChainIDs)
 		}
 
-		uq := dbr.Union(subquery, subqueryRedeem).As("union_q")
-		// builder.Join(uq, "avm_transactions.id = union_q.transaction_id")
-		builder.Where("avm_transactions.id in ?",
-			dbr.Select("union_q.transaction_id").From(uq),
-		)
-	} else if p.AssetID != nil {
-		builder.Join("avm_outputs", "avm_transactions.id = avm_outputs.transaction_id")
-		assetCheck(builder)
+		subq = applySort(p.Sort, subq)
+
+		itr, err := subq.IterateContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		txsMap := make(map[string]struct{})
+		txsListSkip := make([]string, 0, params.PaginationMaxLimit+1)
+		txsList := make([]string, 0, params.PaginationMaxLimit+1)
+
+		for itr.Next() {
+			err = itr.Err()
+			if err != nil {
+				return nil, err
+			}
+
+			var subQVal SubQ
+			err = itr.Scan(&subQVal)
+			if err != nil {
+				return nil, err
+			}
+			if _, ok := txsMap[subQVal.ID]; !ok {
+				txsMap[subQVal.ID] = struct{}{}
+				if len(txsListSkip) < p.ListParams.Offset {
+					txsListSkip = append(txsListSkip, subQVal.ID)
+				} else {
+					txsList = append(txsList, subQVal.ID)
+					if len(txsList) >= p.ListParams.Limit {
+						break
+					}
+				}
+			}
+		}
+		builder.Where("avm_transactions.id in ?", txsList)
+	default:
+		if p.ListParams.Limit != 0 {
+			builder.Limit(uint64(p.ListParams.Limit))
+		}
+		if p.ListParams.Offset != 0 {
+			builder.Offset(uint64(p.ListParams.Offset))
+		}
 	}
 
-	return builder
+	return builder, nil
 }
 
 func (r *Reader) listTxFromCache(p *params.ListTransactionsParams) *models.Transaction {
-	if !r.sc.IsAggregateCache {
-		return nil
-	}
-	if len(p.ListParams.Values) != 0 {
-		return nil
-	}
-	if p.ListParams.ID == nil {
+	// No query params and ID set..
+	if !r.sc.IsAggregateCache ||
+		len(p.ListParams.Values) != 0 ||
+		p.ListParams.ID == nil {
 		return nil
 	}
 
-	if tx, ok := r.readerAggregate.txDesc.Get(models.StringID(p.ListParams.ID.String())); ok {
-		return tx
-	}
 	if tx, ok := r.readerAggregate.txAsc.Get(models.StringID(p.ListParams.ID.String())); ok {
 		return tx
 	}
@@ -98,15 +160,15 @@ func (r *Reader) listTxFromCache(p *params.ListTransactionsParams) *models.Trans
 }
 
 func (r *Reader) listTxsFromCache(p *params.ListTransactionsParams) ([]*models.Transaction, bool) {
-	if !r.sc.IsAggregateCache || p.ListParams.Limit == 0 || p.ListParams.Offset != 0 {
+	// a limit and no offset assending sort only
+	if !r.sc.IsAggregateCache ||
+		p.ListParams.Limit == 0 ||
+		p.ListParams.Offset != 0 ||
+		p.Sort == params.TransactionSortTimestampDesc {
 		return nil, false
 	}
 
 	readerAggregateTxList := &r.readerAggregate.txAsc
-	if p.Sort == params.TransactionSortTimestampDesc {
-		readerAggregateTxList = &r.readerAggregate.txDesc
-	}
-
 	if !readerAggregateTxList.IsProcessed() {
 		return nil, false
 	}
@@ -137,6 +199,23 @@ func (r *Reader) listTxs(
 	p *params.ListTransactionsParams,
 	dbRunner *dbr.Session,
 ) ([]*models.Transaction, bool, error) {
+	if p.ListParams.ID != nil {
+		tx := r.listTxFromCache(p)
+		if tx != nil {
+			return []*models.Transaction{tx}, true, nil
+		}
+	}
+
+	txsAggr, dressed := r.listTxsFromCache(p)
+	if txsAggr != nil {
+		return txsAggr, dressed, nil
+	}
+
+	listTxsQ, err := r.listTxsQuery(ctx, dbRunner, p)
+	if err != nil {
+		return nil, false, err
+	}
+
 	applySort := func(sort params.TransactionSort, stmt *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.Query != "" {
 			return stmt
@@ -147,93 +226,21 @@ func (r *Reader) listTxs(
 			stmt.OrderDesc("avm_transactions.created_at")
 			stmt.OrderDesc("avm_transactions.chain_id")
 		default:
-			// default is ascending...
 			stmt.OrderAsc("avm_transactions.created_at")
 			stmt.OrderAsc("avm_transactions.chain_id")
 		}
 		return stmt
 	}
 
-	if p.ListParams.ID != nil {
-		tx := r.listTxFromCache(p)
-		if tx != nil {
-			return []*models.Transaction{tx}, true, nil
-		}
-	}
-
-	if len(p.Addresses) > 0 || (p.AssetID == nil && len(p.Addresses) == 0) {
-		txsAggr, dressed := r.listTxsFromCache(p)
-		if txsAggr != nil {
-			return txsAggr, dressed, nil
-		}
-
-		builderBase := applySort(
-			p.Sort,
-			r.listTxsQuery(dbRunner.Select("avm_transactions.id").From("avm_transactions"), p),
-		)
-		if p.ListParams.Limit != 0 {
-			builderBase.Limit(uint64(p.ListParams.Limit))
-		}
-		if p.ListParams.Offset != 0 {
-			builderBase.Offset(uint64(p.ListParams.Offset))
-		}
-
-		builder := applySort(
-			p.Sort,
-			transactionQuery(dbRunner).
-				Join(builderBase.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
-		)
-
-		var txs []*models.Transaction
-		if _, err := builder.LoadContext(ctx, &txs); err != nil {
-			return nil, false, err
-		}
-
-		return txs, false, nil
-	}
-
 	builder := applySort(
 		p.Sort,
-		r.listTxsQuery(transactionQuery(dbRunner), p),
-	).Limit(100000)
+		transactionQuery(dbRunner).
+			Join(listTxsQ.As("avm_transactions_id"), "avm_transactions.id = avm_transactions_id.id"),
+	)
 
-	txs := make([]*models.Transaction, 0, params.PaginationMaxLimit+1)
-	txsm := make(map[models.StringID]struct{})
-	txsmoffset := make(map[models.StringID]struct{})
-
-	itr, err := builder.IterateContext(ctx)
-	if err != nil {
+	var txs []*models.Transaction
+	if _, err := builder.LoadContext(ctx, &txs); err != nil {
 		return nil, false, err
-	}
-
-	defer func() {
-		_ = itr.Close()
-	}()
-
-	for itr.Next() {
-		err = itr.Err()
-		if err != nil {
-			return nil, false, err
-		}
-		var tx *models.Transaction
-		err = itr.Scan(&tx)
-		if err != nil {
-			return nil, false, err
-		}
-		if p.ListParams.Offset > 0 && len(txsmoffset) < p.ListParams.Offset {
-			txsmoffset[tx.ID] = struct{}{}
-			continue
-		}
-		if _, ok := txsmoffset[tx.ID]; ok {
-			continue
-		}
-		if _, ok := txsm[tx.ID]; !ok {
-			txs = append(txs, tx)
-			txsm[tx.ID] = struct{}{}
-		}
-		if p.ListParams.Limit > 0 && len(txsm) >= p.ListParams.Limit {
-			break
-		}
 	}
 
 	return txs, false, nil
