@@ -14,7 +14,7 @@ require (
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gorilla/rpc v1.2.0
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
-	github.com/prometheus/client_golang v1.7.1
-	github.com/spf13/cobra v1.1.1
+	github.com/prometheus/client_golang v1.10.0
+	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.1
 )
