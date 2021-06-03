@@ -7,7 +7,7 @@ require (
 	github.com/ava-labs/coreth v0.5.3-rc.2
 	github.com/ethereum/go-ethereum v1.10.2
 	github.com/go-redis/cache/v8 v8.4.1
-	github.com/go-redis/redis/v8 v8.9.0
+	github.com/go-redis/redis/v8 v8.10.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocraft/dbr/v2 v2.7.1
 	github.com/gocraft/health v0.0.0-20170925182251-8675af27fef0
