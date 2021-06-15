@@ -35,7 +35,7 @@ services:
     env_file:
       - production.env
     image: "avaplatform/avalanchego:v1.4.8"
-    command: /bin/sh -cx "exec ./build/avalanchego
+    command: /bin/sh -cx "exec /avalanchego/build/avalanchego
       --network-id=$${NETWORKID}
       --db-dir=/var/lib/avalanche
       --log-level=info
@@ -53,7 +53,7 @@ services:
       - indexer
     restart: always
   indexer: &ortelius-app
-    image: "avaplatform/ortelius:v1.4.6"
+    image: "avaplatform/ortelius:v1.4.8"
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     external_links:
       - mysql
