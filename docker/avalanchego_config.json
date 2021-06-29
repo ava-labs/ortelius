@@ -1,0 +1,8 @@
+{
+  "db-dir": "/var/lib/avalanche",
+  "log-level": "info",
+  "http-host": "0.0.0.0",
+  "index-enabled": "true",
+  "coreth-config": {"eth-api-enabled": true, "rpc-gas-cap": 2500000000, "debug-api-enabled": true,  "rpc-tx-fee-cap": 100, "tx-pool-api-enabled": true, "pruning-enabled": false}
+}
+
