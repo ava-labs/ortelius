@@ -3,13 +3,13 @@ module github.com/ava-labs/ortelius
 go 1.15
 
 require (
-	github.com/ava-labs/avalanchego v1.4.8
-	github.com/ava-labs/coreth v0.5.4-rc.1
-	github.com/ethereum/go-ethereum v1.10.2
+	github.com/ava-labs/avalanchego v1.4.9
+	github.com/ava-labs/coreth v0.5.4-rc.12
+	github.com/ethereum/go-ethereum v1.10.3
 	github.com/go-redis/cache/v8 v8.4.1
 	github.com/go-redis/redis/v8 v8.9.0
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/gocraft/dbr/v2 v2.7.1
+	github.com/gocraft/dbr/v2 v2.7.2
 	github.com/gocraft/health v0.0.0-20170925182251-8675af27fef0
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gorilla/rpc v1.2.0

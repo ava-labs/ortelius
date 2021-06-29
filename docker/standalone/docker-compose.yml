@@ -10,20 +10,16 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.4.8"
+    image: "avaplatform/avalanchego:v1.4.9"
     command: /bin/sh -cx "exec /avalanchego/build/avalanchego
+      --config=/opt/config.json
       --network-id=$${NETWORKID}
-      --db-dir=/var/lib/avalanche
-      --log-level=info
-      --http-host=0.0.0.0
-      --ipcs-chain-ids=$${P_CHAINID},$${X_CHAINID}
-      --index-enabled=true
-      --coreth-config='{\"rpc-gas-cap\":2500000000,\"rpc-tx-fee-cap\":100,\"eth-api-enabled\":true,\"debug-api-enabled\":true,\"tx-pool-api-enabled\":true}'
       "
     ports:
       - "9650:9650"
     volumes:
       - avalanche-data:/var/lib/avalanche
+      - ./../avalanchego_config.json:/opt/config.json
       - avalanche-ipcs:/tmp
     depends_on:
       - indexer
