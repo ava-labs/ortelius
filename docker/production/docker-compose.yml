@@ -36,7 +36,7 @@ services:
       - production.env
     image: "avaplatform/avalanchego:v1.4.9"
     command: /bin/sh -cx "exec /avalanchego/build/avalanchego
-      --config=/opt/config.json
+      --config-file=/opt/config.json
       --network-id=$${NETWORKID}
       "
     ports:
