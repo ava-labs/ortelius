@@ -173,9 +173,12 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 ### Avalanche.go
 
-The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--index-enabled` and `--ipcs-chain-ids` flag, example:
+The IPCs for the chains you want to consume must be available. This can be done by starting the Avalanche.go process with the `--index-enabled` flag.
 
-`./build/avalanchego --index-enabled=true --ipcs-chain-ids=11111111111111111111111111111111LpoYY,2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM --http-host=0.0.0.0 --coreth-config='{"rpc-gas-cap":2500000000,"rpc-tx-fee-cap":100,"eth-api-enabled":true,"debug-api-enabled":true,"tx-pool-api-enabled":true}'`
+see:
+[avalanchego configs](https://docs.avax.network/build/references/command-line-interface)
+
+[avalanchego chain configs](https://docs.avax.network/build/references/command-line-interface#chain-configs)
 
 ### MySQL
 
