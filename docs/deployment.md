@@ -219,7 +219,7 @@ $ ls -altr /var/lib/ortelius/avalanche/mainnet/
 total 12
 drwxr-xr-x 3 root root 4096 Mar 10 14:29 ..
 drwxr-xr-x 3 root root 4096 Mar 10 14:29 .
-drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.0.0
+drwxr-xr-x 2 root root 4096 Mar 10 15:01 v1.4.5
 ```
 
 ## Steps
