@@ -181,9 +181,17 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
-		if err != nil {
-			return err
+		var id ids.ID
+		switch p.indexerChain {
+		case IndexCChain:
+			id = container.ID
+		default:
+			// x and p we compute the hash
+			nid, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
+			if err != nil {
+				return err
+			}
+			id = nid
 		}
 
 		txPool := &idb.TxPool{
