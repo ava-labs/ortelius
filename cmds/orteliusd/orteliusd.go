@@ -248,6 +248,13 @@ func producerFactories(sc *servicesctrl.Control, cfg *cfg.Config) []utils.Listen
 			factories = append(factories, p)
 		}
 	}
+
+	p, err := stream.NewProducerChain(sc, *cfg, cfg.CchainID, stream.EventTypeDecisions, stream.IndexTypeBlocks, stream.IndexCChain)
+	if err != nil {
+		panic(err)
+	}
+	factories = append(factories, p)
+
 	return factories
 }
 
