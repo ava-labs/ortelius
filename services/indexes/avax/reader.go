@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/hashing"
+
 	"github.com/ava-labs/avalanchego/ids"
 	corethType "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
@@ -1079,11 +1081,14 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	// copy of the Block object for export to json
 	type BlockExport struct {
 		BlockNumber    string                   `json:"blockNumber"`
+		BlockHash      string                   `json:"blockHash"`
+		BlockID        string                   `json:"blockID"`
 		Header         corethType.Header        `json:"header"`
 		Uncles         []corethType.Header      `json:"uncles"`
 		TxsBytes       [][]byte                 `json:"txs"`
 		Version        uint32                   `json:"version"`
 		BlockExtraData []byte                   `json:"blockExtraData"`
+		BlockExtraID   string                   `json:"blockExtraID"`
 		Txs            []corethType.Transaction `json:"transactions,omitempty"`
 		Logs           []corethType.Log         `json:"logs,omitempty"`
 	}
@@ -1093,12 +1098,30 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		return nil, err
 	}
 
+	txIDs := ""
+	if len(unserializedBlock.BlockExtraData) != 0 {
+		txID, err := ids.ToID(hashing.ComputeHash256(unserializedBlock.BlockExtraData))
+		if err != nil {
+			return nil, err
+		}
+		txIDs = txID.String()
+	}
+
+	blockHash := unserializedBlock.Header.Hash()
+	hID, err := ids.ToID(blockHash[:])
+	if err != nil {
+		return nil, err
+	}
+
 	block := &BlockExport{
 		BlockNumber:    unserializedBlock.Header.Number.String(),
+		BlockHash:      blockHash.String(),
+		BlockID:        hID.String(),
 		Header:         unserializedBlock.Header,
 		Uncles:         unserializedBlock.Uncles,
 		Version:        unserializedBlock.Version,
 		BlockExtraData: unserializedBlock.BlockExtraData,
+		BlockExtraID:   txIDs,
 		Txs:            unserializedBlock.Txs,
 	}
 

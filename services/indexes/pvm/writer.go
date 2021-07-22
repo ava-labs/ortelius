@@ -345,6 +345,8 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx pla
 			CreatedAt:          ctx.Time(),
 		}
 		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
+	default:
+		return fmt.Errorf("unknown tx type %s", reflect.TypeOf(castTx))
 	}
 
 	return w.avax.InsertTransaction(

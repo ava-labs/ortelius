@@ -10,16 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/ortelius/services/avmcodec"
-
-	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/metrics"
@@ -86,7 +82,6 @@ type producerChainContainer struct {
 	nodeinstance            string
 	topic                   string
 	chainID                 string
-	codecMgr                codec.Manager
 	indexerType             IndexType
 	indexerChain            IndexedChain
 	metricProcessedCountKey string
@@ -100,7 +95,6 @@ func newContainer(
 	chainID string,
 	indexerType IndexType,
 	indexerChain IndexedChain,
-	codecMgr codec.Manager,
 	metricProcessedCountKey string,
 ) (*producerChainContainer, error) {
 	conns, err := sc.DatabaseOnly()
@@ -111,7 +105,6 @@ func newContainer(
 	pc := &producerChainContainer{
 		indexerType:             indexerType,
 		indexerChain:            indexerChain,
-		codecMgr:                codecMgr,
 		runningControl:          utils.NewRunning(),
 		chainID:                 chainID,
 		conns:                   conns,
@@ -188,9 +181,17 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			return err
 		}
 
-		id, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
-		if err != nil {
-			return err
+		var id ids.ID
+		switch p.indexerChain {
+		case IndexCChain:
+			id = container.ID
+		default:
+			// x and p we compute the hash
+			nid, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
+			if err != nil {
+				return err
+			}
+			id = nid
 		}
 
 		txPool := &idb.TxPool{
@@ -270,25 +271,12 @@ type ProducerChain struct {
 
 	nodeIndexer  *indexer.Client
 	chainID      string
-	codecMgr     codec.Manager
 	indexerType  IndexType
 	indexerChain IndexedChain
 }
 
 func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string, eventType EventType, indexerType IndexType, indexerChain IndexedChain) (*ProducerChain, error) {
 	topicName := GetTopicName(conf.NetworkID, chainID, eventType)
-
-	var codecMgr codec.Manager
-	switch indexerChain {
-	case IndexXChain:
-		avmCodec, err := avmcodec.NewAVMCodec(conf.NetworkID, chainID)
-		if err != nil {
-			return nil, err
-		}
-		codecMgr = avmCodec
-	case IndexPChain:
-		codecMgr = platformvm.Codec
-	}
 
 	endpoint := fmt.Sprintf("/ext/index/%s/%s", indexerChain, indexerType)
 
@@ -297,7 +285,6 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 	p := &ProducerChain{
 		indexerType:             indexerType,
 		indexerChain:            indexerChain,
-		codecMgr:                codecMgr,
 		chainID:                 chainID,
 		topic:                   topicName,
 		conf:                    conf,
@@ -370,7 +357,7 @@ func (p *ProducerChain) runProcessor() error {
 	p.sc.Log.Info("Starting worker for %s", p.ID())
 	defer p.sc.Log.Info("Exiting worker for %s", p.ID())
 
-	pc, err := newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.codecMgr, p.metricProcessedCountKey)
+	pc, err := newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.metricProcessedCountKey)
 	if err != nil {
 		return err
 	}
