@@ -193,10 +193,7 @@ func TestInsertTxInternal(t *testing.T) {
 	copy(sig[:], sb)
 	cred.Sigs = append(cred.Sigs, sig)
 	tx.Creds = []*avm.FxCredential{
-		{
-			FxID:       ids.Empty,
-			Verifiable: cred,
-		},
+		{Verifiable: cred},
 	}
 
 	tx.UnsignedTx = baseTx
