@@ -482,7 +482,7 @@ func dressTransactionsTx(
 		if inputs, ok := cvmins[tx.ID]; ok {
 			for _, input := range inputs {
 				var i models.Input
-				var o models.Output = input
+				var o = input
 				i.Output = &o
 				tx.Inputs = append(tx.Inputs, &i)
 			}
@@ -495,7 +495,7 @@ func dressTransactionsTx(
 		}
 		if outputs, ok := cvmouts[tx.ID]; ok {
 			for _, output := range outputs {
-				var o models.Output = output
+				var o = output
 				tx.Outputs = append(tx.Outputs, &o)
 			}
 		}
