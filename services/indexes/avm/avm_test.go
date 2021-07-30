@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
@@ -193,7 +192,12 @@ func TestInsertTxInternal(t *testing.T) {
 	sig := [crypto.SECP256K1RSigLen]byte{}
 	copy(sig[:], sb)
 	cred.Sigs = append(cred.Sigs, sig)
-	tx.Creds = []verify.Verifiable{cred}
+	tx.Creds = []*avm.FxCredential{
+		{
+			FxID:       ids.Empty,
+			Verifiable: cred,
+		},
+	}
 
 	tx.UnsignedTx = baseTx
 
