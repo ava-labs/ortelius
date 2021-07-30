@@ -36,7 +36,7 @@ func New(bl *types.Block) (*Block, error) {
 			cblock.BlockExtraData = nil
 		}
 	}
-	var h *types.Header = bl.Header()
+	var h = bl.Header()
 	if h != nil {
 		cblock.Header = *h
 	}
