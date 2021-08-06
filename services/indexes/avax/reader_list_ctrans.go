@@ -39,7 +39,10 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 			str := t.Value().String()
 			res.Amount = &str
 		}
-		res.Payload = t.Data()
+		if len(t.Data()) != 0 {
+			hexdata := "0x" + hex.EncodeToString(t.Data())
+			res.Payload = &hexdata
+		}
 		v, s, r := t.RawSignatureValues()
 		if v != nil {
 			str := v.String()

@@ -63,7 +63,7 @@ type CTransactionData struct {
 	BlockHash     string    `json:"blockHash"`
 	Recipient     *string   `json:"recipient,omitempty"`
 	Amount        *string   `json:"value,omitempty"`
-	Payload       []byte    `json:"input,omitempty"`
+	Payload       *string   `json:"input,omitempty"`
 	ToAddr        string    `json:"toAddr"`
 	FromAddr      string    `json:"fromAddr"`
 
