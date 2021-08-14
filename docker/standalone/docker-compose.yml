@@ -10,7 +10,7 @@ services:
   avalanche:
     env_file:
       - standalone.env
-    image: "avaplatform/avalanchego:v1.4.12"
+    image: "avaplatform/avalanchego:v1.5.0-fuji"
     command: /bin/sh -cx "exec /avalanchego/build/avalanchego
       --config-file=/opt/config.json
       --network-id=$${NETWORKID}
@@ -25,7 +25,7 @@ services:
       - indexer
     restart: always
   indexer: &ortelius-app
-    image: "avaplatform/ortelius:v1.4.11"
+    image: "avaplatform/ortelius:v1.5.0-fuji"
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     networks:
       - services
