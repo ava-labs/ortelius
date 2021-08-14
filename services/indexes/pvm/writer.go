@@ -228,7 +228,7 @@ func (w *Writer) indexCommonBlock(
 		ID:            blkID.String(),
 		ChainID:       w.chainID,
 		Type:          blkType,
-		ParentID:      blk.ParentID().String(),
+		ParentID:      blk.Parent().String(),
 		Serialization: blockBytes,
 		CreatedAt:     ctx.Time(),
 		Height:        blk.Height(),

@@ -81,10 +81,14 @@ func (n *NoopManager) NewMeterDBManager(namespace string, registerer prometheus.
 type NoopDatabase struct{}
 
 // Has returns false, nil
-func (*NoopDatabase) Has([]byte) (bool, error) { return true, nil }
+func (*NoopDatabase) Has([]byte) (bool, error) {
+	return true, nil
+}
 
 // Get returns nil, error
-func (*NoopDatabase) Get([]byte) ([]byte, error) { return []byte(""), nil }
+func (*NoopDatabase) Get([]byte) ([]byte, error) {
+	return nil, database.ErrNotFound
+}
 
 // Put returns nil
 func (*NoopDatabase) Put(_, _ []byte) error { return nil }

@@ -56,6 +56,8 @@ type CTransactionData struct {
 	CreatedAt     time.Time `json:"createdAt"`
 	Nonce         uint64    `json:"nonce"`
 	GasPrice      *string   `json:"gasPrice,omitempty"`
+	GasFeeCap     *string   `json:"gasFeeCap,omitempty"`
+	GasTipCap     *string   `json:"gasTipCap,omitempty"`
 	GasLimit      uint64    `json:"gasLimit"`
 	BlockGasUsed  uint64    `json:"blockGasUsed"`
 	BlockGasLimit uint64    `json:"blockGasLimit"`

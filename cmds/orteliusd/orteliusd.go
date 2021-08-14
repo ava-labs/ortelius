@@ -80,7 +80,8 @@ func execute() error {
 				if err != nil {
 					log.Fatalln("Failed to read config file", *configFile, ":", err.Error())
 				}
-				alog, err := logging.New(c.Logging)
+				lf := logging.NewFactory(c.Logging)
+				alog, err := lf.Make("ortelius")
 				if err != nil {
 					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
 				}
