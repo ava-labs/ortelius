@@ -79,7 +79,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 	r.listCTransFilter(p, dbRunner, sq)
 	if len(p.Hashes) > 0 {
 		sq.
-			Where("hash in ?", p.Hashes)
+			Where(idb.TableCvmTransactionsTxdata+".hash in ?", p.Hashes)
 	}
 
 	_, err = p.Apply(sq).
@@ -153,7 +153,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 }
 
 func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *dbr.Session, sq *dbr.SelectStmt) {
-	createdatfilter := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
+	createdatefilter := func(tbl string, b *dbr.SelectStmt) *dbr.SelectStmt {
 		if p.ListParams.StartTimeProvided && !p.ListParams.StartTime.IsZero() {
 			b.Where(tbl+".created_at >= ?", p.ListParams.StartTime)
 		}
@@ -192,7 +192,7 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddressesTo) > 0 {
-		subq := createdatfilter(idb.TableCvmTransactionsTxdataTrace,
+		subq := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
 				Where(idb.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddressesTo)),
 		)
@@ -201,8 +201,9 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 				dbRunner.Select("hash").From(subq.As("to_sq")),
 			)
 	}
+
 	if len(p.CAddressesFrom) > 0 {
-		subq := createdatfilter(idb.TableCvmTransactionsTxdataTrace,
+		subq := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
 				Where(idb.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddressesFrom)),
 		)
@@ -213,15 +214,15 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddresses) > 0 {
-		subqto := createdatfilter(idb.TableCvmTransactionsTxdataTrace,
+		subqto := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
 				Where(idb.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddresses)),
 		)
-		subqfrom := createdatfilter(idb.TableCvmTransactionsTxdataTrace,
+		subqfrom := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
 			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
 				Where(idb.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddresses)),
 		)
-		subqrcpt := createdatfilter(idb.TableCvmTransactionsTxdata,
+		subqrcpt := createdatefilter(idb.TableCvmTransactionsTxdata,
 			blockrcptfilter(dbRunner.Select(idb.TableCvmTransactionsTxdata+".hash").From(idb.TableCvmTransactionsTxdata).
 				Where("rcpt in ?", p.CAddresses)),
 		)
@@ -230,6 +231,8 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 				dbRunner.Select("hash").From(dbr.Union(subqto, subqfrom, subqrcpt).As("to_from_sq")),
 			)
 	}
+
+	blockrcptfilter(sq)
 }
 
 func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, hashes []string, trItemsByHash map[string]*models.CTransactionData) error {
