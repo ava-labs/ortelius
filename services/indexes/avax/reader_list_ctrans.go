@@ -21,6 +21,7 @@ import (
 func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransactionsParams) (*models.CTransactionList, error) {
 	toCTransactionData := func(t *types.Transaction) *models.CTransactionData {
 		res := &models.CTransactionData{}
+		res.Type = int(t.Type())
 		res.Hash = t.Hash().Hex()
 		if !strings.HasPrefix(res.Hash, "0x") {
 			res.Hash = "0x" + res.Hash

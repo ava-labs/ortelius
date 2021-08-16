@@ -51,13 +51,14 @@ type CvmTransactionsTxDataTrace struct {
 }
 
 type CTransactionData struct {
+	Type          int       `json:"type"`
 	Block         string    `json:"block"`
 	Hash          string    `json:"hash"`
 	CreatedAt     time.Time `json:"createdAt"`
 	Nonce         uint64    `json:"nonce"`
 	GasPrice      *string   `json:"gasPrice,omitempty"`
-	GasFeeCap     *string   `json:"gasFeeCap,omitempty"`
-	GasTipCap     *string   `json:"gasTipCap,omitempty"`
+	GasFeeCap     *string   `json:"maxFeePerGas,omitempty"`
+	GasTipCap     *string   `json:"maxPriorityFeePerGas,omitempty"`
 	GasLimit      uint64    `json:"gasLimit"`
 	BlockGasUsed  uint64    `json:"blockGasUsed"`
 	BlockGasLimit uint64    `json:"blockGasLimit"`
