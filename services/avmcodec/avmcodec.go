@@ -15,6 +15,8 @@ var (
 	ErrIncorrectGenesisChainTxType = errors.New("incorrect genesis chain tx type")
 )
 
+const MaxCodecSize = 100_000_000
+
 func NewAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 	genesisBytes, _, err := genesis.Genesis(networkID, "")
 	if err != nil {
@@ -48,5 +50,6 @@ func NewAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
 	}
 
 	_, codec, err := avm.NewCodecs(fxs)
+	codec.SetMaxSize(MaxCodecSize)
 	return codec, err
 }
