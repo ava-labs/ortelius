@@ -46,7 +46,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := avmcodec.NewAVMCodec(networkID, chainID)
+	avmCodec, err := avmcodec.NewAVMCodec(networkID)
 	if err != nil {
 		return nil, err
 	}
