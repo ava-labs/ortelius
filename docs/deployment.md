@@ -122,7 +122,7 @@ f9bd3c9d6f74   avaplatform/avalanchego:v1.2.3    "/bin/sh -cx 'exec .…"   19 m
 70c5b875c07d   avaplatform/ortelius:140ac5c      "/opt/orteliusd api …"   19 minutes ago   Up 19 minutes               0.0.0.0:8080->8080/tcp                             production_api_1
 ee28fdea61c2   avaplatform/ortelius:140ac5c      "/opt/orteliusd stre…"   19 minutes ago   Up 19 minutes                                                                  production_indexer_1
 06ed45c21615   redis:6.0.9-alpine3.12            "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:6379->6379/tcp                             production_redis_1
-ae923d0489f0   mysql:8.0.24                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
+ae923d0489f0   mysql:8.0.26                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
 ```
 
 # Stop ortelius
@@ -146,7 +146,7 @@ Ortelius requires an updated mysql compatible DB.  This will work with aurora in
 ## *optional* mysql docker container -- adjust as necessary
 [dockerhub mysql](https://hub.docker.com/_/mysql)
 ```
-docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.24
+docker run --volume .../github.com/ava-labs/ortelius/docker/my.cnf:/etc/mysql/my.cnf --network host -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=ortelius mysql:8.0.26
 ```
 The standard mysql defaults can cause issues, please configure the customizations [here](https://github.com/ava-labs/ortelius/blob/master/docker/my.cnf)
 

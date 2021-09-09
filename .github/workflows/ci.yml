@@ -19,10 +19,10 @@ jobs:
     strategy:
       matrix:
         go:
-          - '1.16.7'
+          - '1.17.1'
     services:
       mysql:
-        image: mysql:8.0.24
+        image: mysql:8.0.26
         ports:
           - 3306:3306
         env:
