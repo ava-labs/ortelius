@@ -4,9 +4,9 @@ go 1.15
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/ava-labs/avalanchego v1.5.2
-	github.com/ava-labs/coreth v0.6.2-rc.0
-	github.com/ethereum/go-ethereum v1.10.7
+	github.com/ava-labs/avalanchego v1.5.3
+	github.com/ava-labs/coreth v0.6.3-rc.1
+	github.com/ethereum/go-ethereum v1.10.8
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-redis/cache/v8 v8.4.1
 	github.com/go-redis/redis/v8 v8.9.0
