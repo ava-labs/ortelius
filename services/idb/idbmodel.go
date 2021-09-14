@@ -44,6 +44,7 @@ const (
 	TableCvmTransactionsTxdataTrace       = "cvm_transactions_txdata_trace"
 	TableNodeIndex                        = "node_index"
 	TableCvmLogs                          = "cvm_logs"
+	TablePvmProposer                      = "pvm_proposer"
 )
 
 type Persist interface {
@@ -436,6 +437,18 @@ type Persist interface {
 		context.Context,
 		dbr.SessionRunner,
 		*CvmLogs,
+		bool,
+	) error
+
+	QueryPvmProposer(
+		context.Context,
+		dbr.SessionRunner,
+		*PvmProposer,
+	) (*PvmProposer, error)
+	InsertPvmProposer(
+		context.Context,
+		dbr.SessionRunner,
+		*PvmProposer,
 		bool,
 	) error
 }
@@ -2456,6 +2469,74 @@ func (p *persist) InsertCvmLogs(
 			ExecContext(ctx)
 		if err != nil {
 			return EventErr(TableCvmLogs, true, err)
+		}
+	}
+	return nil
+}
+
+type PvmProposer struct {
+	ID           string
+	ParentID     string
+	BlkID        string
+	PChainHeight uint64
+	Proposer     string
+	TimeStamp    time.Time
+	CreatedAt    time.Time
+}
+
+func (p *persist) QueryPvmProposer(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	q *PvmProposer,
+) (*PvmProposer, error) {
+	v := &PvmProposer{}
+	err := sess.Select(
+		"id",
+		"parent_id",
+		"blk_id",
+		"p_chain_height",
+		"proposer",
+		"time_stamp",
+		"created_at",
+	).From(TablePvmProposer).
+		Where("id=?", q.ID).
+		LoadOneContext(ctx, v)
+	return v, err
+}
+
+func (p *persist) InsertPvmProposer(
+	ctx context.Context,
+	sess dbr.SessionRunner,
+	v *PvmProposer,
+	upd bool,
+) error {
+	var err error
+	_, err = sess.
+		InsertInto(TablePvmProposer).
+		Pair("id", v.ID).
+		Pair("parent_id", v.ParentID).
+		Pair("blk_id", v.BlkID).
+		Pair("p_chain_height", v.PChainHeight).
+		Pair("proposer", v.Proposer).
+		Pair("time_stamp", v.TimeStamp).
+		Pair("created_at", v.CreatedAt).
+		ExecContext(ctx)
+	if err != nil && !db.ErrIsDuplicateEntryError(err) {
+		return EventErr(TableCvmTransactionsTxdataTrace, false, err)
+	}
+	if upd {
+		_, err = sess.
+			Update(TablePvmProposer).
+			Set("parent_id", v.ParentID).
+			Set("blk_id", v.BlkID).
+			Set("p_chain_height", v.PChainHeight).
+			Set("proposer", v.Proposer).
+			Set("time_stamp", v.TimeStamp).
+			Set("created_at", v.CreatedAt).
+			Where("id=?", v.ID).
+			ExecContext(ctx)
+		if err != nil {
+			return EventErr(TablePvmProposer, true, err)
 		}
 	}
 	return nil

@@ -179,7 +179,6 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
-	var connectionstxsdesc *servicesconn.Connections
 	var connectionstxsasc *servicesconn.Connections
 	var connectionsaggr *servicesconn.Connections
 
@@ -196,7 +195,6 @@ func (r *Reader) aggregateProcessor() error {
 				_ = c.Close()
 			}
 		}
-		closeConn(connectionstxsdesc)
 		closeConn(connectionstxsasc)
 		closeConn(connectionsaggr)
 		closeConn(connections1m)
@@ -206,11 +204,6 @@ func (r *Reader) aggregateProcessor() error {
 		closeConn(connections30d)
 	}
 
-	connectionstxsdesc, err = r.sc.DatabaseRO()
-	if err != nil {
-		closeDBForError()
-		return err
-	}
 	connectionstxsasc, err = r.sc.DatabaseRO()
 	if err != nil {
 		closeDBForError()
@@ -247,7 +240,6 @@ func (r *Reader) aggregateProcessor() error {
 		return err
 	}
 
-	go r.processorTxDescFetch(connectionstxsdesc)
 	go r.processorTxAscFetch(connectionstxsasc)
 	go r.aggregateProcessorAssetAggr(connectionsaggr)
 	go r.aggregateProcessor1m(connections1m)
@@ -256,57 +248,6 @@ func (r *Reader) aggregateProcessor() error {
 	go r.aggregateProcessor7d(connections7d)
 	go r.aggregateProcessor30d(connections30d)
 	return nil
-}
-
-func (r *Reader) processorTxDescFetch(conns *servicesconn.Connections) {
-	defer func() {
-		_ = conns.Close()
-	}()
-
-	if true {
-		return
-	}
-
-	ticker := time.NewTicker(time.Second)
-
-	runTx := func() {
-		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
-
-		builder := transactionQuery(sess)
-		builder.Where("avm_transactions.created_at > ?", time.Now().UTC().Add(-4*time.Hour))
-		builder.OrderDesc("avm_transactions.created_at")
-		builder.OrderDesc("avm_transactions.chain_id")
-		builder.Limit(5000)
-
-		var txs []*models.Transaction
-
-		defer func() {
-			r.readerAggregate.txDesc.Set(txs)
-		}()
-
-		if _, err := builder.LoadContext(ctx, &txs); err != nil {
-			r.sc.Log.Warn("descending tx query fail %v", err)
-			txs = nil
-			return
-		}
-
-		err := dressTransactions(ctx, sess, txs, r.sc.GenesisContainer.AvaxAssetID, nil, false)
-		if err != nil {
-			r.sc.Log.Warn("descending tx dress tx fail %v", err)
-			txs = nil
-			return
-		}
-	}
-	runTx()
-	for {
-		select {
-		case <-ticker.C:
-			runTx()
-		case <-r.doneCh:
-			return
-		}
-	}
 }
 
 func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
@@ -320,7 +261,7 @@ func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
 
 	runTx := func() {
 		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txdesc"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txasc"))
 
 		builder := transactionQuery(sess)
 		builder.OrderAsc("avm_transactions.created_at")
