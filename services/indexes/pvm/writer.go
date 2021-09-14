@@ -93,6 +93,9 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		for _, utxo := range castTx.Stake {
+			utxo.Out.InitCtx(w.ctx)
+		}
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
