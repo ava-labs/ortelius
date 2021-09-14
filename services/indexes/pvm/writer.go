@@ -96,10 +96,12 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 		for _, utxo := range castTx.Stake {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedAddDelegatorTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
@@ -107,14 +109,17 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 		for _, utxo := range castTx.Stake {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedCreateSubnetTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedCreateChainTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedImportTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
@@ -122,6 +127,7 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 		for _, out := range castTx.Outs {
 			out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedExportTx:
 		for _, utxo := range castTx.UTXOs() {
 			utxo.Out.InitCtx(w.ctx)
@@ -129,8 +135,11 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 		for _, out := range castTx.ExportedOutputs {
 			out.InitCtx(w.ctx)
 		}
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedAdvanceTimeTx:
+		castTx.InitCtx(w.ctx)
 	case *platformvm.UnsignedRewardValidatorTx:
+		castTx.InitCtx(w.ctx)
 	default:
 	}
 }
