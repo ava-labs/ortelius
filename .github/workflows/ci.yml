@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         go:
-          - '1.16.7'
+          - '1.17.1'
     steps:
       - uses: actions/checkout@v2
       - name: golangci-lint
