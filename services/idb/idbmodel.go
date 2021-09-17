@@ -2536,7 +2536,7 @@ func (p *persist) InsertPvmProposer(
 			Set("proposer", v.Proposer).
 			Set("time_stamp", v.TimeStamp).
 			Set("created_at", v.CreatedAt).
-			Set("oblk_id", v.ProposerBlkID).
+			Set("proposer_blk_id", v.ProposerBlkID).
 			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {
