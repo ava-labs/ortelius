@@ -980,6 +980,7 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	type Row struct {
+		ID            string
 		Serialization []byte
 		ChainID       string
 	}
@@ -988,8 +989,8 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	idInt, ok := big.NewInt(0).SetString(p.ID, 10)
 	if idInt != nil && ok {
 		_, err = dbRunner.
-			Select("serialization", "chain_id").
-			From("pvm_blocks").
+			Select("id", "serialization", "chain_id").
+			From(idb.TablePvmBlocks).
 			Where("height="+idInt.String()).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -997,8 +998,8 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		}
 	} else {
 		_, err = dbRunner.
-			Select("serialization", "chain_id").
-			From("pvm_blocks").
+			Select("id", "serialization", "chain_id").
+			From(idb.TablePvmBlocks).
 			Where("id=?", p.ID).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1010,6 +1011,24 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	}
 
 	row := rows[0]
+
+	// check if the proposer exists, and pull the serialization from the tx_pool.
+	proposerrows := []Row{}
+
+	_, err = dbRunner.
+		Select(idb.TableTxPool+".serialization").
+		From(idb.TablePvmProposer).
+		Join(idb.TableTxPool, idb.TablePvmProposer+".proposer_blk_id = "+idb.TableTxPool+".msg_key").
+		Where(idb.TablePvmProposer+".blk_id=?", row.ID).
+		LoadContext(ctx, &proposerrows)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(proposerrows) > 0 {
+		proposerrow := proposerrows[0]
+		row.Serialization = proposerrow.Serialization
+	}
 
 	var c services.Consumer
 	c, err = r.chainWriter(row.ChainID)
