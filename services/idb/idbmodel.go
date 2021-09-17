@@ -2475,13 +2475,14 @@ func (p *persist) InsertCvmLogs(
 }
 
 type PvmProposer struct {
-	ID           string
-	ParentID     string
-	BlkID        string
-	PChainHeight uint64
-	Proposer     string
-	TimeStamp    time.Time
-	CreatedAt    time.Time
+	ID            string
+	ParentID      string
+	BlkID         string
+	ProposerBlkID string
+	PChainHeight  uint64
+	Proposer      string
+	TimeStamp     time.Time
+	CreatedAt     time.Time
 }
 
 func (p *persist) QueryPvmProposer(
@@ -2498,6 +2499,7 @@ func (p *persist) QueryPvmProposer(
 		"proposer",
 		"time_stamp",
 		"created_at",
+		"proposer_blk_id",
 	).From(TablePvmProposer).
 		Where("id=?", q.ID).
 		LoadOneContext(ctx, v)
@@ -2520,6 +2522,7 @@ func (p *persist) InsertPvmProposer(
 		Pair("proposer", v.Proposer).
 		Pair("time_stamp", v.TimeStamp).
 		Pair("created_at", v.CreatedAt).
+		Pair("proposer_blk_id", v.ProposerBlkID).
 		ExecContext(ctx)
 	if err != nil && !db.ErrIsDuplicateEntryError(err) {
 		return EventErr(TableCvmTransactionsTxdataTrace, false, err)
@@ -2533,6 +2536,7 @@ func (p *persist) InsertPvmProposer(
 			Set("proposer", v.Proposer).
 			Set("time_stamp", v.TimeStamp).
 			Set("created_at", v.CreatedAt).
+			Set("oblk_id", v.ProposerBlkID).
 			Where("id=?", v.ID).
 			ExecContext(ctx)
 		if err != nil {

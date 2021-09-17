@@ -1669,6 +1669,7 @@ func TestPvmProposer(t *testing.T) {
 	v.ID = "id"
 	v.ParentID = "pid"
 	v.BlkID = "blk"
+	v.ProposerBlkID = "oblk"
 	v.PChainHeight = 1
 	v.Proposer = "proposer"
 	v.TimeStamp = tm
@@ -1696,6 +1697,7 @@ func TestPvmProposer(t *testing.T) {
 
 	v.ParentID = "pid2"
 	v.BlkID = "blk2"
+	v.ProposerBlkID = "oblk2"
 	v.PChainHeight = 2
 	v.Proposer = "proposer2"
 	v.TimeStamp = tm

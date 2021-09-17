@@ -324,12 +324,13 @@ func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
 	return nil
 }
 
-func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
+func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte) error {
 	var pblock platformvm.Block
 	var ver uint16
 	var err error
 
-	proposerBlock, err := block.Parse(blockBytes)
+	proposerBlock, err := block.Parse(proposerblockBytes)
+	blockBytes := proposerblockBytes
 	if err == nil {
 		ver, err = w.codec.Unmarshal(proposerBlock.Block(), &pblock)
 		if err != nil {
@@ -347,27 +348,30 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
 
 	if proposerBlock != nil {
+		proposerBlkID := ids.ID(hashing.ComputeHash256Array(proposerblockBytes))
 		var pvmProposer *idb.PvmProposer
 		switch properBlockDetail := proposerBlock.(type) {
 		case block.SignedBlock:
 			pvmProposer = &idb.PvmProposer{
-				ID:           properBlockDetail.ID().String(),
-				ParentID:     properBlockDetail.ParentID().String(),
-				BlkID:        blkID.String(),
-				PChainHeight: properBlockDetail.PChainHeight(),
-				Proposer:     properBlockDetail.Proposer().String(),
-				TimeStamp:    properBlockDetail.Timestamp(),
-				CreatedAt:    ctx.Time(),
+				ID:            properBlockDetail.ID().String(),
+				ParentID:      properBlockDetail.ParentID().String(),
+				BlkID:         blkID.String(),
+				ProposerBlkID: proposerBlkID.String(),
+				PChainHeight:  properBlockDetail.PChainHeight(),
+				Proposer:      properBlockDetail.Proposer().String(),
+				TimeStamp:     properBlockDetail.Timestamp(),
+				CreatedAt:     ctx.Time(),
 			}
 		default:
 			pvmProposer = &idb.PvmProposer{
-				ID:           properBlockDetail.ID().String(),
-				ParentID:     properBlockDetail.ParentID().String(),
-				BlkID:        blkID.String(),
-				PChainHeight: 0,
-				Proposer:     "",
-				TimeStamp:    ctx.Time(),
-				CreatedAt:    ctx.Time(),
+				ID:            properBlockDetail.ID().String(),
+				ParentID:      properBlockDetail.ParentID().String(),
+				BlkID:         blkID.String(),
+				ProposerBlkID: proposerBlkID.String(),
+				PChainHeight:  0,
+				Proposer:      "",
+				TimeStamp:     ctx.Time(),
+				CreatedAt:     ctx.Time(),
 			}
 		}
 		err := ctx.Persist().InsertPvmProposer(ctx.Ctx(), ctx.DB(), pvmProposer, cfg.PerformUpdates)
