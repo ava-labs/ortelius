@@ -144,8 +144,8 @@ func (w *Writer) initCtxPtx(p *platformvm.Tx) {
 	}
 }
 
-func (w *Writer) initCtx(b *platformvm.Block) {
-	switch blk := (*b).(type) {
+func (w *Writer) initCtx(b platformvm.Block) {
+	switch blk := b.(type) {
 	case *platformvm.ProposalBlock:
 		w.initCtxPtx(&blk.Tx)
 	case *platformvm.StandardBlock:
@@ -188,9 +188,13 @@ func NewPtxDataProposerModel(b block.Block) *PtxDataProposerModel {
 }
 
 type PtxDataModel struct {
-	Tx       *platformvm.Tx        `json:"tx,omitempty"`
-	Block    *platformvm.Block     `json:"block,omitempty"`
-	Proposer *PtxDataProposerModel `json:"proposer,omitempty"`
+	Tx           *platformvm.Tx        `json:"tx,omitempty"`
+	TxType       *string               `json:"txType,omitempty"`
+	Block        *platformvm.Block     `json:"block,omitempty"`
+	BlockID      *string               `json:"blockID,omitempty"`
+	BlockType    *string               `json:"blockType,omitempty"`
+	Proposer     *PtxDataProposerModel `json:"proposer,omitempty"`
+	ProposerType *string               `json:"proposerType,omitempty"`
 }
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
@@ -204,13 +208,22 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 				return nil, err
 			}
 			w.initCtxPtx(&blockTx)
+			txtype := reflect.TypeOf(&blockTx)
+			txtypeS := txtype.String()
 			return &PtxDataModel{
-				Tx: &blockTx,
+				Tx:     &blockTx,
+				TxType: &txtypeS,
 			}, nil
 		}
-		w.initCtx(&block)
+		w.initCtx(block)
+		blkID := ids.ID(hashing.ComputeHash256Array(b))
+		blkIDS := blkID.String()
+		btype := reflect.TypeOf(block)
+		btypeS := btype.String()
 		return &PtxDataModel{
-			Block: &block,
+			BlockID:   &blkIDS,
+			Block:     &block,
+			BlockType: &btypeS,
 		}, nil
 	}
 	proposerBlock, err := block.Parse(txBytes)
@@ -226,6 +239,9 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 	platformBlock.Proposer = NewPtxDataProposerModel(proposerBlock)
+	pbtype := reflect.TypeOf(proposerBlock)
+	pbtypeS := pbtype.String()
+	platformBlock.ProposerType = &pbtypeS
 	return json.Marshal(platformBlock)
 }
 
