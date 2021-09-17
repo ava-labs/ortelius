@@ -335,6 +335,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		if err != nil {
 			return ctx.Job().EventErr("index_block.unmarshal_block", err)
 		}
+		blockBytes = append([]byte{}, proposerBlock.Block()...)
 	} else {
 		proposerBlock = nil
 		ver, err = w.codec.Unmarshal(blockBytes, &pblock)
