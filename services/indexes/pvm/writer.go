@@ -221,7 +221,7 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 		}
 		return json.Marshal(platformBlock)
 	}
-	platformBlock, err := parsePlatformTx(proposerBlock.Bytes())
+	platformBlock, err := parsePlatformTx(proposerBlock.Block())
 	if err != nil {
 		return nil, err
 	}

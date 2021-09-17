@@ -12,3 +12,4 @@ create table pvm_proposer
 
 create index pvm_proposer_blk_id ON pvm_proposer (blk_id);
 
+create index pvm_blocks_height on pvm_blocks (height);
