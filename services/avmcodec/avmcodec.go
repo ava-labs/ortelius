@@ -17,7 +17,7 @@ var (
 
 const MaxCodecSize = 100_000_000
 
-func NewAVMCodec(networkID uint32, chainID string) (codec.Manager, error) {
+func NewAVMCodec(networkID uint32) (codec.Manager, error) {
 	genesisBytes, _, err := genesis.Genesis(networkID, "")
 	if err != nil {
 		return nil, nil

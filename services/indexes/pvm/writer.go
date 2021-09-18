@@ -14,11 +14,14 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/proposervm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/services"
@@ -26,6 +29,7 @@ import (
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -43,6 +47,7 @@ type Writer struct {
 
 	codec codec.Manager
 	avax  *avaxIndexer.Writer
+	ctx   *snow.Context
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
@@ -51,29 +56,193 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
+	bcLookup := &ids.Aliaser{}
+	bcLookup.Initialize()
+	id, err := ids.FromString(chainID)
+	if err != nil {
+		return nil, err
+	}
+	if err = bcLookup.Alias(id, "P"); err != nil {
+		return nil, err
+	}
+
+	ctx := &snow.Context{
+		NetworkID:     networkID,
+		ChainID:       id,
+		Log:           logging.NoLog{},
+		Metrics:       prometheus.NewRegistry(),
+		BCLookup:      bcLookup,
+		EpochDuration: time.Hour,
+	}
+
 	return &Writer{
 		chainID:     chainID,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		codec:       platformvm.Codec,
 		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID),
+		ctx:         ctx,
 	}, nil
 }
 
 func (*Writer) Name() string { return "pvm-index" }
 
+func (w *Writer) initCtxPtx(p *platformvm.Tx) {
+	switch castTx := p.UnsignedTx.(type) {
+	case *platformvm.UnsignedAddValidatorTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, utxo := range castTx.Stake {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedAddSubnetValidatorTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedAddDelegatorTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, utxo := range castTx.Stake {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedCreateSubnetTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedCreateChainTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedImportTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, out := range castTx.Outs {
+			out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedExportTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, out := range castTx.ExportedOutputs {
+			out.InitCtx(w.ctx)
+		}
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedAdvanceTimeTx:
+		castTx.InitCtx(w.ctx)
+	case *platformvm.UnsignedRewardValidatorTx:
+		castTx.InitCtx(w.ctx)
+	default:
+	}
+}
+
+func (w *Writer) initCtx(b platformvm.Block) {
+	switch blk := b.(type) {
+	case *platformvm.ProposalBlock:
+		w.initCtxPtx(&blk.Tx)
+	case *platformvm.StandardBlock:
+		for _, tx := range blk.Txs {
+			w.initCtxPtx(tx)
+		}
+	case *platformvm.AtomicBlock:
+		w.initCtxPtx(&blk.Tx)
+	case *platformvm.AbortBlock:
+	case *platformvm.CommitBlock:
+	default:
+	}
+}
+
+type PtxDataProposerModel struct {
+	ID           string    `json:"tx"`
+	ParentID     string    `json:"parentID"`
+	PChainHeight uint64    `json:"pChainHeight"`
+	Proposer     string    `json:"proposer"`
+	TimeStamp    time.Time `json:"timeStamp"`
+}
+
+func NewPtxDataProposerModel(b block.Block) *PtxDataProposerModel {
+	switch properBlockDetail := b.(type) {
+	case block.SignedBlock:
+		return &PtxDataProposerModel{
+			ID:           properBlockDetail.ID().String(),
+			ParentID:     properBlockDetail.ParentID().String(),
+			PChainHeight: properBlockDetail.PChainHeight(),
+			Proposer:     properBlockDetail.Proposer().String(),
+			TimeStamp:    properBlockDetail.Timestamp(),
+		}
+	default:
+		return &PtxDataProposerModel{
+			ID:           properBlockDetail.ID().String(),
+			PChainHeight: 0,
+			Proposer:     "",
+		}
+	}
+}
+
+type PtxDataModel struct {
+	Tx           *platformvm.Tx        `json:"tx,omitempty"`
+	TxType       *string               `json:"txType,omitempty"`
+	Block        *platformvm.Block     `json:"block,omitempty"`
+	BlockID      *string               `json:"blockID,omitempty"`
+	BlockType    *string               `json:"blockType,omitempty"`
+	Proposer     *PtxDataProposerModel `json:"proposer,omitempty"`
+	ProposerType *string               `json:"proposerType,omitempty"`
+}
+
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	var blockTx platformvm.Tx
-	_, err := w.codec.Unmarshal(txBytes, &blockTx)
-	if err != nil {
+	parsePlatformTx := func(b []byte) (*PtxDataModel, error) {
 		var block platformvm.Block
-		_, err := w.codec.Unmarshal(txBytes, &block)
+		_, err := w.codec.Unmarshal(b, &block)
+		if err != nil {
+			var blockTx platformvm.Tx
+			_, err = w.codec.Unmarshal(b, &blockTx)
+			if err != nil {
+				return nil, err
+			}
+			w.initCtxPtx(&blockTx)
+			txtype := reflect.TypeOf(&blockTx)
+			txtypeS := txtype.String()
+			return &PtxDataModel{
+				Tx:     &blockTx,
+				TxType: &txtypeS,
+			}, nil
+		}
+		w.initCtx(block)
+		blkID := ids.ID(hashing.ComputeHash256Array(b))
+		blkIDS := blkID.String()
+		btype := reflect.TypeOf(block)
+		btypeS := btype.String()
+		return &PtxDataModel{
+			BlockID:   &blkIDS,
+			Block:     &block,
+			BlockType: &btypeS,
+		}, nil
+	}
+	proposerBlock, err := block.Parse(txBytes)
+	if err != nil {
+		platformBlock, err := parsePlatformTx(txBytes)
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(&block)
+		return json.Marshal(platformBlock)
 	}
-	return json.Marshal(&blockTx)
+	platformBlock, err := parsePlatformTx(proposerBlock.Block())
+	if err != nil {
+		return nil, err
+	}
+	platformBlock.Proposer = NewPtxDataProposerModel(proposerBlock)
+	pbtype := reflect.TypeOf(proposerBlock)
+	pbtypeS := pbtype.String()
+	platformBlock.ProposerType = &pbtypeS
+	return json.Marshal(platformBlock)
 }
 
 func (w *Writer) ConsumeConsensus(_ context.Context, _ *servicesconn.Connections, _ services.Consumable, _ idb.Persist) error {
@@ -171,17 +340,65 @@ func initializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
 	return nil
 }
 
-func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
-	var block platformvm.Block
-	ver, err := w.codec.Unmarshal(blockBytes, &block)
-	if err != nil {
-		return ctx.Job().EventErr("index_block.unmarshal_block", err)
+func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte) error {
+	var pblock platformvm.Block
+	var ver uint16
+	var err error
+
+	proposerBlock, err := block.Parse(proposerblockBytes)
+	blockBytes := proposerblockBytes
+	if err == nil {
+		ver, err = w.codec.Unmarshal(proposerBlock.Block(), &pblock)
+		if err != nil {
+			return ctx.Job().EventErr("index_block.unmarshal_block", err)
+		}
+		blockBytes = append([]byte{}, proposerBlock.Block()...)
+	} else {
+		proposerBlock = nil
+		ver, err = w.codec.Unmarshal(blockBytes, &pblock)
+		if err != nil {
+			return ctx.Job().EventErr("index_block.unmarshal_block", err)
+		}
 	}
+
 	blkID := ids.ID(hashing.ComputeHash256Array(blockBytes))
+
+	if proposerBlock != nil {
+		proposerBlkID := ids.ID(hashing.ComputeHash256Array(proposerblockBytes))
+		var pvmProposer *idb.PvmProposer
+		switch properBlockDetail := proposerBlock.(type) {
+		case block.SignedBlock:
+			pvmProposer = &idb.PvmProposer{
+				ID:            properBlockDetail.ID().String(),
+				ParentID:      properBlockDetail.ParentID().String(),
+				BlkID:         blkID.String(),
+				ProposerBlkID: proposerBlkID.String(),
+				PChainHeight:  properBlockDetail.PChainHeight(),
+				Proposer:      properBlockDetail.Proposer().String(),
+				TimeStamp:     properBlockDetail.Timestamp(),
+				CreatedAt:     ctx.Time(),
+			}
+		default:
+			pvmProposer = &idb.PvmProposer{
+				ID:            properBlockDetail.ID().String(),
+				ParentID:      properBlockDetail.ParentID().String(),
+				BlkID:         blkID.String(),
+				ProposerBlkID: proposerBlkID.String(),
+				PChainHeight:  0,
+				Proposer:      "",
+				TimeStamp:     ctx.Time(),
+				CreatedAt:     ctx.Time(),
+			}
+		}
+		err := ctx.Persist().InsertPvmProposer(ctx.Ctx(), ctx.DB(), pvmProposer, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
+	}
 
 	errs := wrappers.Errs{}
 
-	switch blk := block.(type) {
+	switch blk := pblock.(type) {
 	case *platformvm.ProposalBlock:
 		errs.Add(
 			initializeTx(ver, w.codec, blk.Tx),

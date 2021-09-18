@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type PvmProposerModel struct {
+	ID           StringID  `json:"id"`
+	ParentID     StringID  `json:"parentID"`
+	PChainHeight uint64    `json:"pchainHeight"`
+	Proposer     StringID  `json:"proposer"`
+	TimeStamp    time.Time `json:"timestamp"`
+}
+
 type Transaction struct {
 	ID      StringID `json:"id"`
 	ChainID StringID `json:"chainID"`
@@ -40,6 +48,8 @@ type Transaction struct {
 	ValidatorEnd    uint64   `json:"validatorEnd"`
 
 	TxBlockID StringID `json:"txBlockId"`
+
+	Proposer *PvmProposerModel `json:"proposer,omitempty"`
 
 	Score uint64 `json:"-"`
 }

@@ -9,12 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
@@ -30,6 +33,7 @@ import (
 	"github.com/gocraft/dbr/v2"
 	"github.com/gocraft/health"
 	"github.com/palantir/stacktrace"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -43,10 +47,11 @@ type Writer struct {
 
 	codec codec.Manager
 	avax  *avax.Writer
+	ctx   *snow.Context
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := avmcodec.NewAVMCodec(networkID, chainID)
+	avmCodec, err := avmcodec.NewAVMCodec(networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,22 +61,75 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
+	bcLookup := &ids.Aliaser{}
+	bcLookup.Initialize()
+	id, err := ids.FromString(chainID)
+	if err != nil {
+		return nil, err
+	}
+	if err = bcLookup.Alias(id, "X"); err != nil {
+		return nil, err
+	}
+
+	ctx := &snow.Context{
+		NetworkID:     networkID,
+		ChainID:       id,
+		Log:           logging.NoLog{},
+		Metrics:       prometheus.NewRegistry(),
+		BCLookup:      bcLookup,
+		EpochDuration: time.Hour,
+	}
+
 	return &Writer{
 		chainID:     chainID,
 		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		avax:        avax.NewWriter(chainID, avaxAssetID),
+		ctx:         ctx,
 	}, nil
 }
 
 func (*Writer) Name() string { return "avm-index" }
+
+func (w *Writer) initCtx(tx *avm.Tx) {
+	switch castTx := tx.UnsignedTx.(type) {
+	case *avm.CreateAssetTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+	case *avm.OperationTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+	case *avm.ImportTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+	case *avm.ExportTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, out := range castTx.ExportedOuts {
+			out.InitCtx(w.ctx)
+		}
+	case *avm.BaseTx:
+		for _, utxo := range castTx.UTXOs() {
+			utxo.Out.InitCtx(w.ctx)
+		}
+		for _, out := range castTx.Outs {
+			out.InitCtx(w.ctx)
+		}
+	default:
+	}
+}
 
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	tx, err := parseTx(w.codec, txBytes)
 	if err != nil {
 		return nil, err
 	}
+	w.initCtx(tx)
 	return json.Marshal(tx)
 }
 

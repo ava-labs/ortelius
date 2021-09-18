@@ -1659,3 +1659,62 @@ func TestCvmLogs(t *testing.T) {
 		t.Fatal("compare fail")
 	}
 }
+
+func TestPvmProposer(t *testing.T) {
+	p := NewPersist()
+	ctx := context.Background()
+	tm := time.Now().UTC().Truncate(1 * time.Second)
+
+	v := &PvmProposer{}
+	v.ID = "id"
+	v.ParentID = "pid"
+	v.BlkID = "blk"
+	v.ProposerBlkID = "oblk"
+	v.PChainHeight = 1
+	v.Proposer = "proposer"
+	v.TimeStamp = tm
+	v.CreatedAt = tm
+
+	stream := health.NewStream()
+
+	rawDBConn, err := dbr.Open(TestDB, TestDSN, stream)
+	if err != nil {
+		t.Fatal("db fail", err)
+	}
+	_, _ = rawDBConn.NewSession(stream).DeleteFrom(TablePvmProposer).Exec()
+
+	err = p.InsertPvmProposer(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err := p.QueryPvmProposer(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+
+	v.ParentID = "pid2"
+	v.BlkID = "blk2"
+	v.ProposerBlkID = "oblk2"
+	v.PChainHeight = 2
+	v.Proposer = "proposer2"
+	v.TimeStamp = tm
+	v.CreatedAt = tm
+
+	err = p.InsertPvmProposer(ctx, rawDBConn.NewSession(stream), v, true)
+	if err != nil {
+		t.Fatal("insert fail", err)
+	}
+	fv, err = p.QueryPvmProposer(ctx, rawDBConn.NewSession(stream), v)
+	if err != nil {
+		t.Fatal("query fail", err)
+	}
+	if fv.ParentID != "pid2" {
+		t.Fatal("compare fail")
+	}
+	if !reflect.DeepEqual(*v, *fv) {
+		t.Fatal("compare fail")
+	}
+}

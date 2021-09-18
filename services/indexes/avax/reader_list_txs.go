@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
@@ -335,6 +336,16 @@ type rewardsTypeModel struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
+func newPvmProposerModel(pvmProposer idb.PvmProposer) *models.PvmProposerModel {
+	return &models.PvmProposerModel{
+		ID:           models.StringID(pvmProposer.ID),
+		ParentID:     models.StringID(pvmProposer.ParentID),
+		PChainHeight: pvmProposer.PChainHeight,
+		Proposer:     models.StringID(pvmProposer.Proposer),
+		TimeStamp:    pvmProposer.TimeStamp,
+	}
+}
+
 func dressTransactions(
 	ctx context.Context,
 	dbRunner dbr.SessionRunner,
@@ -349,11 +360,29 @@ func dressTransactions(
 
 	// Get the IDs returned so we can get Input/Output data
 	txIDs := make([]models.StringID, len(txs))
+	blockTxIds := make([]models.StringID, 0, len(txs))
+	blockTxIdsFound := make(map[models.StringID]struct{})
 	for i, tx := range txs {
 		if txs[i].Memo == nil {
 			txs[i].Memo = []byte("")
 		}
 		txIDs[i] = tx.ID
+		if len(tx.TxBlockID) != 0 {
+			if _, ok := blockTxIdsFound[tx.TxBlockID]; !ok {
+				blockTxIds = append(blockTxIds, tx.TxBlockID)
+				blockTxIdsFound[tx.TxBlockID] = struct{}{}
+			}
+		}
+	}
+
+	proposersMap, err := resolveProposers(ctx, dbRunner, blockTxIds)
+	if err != nil {
+		return err
+	}
+	for _, tx := range txs {
+		if proposer, ok := proposersMap[tx.TxBlockID]; ok {
+			tx.Proposer = proposer
+		}
 	}
 
 	rewardsTypesMap, err := resolveRewarded(ctx, dbRunner, txIDs)
@@ -515,6 +544,32 @@ func dressTransactionsTx(
 			tx.RewardedTime = &rewardsType.CreatedAt
 		}
 	}
+}
+
+func resolveProposers(ctx context.Context, dbRunner dbr.SessionRunner, properIds []models.StringID) (map[models.StringID]*models.PvmProposerModel, error) {
+	pvmProposerModels := make(map[models.StringID]*models.PvmProposerModel)
+	if len(properIds) == 0 {
+		return pvmProposerModels, nil
+	}
+	pvmProposers := []idb.PvmProposer{}
+	_, err := dbRunner.Select("id",
+		"parent_id",
+		"blk_id",
+		"p_chain_height",
+		"proposer",
+		"time_stamp",
+		"created_at",
+	).From(idb.TablePvmProposer).
+		Where("blk_id in ?", properIds).
+		LoadContext(ctx, &pvmProposers)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pvmProposer := range pvmProposers {
+		pvmProposerModels[models.StringID(pvmProposer.BlkID)] = newPvmProposerModel(pvmProposer)
+	}
+	return pvmProposerModels, nil
 }
 
 func resolveRewarded(ctx context.Context, dbRunner dbr.SessionRunner, txIDs []models.StringID) (map[models.StringID]rewardsTypeModel, error) {

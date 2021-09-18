@@ -6,23 +6,28 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        go:
+          - '1.17.1'
     steps:
       - uses: actions/checkout@v2
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2.3.0
+        uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.39.0
+          version: v1.41.1
           args: --timeout 5m
+          skip-go-installation: true
   test-and-build:
     name: Test and build on Go ${{ matrix.go }}
     runs-on: ubuntu-18.04
     strategy:
       matrix:
         go:
-          - '1.16.7'
+          - '1.17.1'
     services:
       mysql:
-        image: mysql:8.0.24
+        image: mysql:8.0.26
         ports:
           - 3306:3306
         env:
