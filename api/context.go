@@ -72,7 +72,7 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable utils.Cacheabl
 		if err == nil {
 			resp, err = json.Marshal(obj)
 			if err == nil {
-				c.delayCache.Worker.Enque(&utils.CacheJob{Key: key, Body: &resp, TTL: cacheable.TTL})
+				c.delayCache.Worker.TryEnque(&utils.CacheJob{Key: key, Body: &resp, TTL: cacheable.TTL})
 			}
 		}
 	}

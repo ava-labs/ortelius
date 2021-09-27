@@ -10,6 +10,7 @@ import (
 
 type Worker interface {
 	Enque(job interface{})
+	TryEnque(job interface{})
 	Finish(sleepTime time.Duration)
 	JobCnt() int64
 	IsFinished() bool
@@ -55,6 +56,13 @@ func (w *worker) worker(wn int) {
 
 func (w *worker) Enque(job interface{}) {
 	w.jobCh <- job
+}
+
+func (w *worker) TryEnque(job interface{}) {
+	select {
+	case w.jobCh <- job:
+	default:
+	}
 }
 
 func (w *worker) Finish(sleepTime time.Duration) {
