@@ -25,12 +25,6 @@ services:
         sleep 1
       done'
     restart: on-failure
-  redis:
-    image: "redis:6.2.3-alpine3.13"
-    command: redis-server
-    ports:
-      - "6379:6379"
-    restart: on-failure
   avalanche:
     env_file:
       - production.env
@@ -54,11 +48,9 @@ services:
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     external_links:
       - mysql
-      - redis
     depends_on:
       - mysql
       - migrate
-      - redis
     volumes:
       - avalanche-ipcs:/tmp
       - ./../config.json:/opt/config.json

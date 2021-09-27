@@ -32,7 +32,6 @@ services:
       - services
     external_links:
       - mysql
-      - redis
     volumes:
       - avalanche-ipcs:/tmp
       - ./config.standalone.json:/opt/config.json
