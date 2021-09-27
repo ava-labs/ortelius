@@ -14,8 +14,7 @@ type Job struct {
 }
 
 func NewJob(val int) *Job {
-	j := Job{val: val}
-	return &j
+	return &Job{val: val}
 }
 
 func TestWorker(t *testing.T) {
