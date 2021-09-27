@@ -4,6 +4,6 @@
   "http-host": "0.0.0.0",
   "index-enabled": "true",
   "network-minimum-timeout": "3s",
-  "chain-config-dir": "/opt/avalanchego",
+  "chain-config-dir": "/opt/avalanchego"
 }
 
