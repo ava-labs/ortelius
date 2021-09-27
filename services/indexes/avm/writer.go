@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -24,14 +24,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/avmcodec"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
-	"github.com/gocraft/health"
 	"github.com/palantir/stacktrace"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -51,7 +49,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := avmcodec.NewAVMCodec(networkID)
+	avmCodec, err := utils.NewAVMCodec(networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,20 +131,18 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(tx)
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections, persist idb.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist idb.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = conns.QuietStream().NewJob("bootstrap")
+		job                  = conns.Stream().NewJob("bootstrap")
 	)
-	job.KeyValue("chain_id", w.chainID)
 
 	defer func() {
 		if err != nil {
-			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			w.ctx.Log.Warn("bootstrap %v", err)
 			return
 		}
-		job.Complete(health.Success)
 	}()
 
 	// Get platform genesis block
@@ -177,7 +173,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections,
 		}
 
 		dbSess := conns.DB().NewSessionForEventReceiver(job)
-		cCtx := services.NewConsumerContext(ctx, job, dbSess, int64(platformGenesis.Timestamp), 0, persist)
+		cCtx := services.NewConsumerContext(ctx, dbSess, int64(platformGenesis.Timestamp), 0, persist)
 		err = w.insertGenesis(cCtx, createChainTx.GenesisData)
 		if err != nil {
 			return err
@@ -187,22 +183,19 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections,
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, persist idb.Persist) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections, c services.Consumable, persist idb.Persist) error {
 	var (
-		job  = conns.StreamDBDedup().NewJob("index-consensus")
+		job  = conns.Stream().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
-	job.KeyValue("id", c.ID())
-	job.KeyValue("chain_id", c.ChainID())
 
 	var err error
 
 	defer func() {
 		if err != nil {
-			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+			w.ctx.Log.Warn("consume consensus %v", err)
 			return
 		}
-		job.Complete(health.Success)
 	}()
 
 	var vert vertex.StatelessVertex
@@ -219,7 +212,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *servicesconn.Conne
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+	cCtx := services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	for _, tx := range txs {
 		var txID ids.ID
@@ -242,21 +235,21 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *servicesconn.Conne
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, i services.Consumable, persist idb.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, i services.Consumable, persist idb.Persist) error {
 	var (
 		err  error
-		job  = conns.StreamDBDedup().NewJob("avm-index")
+		job  = conns.Stream().NewJob("avm-index")
 		sess = conns.DB().NewSessionForEventReceiver(job)
 	)
-	job.KeyValue("id", i.ID())
-	job.KeyValue("chain_id", i.ChainID())
 
 	defer func() {
-		if err != nil {
-			job.CompleteKv(health.Error, health.Kvs{"err": err.Error()})
+		if err == nil {
 			return
 		}
-		job.Complete(health.Success)
+		if !utils.ErrIsLockError(err) {
+			w.ctx.Log.Warn("consume %v", err)
+			return
+		}
 	}()
 
 	// Create db tx
@@ -268,7 +261,7 @@ func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, i
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Ingest the tx and commit
-	err = w.insertTx(services.NewConsumerContext(ctx, job, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
+	err = w.insertTx(services.NewConsumerContext(ctx, dbTx, i.Timestamp(), i.Nanosecond(), persist), i.Body())
 	if err != nil {
 		return err
 	}

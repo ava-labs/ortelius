@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package api
@@ -39,34 +39,6 @@ func WriteErr(w http.ResponseWriter, code int, msg string) {
 
 	w.WriteHeader(code)
 	_, _ = w.Write(errBytes)
-}
-
-func ParseGet(r *web.Request, n int64) (url.Values, error) {
-	if r == nil {
-		return r.URL.Query(), nil
-	}
-	pf := r.Body
-	if pf == nil {
-		return r.URL.Query(), nil
-	}
-	buf := new(strings.Builder)
-	_, err := io.CopyN(buf, pf, n)
-	switch err {
-	case io.EOF:
-	case nil:
-	default:
-		return r.URL.Query(), err
-	}
-	if buf.Len() > 0 {
-		getq, err := url.ParseQuery(buf.String())
-		switch err {
-		case nil:
-			return mergeValues(getq, r.URL.Query()), nil
-		default:
-			return r.URL.Query(), err
-		}
-	}
-	return r.URL.Query(), nil
 }
 
 func ParseGetJSON(r *web.Request, n int64) (url.Values, error) {

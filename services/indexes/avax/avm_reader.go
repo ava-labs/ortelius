@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -9,18 +9,18 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
 )
 
-func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams, conns *servicesconn.Connections) (*models.AssetList, error) {
+func (r *Reader) ListAssets(ctx context.Context, p *params.ListAssetsParams, conns *utils.Connections) (*models.AssetList, error) {
 	var dbRunner *dbr.Session
 	var err error
 
 	if conns != nil {
-		dbRunner = conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("list_assets"))
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("list_assets"))
 	} else {
 		dbRunner, err = r.conns.DB().NewSession("list_assets", cfg.RequestTimeout)
 		if err != nil {

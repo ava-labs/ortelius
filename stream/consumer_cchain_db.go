@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package stream
@@ -12,14 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
-	"github.com/ava-labs/ortelius/services/metrics"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
 
@@ -57,10 +54,10 @@ func NewConsumerCChainDB() ProcessorFactoryInstDB {
 
 			quitCh: make(chan struct{}),
 		}
-		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
-		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
-		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
+		utils.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
+		utils.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
+		utils.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
+		utils.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 		sc.InitConsumeMetrics()
 
 		var err error
@@ -91,7 +88,7 @@ func (c *consumerCChainDB) Topic() []string {
 	return []string{c.topicName, c.topicTrcName, c.topicLogsName}
 }
 
-func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
+func (c *consumerCChainDB) Process(conns *utils.Connections, row *idb.TxPool) error {
 	switch row.Topic {
 	case c.topicName:
 		msg := &Message{
@@ -125,17 +122,17 @@ func (c *consumerCChainDB) Process(conns *servicesconn.Connections, row *idb.TxP
 	return nil
 }
 
-func (c *consumerCChainDB) ConsumeLogs(conns *servicesconn.Connections, msg services.Consumable) error {
+func (c *consumerCChainDB) ConsumeLogs(conns *utils.Connections, msg services.Consumable) error {
 	txLogs := &types.Log{}
 	err := json.Unmarshal(msg.Body(), txLogs)
 	if err != nil {
 		return err
 	}
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
+	collectors := utils.NewCollectors(
+		utils.NewCounterIncCollect(c.metricProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		utils.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -151,7 +148,7 @@ func (c *consumerCChainDB) ConsumeLogs(conns *servicesconn.Connections, msg serv
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsumeLogs(conns, nmsg, txLogs)
-		if !db.ErrIsLockError(err) {
+		if !utils.ErrIsLockError(err) {
 			break
 		}
 		rsleep.Inc()
@@ -168,17 +165,17 @@ func (c *consumerCChainDB) ConsumeLogs(conns *servicesconn.Connections, msg serv
 	return nil
 }
 
-func (c *consumerCChainDB) ConsumeTrace(conns *servicesconn.Connections, msg services.Consumable) error {
-	transactionTrace := &cblock.TransactionTrace{}
+func (c *consumerCChainDB) ConsumeTrace(conns *utils.Connections, msg services.Consumable) error {
+	transactionTrace := &modelsc.TransactionTrace{}
 	err := json.Unmarshal(msg.Body(), transactionTrace)
 	if err != nil {
 		return err
 	}
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
+	collectors := utils.NewCollectors(
+		utils.NewCounterIncCollect(c.metricProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		utils.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -194,7 +191,7 @@ func (c *consumerCChainDB) ConsumeTrace(conns *servicesconn.Connections, msg ser
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsumeTrace(conns, nmsg, transactionTrace)
-		if !db.ErrIsLockError(err) {
+		if !utils.ErrIsLockError(err) {
 			break
 		}
 		rsleep.Inc()
@@ -211,17 +208,17 @@ func (c *consumerCChainDB) ConsumeTrace(conns *servicesconn.Connections, msg ser
 	return nil
 }
 
-func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services.Consumable) error {
-	block, err := cblock.Unmarshal(msg.Body())
+func (c *consumerCChainDB) Consume(conns *utils.Connections, msg services.Consumable) error {
+	block, err := modelsc.Unmarshal(msg.Body())
 	if err != nil {
 		return err
 	}
 
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
+	collectors := utils.NewCollectors(
+		utils.NewCounterIncCollect(c.metricProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		utils.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -240,7 +237,7 @@ func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, nmsg, block)
-		if !db.ErrIsLockError(err) {
+		if !utils.ErrIsLockError(err) {
 			break
 		}
 		rsleep.Inc()
@@ -254,35 +251,35 @@ func (c *consumerCChainDB) Consume(conns *servicesconn.Connections, msg services
 	}
 	c.Success()
 
-	c.sc.BalanceManager.Run()
+	c.sc.BalanceManager.Exec()
 
 	return nil
 }
 
-func (c *consumerCChainDB) persistConsumeLogs(conns *servicesconn.Connections, msg services.Consumable, txLogs *types.Log) error {
+func (c *consumerCChainDB) persistConsumeLogs(conns *utils.Connections, msg services.Consumable, txLogs *types.Log) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.ConsumeLogs(ctx, conns, msg, txLogs, c.sc.Persist)
 }
 
-func (c *consumerCChainDB) persistConsumeTrace(conns *servicesconn.Connections, msg services.Consumable, transactionTrace *cblock.TransactionTrace) error {
+func (c *consumerCChainDB) persistConsumeTrace(conns *utils.Connections, msg services.Consumable, transactionTrace *modelsc.TransactionTrace) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.ConsumeTrace(ctx, conns, msg, transactionTrace, c.sc.Persist)
 }
 
-func (c *consumerCChainDB) persistConsume(conns *servicesconn.Connections, msg services.Consumable, block *cblock.Block) error {
+func (c *consumerCChainDB) persistConsume(conns *utils.Connections, msg services.Consumable, block *modelsc.Block) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.consumer.Consume(ctx, conns, msg, block, c.sc.Persist)
 }
 
 func (c *consumerCChainDB) Failure() {
-	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
+	_ = utils.Prometheus.CounterInc(c.metricFailureCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
 }
 
 func (c *consumerCChainDB) Success() {
-	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(c.metricSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
 }

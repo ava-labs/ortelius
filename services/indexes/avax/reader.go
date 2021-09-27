@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -16,18 +16,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/hashing"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	corethType "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
 )
 
@@ -60,7 +59,7 @@ var (
 )
 
 type Reader struct {
-	conns           *servicesconn.Connections
+	conns           *utils.Connections
 	sc              *servicesctrl.Control
 	avmLock         sync.RWMutex
 	networkID       uint32
@@ -72,7 +71,7 @@ type Reader struct {
 	doneCh chan struct{}
 }
 
-func NewReader(networkID uint32, conns *servicesconn.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *servicesctrl.Control) (*Reader, error) {
+func NewReader(networkID uint32, conns *utils.Connections, chainConsumers map[string]services.Consumer, cChainCconsumer services.ConsumerCChain, sc *servicesctrl.Control) (*Reader, error) {
 	reader := &Reader{
 		conns:           conns,
 		sc:              sc,
@@ -326,7 +325,7 @@ func (r *Reader) TxfeeAggregate(ctx context.Context, params *params.TxfeeAggrega
 	return aggs, nil
 }
 
-func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *servicesconn.Connections) (*models.AggregatesHistogram, error) {
+func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, conns *utils.Connections) (*models.AggregatesHistogram, error) {
 	// Validate params and set defaults if necessary
 	if params.ListParams.StartTime.IsZero() {
 		var err error
@@ -355,7 +354,7 @@ func (r *Reader) Aggregate(ctx context.Context, params *params.AggregateParams, 
 	var err error
 
 	if conns != nil {
-		dbRunner = conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("get_transaction_aggregates_histogram"))
+		dbRunner = conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("get_transaction_aggregates_histogram"))
 	} else {
 		dbRunner, err = r.conns.DB().NewSession("get_transaction_aggregates_histogram", cfg.RequestTimeout)
 		if err != nil {
@@ -760,7 +759,7 @@ func (r *Reader) GetOutput(ctx context.Context, id ids.ID) (*models.Output, erro
 }
 
 func (r *Reader) AddressChains(ctx context.Context, p *params.AddressChainsParams) (*models.AddressChains, error) {
-	dbRunner, err := r.conns.DB().NewQuietSession("addressChains", cfg.RequestTimeout)
+	dbRunner, err := r.conns.DB().NewSession("addressChains", cfg.RequestTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1112,7 +1111,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Logs           []corethType.Log         `json:"logs,omitempty"`
 	}
 
-	unserializedBlock, err := cblock.Unmarshal(row.Serialization)
+	unserializedBlock, err := modelsc.Unmarshal(row.Serialization)
 	if err != nil {
 		return nil, err
 	}

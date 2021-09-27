@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 )
 

@@ -1,8 +1,10 @@
+// (c) 2021, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package utils
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -19,7 +21,6 @@ type worker struct {
 	processor func(int, interface{})
 	wgWorker  sync.WaitGroup
 	queueCnt  int
-	jobCnt    *int64
 }
 
 func NewWorker(queueSize int, queueCnt int, processor func(int, interface{})) Worker {
@@ -29,7 +30,6 @@ func NewWorker(queueSize int, queueCnt int, processor func(int, interface{})) Wo
 		doneCh:    make(chan bool),
 		processor: processor,
 		wgWorker:  sync.WaitGroup{},
-		jobCnt:    new(int64),
 	}
 
 	var iproc int
@@ -47,7 +47,6 @@ func (w *worker) worker(wn int) {
 		select {
 		case update := <-w.jobCh:
 			w.processor(wn, update)
-			atomic.AddInt64(w.jobCnt, -1)
 		case <-w.doneCh:
 			return
 		}
@@ -55,8 +54,10 @@ func (w *worker) worker(wn int) {
 }
 
 func (w *worker) Enque(job interface{}) {
-	w.jobCh <- job
-	atomic.AddInt64(w.jobCnt, 1)
+	select {
+	case w.jobCh <- job:
+	default:
+	}
 }
 
 func (w *worker) Finish(sleepTime time.Duration) {
@@ -76,5 +77,5 @@ func (w *worker) IsFinished() bool {
 }
 
 func (w *worker) JobCnt() int64 {
-	return atomic.LoadInt64(w.jobCnt)
+	return int64(len(w.jobCh))
 }

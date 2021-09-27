@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package stream
@@ -17,10 +17,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/metrics"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
 
@@ -74,7 +72,7 @@ func (t IndexedChain) String() string {
 
 type producerChainContainer struct {
 	sc                      *servicesctrl.Control
-	conns                   *servicesconn.Connections
+	conns                   *utils.Connections
 	runningControl          utils.Running
 	nodeIndexer             *indexer.Client
 	conf                    cfg.Config
@@ -97,7 +95,7 @@ func newContainer(
 	indexerChain IndexedChain,
 	metricProcessedCountKey string,
 ) (*producerChainContainer, error) {
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return nil, err
 	}
@@ -212,8 +210,8 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			return err
 		}
 
-		_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-		_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
+		_ = utils.Prometheus.CounterInc(p.metricProcessedCountKey)
+		_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
 	}
 
 	nodeIdx := &idb.NodeIndex{
@@ -236,8 +234,8 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	return nil
 }
 
-func (p *producerChainContainer) insertNodeIndex(conns *servicesconn.Connections, nodeIndex *idb.NodeIndex) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-node-index"))
+func (p *producerChainContainer) insertNodeIndex(conns *utils.Connections, nodeIndex *idb.NodeIndex) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
@@ -245,8 +243,8 @@ func (p *producerChainContainer) insertNodeIndex(conns *servicesconn.Connections
 	return p.sc.Persist.InsertNodeIndex(ctx, sess, nodeIndex, cfg.PerformUpdates)
 }
 
-func (p *producerChainContainer) updateNodeIndex(conns *servicesconn.Connections, nodeIndex *idb.NodeIndex) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-node-index"))
+func (p *producerChainContainer) updateNodeIndex(conns *utils.Connections, nodeIndex *idb.NodeIndex) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
@@ -296,9 +294,9 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 		runningControl:          utils.NewRunning(),
 		nodeIndexer:             nodeIndexer,
 	}
-	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
-	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
-	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+	utils.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	utils.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	utils.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 	sc.InitProduceMetrics()
 
 	return p, nil
@@ -314,13 +312,13 @@ func (p *ProducerChain) ID() string {
 }
 
 func (p *ProducerChain) Failure() {
-	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
+	_ = utils.Prometheus.CounterInc(p.metricFailureCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
 }
 
 func (p *ProducerChain) Success() {
-	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(p.metricSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
 }
 
 func (p *ProducerChain) Listen() error {

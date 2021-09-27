@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -18,9 +20,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 var (
@@ -538,10 +540,10 @@ func (w *Writer) ProcessStateOut(
 		}
 		amount, err = math.Add64(amount, typedOut.Amount())
 		if err != nil {
-			return 0, 0, ctx.Job().EventErr("add_to_amount", err)
+			return 0, 0, stacktrace.Propagate(err, "add %v to %v", typedOut.Amount(), amount)
 		}
 	default:
-		return 0, 0, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
+		return 0, 0, fmt.Errorf("unknown type %s", reflect.TypeOf(out))
 	}
 
 	return amount, totalout, nil

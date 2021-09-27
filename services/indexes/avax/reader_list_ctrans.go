@@ -9,9 +9,9 @@ import (
 
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -328,9 +328,9 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 	return nil
 }
 
-func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Session, blocks []string) (map[string]*cblock.Block, error) {
+func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Session, blocks []string) (map[string]*modelsc.Block, error) {
 	var err error
-	cblocksMap := make(map[string]*cblock.Block)
+	cblocksMap := make(map[string]*modelsc.Block)
 
 	if len(blocks) > 0 {
 		var cvmTxs []*idb.CvmTransactions
@@ -345,7 +345,7 @@ func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Sessio
 		}
 
 		for _, cvmTx := range cvmTxs {
-			cblockv, err := cblock.Unmarshal(cvmTx.Serialization)
+			cblockv, err := modelsc.Unmarshal(cvmTx.Serialization)
 			if err != nil {
 				return nil, err
 			}

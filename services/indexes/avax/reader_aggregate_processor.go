@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
 )
 
@@ -179,18 +179,18 @@ func (r *Reader) aggregateProcessor() error {
 		return nil
 	}
 
-	var connectionstxsasc *servicesconn.Connections
-	var connectionsaggr *servicesconn.Connections
+	var connectionstxsasc *utils.Connections
+	var connectionsaggr *utils.Connections
 
-	var connections1m *servicesconn.Connections
-	var connections1h *servicesconn.Connections
-	var connections24h *servicesconn.Connections
-	var connections7d *servicesconn.Connections
-	var connections30d *servicesconn.Connections
+	var connections1m *utils.Connections
+	var connections1h *utils.Connections
+	var connections24h *utils.Connections
+	var connections7d *utils.Connections
+	var connections30d *utils.Connections
 	var err error
 
 	closeDBForError := func() {
-		closeConn := func(c *servicesconn.Connections) {
+		closeConn := func(c *utils.Connections) {
 			if c != nil {
 				_ = c.Close()
 			}
@@ -250,7 +250,7 @@ func (r *Reader) aggregateProcessor() error {
 	return nil
 }
 
-func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
+func (r *Reader) processorTxAscFetch(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -261,7 +261,7 @@ func (r *Reader) processorTxAscFetch(conns *servicesconn.Connections) {
 
 	runTx := func() {
 		ctx := context.Background()
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("txasc"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("txasc"))
 
 		builder := transactionQuery(sess)
 		builder.OrderAsc("avm_transactions.created_at")
@@ -395,7 +395,7 @@ func (r *Reader) fetchAssets(
 	return append(assets, assetsFound...), addlAssetsFound, nil
 }
 
-func (r *Reader) aggregateProcessorAssetAggr(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -409,7 +409,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *servicesconn.Connections) {
 	runAgg := func(runTm time.Time) {
 		ctx := context.Background()
 
-		sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("aggr-asset-aggr"))
+		sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("aggr-asset-aggr"))
 
 		r.addressCounts(ctx, sess)
 		r.txCounts(ctx, sess)
@@ -515,7 +515,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *servicesconn.Connections) {
 	}
 }
 
-func (r *Reader) processAggregate(conns *servicesconn.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
+func (r *Reader) processAggregate(conns *utils.Connections, runTm time.Time, tag string, intervalSize string, deltaTime time.Duration) (*models.AggregatesHistogram, error) {
 	ctx := context.Background()
 	p := &params.AggregateParams{}
 	urlv := url.Values{}
@@ -532,7 +532,7 @@ func (r *Reader) processAggregate(conns *servicesconn.Connections, runTm time.Ti
 	return r.Aggregate(ctx, p, conns)
 }
 
-func (r *Reader) aggregateProcessor1m(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessor1m(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -566,7 +566,7 @@ func (r *Reader) aggregateProcessor1m(conns *servicesconn.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor1h(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessor1h(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -600,7 +600,7 @@ func (r *Reader) aggregateProcessor1h(conns *servicesconn.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor24h(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessor24h(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -634,7 +634,7 @@ func (r *Reader) aggregateProcessor24h(conns *servicesconn.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor7d(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessor7d(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -668,7 +668,7 @@ func (r *Reader) aggregateProcessor7d(conns *servicesconn.Connections) {
 	}
 }
 
-func (r *Reader) aggregateProcessor30d(conns *servicesconn.Connections) {
+func (r *Reader) aggregateProcessor30d(conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()

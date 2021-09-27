@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cfg
@@ -44,7 +44,6 @@ type Services struct {
 	Logging logging.Config `json:"logging"`
 	API     `json:"api"`
 	*DB     `json:"db"`
-	*Redis  `json:"redis"`
 }
 
 type API struct {
@@ -55,12 +54,6 @@ type DB struct {
 	DSN    string `json:"dsn"`
 	RODSN  string `json:"rodsn"`
 	Driver string `json:"driver"`
-}
-
-type Redis struct {
-	Addr     string `json:"addr"`
-	Password string `json:"password"`
-	DB       int    `json:"db"`
 }
 
 type Filter struct {
@@ -79,7 +72,6 @@ func NewFromFile(filePath string) (*Config, error) {
 	// Get sub vipers for all objects with parents
 	servicesViper := newSubViper(v, keysServices)
 	servicesDBViper := newSubViper(servicesViper, keysServicesDB)
-	servicesRedisViper := newSubViper(servicesViper, keysServicesRedis)
 
 	// Get chains config
 	chains, err := newChainsConfig(v)
@@ -125,11 +117,6 @@ func NewFromFile(filePath string) (*Config, error) {
 				Driver: servicesDBViper.GetString(keysServicesDBDriver),
 				DSN:    dbdsn,
 				RODSN:  dbrodsn,
-			},
-			Redis: &Redis{
-				Addr:     servicesRedisViper.GetString(keysServicesRedisAddr),
-				Password: servicesRedisViper.GetString(keysServicesRedisPassword),
-				DB:       servicesRedisViper.GetInt(keysServicesRedisDB),
 			},
 		},
 		CchainID:     v.GetString(keysStreamProducerCchainID),

@@ -1,14 +1,10 @@
-package utils
+// (c) 2021, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 
-import (
-	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
-)
+package utils
 
 // ListenCloser listens for messages until it's asked to close
 type ListenCloser interface {
 	Listen() error
 	Close() error
 }
-
-type ListenCloserFactory func(*servicesctrl.Control, cfg.Config, int, int) ListenCloser

@@ -10,17 +10,17 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 type Handler struct {
 	client      *platformvm.Client
-	conns       *servicesconn.Connections
+	conns       *utils.Connections
 	perist      idb.Persist
 	avaxAssetID ids.ID
 	writer      *avax.Writer
@@ -29,7 +29,7 @@ type Handler struct {
 }
 
 func (r *Handler) Start(sc *servicesctrl.Control) error {
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (r *Handler) Close() {
 	close(r.doneCh)
 }
 
-func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
+func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) {
 	sc.Log.Info("start")
 	defer func() {
 		sc.Log.Info("stop")
@@ -79,7 +79,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 }
 
 func (r *Handler) processRewards() error {
-	job := r.conns.QuietStream().NewJob("rewards-handler")
+	job := r.conns.Stream().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx := context.Background()
@@ -149,7 +149,7 @@ func (r *Handler) processRewards() error {
 }
 
 func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time) error {
-	job := r.conns.StreamDBDedup().NewJob("rewards-handler-persist")
+	job := r.conns.Stream().NewJob("rewards-handler-persist")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -167,7 +167,7 @@ func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time)
 			return err
 		}
 
-		cCtx := services.NewConsumerContext(ctx, job, sess, createdAt.Unix(), int64(createdAt.Nanosecond()), r.perist)
+		cCtx := services.NewConsumerContext(ctx, sess, createdAt.Unix(), int64(createdAt.Nanosecond()), r.perist)
 
 		_, _, err = r.writer.ProcessStateOut(
 			cCtx,
@@ -190,7 +190,7 @@ func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time)
 }
 
 func (r *Handler) markRewardProcessed(id string) error {
-	job := r.conns.StreamDBDedup().NewJob("rewards-handler")
+	job := r.conns.Stream().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx := context.Background()

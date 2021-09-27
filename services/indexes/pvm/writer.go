@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package pvm
@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
@@ -24,11 +26,11 @@ import (
 	"github.com/ava-labs/avalanchego/vms/proposervm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesconn"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -245,12 +247,12 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(platformBlock)
 }
 
-func (w *Writer) ConsumeConsensus(_ context.Context, _ *servicesconn.Connections, _ services.Consumable, _ idb.Persist) error {
+func (w *Writer) ConsumeConsensus(_ context.Context, _ *utils.Connections, _ services.Consumable, _ idb.Persist) error {
 	return nil
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, persist idb.Persist) error {
-	job := conns.StreamDBDedup().NewJob("pvm-index")
+func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, c services.Consumable, persist idb.Persist) error {
+	job := conns.Stream().NewJob("pvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -260,15 +262,15 @@ func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body())
+	err = w.indexBlock(services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body())
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections, persist idb.Persist) error {
-	job := conns.QuietStream().NewJob("bootstrap")
+func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist idb.Persist) error {
+	job := conns.Stream().NewJob("bootstrap")
 
 	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
 	if err != nil {
@@ -287,7 +289,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *servicesconn.Connections,
 	var (
 		db   = conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
-		cCtx = services.NewConsumerContext(ctx, job, db, int64(platformGenesis.Timestamp), 0, persist)
+		cCtx = services.NewConsumerContext(ctx, db, int64(platformGenesis.Timestamp), 0, persist)
 	)
 
 	for idx, utxo := range platformGenesis.UTXOs {
@@ -350,14 +352,14 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte)
 	if err == nil {
 		ver, err = w.codec.Unmarshal(proposerBlock.Block(), &pblock)
 		if err != nil {
-			return ctx.Job().EventErr("index_block.unmarshal_block", err)
+			return stacktrace.Propagate(err, "proposer bytes")
 		}
 		blockBytes = append([]byte{}, proposerBlock.Block()...)
 	} else {
 		proposerBlock = nil
 		ver, err = w.codec.Unmarshal(blockBytes, &pblock)
 		if err != nil {
-			return ctx.Job().EventErr("index_block.unmarshal_block", err)
+			return stacktrace.Propagate(err, "block bytes")
 		}
 	}
 
@@ -424,7 +426,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte)
 	case *platformvm.CommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
-		return ctx.Job().EventErr("index_block", ErrUnknownBlockType)
+		return fmt.Errorf("unknown type %s", reflect.TypeOf(pblock))
 	}
 
 	return errs.Err

@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package main
@@ -17,16 +17,18 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/api"
+	"github.com/ava-labs/ortelius/balance"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/replay"
 	oreliusRpc "github.com/ava-labs/ortelius/rpc"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/rewards"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
 	"github.com/ava-labs/ortelius/utils"
+	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/rpc/v2"
 	"github.com/gorilla/rpc/v2/json2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -86,6 +88,11 @@ func execute() error {
 					log.Fatalln("Failed to create log", c.Logging.Directory, ":", err.Error())
 				}
 
+				mysqllogger := &MysqlLogger{
+					Log: alog,
+				}
+				_ = mysql.SetLogger(mysqllogger)
+
 				models.SetBech32HRP(c.NetworkID)
 
 				serviceControl.Log = alog
@@ -94,6 +101,8 @@ func execute() error {
 				serviceControl.Chains = c.Chains
 				serviceControl.Persist = idb.NewPersist()
 				serviceControl.Features = c.Features
+				persist := idb.NewPersist()
+				serviceControl.BalanceManager = balance.NewManager(persist, serviceControl)
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {
 					log.Fatalln("Failed to create service control", ":", err.Error())
@@ -312,13 +321,14 @@ func runStreamProcessorManagers(
 	return func(_ *cobra.Command, _ []string) {
 		wg := &sync.WaitGroup{}
 
-		err := sc.BalanceManager.Start(sc.IsAccumulateBalanceIndexer)
+		bm, _ := sc.BalanceManager.(*balance.Manager)
+		err := bm.Start(sc.IsAccumulateBalanceIndexer)
 		if err != nil {
 			*runError = err
 			return
 		}
 		defer func() {
-			sc.BalanceManager.Close()
+			bm.Close()
 		}()
 
 		rh := &rewards.Handler{}
@@ -337,7 +347,7 @@ func runStreamProcessorManagers(
 			return
 		}
 
-		sc.BalanceManager.Run()
+		sc.BalanceManager.Exec()
 
 		runningControl := utils.NewRunning()
 
@@ -372,4 +382,13 @@ func runStreamProcessorManagers(
 
 		wg.Wait()
 	}
+}
+
+type MysqlLogger struct {
+	Log logging.Logger
+}
+
+func (m *MysqlLogger) Print(v ...interface{}) {
+	s := fmt.Sprint(v...)
+	m.Log.Warn("mysql %s", s)
 }

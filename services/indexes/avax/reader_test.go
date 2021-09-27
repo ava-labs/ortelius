@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -10,11 +10,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 )
 
 func TestCollectInsAndOuts(t *testing.T) {
@@ -191,7 +191,7 @@ func newTestIndex(t *testing.T) (*Reader, func()) {
 	}
 
 	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}

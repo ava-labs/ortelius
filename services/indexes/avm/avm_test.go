@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avm
@@ -17,13 +17,13 @@ import (
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 var (
@@ -125,7 +125,7 @@ func TestIndexBootstrap(t *testing.T) {
 	}
 }
 
-func newTestIndex(t *testing.T, chainID ids.ID) (*servicesconn.Connections, *Writer, *avax.Reader, func()) {
+func newTestIndex(t *testing.T, chainID ids.ID) (*utils.Connections, *Writer, *avax.Reader, func()) {
 	networkID := uint32(5)
 
 	logConf, err := logging.DefaultConfig()
@@ -142,7 +142,7 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*servicesconn.Connections, *Wri
 	}
 
 	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
@@ -200,8 +200,7 @@ func TestInsertTxInternal(t *testing.T) {
 
 	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -255,8 +254,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 
 	persist := idb.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
-	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
