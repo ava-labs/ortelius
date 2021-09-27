@@ -54,10 +54,7 @@ func (w *worker) worker(wn int) {
 }
 
 func (w *worker) Enque(job interface{}) {
-	select {
-	case w.jobCh <- job:
-	default:
-	}
+	w.jobCh <- job
 }
 
 func (w *worker) Finish(sleepTime time.Duration) {
