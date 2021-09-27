@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
@@ -26,7 +26,7 @@ type ProcessorFactoryChainDB func(*servicesctrl.Control, cfg.Config, string, str
 type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB, error)
 
 type ProcessorDB interface {
-	Process(*utils.Connections, *idb.TxPool) error
+	Process(*utils.Connections, *db.TxPool) error
 	Close() error
 	ID() string
 	Topic() []string
@@ -35,8 +35,8 @@ type ProcessorDB interface {
 func UpdateTxPool(
 	ctxTimeout time.Duration,
 	conns *utils.Connections,
-	persist idb.Persist,
-	txPool *idb.TxPool,
+	persist db.Persist,
+	txPool *db.TxPool,
 	sc *servicesctrl.Control,
 ) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-tx-pool"))

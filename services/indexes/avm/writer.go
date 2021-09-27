@@ -24,7 +24,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -131,7 +131,7 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 	return json.Marshal(tx)
 }
 
-func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist idb.Persist) error {
+func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist db.Persist) error {
 	var (
 		err                  error
 		platformGenesisBytes []byte
@@ -183,7 +183,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 	return nil
 }
 
-func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections, c services.Consumable, persist idb.Persist) error {
+func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections, c services.Consumable, persist db.Persist) error {
 	var (
 		job  = conns.Stream().NewJob("index-consensus")
 		sess = conns.DB().NewSessionForEventReceiver(job)
@@ -221,7 +221,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections,
 			return err
 		}
 
-		transactionsEpoch := &idb.TransactionsEpoch{
+		transactionsEpoch := &db.TransactionsEpoch{
 			ID:        txID.String(),
 			Epoch:     vert.Epoch(),
 			VertexID:  vert.ID().String(),
@@ -235,7 +235,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections,
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, i services.Consumable, persist idb.Persist) error {
+func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, i services.Consumable, persist db.Persist) error {
 	var (
 		err  error
 		job  = conns.Stream().NewJob("avm-index")
@@ -433,7 +433,7 @@ func (w *Writer) insertCreateAssetTx(ctx services.ConsumerCtx, txBytes []byte, t
 		}
 	}
 
-	asset := &idb.Assets{
+	asset := &db.Assets{
 		ID:            tx.ID().String(),
 		ChainID:       w.chainID,
 		Name:          tx.Name,

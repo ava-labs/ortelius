@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -73,7 +73,7 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		return nil, err
 	}
 
-	var dataList []*idb.CvmTransactionsTxdata
+	var dataList []*db.CvmTransactionsTxdata
 
 	sq := dbRunner.Select(
 		"hash",
@@ -83,12 +83,12 @@ func (r *Reader) ListCTransactions(ctx context.Context, p *params.ListCTransacti
 		"nonce",
 		"serialization",
 		"created_at",
-	).From(idb.TableCvmTransactionsTxdata)
+	).From(db.TableCvmTransactionsTxdata)
 
 	r.listCTransFilter(p, dbRunner, sq)
 	if len(p.Hashes) > 0 {
 		sq.
-			Where(idb.TableCvmTransactionsTxdata+".hash in ?", p.Hashes)
+			Where(db.TableCvmTransactionsTxdata+".hash in ?", p.Hashes)
 	}
 
 	_, err = p.Apply(sq).
@@ -176,13 +176,13 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 		if p.BlockStart == nil && p.BlockEnd == nil {
 			return b
 		}
-		b.Join(idb.TableCvmTransactionsTxdata,
-			idb.TableCvmTransactionsTxdataTrace+".hash = "+idb.TableCvmTransactionsTxdata+".hash")
+		b.Join(db.TableCvmTransactionsTxdata,
+			db.TableCvmTransactionsTxdataTrace+".hash = "+db.TableCvmTransactionsTxdata+".hash")
 		if p.BlockStart != nil {
-			b.Where(idb.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
+			b.Where(db.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
 		}
 		if p.BlockEnd != nil {
-			b.Where(idb.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
+			b.Where(db.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
 		}
 		return b
 	}
@@ -192,18 +192,18 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 			return b
 		}
 		if p.BlockStart != nil {
-			b.Where(idb.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
+			b.Where(db.TableCvmTransactionsTxdata + ".block >= " + p.BlockStart.String())
 		}
 		if p.BlockEnd != nil {
-			b.Where(idb.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
+			b.Where(db.TableCvmTransactionsTxdata + ".block < " + p.BlockEnd.String())
 		}
 		return b
 	}
 
 	if len(p.CAddressesTo) > 0 {
-		subq := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
-			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
-				Where(idb.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddressesTo)),
+		subq := createdatefilter(db.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(db.TableCvmTransactionsTxdataTrace+".hash").From(db.TableCvmTransactionsTxdataTrace).
+				Where(db.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddressesTo)),
 		)
 		sq.
 			Where("hash in ?",
@@ -212,9 +212,9 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddressesFrom) > 0 {
-		subq := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
-			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
-				Where(idb.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddressesFrom)),
+		subq := createdatefilter(db.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(db.TableCvmTransactionsTxdataTrace+".hash").From(db.TableCvmTransactionsTxdataTrace).
+				Where(db.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddressesFrom)),
 		)
 		sq.
 			Where("hash in ?",
@@ -223,16 +223,16 @@ func (r *Reader) listCTransFilter(p *params.ListCTransactionsParams, dbRunner *d
 	}
 
 	if len(p.CAddresses) > 0 {
-		subqto := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
-			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
-				Where(idb.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddresses)),
+		subqto := createdatefilter(db.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(db.TableCvmTransactionsTxdataTrace+".hash").From(db.TableCvmTransactionsTxdataTrace).
+				Where(db.TableCvmTransactionsTxdataTrace+".to_addr in ?", p.CAddresses)),
 		)
-		subqfrom := createdatefilter(idb.TableCvmTransactionsTxdataTrace,
-			blockfilter(dbRunner.Select(idb.TableCvmTransactionsTxdataTrace+".hash").From(idb.TableCvmTransactionsTxdataTrace).
-				Where(idb.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddresses)),
+		subqfrom := createdatefilter(db.TableCvmTransactionsTxdataTrace,
+			blockfilter(dbRunner.Select(db.TableCvmTransactionsTxdataTrace+".hash").From(db.TableCvmTransactionsTxdataTrace).
+				Where(db.TableCvmTransactionsTxdataTrace+".from_addr in ?", p.CAddresses)),
 		)
-		subqrcpt := createdatefilter(idb.TableCvmTransactionsTxdata,
-			blockrcptfilter(dbRunner.Select(idb.TableCvmTransactionsTxdata+".hash").From(idb.TableCvmTransactionsTxdata).
+		subqrcpt := createdatefilter(db.TableCvmTransactionsTxdata,
+			blockrcptfilter(dbRunner.Select(db.TableCvmTransactionsTxdata+".hash").From(db.TableCvmTransactionsTxdata).
 				Where("rcpt in ?", p.CAddresses)),
 		)
 		sq.
@@ -249,7 +249,7 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 		return nil
 	}
 	var err error
-	var txTransactionTraceServices []*idb.CvmTransactionsTxdataTrace
+	var txTransactionTraceServices []*db.CvmTransactionsTxdataTrace
 	_, err = dbRunner.Select(
 		"hash",
 		"idx",
@@ -259,7 +259,7 @@ func (r *Reader) handleDressTraces(ctx context.Context, dbRunner *dbr.Session, h
 		"type",
 		"serialization",
 		"created_at",
-	).From(idb.TableCvmTransactionsTxdataTrace).
+	).From(db.TableCvmTransactionsTxdataTrace).
 		Where("hash in ?", hashes).
 		LoadContext(ctx, &txTransactionTraceServices)
 	if err != nil {
@@ -333,11 +333,11 @@ func (r *Reader) fetchAndDecodeCBlocks(ctx context.Context, dbRunner *dbr.Sessio
 	cblocksMap := make(map[string]*modelsc.Block)
 
 	if len(blocks) > 0 {
-		var cvmTxs []*idb.CvmTransactions
+		var cvmTxs []*db.CvmTransactions
 		_, err = dbRunner.Select(
 			"cast(block as char) as block",
 			"serialization",
-		).From(idb.TableCvmTransactions).
+		).From(db.TableCvmTransactions).
 			Where("block in ("+strings.Join(blocks, ",")+")").
 			LoadContext(ctx, &cvmTxs)
 		if err != nil {

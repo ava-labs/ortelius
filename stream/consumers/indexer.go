@@ -12,7 +12,7 @@ import (
 
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
@@ -69,7 +69,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 		_ = conns.Close()
 	}()
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 	ctx := context.Background()
 	job := conns.Stream().NewJob("bootstrap-key-value")
 	sess := conns.DB().NewSessionForEventReceiver(job)
@@ -77,7 +77,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 	bootstrapValue := "true"
 
 	// check if we have bootstrapped..
-	keyValueStore := &idb.KeyValueStore{
+	keyValueStore := &db.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 	}
 	keyValueStore, _ = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
@@ -115,7 +115,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 	}
 
 	// write a complete row.
-	keyValueStore = &idb.KeyValueStore{
+	keyValueStore = &db.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 		V: bootstrapValue,
 	}
@@ -128,7 +128,7 @@ type IndexerFactoryControl struct {
 	doneCh chan struct{}
 }
 
-func (c *IndexerFactoryControl) updateTxPollStatus(conns *utils.Connections, txPoll *idb.TxPool) error {
+func (c *IndexerFactoryControl) updateTxPollStatus(conns *utils.Connections, txPoll *db.TxPool) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-txpoll-status"))
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
@@ -260,7 +260,7 @@ func IndexerFactories(
 					"processed",
 					"topic",
 					"created_at",
-				).From(idb.TableTxPool).
+				).From(db.TableTxPool).
 					Where("processed=? and topic in ?", 0, topicNames).
 					OrderAsc("processed").OrderAsc("created_at").
 					IterateContext(ctx)
@@ -291,7 +291,7 @@ func IndexerFactories(
 						break
 					}
 
-					txp := &idb.TxPool{}
+					txp := &db.TxPool{}
 					err = iterator.Scan(txp)
 					if err != nil {
 						sc.Log.Error("scan %v", err)

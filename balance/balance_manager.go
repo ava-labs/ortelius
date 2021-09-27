@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
@@ -44,7 +44,7 @@ func newManagerChannels() *managerChannels {
 type Manager struct {
 	handler *Handler
 	sc      *servicesctrl.Control
-	persist idb.Persist
+	persist db.Persist
 
 	managerChannelsList []*managerChannels
 
@@ -52,7 +52,7 @@ type Manager struct {
 	enabled bool
 }
 
-func NewManager(persist idb.Persist, sc *servicesctrl.Control) *Manager {
+func NewManager(persist db.Persist, sc *servicesctrl.Control) *Manager {
 	return &Manager{
 		handler: &Handler{},
 		sc:      sc,
@@ -237,9 +237,9 @@ func outTable(typ processType) string {
 	tbl := ""
 	switch typ {
 	case processTypeOut:
-		tbl = idb.TableOutputAddressAccumulateOut
+		tbl = db.TableOutputAddressAccumulateOut
 	case processTypeIn:
-		tbl = idb.TableOutputAddressAccumulateIn
+		tbl = db.TableOutputAddressAccumulateIn
 	}
 	return tbl
 }
@@ -248,18 +248,18 @@ func balanceTable(typ processType) string {
 	tbl := ""
 	switch typ {
 	case processTypeOut:
-		tbl = idb.TableAccumulateBalancesReceived
+		tbl = db.TableAccumulateBalancesReceived
 	case processTypeIn:
-		tbl = idb.TableAccumulateBalancesSent
+		tbl = db.TableAccumulateBalancesSent
 	}
 	return tbl
 }
 
-func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*idb.OutputAddressAccumulate, error) {
+func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, session *dbr.Session) ([]*db.OutputAddressAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
-	var rowdata []*idb.OutputAddressAccumulate
+	var rowdata []*db.OutputAddressAccumulate
 	var err error
 
 	tbl := outTable(typ)
@@ -318,12 +318,12 @@ func (a *Handler) processOutputsPre(outputProcessed bool, typ processType, sessi
 	return rowdata, nil
 }
 
-func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *utils.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *utils.Connections, persist db.Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*idb.OutputAddressAccumulate
+	var rowdataAvail []*db.OutputAddressAccumulate
 	rowdataAvail, err = a.processOutputsPre(outputProcessed, typ, session)
 	if err != nil {
 		return 0, err
@@ -334,7 +334,7 @@ func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *u
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*idb.OutputAddressAccumulate)
+		trows := make(map[string]*db.OutputAddressAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -343,7 +343,7 @@ func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *u
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*idb.OutputAddressAccumulate)
+				trows = make(map[string]*db.OutputAddressAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -360,11 +360,11 @@ func (a *Handler) processOutputs(outputProcessed bool, typ processType, conns *u
 }
 
 func (a *Handler) processOutputsPost(
-	workRows map[string]*idb.OutputAddressAccumulate,
+	workRows map[string]*db.OutputAddressAccumulate,
 	workRowsID []string,
 	typ processType,
 	session *dbr.Session,
-	persist idb.Persist,
+	persist db.Persist,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -379,7 +379,7 @@ func (a *Handler) processOutputsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*idb.OutputAddressAccumulate
+	var rowdata []*db.OutputAddressAccumulate
 
 	_, err = dbTx.Select(
 		"id",
@@ -410,8 +410,8 @@ func (a *Handler) processOutputsBase(
 	ctx context.Context,
 	typ processType,
 	dbTx *dbr.Tx,
-	persist idb.Persist,
-	row *idb.OutputAddressAccumulate,
+	persist db.Persist,
+	row *db.OutputAddressAccumulate,
 ) error {
 	var err error
 
@@ -426,7 +426,7 @@ func (a *Handler) processOutputsBase(
 		return err
 	}
 
-	var balances []*idb.AccumulateBalancesAmount
+	var balances []*db.AccumulateBalancesAmount
 
 	_, err = dbTx.Select(
 		"avm_outputs.chain_id",
@@ -448,7 +448,7 @@ func (a *Handler) processOutputsBase(
 
 	for _, b := range balances {
 		// add any missing txs rows.
-		outputsTxsAccumulate := &idb.OutputTxsAccumulate{
+		outputsTxsAccumulate := &db.OutputTxsAccumulate{
 			ChainID:       b.ChainID,
 			AssetID:       b.AssetID,
 			Address:       b.Address,
@@ -480,7 +480,7 @@ func (a *Handler) processOutputsBase(
 			return err
 		}
 
-		var balancesLocked []*idb.AccumulateBalancesAmount
+		var balancesLocked []*db.AccumulateBalancesAmount
 
 		_, err = dbTx.Select("id").
 			From(balancetbl).
@@ -515,12 +515,12 @@ func (a *Handler) processOutputsBase(
 	return nil
 }
 
-func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxsAccumulate, error) {
+func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*db.OutputTxsAccumulate, error) {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
 
 	var err error
-	var rowdata []*idb.OutputTxsAccumulate
+	var rowdata []*db.OutputTxsAccumulate
 
 	b := session.Select(
 		"id",
@@ -530,7 +530,7 @@ func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxs
 		"transaction_id",
 		"processed",
 	).
-		From(idb.TableOutputTxsAccumulate)
+		From(db.TableOutputTxsAccumulate)
 
 	_, err = b.
 		Where("processed = ?", 0).
@@ -547,12 +547,12 @@ func (a *Handler) processTransactionsPre(session *dbr.Session) ([]*idb.OutputTxs
 	return rowdata, nil
 }
 
-func (a *Handler) processTransactions(conns *utils.Connections, persist idb.Persist) (uint64, error) {
+func (a *Handler) processTransactions(conns *utils.Connections, persist db.Persist) (uint64, error) {
 	job := conns.Stream().NewJob("accumulate-poll")
 	session := conns.DB().NewSessionForEventReceiver(job)
 
 	var err error
-	var rowdataAvail []*idb.OutputTxsAccumulate
+	var rowdataAvail []*db.OutputTxsAccumulate
 	rowdataAvail, err = a.processTransactionsPre(session)
 	if err != nil {
 		return 0, err
@@ -563,7 +563,7 @@ func (a *Handler) processTransactions(conns *utils.Connections, persist idb.Pers
 
 	if len(rowdataAvail) > 0 {
 		trowsID := make([]string, 0, LockSize)
-		trows := make(map[string]*idb.OutputTxsAccumulate)
+		trows := make(map[string]*db.OutputTxsAccumulate)
 		for _, row := range rowdataAvail {
 			trows[row.ID] = row
 			trowsID = append(trowsID, row.ID)
@@ -572,7 +572,7 @@ func (a *Handler) processTransactions(conns *utils.Connections, persist idb.Pers
 				if err != nil {
 					return 0, err
 				}
-				trows = make(map[string]*idb.OutputTxsAccumulate)
+				trows = make(map[string]*db.OutputTxsAccumulate)
 				trowsID = make([]string, 0, LockSize)
 			}
 		}
@@ -589,10 +589,10 @@ func (a *Handler) processTransactions(conns *utils.Connections, persist idb.Pers
 }
 
 func (a *Handler) processTransactionsPost(
-	workRows map[string]*idb.OutputTxsAccumulate,
+	workRows map[string]*db.OutputTxsAccumulate,
 	workRowsID []string,
 	session *dbr.Session,
-	persist idb.Persist,
+	persist db.Persist,
 ) error {
 	ctx, cancelCTX := context.WithTimeout(context.Background(), updTimeout)
 	defer cancelCTX()
@@ -605,12 +605,12 @@ func (a *Handler) processTransactionsPost(
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	var rowdata []*idb.OutputTxsAccumulate
+	var rowdata []*db.OutputTxsAccumulate
 
 	_, err = dbTx.Select(
 		"id",
 	).
-		From(idb.TableOutputTxsAccumulate).
+		From(db.TableOutputTxsAccumulate).
 		Where("processed = ? and id in ?", 0, workRowsID).
 		Suffix("for update").
 		LoadContext(ctx, &rowdata)
@@ -635,12 +635,12 @@ func (a *Handler) processTransactionsPost(
 func (a *Handler) processTransactionsBase(
 	ctx context.Context,
 	dbTx *dbr.Tx,
-	persist idb.Persist,
-	row *idb.OutputTxsAccumulate,
+	persist db.Persist,
+	row *db.OutputTxsAccumulate,
 ) error {
 	var err error
 
-	_, err = dbTx.Update(idb.TableOutputTxsAccumulate).
+	_, err = dbTx.Update(db.TableOutputTxsAccumulate).
 		Set("processed", 1).
 		Where("id = ?", row.ID).
 		ExecContext(ctx)
@@ -648,7 +648,7 @@ func (a *Handler) processTransactionsBase(
 		return err
 	}
 
-	b := &idb.AccumulateBalancesTransactions{
+	b := &db.AccumulateBalancesTransactions{
 		ChainID:   row.ChainID,
 		AssetID:   row.AssetID,
 		Address:   row.Address,
@@ -663,9 +663,9 @@ func (a *Handler) processTransactionsBase(
 		return err
 	}
 
-	var balancesLocked []*idb.AccumulateBalancesTransactions
+	var balancesLocked []*db.AccumulateBalancesTransactions
 	_, err = dbTx.Select("id").
-		From(idb.TableAccumulateBalancesTransactions).
+		From(db.TableAccumulateBalancesTransactions).
 		Where("id = ?", b.ID).
 		Suffix("for update").
 		LoadContext(ctx, &balancesLocked)
@@ -682,7 +682,7 @@ func (a *Handler) processTransactionsBase(
 		return fmt.Errorf("balancesLocked failed")
 	}
 
-	_, err = dbTx.UpdateBySql("update "+idb.TableAccumulateBalancesTransactions+" "+
+	_, err = dbTx.UpdateBySql("update "+db.TableAccumulateBalancesTransactions+" "+
 		"set "+
 		"transaction_count = transaction_count+1, "+
 		"updated_at = ? "+

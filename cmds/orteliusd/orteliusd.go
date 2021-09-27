@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/ortelius/api"
 	"github.com/ava-labs/ortelius/balance"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/replay"
 	oreliusRpc "github.com/ava-labs/ortelius/rpc"
@@ -99,9 +99,9 @@ func execute() error {
 				serviceControl.Services = c.Services
 				serviceControl.ServicesCfg = *c
 				serviceControl.Chains = c.Chains
-				serviceControl.Persist = idb.NewPersist()
+				serviceControl.Persist = db.NewPersist()
 				serviceControl.Features = c.Features
-				persist := idb.NewPersist()
+				persist := db.NewPersist()
 				serviceControl.BalanceManager = balance.NewManager(persist, serviceControl)
 				err = serviceControl.Init(c.NetworkID)
 				if err != nil {

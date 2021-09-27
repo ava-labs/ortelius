@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/gocraft/dbr/v2"
@@ -336,7 +336,7 @@ type rewardsTypeModel struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-func newPvmProposerModel(pvmProposer idb.PvmProposer) *models.PvmProposerModel {
+func newPvmProposerModel(pvmProposer db.PvmProposer) *models.PvmProposerModel {
 	return &models.PvmProposerModel{
 		ID:           models.StringID(pvmProposer.ID),
 		ParentID:     models.StringID(pvmProposer.ParentID),
@@ -551,7 +551,7 @@ func resolveProposers(ctx context.Context, dbRunner dbr.SessionRunner, properIds
 	if len(properIds) == 0 {
 		return pvmProposerModels, nil
 	}
-	pvmProposers := []idb.PvmProposer{}
+	pvmProposers := []db.PvmProposer{}
 	_, err := dbRunner.Select("id",
 		"parent_id",
 		"blk_id",
@@ -559,7 +559,7 @@ func resolveProposers(ctx context.Context, dbRunner dbr.SessionRunner, properIds
 		"proposer",
 		"time_stamp",
 		"created_at",
-	).From(idb.TablePvmProposer).
+	).From(db.TablePvmProposer).
 		Where("blk_id in ?", properIds).
 		LoadContext(ctx, &pvmProposers)
 	if err != nil {

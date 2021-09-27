@@ -10,7 +10,7 @@ import (
 	_ "github.com/ava-labs/avalanchego/vms/components/core"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -27,7 +27,7 @@ func TestBootstrap(t *testing.T) {
 	conns, w, r, closeFn := newTestIndex(t, 12345, ChainID)
 	defer closeFn()
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 	if err := w.Bootstrap(context.Background(), conns, persist); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestInsertTxInternal(t *testing.T) {
 	validatorTx := &platformvm.UnsignedAddValidatorTx{}
 	tx.UnsignedTx = validatorTx
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
@@ -117,7 +117,7 @@ func TestInsertTxInternalRewards(t *testing.T) {
 	validatorTx := &platformvm.UnsignedRewardValidatorTx{}
 	tx.UnsignedTx = validatorTx
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexTransaction(cCtx, tx.ID(), tx, false)
@@ -146,7 +146,7 @@ func TestCommonBlock(t *testing.T) {
 	tx := platformvm.CommonBlock{}
 	blkid := ids.ID{}
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexCommonBlock(cCtx, blkid, models.BlockTypeCommit, tx, []byte(""))

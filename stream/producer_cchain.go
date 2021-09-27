@@ -18,7 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
@@ -112,7 +112,7 @@ func (p *producerCChainContainer) getBlock() error {
 		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
 		"cast(count(*) as char) as block_count",
 	).
-		From(idb.TableCvmBlocks).
+		From(db.TableCvmBlocks).
 		LoadContext(ctx, &maxBlock)
 	if err != nil {
 		return err
@@ -157,10 +157,10 @@ func (p *producerCChainContainer) catchupBlock(conns *utils.Connections, catchup
 			endBlock.Set(catchupBlock)
 		}
 
-		var cvmBlocks []*idb.CvmBlocks
+		var cvmBlocks []*db.CvmBlocks
 		_, err = sess.Select(
 			"block",
-		).From(idb.TableCvmBlocks).
+		).From(db.TableCvmBlocks).
 			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
 			LoadContext(ctx, &cvmBlocks)
 		if err != nil {
@@ -286,7 +286,7 @@ func (p *ProducerCChain) updateBlock(conns *utils.Connections, blockNumber *big.
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	cvmBlocks := &idb.CvmBlocks{
+	cvmBlocks := &db.CvmBlocks{
 		Block:     blockNumber.String(),
 		CreatedAt: updateTime,
 	}
@@ -478,7 +478,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			return err
 		}
 
-		txPool := &idb.TxPool{
+		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -509,7 +509,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			return err
 		}
 
-		txPool := &idb.TxPool{
+		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -538,7 +538,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		return err
 	}
 
-	txPool := &idb.TxPool{
+	txPool := &db.TxPool{
 		NetworkID:     p.conf.NetworkID,
 		ChainID:       p.conf.CchainID,
 		MsgKey:        id.String(),

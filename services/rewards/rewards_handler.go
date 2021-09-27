@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -21,7 +21,7 @@ import (
 type Handler struct {
 	client      *platformvm.Client
 	conns       *utils.Connections
-	perist      idb.Persist
+	perist      db.Persist
 	avaxAssetID ids.ID
 	writer      *avax.Writer
 	cid         ids.ID
@@ -53,7 +53,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) 
 
 	r.conns = conns
 	r.client = platformvm.NewClient(sc.ServicesCfg.AvalancheGO, 1*time.Minute)
-	r.perist = idb.NewPersist()
+	r.perist = db.NewPersist()
 
 	r.avaxAssetID = sc.GenesisContainer.AvaxAssetID
 
@@ -94,14 +94,14 @@ func (r *Handler) processRewards() error {
 	}
 	var reardsTxs []RewardTx
 	_, err = sess.Select(
-		idb.TableRewards+".id",
-		idb.TableRewards+".txid",
-		idb.TablePvmBlocks+".type",
-		idb.TableRewards+".created_at",
+		db.TableRewards+".id",
+		db.TableRewards+".txid",
+		db.TablePvmBlocks+".type",
+		db.TableRewards+".created_at",
 	).
-		From(idb.TableRewards).
-		Join(idb.TablePvmBlocks, idb.TableRewards+".block_id = "+idb.TablePvmBlocks+".parent_id").
-		Where(idb.TableRewards+".processed = ? and "+idb.TableRewards+".created_at < ?", 0, time.Now().Add(-3*time.Second)).
+		From(db.TableRewards).
+		Join(db.TablePvmBlocks, db.TableRewards+".block_id = "+db.TablePvmBlocks+".parent_id").
+		Where(db.TableRewards+".processed = ? and "+db.TableRewards+".created_at < ?", 0, time.Now().Add(-3*time.Second)).
 		LoadContext(ctx, &reardsTxs)
 	if err != nil {
 		return err
@@ -195,7 +195,7 @@ func (r *Handler) markRewardProcessed(id string) error {
 
 	ctx := context.Background()
 
-	reward := &idb.Rewards{
+	reward := &db.Rewards{
 		ID:        id,
 		Processed: 1,
 	}

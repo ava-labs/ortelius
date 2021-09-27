@@ -20,7 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 )
@@ -149,7 +149,7 @@ func (w *Writer) InsertTransactionBase(
 		memo = nil
 	}
 
-	t := &idb.Transactions{
+	t := &db.Transactions{
 		ID:                     txID.String(),
 		ChainID:                chainID,
 		Type:                   txType,
@@ -206,7 +206,7 @@ func (w *Writer) InsertTransactionIns(
 		}
 	}
 
-	outputsRedeeming := &idb.OutputsRedeeming{
+	outputsRedeeming := &db.OutputsRedeeming{
 		ID:                     inputID.String(),
 		RedeemedAt:             ctx.Time(),
 		RedeemingTransactionID: txID.String(),
@@ -274,7 +274,7 @@ func (w *Writer) InsertOutput(
 			return err
 		}
 
-		outputTxsAccumulate := &idb.OutputTxsAccumulate{
+		outputTxsAccumulate := &db.OutputTxsAccumulate{
 			ChainID:       chainID,
 			AssetID:       assetID.String(),
 			Address:       addrid.String(),
@@ -291,7 +291,7 @@ func (w *Writer) InsertOutput(
 		}
 	}
 
-	output := &idb.Outputs{
+	output := &db.Outputs{
 		ID:            outputID.String(),
 		ChainID:       chainID,
 		TransactionID: txID.String(),
@@ -319,7 +319,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 	ctx services.ConsumerCtx,
 	publicKey crypto.PublicKey,
 ) error {
-	addresses := &idb.Addresses{
+	addresses := &db.Addresses{
 		Address:   publicKey.Address().String(),
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
@@ -337,7 +337,7 @@ func (w *Writer) InsertOutputAddress(
 	idx uint32,
 	chainID string,
 ) error {
-	addressChain := &idb.AddressChain{
+	addressChain := &db.AddressChain{
 		Address:   address.String(),
 		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
@@ -353,7 +353,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	addressBech32 := &idb.AddressBech32{
+	addressBech32 := &db.AddressBech32{
 		Address:       address.String(),
 		Bech32Address: bech32Addr,
 		UpdatedAt:     time.Now().UTC(),
@@ -363,7 +363,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	outputAddressAccumulate := &idb.OutputAddressAccumulate{
+	outputAddressAccumulate := &db.OutputAddressAccumulate{
 		OutputID:      outputID.String(),
 		Address:       address.String(),
 		TransactionID: txID.String(),
@@ -383,7 +383,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	outputAddresses := &idb.OutputAddresses{
+	outputAddresses := &db.OutputAddresses{
 		OutputID:           outputID.String(),
 		Address:            address.String(),
 		RedeemingSignature: sig,

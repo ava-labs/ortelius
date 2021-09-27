@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/servicesctrl"
@@ -75,7 +75,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	header := types.Header{}
 	block := &modelsc.Block{Header: header}
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
@@ -108,7 +108,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	header := types.Header{}
 	block := &modelsc.Block{Header: header}
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())

@@ -20,7 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	corethType "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
@@ -989,7 +989,7 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("id", "serialization", "chain_id").
-			From(idb.TablePvmBlocks).
+			From(db.TablePvmBlocks).
 			Where("height="+idInt.String()).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -998,7 +998,7 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	} else {
 		_, err = dbRunner.
 			Select("id", "serialization", "chain_id").
-			From(idb.TablePvmBlocks).
+			From(db.TablePvmBlocks).
 			Where("id=?", p.ID).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1015,10 +1015,10 @@ func (r *Reader) PTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	proposerrows := []Row{}
 
 	_, err = dbRunner.
-		Select(idb.TableTxPool+".serialization").
-		From(idb.TablePvmProposer).
-		Join(idb.TableTxPool, idb.TablePvmProposer+".proposer_blk_id = "+idb.TableTxPool+".msg_key").
-		Where(idb.TablePvmProposer+".blk_id=?", row.ID).
+		Select(db.TableTxPool+".serialization").
+		From(db.TablePvmProposer).
+		Join(db.TableTxPool, db.TablePvmProposer+".proposer_blk_id = "+db.TableTxPool+".msg_key").
+		Where(db.TablePvmProposer+".blk_id=?", row.ID).
 		LoadContext(ctx, &proposerrows)
 	if err != nil {
 		return nil, err
@@ -1181,7 +1181,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 		Select(
 			"serialization",
 		).
-		From(idb.TableCvmLogs).
+		From(db.TableCvmLogs).
 		Where("block="+block.Header.Number.String()).
 		LoadContext(ctx, &rowsLog)
 	if err != nil {
@@ -1220,7 +1220,7 @@ func (r *Reader) ETxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 	if idInt != nil && ok {
 		_, err = dbRunner.
 			Select("serialization").
-			From(idb.TableCvmTransactions).
+			From(db.TableCvmTransactions).
 			Where("block="+idInt.String()).
 			LoadContext(ctx, &rows)
 		if err != nil {
@@ -1251,7 +1251,7 @@ func (r *Reader) RawTransaction(ctx context.Context, id ids.ID) (*models.RawTx, 
 
 	err = dbRunner.
 		Select("serialization").
-		From(idb.TableTxPool).
+		From(db.TableTxPool).
 		Where("msg_key=?", id.String()).
 		LoadOneContext(ctx, &serialData)
 	if err != nil {

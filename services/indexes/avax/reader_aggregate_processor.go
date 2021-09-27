@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/ava-labs/ortelius/utils"
@@ -308,7 +308,7 @@ func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(idb.TableAddressChain).
+		From(db.TableAddressChain).
 		GroupBy("chain_id").
 		LoadContext(ctx, &addressCountl)
 	if err != nil {
@@ -335,7 +335,7 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 		"chain_id",
 		"cast(count(*) as char) as total",
 	).
-		From(idb.TableTransactions).
+		From(db.TableTransactions).
 		GroupBy("chain_id").
 		LoadContext(ctx, &txCountl)
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
@@ -76,7 +76,7 @@ type producerChainContainer struct {
 	runningControl          utils.Running
 	nodeIndexer             *indexer.Client
 	conf                    cfg.Config
-	nodeIndex               *idb.NodeIndex
+	nodeIndex               *db.NodeIndex
 	nodeinstance            string
 	topic                   string
 	chainID                 string
@@ -115,7 +115,7 @@ func newContainer(
 	}
 
 	// init the node index table
-	err = pc.insertNodeIndex(pc.conns, &idb.NodeIndex{Instance: pc.nodeinstance, Topic: pc.topic, Idx: 0})
+	err = pc.insertNodeIndex(pc.conns, &db.NodeIndex{Instance: pc.nodeinstance, Topic: pc.topic, Idx: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (p *producerChainContainer) getIndex() error {
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
 	defer cancelCtx()
 
-	qn := &idb.NodeIndex{Instance: p.nodeinstance, Topic: p.topic}
+	qn := &db.NodeIndex{Instance: p.nodeinstance, Topic: p.topic}
 	nodeIndex, err := p.sc.Persist.QueryNodeIndex(ctx, sess, qn)
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			id = nid
 		}
 
-		txPool := &idb.TxPool{
+		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.chainID,
 			MsgKey:        id.String(),
@@ -214,7 +214,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
 	}
 
-	nodeIdx := &idb.NodeIndex{
+	nodeIdx := &db.NodeIndex{
 		Instance: p.nodeinstance,
 		Topic:    p.topic,
 		Idx:      p.nodeIndex.Idx + uint64(len(containers)),
@@ -234,7 +234,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 	return nil
 }
 
-func (p *producerChainContainer) insertNodeIndex(conns *utils.Connections, nodeIndex *idb.NodeIndex) error {
+func (p *producerChainContainer) insertNodeIndex(conns *utils.Connections, nodeIndex *db.NodeIndex) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
@@ -243,7 +243,7 @@ func (p *producerChainContainer) insertNodeIndex(conns *utils.Connections, nodeI
 	return p.sc.Persist.InsertNodeIndex(ctx, sess, nodeIndex, cfg.PerformUpdates)
 }
 
-func (p *producerChainContainer) updateNodeIndex(conns *utils.Connections, nodeIndex *idb.NodeIndex) error {
+func (p *producerChainContainer) updateNodeIndex(conns *utils.Connections, nodeIndex *db.NodeIndex) error {
 	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-node-index"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)

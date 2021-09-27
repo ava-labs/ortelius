@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
@@ -91,7 +91,7 @@ func (c *consumerDB) Close() error {
 	return nil
 }
 
-func (c *consumerDB) Process(conns *utils.Connections, row *idb.TxPool) error {
+func (c *consumerDB) Process(conns *utils.Connections, row *db.TxPool) error {
 	msg := &Message{
 		id:         row.MsgKey,
 		chainID:    c.chainID,

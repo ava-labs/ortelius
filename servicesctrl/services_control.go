@@ -9,7 +9,7 @@ import (
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/utils"
 )
 
@@ -25,7 +25,7 @@ const (
 )
 
 type LocalTxPoolJob struct {
-	TxPool *idb.TxPool
+	TxPool *db.TxPool
 	Errs   *avlancheGoUtils.AtomicInterface
 }
 
@@ -33,9 +33,9 @@ type Control struct {
 	Services                   cfg.Services
 	ServicesCfg                cfg.Config
 	Chains                     map[string]cfg.Chain `json:"chains"`
-	Log                        logging.Logger
-	Persist                    idb.Persist
-	Features                   map[string]struct{}
+	Log      logging.Logger
+	Persist  db.Persist
+	Features map[string]struct{}
 	BalanceManager             utils.ExecIface
 	GenesisContainer           *utils.GenesisContainer
 	IsAccumulateBalanceIndexer bool
@@ -118,7 +118,7 @@ func (s *Control) DatabaseRO() (*utils.Connections, error) {
 	return c, nil
 }
 
-func (s *Control) Enqueue(pool *idb.TxPool) {
+func (s *Control) Enqueue(pool *db.TxPool) {
 	select {
 	case s.LocalTxPool <- &LocalTxPoolJob{TxPool: pool}:
 	default:

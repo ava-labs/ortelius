@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/ortelius/servicesctrl"
 
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 
 	"github.com/ava-labs/avalanchego/ids"
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
@@ -76,12 +76,12 @@ type dbReplay struct {
 	queueSize   int
 	queueTheads int
 
-	persist idb.Persist
+	persist db.Persist
 }
 
 func (replay *dbReplay) Start() error {
 	cfg.PerformUpdates = true
-	replay.persist = idb.NewPersist()
+	replay.persist = db.NewPersist()
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
@@ -346,7 +346,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -361,10 +361,10 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -424,7 +424,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -439,10 +439,10 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -492,7 +492,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -507,10 +507,10 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -560,7 +560,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -575,10 +575,10 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -628,7 +628,7 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -643,10 +643,10 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {

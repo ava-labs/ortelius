@@ -10,7 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/params"
@@ -47,9 +47,9 @@ func TestCollectInsAndOuts(t *testing.T) {
 
 	inputIDUnmatched := "inu"
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 
-	outputs := &idb.Outputs{
+	outputs := &db.Outputs{
 		ID:            outputID,
 		ChainID:       chainID,
 		TransactionID: txID,
@@ -66,7 +66,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputs(ctx, session, outputs, false)
 
-	outputAddresses := &idb.OutputAddresses{
+	outputAddresses := &db.OutputAddresses{
 		OutputID:  outputID,
 		Address:   address,
 		CreatedAt: tm,
@@ -74,7 +74,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputAddresses(ctx, session, outputAddresses, false)
 
-	outputsRedeeming := &idb.OutputsRedeeming{
+	outputsRedeeming := &db.OutputsRedeeming{
 		ID:                     inputID,
 		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
@@ -86,7 +86,7 @@ func TestCollectInsAndOuts(t *testing.T) {
 	}
 	_ = persist.InsertOutputsRedeeming(ctx, session, outputsRedeeming, false)
 
-	outputsRedeeming = &idb.OutputsRedeeming{
+	outputsRedeeming = &db.OutputsRedeeming{
 		ID:                     inputIDUnmatched,
 		RedeemedAt:             tm,
 		RedeemingTransactionID: txID,
@@ -129,14 +129,14 @@ func TestAggregateTxfee(t *testing.T) {
 
 	ctx := newTestContext()
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 
 	sess, _ := reader.conns.DB().NewSession("test_aggregate_tx_fee", cfg.RequestTimeout)
 	_, _ = sess.DeleteFrom("avm_transactions").ExecContext(ctx)
 
 	tnow := time.Now().UTC().Truncate(1 * time.Second).Add(-1 * time.Hour)
 
-	transaction := &idb.Transactions{
+	transaction := &db.Transactions{
 		ID:        "id1",
 		ChainID:   "cid",
 		Type:      "type",
@@ -145,7 +145,7 @@ func TestAggregateTxfee(t *testing.T) {
 	}
 	_ = persist.InsertTransactions(ctx, sess, transaction, false)
 
-	transaction = &idb.Transactions{
+	transaction = &db.Transactions{
 		ID:        "id2",
 		ChainID:   "cid",
 		Type:      "type",

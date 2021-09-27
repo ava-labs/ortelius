@@ -17,7 +17,7 @@ import (
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/idb"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
@@ -34,7 +34,7 @@ func TestIndexBootstrap(t *testing.T) {
 	conns, writer, reader, closeFn := newTestIndex(t, testXChainID)
 	defer closeFn()
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 	err := writer.Bootstrap(newTestContext(), conns, persist)
 	if err != nil {
 		t.Fatal("Failed to bootstrap index:", err.Error())
@@ -65,7 +65,7 @@ func TestIndexBootstrap(t *testing.T) {
 	// inject a txfee for testing
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 
-	transaction := &idb.Transactions{
+	transaction := &db.Transactions{
 		ID: string(txList.Transactions[0].ID),
 	}
 	transaction, _ = persist.QueryTransactions(context.Background(), session, transaction)
@@ -84,7 +84,7 @@ func TestIndexBootstrap(t *testing.T) {
 
 	sess, _ := conns.DB().NewSession("address_chain", cfg.RequestTimeout)
 
-	addressChain := &idb.AddressChain{
+	addressChain := &db.AddressChain{
 		Address:   addr.String(),
 		ChainID:   "ch1",
 		CreatedAt: time.Now().UTC(),
@@ -198,7 +198,7 @@ func TestInsertTxInternal(t *testing.T) {
 
 	tx.UnsignedTx = baseTx
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
@@ -252,7 +252,7 @@ func TestInsertTxInternalCreateAsset(t *testing.T) {
 
 	tx.UnsignedTx = baseTx
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session, _ := conns.DB().NewSession("test_tx", cfg.RequestTimeout)
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.insertTxInternal(cCtx, tx, tx.Bytes())
@@ -291,12 +291,12 @@ func TestTransactionNext(t *testing.T) {
 
 	_, _ = session.DeleteFrom("avm_transactions").ExecContext(ctx)
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 
 	tnow0 := time.Now().Truncate(time.Second)
 
 	tnow1 := tnow0.Add(time.Second)
-	tx1 := &idb.Transactions{
+	tx1 := &db.Transactions{
 		ID:        "1",
 		ChainID:   "1",
 		CreatedAt: tnow1,
@@ -304,7 +304,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx1, false)
 
 	tnow2 := tnow1.Add(time.Second)
-	tx2 := &idb.Transactions{
+	tx2 := &db.Transactions{
 		ID:        "2",
 		ChainID:   "1",
 		CreatedAt: tnow2,
@@ -312,7 +312,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx2, false)
 
 	tnow3 := tnow2.Add(time.Second)
-	tx3 := &idb.Transactions{
+	tx3 := &db.Transactions{
 		ID:        "3",
 		ChainID:   "1",
 		CreatedAt: tnow3,
@@ -320,7 +320,7 @@ func TestTransactionNext(t *testing.T) {
 	_ = persist.InsertTransactions(ctx, session, tx3, false)
 
 	tnow4 := tnow3.Add(time.Second)
-	tx4 := &idb.Transactions{
+	tx4 := &db.Transactions{
 		ID:        "4",
 		ChainID:   "1",
 		CreatedAt: tnow4,
