@@ -11,8 +11,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/palantir/stacktrace"
-
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -31,6 +29,7 @@ import (
 	"github.com/ava-labs/ortelius/services"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/utils"
+	"github.com/palantir/stacktrace"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -270,8 +269,6 @@ func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, c servic
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist idb.Persist) error {
-	job := conns.Stream().NewJob("bootstrap")
-
 	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
 	if err != nil {
 		return err
@@ -287,6 +284,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 	}
 
 	var (
+		job  = conns.Stream().NewJob("bootstrap")
 		db   = conns.DB().NewSessionForEventReceiver(job)
 		errs = wrappers.Errs{}
 		cCtx = services.NewConsumerContext(ctx, db, int64(platformGenesis.Timestamp), 0, persist)

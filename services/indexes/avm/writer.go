@@ -135,7 +135,6 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 	var (
 		err                  error
 		platformGenesisBytes []byte
-		job                  = conns.Stream().NewJob("bootstrap")
 	)
 
 	defer func() {
@@ -172,6 +171,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 			continue
 		}
 
+		job := conns.Stream().NewJob("bootstrap")
 		dbSess := conns.DB().NewSessionForEventReceiver(job)
 		cCtx := services.NewConsumerContext(ctx, dbSess, int64(platformGenesis.Timestamp), 0, persist)
 		err = w.insertGenesis(cCtx, createChainTx.GenesisData)
