@@ -53,7 +53,7 @@ services:
       - migrate
     volumes:
       - avalanche-ipcs:/tmp
-      - ./../config.json:/opt/config.json
+      - ./config.test.json:/opt/config.json
     restart: on-failure
   api:
     <<: *ortelius-app
