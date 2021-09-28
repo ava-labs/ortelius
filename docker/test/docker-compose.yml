@@ -27,7 +27,7 @@ services:
     restart: on-failure
   avalanche:
     env_file:
-      - production.env
+      - test.env
     image: "avaplatform/avalanchego:v1.6.0"
     command: /bin/sh -cx "exec /avalanchego/build/avalanchego
       --config-file=/opt/config.json
