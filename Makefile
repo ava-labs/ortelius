@@ -56,6 +56,18 @@ production_rm: ## Remove production mode
 production_logs: ## Logs for production mode
 	@docker-compose -f docker/production/docker-compose.yml logs -f
 
+test_start: ## Start test mode
+	@docker-compose -f docker/test/docker-compose.yml up -d --remove-orphans
+
+test_stop: ## Stop test mode
+	@docker-compose -f docker/test/docker-compose.yml stop
+
+test_rm: ## Remove test mode
+	@docker-compose -f docker/test/docker-compose.yml down
+
+test_logs: ## Logs for test mode
+	@docker-compose -f docker/test/docker-compose.yml logs -f
+
 ##
 ## Testing
 ##

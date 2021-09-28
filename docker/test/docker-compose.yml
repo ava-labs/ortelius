@@ -1,0 +1,62 @@
+version: '3.5'
+volumes:
+  avalanche-ipcs:
+services:
+  mysql:
+    image: "mysql:8.0.26"
+    volumes:
+      - /var/lib/ortelius/mysql:/var/lib/mysql
+      - ./../my.cnf:/etc/mysql/my.cnf
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: ortelius
+    restart: on-failure
+  migrate:
+    image: "migrate/migrate:v4.14.1"
+    volumes:
+      - ../../services/db/migrations:/migrations
+    depends_on:
+      - mysql
+    entrypoint: ["/bin/sh"]
+    command: |
+      -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up; do
+        sleep 1
+      done'
+    restart: on-failure
+  avalanche:
+    env_file:
+      - production.env
+    image: "avaplatform/avalanchego:v1.6.0"
+    command: /bin/sh -cx "exec /avalanchego/build/avalanchego
+      --config-file=/opt/config.json
+      --network-id=$${NETWORKID}
+      "
+    ports:
+      - "9650:9650"
+    volumes:
+      - /var/lib/ortelius/avalanche:/var/lib/avalanche
+      - ./../avalanchego_config.json:/opt/config.json
+      - ./../avalanchego_chain_config:/opt/avalanchego
+      - avalanche-ipcs:/tmp
+    depends_on:
+      - indexer
+    restart: always
+  indexer: &ortelius-app
+    image: "avaplatform/ortelius:v1.6.0"
+    command: ["stream", "indexer", "-c", "/opt/config.json"]
+    external_links:
+      - mysql
+    depends_on:
+      - mysql
+      - migrate
+    volumes:
+      - avalanche-ipcs:/tmp
+      - ./../config.json:/opt/config.json
+    restart: on-failure
+  api:
+    <<: *ortelius-app
+    command: ["api", "-c", "/opt/config.json"]
+    ports:
+      - 8080:8080
