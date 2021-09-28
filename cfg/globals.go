@@ -15,7 +15,7 @@ const (
 
 	RequestGetMaxSize = int64(10 * 1024 * 1024)
 
-	MaxSizedList  = 50000
+	MaxSizedList  = 20000
 	MaxTxPoolSize = 10000
 )
 
