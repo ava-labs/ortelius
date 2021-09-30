@@ -19,9 +19,6 @@
     }
   },
   "services": {
-    "redis": {
-      "addr": "redis:6379"
-    },
     "db": {
       "dsn": "root:password@tcp(mysql:3306)/ortelius",
       "driver": "mysql"

@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package avax
@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/palantir/stacktrace"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -18,9 +20,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/indexes/models"
 )
 
 var (
@@ -147,7 +149,7 @@ func (w *Writer) InsertTransactionBase(
 		memo = nil
 	}
 
-	t := &idb.Transactions{
+	t := &db.Transactions{
 		ID:                     txID.String(),
 		ChainID:                chainID,
 		Type:                   txType,
@@ -204,7 +206,7 @@ func (w *Writer) InsertTransactionIns(
 		}
 	}
 
-	outputsRedeeming := &idb.OutputsRedeeming{
+	outputsRedeeming := &db.OutputsRedeeming{
 		ID:                     inputID.String(),
 		RedeemedAt:             ctx.Time(),
 		RedeemingTransactionID: txID.String(),
@@ -272,7 +274,7 @@ func (w *Writer) InsertOutput(
 			return err
 		}
 
-		outputTxsAccumulate := &idb.OutputTxsAccumulate{
+		outputTxsAccumulate := &db.OutputTxsAccumulate{
 			ChainID:       chainID,
 			AssetID:       assetID.String(),
 			Address:       addrid.String(),
@@ -289,7 +291,7 @@ func (w *Writer) InsertOutput(
 		}
 	}
 
-	output := &idb.Outputs{
+	output := &db.Outputs{
 		ID:            outputID.String(),
 		ChainID:       chainID,
 		TransactionID: txID.String(),
@@ -317,7 +319,7 @@ func (w *Writer) InsertAddressFromPublicKey(
 	ctx services.ConsumerCtx,
 	publicKey crypto.PublicKey,
 ) error {
-	addresses := &idb.Addresses{
+	addresses := &db.Addresses{
 		Address:   publicKey.Address().String(),
 		PublicKey: publicKey.Bytes(),
 		CreatedAt: ctx.Time(),
@@ -335,7 +337,7 @@ func (w *Writer) InsertOutputAddress(
 	idx uint32,
 	chainID string,
 ) error {
-	addressChain := &idb.AddressChain{
+	addressChain := &db.AddressChain{
 		Address:   address.String(),
 		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
@@ -351,7 +353,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	addressBech32 := &idb.AddressBech32{
+	addressBech32 := &db.AddressBech32{
 		Address:       address.String(),
 		Bech32Address: bech32Addr,
 		UpdatedAt:     time.Now().UTC(),
@@ -361,7 +363,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	outputAddressAccumulate := &idb.OutputAddressAccumulate{
+	outputAddressAccumulate := &db.OutputAddressAccumulate{
 		OutputID:      outputID.String(),
 		Address:       address.String(),
 		TransactionID: txID.String(),
@@ -381,7 +383,7 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	outputAddresses := &idb.OutputAddresses{
+	outputAddresses := &db.OutputAddresses{
 		OutputID:           outputID.String(),
 		Address:            address.String(),
 		RedeemingSignature: sig,
@@ -538,10 +540,10 @@ func (w *Writer) ProcessStateOut(
 		}
 		amount, err = math.Add64(amount, typedOut.Amount())
 		if err != nil {
-			return 0, 0, ctx.Job().EventErr("add_to_amount", err)
+			return 0, 0, stacktrace.Propagate(err, "add %v to %v", typedOut.Amount(), amount)
 		}
 	default:
-		return 0, 0, ctx.Job().EventErr("assertion_to_output", fmt.Errorf("unknown type %s", reflect.TypeOf(out)))
+		return 0, 0, fmt.Errorf("unknown type %s", reflect.TypeOf(out))
 	}
 
 	return amount, totalout, nil

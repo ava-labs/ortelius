@@ -1,0 +1,14 @@
+{
+  "eth-api-enabled": true,
+  "rpc-gas-cap": 2500000000,
+  "net-api-enabled": true,
+  "api-max-blocks-per-request": 0,
+  "web3-api-enabled": true,
+  "rpc-tx-fee-cap": 100,
+  "log-level": "info",
+  "pruning-enabled": false,
+  "debug-api-enabled": true,
+  "tx-pool-api-enabled": true,
+  "api-max-duration": 0,
+  "personal-api-enabled": false
+}

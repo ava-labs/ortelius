@@ -1,3 +1,6 @@
+// (c) 2021, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package utils
 
 import (
@@ -11,8 +14,7 @@ type Job struct {
 }
 
 func NewJob(val int) *Job {
-	j := Job{val: val}
-	return &j
+	return &Job{val: val}
 }
 
 func TestWorker(t *testing.T) {

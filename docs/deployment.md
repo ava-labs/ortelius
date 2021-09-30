@@ -113,7 +113,7 @@ As items are consumed into the indexer the count of processed = 0 transactions d
 # Docker containers
 
 There are 2 ortelius services api and indexer.
-There will be an avalanchego, redis, and mysql container.
+There will be an avalanchego, and mysql container.
 
 ```
 # docker ps -a
@@ -121,7 +121,6 @@ CONTAINER ID   IMAGE                             COMMAND                  CREATE
 f9bd3c9d6f74   avaplatform/avalanchego:v1.2.3    "/bin/sh -cx 'exec .…"   19 minutes ago   Up 19 minutes               0.0.0.0:9650->9650/tcp                             production_avalanche_1
 70c5b875c07d   avaplatform/ortelius:140ac5c      "/opt/orteliusd api …"   19 minutes ago   Up 19 minutes               0.0.0.0:8080->8080/tcp                             production_api_1
 ee28fdea61c2   avaplatform/ortelius:140ac5c      "/opt/orteliusd stre…"   19 minutes ago   Up 19 minutes                                                                  production_indexer_1
-06ed45c21615   redis:6.0.9-alpine3.12            "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:6379->6379/tcp                             production_redis_1
 ae923d0489f0   mysql:8.0.26                      "docker-entrypoint.s…"   19 minutes ago   Up 19 minutes               0.0.0.0:3306->3306/tcp, 33060/tcp                  production_mysql_1
 ```
 
@@ -167,7 +166,6 @@ The full Ortelius pipeline requires the following services. This guide will not 
 
 - **[Avalanche.go](https://github.com/ava-labs/avalanchego)** is the gateway to the Avalanche network
 - **[MySQL](https://www.mysql.com/)** powers the index
-- **[Redis](https://redis.io/)** caches index queries for the API so responses can be as fast as possible
 
 ## Configuring services
 

@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package consumers
@@ -12,13 +12,12 @@ import (
 
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/utils"
 )
@@ -62,7 +61,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 		return nil
 	}
 
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return err
 	}
@@ -70,15 +69,15 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 		_ = conns.Close()
 	}()
 
-	persist := idb.NewPersist()
+	persist := db.NewPersist()
 	ctx := context.Background()
-	job := conns.QuietStream().NewJob("bootstrap-key-value")
+	job := conns.Stream().NewJob("bootstrap-key-value")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	bootstrapValue := "true"
 
 	// check if we have bootstrapped..
-	keyValueStore := &idb.KeyValueStore{
+	keyValueStore := &db.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 	}
 	keyValueStore, _ = persist.QueryKeyValueStore(ctx, sess, keyValueStore)
@@ -116,7 +115,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 	}
 
 	// write a complete row.
-	keyValueStore = &idb.KeyValueStore{
+	keyValueStore = &db.KeyValueStore{
 		K: utils.KeyValueBootstrap,
 		V: bootstrapValue,
 	}
@@ -129,14 +128,14 @@ type IndexerFactoryControl struct {
 	doneCh chan struct{}
 }
 
-func (c *IndexerFactoryControl) updateTxPollStatus(conns *servicesconn.Connections, txPoll *idb.TxPool) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-txpoll-status"))
+func (c *IndexerFactoryControl) updateTxPollStatus(conns *utils.Connections, txPoll *db.TxPool) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-txpoll-status"))
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	return c.sc.Persist.UpdateTxPoolStatus(ctx, sess, txPoll)
 }
 
-func (c *IndexerFactoryControl) handleTxPool(conns *servicesconn.Connections) {
+func (c *IndexerFactoryControl) handleTxPool(_ int, conns *utils.Connections) {
 	defer func() {
 		_ = conns.Close()
 	}()
@@ -219,19 +218,19 @@ func IndexerFactories(
 		}
 	}
 
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return err
 	}
 
 	for ipos := 0; ipos < MaxTheads; ipos++ {
-		conns1, err := sc.DatabaseOnly()
+		conns1, err := sc.Database()
 		if err != nil {
 			_ = conns.Close()
 			close(ctrl.doneCh)
 			return err
 		}
-		go ctrl.handleTxPool(conns1)
+		go ctrl.handleTxPool(ipos, conns1)
 	}
 
 	wg.Add(1)
@@ -246,7 +245,7 @@ func IndexerFactories(
 				ctx, cancelCTX := context.WithTimeout(context.Background(), IteratorTimeout)
 				defer cancelCTX()
 
-				sess, err := conns.DB().NewQuietSession("tx-pool", IteratorTimeout)
+				sess, err := conns.DB().NewSession("tx-pool", IteratorTimeout)
 				if err != nil {
 					sc.Log.Error("processing err %v", err)
 					time.Sleep(250 * time.Millisecond)
@@ -261,7 +260,7 @@ func IndexerFactories(
 					"processed",
 					"topic",
 					"created_at",
-				).From(idb.TableTxPool).
+				).From(db.TableTxPool).
 					Where("processed=? and topic in ?", 0, topicNames).
 					OrderAsc("processed").OrderAsc("created_at").
 					IterateContext(ctx)
@@ -292,7 +291,7 @@ func IndexerFactories(
 						break
 					}
 
-					txp := &idb.TxPool{}
+					txp := &db.TxPool{}
 					err = iterator.Scan(txp)
 					if err != nil {
 						sc.Log.Error("scan %v", err)

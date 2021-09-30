@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package api
@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/stream/consumers"
+	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/web"
 )
 
@@ -78,12 +79,8 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 		return nil, err
 	}
 
-	cache := connections.Cache()
-	if cache == nil {
-		cache = NewNullCache()
-	}
-
-	delayCache := NewDelayCache(cache)
+	cache := utils.NewCache()
+	delayCache := utils.NewDelayCache(cache)
 
 	consumersmap := make(map[string]services.Consumer)
 	for chid, chain := range conf.Chains {
@@ -106,11 +103,11 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 
 	// Build router
 	router := web.New(ctx).
-		Middleware(newContextSetter(sc, conf.NetworkID, connections.Stream(), connections, delayCache)).
+		Middleware(newContextSetter(sc, conf.NetworkID, connections, delayCache)).
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
-				c.err = err
+				sc.Log.Warn("resp write %v", err)
 			}
 		}).
 		NotFound((*Context).notFoundHandler).

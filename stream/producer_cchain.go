@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package stream
@@ -18,11 +18,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/metrics"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/modelsc"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
 
@@ -40,11 +38,11 @@ const (
 type producerCChainContainer struct {
 	sc *servicesctrl.Control
 
-	conns      *servicesconn.Connections
+	conns      *utils.Connections
 	block      *big.Int
 	blockCount *big.Int
 
-	client *cblock.Client
+	client *modelsc.Client
 
 	msgChan     chan *blockWorkContainer
 	msgChanDone chan struct{}
@@ -58,7 +56,7 @@ func newContainerC(
 	sc *servicesctrl.Control,
 	conf cfg.Config,
 ) (*producerCChainContainer, error) {
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +75,7 @@ func newContainerC(
 		return nil, err
 	}
 
-	cl, err := cblock.NewClient(conf.AvalancheGO + "/ext/bc/C/rpc")
+	cl, err := modelsc.NewClient(conf.AvalancheGO + "/ext/bc/C/rpc")
 	if err != nil {
 		_ = conns.Close()
 		return nil, err
@@ -114,7 +112,7 @@ func (p *producerCChainContainer) getBlock() error {
 		"cast(case when max(block) is null then -1 else max(block) end as char) as block",
 		"cast(count(*) as char) as block_count",
 	).
-		From(idb.TableCvmBlocks).
+		From(db.TableCvmBlocks).
 		LoadContext(ctx, &maxBlock)
 	if err != nil {
 		return err
@@ -134,13 +132,13 @@ func (p *producerCChainContainer) getBlock() error {
 	return nil
 }
 
-func (p *producerCChainContainer) catchupBlock(conns *servicesconn.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
+func (p *producerCChainContainer) catchupBlock(conns *utils.Connections, catchupBlock *big.Int, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
 		_ = conns.Close()
 	}()
 
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("catchup-block"))
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("catchup-block"))
 
 	ctx := context.Background()
 	var err error
@@ -159,10 +157,10 @@ func (p *producerCChainContainer) catchupBlock(conns *servicesconn.Connections, 
 			endBlock.Set(catchupBlock)
 		}
 
-		var cvmBlocks []*idb.CvmBlocks
+		var cvmBlocks []*db.CvmBlocks
 		_, err = sess.Select(
 			"block",
-		).From(idb.TableCvmBlocks).
+		).From(db.TableCvmBlocks).
 			Where("block >= "+startBlock.String()+" and block < "+endBlock.String()).
 			LoadContext(ctx, &cvmBlocks)
 		if err != nil {
@@ -265,9 +263,9 @@ func NewProducerCChain(sc *servicesctrl.Control, conf cfg.Config) utils.ListenCl
 		id:                      fmt.Sprintf("producer %d %s cchain", conf.NetworkID, conf.CchainID),
 		runningControl:          utils.NewRunning(),
 	}
-	metrics.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
-	metrics.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
-	metrics.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
+	utils.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
+	utils.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
+	utils.Prometheus.CounterInit(p.metricFailureCountKey, "records failure")
 	sc.InitProduceMetrics()
 
 	return p
@@ -282,13 +280,13 @@ func (p *ProducerCChain) ID() string {
 	return p.id
 }
 
-func (p *ProducerCChain) updateBlock(conns *servicesconn.Connections, blockNumber *big.Int, updateTime time.Time) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.StreamDBDedup().NewJob("update-block"))
+func (p *ProducerCChain) updateBlock(conns *utils.Connections, blockNumber *big.Int, updateTime time.Time) error {
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-block"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), dbWriteTimeout)
 	defer cancelCtx()
 
-	cvmBlocks := &idb.CvmBlocks{
+	cvmBlocks := &db.CvmBlocks{
 		Block:     blockNumber.String(),
 		CreatedAt: updateTime,
 	}
@@ -296,13 +294,13 @@ func (p *ProducerCChain) updateBlock(conns *servicesconn.Connections, blockNumbe
 }
 
 func (p *ProducerCChain) Failure() {
-	_ = metrics.Prometheus.CounterInc(p.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
+	_ = utils.Prometheus.CounterInc(p.metricFailureCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceFailureCountKey)
 }
 
 func (p *ProducerCChain) Success() {
-	_ = metrics.Prometheus.CounterInc(p.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(p.metricSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceSuccessCountKey)
 }
 
 func (p *ProducerCChain) Listen() error {
@@ -378,7 +376,7 @@ func (p *ProducerCChain) runProcessor() error {
 
 	pblockp1 := big.NewInt(0).Add(pc.block, big.NewInt(1))
 	if pc.blockCount.Cmp(pblockp1) < 0 {
-		conns1, err := p.sc.DatabaseOnly()
+		conns1, err := p.sc.Database()
 		if err != nil {
 			return err
 		}
@@ -387,11 +385,11 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	for icnt := 0; icnt < maxWorkers; icnt++ {
-		cl, err := cblock.NewClient(p.conf.AvalancheGO + "/ext/bc/C/rpc")
+		cl, err := modelsc.NewClient(p.conf.AvalancheGO + "/ext/bc/C/rpc")
 		if err != nil {
 			return err
 		}
-		conns1, err := p.sc.DatabaseOnly()
+		conns1, err := p.sc.Database()
 		if err != nil {
 			cl.Close()
 			return err
@@ -458,12 +456,12 @@ func (p *ProducerCChain) runProcessor() error {
 }
 
 type localBlockObject struct {
-	blockContainer *cblock.BlockContainer
+	blockContainer *modelsc.BlockContainer
 	time           time.Time
 }
 
-func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock *localBlockObject) error {
-	cblk, err := cblock.New(localBlock.blockContainer.Block)
+func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *localBlockObject) error {
+	cblk, err := modelsc.New(localBlock.blockContainer.Block)
 	if err != nil {
 		return err
 	}
@@ -480,7 +478,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 			return err
 		}
 
-		txPool := &idb.TxPool{
+		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -511,7 +509,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 			return err
 		}
 
-		txPool := &idb.TxPool{
+		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.conf.CchainID,
 			MsgKey:        id.String(),
@@ -540,7 +538,7 @@ func (p *ProducerCChain) processWork(conns *servicesconn.Connections, localBlock
 		return err
 	}
 
-	txPool := &idb.TxPool{
+	txPool := &db.TxPool{
 		NetworkID:     p.conf.NetworkID,
 		ChainID:       p.conf.CchainID,
 		MsgKey:        id.String(),
@@ -566,7 +564,7 @@ type blockWorkContainer struct {
 	blockNumber *big.Int
 }
 
-func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cblock.Client, conns *servicesconn.Connections, wg *sync.WaitGroup) {
+func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *modelsc.Client, conns *utils.Connections, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
 		_ = conns.Close()
@@ -601,8 +599,8 @@ func (p *ProducerCChain) blockProcessor(pc *producerCChainContainer, client *cbl
 				continue
 			}
 
-			_ = metrics.Prometheus.CounterInc(p.metricProcessedCountKey)
-			_ = metrics.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
+			_ = utils.Prometheus.CounterInc(p.metricProcessedCountKey)
+			_ = utils.Prometheus.CounterInc(servicesctrl.MetricProduceProcessedCountKey)
 		}
 	}
 }

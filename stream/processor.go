@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package stream
@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 var (
@@ -26,7 +26,7 @@ type ProcessorFactoryChainDB func(*servicesctrl.Control, cfg.Config, string, str
 type ProcessorFactoryInstDB func(*servicesctrl.Control, cfg.Config) (ProcessorDB, error)
 
 type ProcessorDB interface {
-	Process(*servicesconn.Connections, *idb.TxPool) error
+	Process(*utils.Connections, *db.TxPool) error
 	Close() error
 	ID() string
 	Topic() []string
@@ -34,12 +34,12 @@ type ProcessorDB interface {
 
 func UpdateTxPool(
 	ctxTimeout time.Duration,
-	conns *servicesconn.Connections,
-	persist idb.Persist,
-	txPool *idb.TxPool,
+	conns *utils.Connections,
+	persist db.Persist,
+	txPool *db.TxPool,
 	sc *servicesctrl.Control,
 ) error {
-	sess := conns.DB().NewSessionForEventReceiver(conns.QuietStream().NewJob("update-tx-pool"))
+	sess := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("update-tx-pool"))
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), ctxTimeout)
 	defer cancelCtx()

@@ -10,18 +10,18 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 type Handler struct {
 	client      *platformvm.Client
-	conns       *servicesconn.Connections
-	perist      idb.Persist
+	conns       *utils.Connections
+	perist      db.Persist
 	avaxAssetID ids.ID
 	writer      *avax.Writer
 	cid         ids.ID
@@ -29,7 +29,7 @@ type Handler struct {
 }
 
 func (r *Handler) Start(sc *servicesctrl.Control) error {
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (r *Handler) Close() {
 	close(r.doneCh)
 }
 
-func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connections) {
+func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) {
 	sc.Log.Info("start")
 	defer func() {
 		sc.Log.Info("stop")
@@ -53,7 +53,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 
 	r.conns = conns
 	r.client = platformvm.NewClient(sc.ServicesCfg.AvalancheGO, 1*time.Minute)
-	r.perist = idb.NewPersist()
+	r.perist = db.NewPersist()
 
 	r.avaxAssetID = sc.GenesisContainer.AvaxAssetID
 
@@ -79,7 +79,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *servicesconn.Connec
 }
 
 func (r *Handler) processRewards() error {
-	job := r.conns.QuietStream().NewJob("rewards-handler")
+	job := r.conns.Stream().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx := context.Background()
@@ -94,14 +94,14 @@ func (r *Handler) processRewards() error {
 	}
 	var reardsTxs []RewardTx
 	_, err = sess.Select(
-		idb.TableRewards+".id",
-		idb.TableRewards+".txid",
-		idb.TablePvmBlocks+".type",
-		idb.TableRewards+".created_at",
+		db.TableRewards+".id",
+		db.TableRewards+".txid",
+		db.TablePvmBlocks+".type",
+		db.TableRewards+".created_at",
 	).
-		From(idb.TableRewards).
-		Join(idb.TablePvmBlocks, idb.TableRewards+".block_id = "+idb.TablePvmBlocks+".parent_id").
-		Where(idb.TableRewards+".processed = ? and "+idb.TableRewards+".created_at < ?", 0, time.Now().Add(-3*time.Second)).
+		From(db.TableRewards).
+		Join(db.TablePvmBlocks, db.TableRewards+".block_id = "+db.TablePvmBlocks+".parent_id").
+		Where(db.TableRewards+".processed = ? and "+db.TableRewards+".created_at < ?", 0, time.Now().Add(-3*time.Second)).
 		LoadContext(ctx, &reardsTxs)
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func (r *Handler) processRewards() error {
 }
 
 func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time) error {
-	job := r.conns.StreamDBDedup().NewJob("rewards-handler-persist")
+	job := r.conns.Stream().NewJob("rewards-handler-persist")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -167,7 +167,7 @@ func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time)
 			return err
 		}
 
-		cCtx := services.NewConsumerContext(ctx, job, sess, createdAt.Unix(), int64(createdAt.Nanosecond()), r.perist)
+		cCtx := services.NewConsumerContext(ctx, sess, createdAt.Unix(), int64(createdAt.Nanosecond()), r.perist)
 
 		_, _, err = r.writer.ProcessStateOut(
 			cCtx,
@@ -190,12 +190,12 @@ func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time)
 }
 
 func (r *Handler) markRewardProcessed(id string) error {
-	job := r.conns.StreamDBDedup().NewJob("rewards-handler")
+	job := r.conns.Stream().NewJob("rewards-handler")
 	sess := r.conns.DB().NewSessionForEventReceiver(job)
 
 	ctx := context.Background()
 
-	reward := &idb.Rewards{
+	reward := &db.Rewards{
 		ID:        id,
 		Processed: 1,
 	}

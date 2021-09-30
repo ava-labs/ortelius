@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cvm
@@ -15,18 +15,18 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
+	"github.com/ava-labs/ortelius/utils"
 )
 
 var (
 	testXChainID = ids.ID([32]byte{7, 193, 50, 215, 59, 55, 159, 112, 106, 206, 236, 110, 229, 14, 139, 125, 14, 101, 138, 65, 208, 44, 163, 38, 115, 182, 177, 179, 244, 34, 195, 120})
 )
 
-func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*servicesconn.Connections, *Writer, func()) {
+func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*utils.Connections, *Writer, func()) {
 	logConf, err := logging.DefaultConfig()
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
@@ -41,7 +41,7 @@ func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*servicesconn
 	}
 
 	sc := &servicesctrl.Control{Log: logging.NoLog{}, Services: conf}
-	conns, err := sc.DatabaseOnly()
+	conns, err := sc.Database()
 	if err != nil {
 		t.Fatal("Failed to create connections:", err.Error())
 	}
@@ -73,12 +73,11 @@ func TestInsertTxInternalExport(t *testing.T) {
 
 	tx.UnsignedAtomicTx = extx
 	header := types.Header{}
-	block := &cblock.Block{Header: header}
+	block := &modelsc.Block{Header: header}
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
-	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
 	if err != nil {
 		t.Fatal("insert failed", err)
@@ -107,12 +106,11 @@ func TestInsertTxInternalImport(t *testing.T) {
 
 	tx.UnsignedAtomicTx = extx
 	header := types.Header{}
-	block := &cblock.Block{Header: header}
+	block := &modelsc.Block{Header: header}
 
-	persist := idb.NewPersistMock()
+	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
-	job := conns.Stream().NewJob("")
-	cCtx := services.NewConsumerContext(ctx, job, session, time.Now().Unix(), 0, persist)
+	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
 	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
 	if err != nil {
 		t.Fatal("insert failed", err)

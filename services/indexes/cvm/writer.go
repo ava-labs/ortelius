@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package cvm
@@ -19,12 +19,11 @@ import (
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/db"
+	"github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/idb"
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
-	"github.com/ava-labs/ortelius/services/indexes/models"
-	"github.com/ava-labs/ortelius/services/servicesconn"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -58,7 +57,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 func (*Writer) Name() string { return "cvm-index" }
 
 func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
-	block, err := cblock.Unmarshal(txdata)
+	block, err := modelsc.Unmarshal(txdata)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +73,8 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	return json.Marshal(atomicTX)
 }
 
-func (w *Writer) ConsumeLogs(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, txLogs *types.Log, persist idb.Persist) error {
-	job := conns.StreamDBDedup().NewJob("cvm-index")
+func (w *Writer) ConsumeLogs(ctx context.Context, conns *utils.Connections, c services.Consumable, txLogs *types.Log, persist db.Persist) error {
+	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -84,13 +83,13 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *servicesconn.Connection
 	}
 	defer dbTx.RollbackUnlessCommitted()
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+	cCtx := services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	firstTopic := ""
 	if len(txLogs.Topics) > 0 {
 		firstTopic = txLogs.Topics[0].Hex()
 	}
-	cvmLogs := &idb.CvmLogs{
+	cvmLogs := &db.CvmLogs{
 		BlockHash:     txLogs.BlockHash.Hex(),
 		TxHash:        txLogs.TxHash.Hex(),
 		LogIndex:      uint64(txLogs.Index),
@@ -112,8 +111,8 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *servicesconn.Connection
 	return dbTx.Commit()
 }
 
-func (w *Writer) ConsumeTrace(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, transactionTrace *cblock.TransactionTrace, persist idb.Persist) error {
-	job := conns.StreamDBDedup().NewJob("cvm-index")
+func (w *Writer) ConsumeTrace(ctx context.Context, conns *utils.Connections, c services.Consumable, transactionTrace *modelsc.TransactionTrace, persist db.Persist) error {
+	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -128,9 +127,9 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *servicesconn.Connectio
 		return err
 	}
 
-	cCtx := services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist)
+	cCtx := services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
-	txTraceService := &idb.CvmTransactionsTxdataTrace{
+	txTraceService := &db.CvmTransactionsTxdataTrace{
 		Hash:          transactionTrace.Hash,
 		Idx:           transactionTrace.Idx,
 		ToAddr:        txTraceModel.ToAddr,
@@ -149,8 +148,8 @@ func (w *Writer) ConsumeTrace(ctx context.Context, conns *servicesconn.Connectio
 	return dbTx.Commit()
 }
 
-func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c services.Consumable, block *cblock.Block, persist idb.Persist) error {
-	job := conns.StreamDBDedup().NewJob("cvm-index")
+func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, c services.Consumable, block *modelsc.Block, persist db.Persist) error {
+	job := conns.Stream().NewJob("cvm-index")
 	sess := conns.DB().NewSessionForEventReceiver(job)
 
 	dbTx, err := sess.Begin()
@@ -160,14 +159,14 @@ func (w *Writer) Consume(ctx context.Context, conns *servicesconn.Connections, c
 	defer dbTx.RollbackUnlessCommitted()
 
 	// Consume the tx and commit
-	err = w.indexBlock(services.NewConsumerContext(ctx, job, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body(), block)
+	err = w.indexBlock(services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist), c.Body(), block)
 	if err != nil {
 		return err
 	}
 	return dbTx.Commit()
 }
 
-func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *cblock.Block) error {
+func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *modelsc.Block) error {
 	var atomicTX *evm.Tx
 	var unsignedBytes []byte
 	if len(blockBytes) > 0 {
@@ -184,7 +183,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block, unsignedBytes)
 }
 
-func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *cblock.Block, unsignedBytes []byte) error {
+func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *modelsc.Block, unsignedBytes []byte) error {
 	txIDString := ""
 
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
@@ -227,7 +226,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		}
 		rawhash := rawtx.Hash()
 		rcptstr := utils.CommonAddressHexRepair(rawtx.To())
-		cvmTransactionTxdata := &idb.CvmTransactionsTxdata{
+		cvmTransactionTxdata := &db.CvmTransactionsTxdata{
 			Hash:          rawhash.String(),
 			Block:         block.Header.Number.String(),
 			Idx:           uint64(ipos),
@@ -254,7 +253,7 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		htime = 1
 	}
 	tm := time.Unix(htime, 0)
-	cvmTransaction := &idb.CvmTransactions{
+	cvmTransaction := &db.CvmTransactions{
 		ID:            id.String(),
 		TransactionID: txIDString,
 		Type:          typ,
@@ -316,7 +315,7 @@ func (w *Writer) insertAddress(
 ) error {
 	idprefix := id.Prefix(idx)
 
-	cvmAddress := &idb.CvmAddresses{
+	cvmAddress := &db.CvmAddresses{
 		ID:            idprefix.String(),
 		Type:          typ,
 		Idx:           idx,

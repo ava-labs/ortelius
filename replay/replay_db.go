@@ -9,19 +9,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/ortelius/servicesctrl"
+
+	"github.com/ava-labs/ortelius/db"
+
 	"github.com/ava-labs/avalanchego/ids"
 	avlancheGoUtils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/ortelius/cfg"
-	cblock "github.com/ava-labs/ortelius/models"
+	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
-	"github.com/ava-labs/ortelius/services/idb"
 	"github.com/ava-labs/ortelius/services/indexes/avm"
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/services/indexes/pvm"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/stream/consumers"
 	"github.com/ava-labs/ortelius/utils"
@@ -46,7 +46,7 @@ type WorkerPacket struct {
 	cwriter     *cvm.Writer
 	message     services.Consumable
 	consumeType ConsumeType
-	block       *cblock.Block
+	block       *modelsc.Block
 }
 
 type TxPoolID struct {
@@ -68,7 +68,7 @@ type dbReplay struct {
 	errs   *avlancheGoUtils.AtomicInterface
 	sc     *servicesctrl.Control
 	config *cfg.Config
-	conns  *servicesconn.Connections
+	conns  *utils.Connections
 
 	counterAdded *utils.CounterID
 	counterWaits *utils.CounterID
@@ -76,12 +76,12 @@ type dbReplay struct {
 	queueSize   int
 	queueTheads int
 
-	persist idb.Persist
+	persist db.Persist
 }
 
 func (replay *dbReplay) Start() error {
 	cfg.PerformUpdates = true
-	replay.persist = idb.NewPersist()
+	replay.persist = db.NewPersist()
 
 	replay.errs = &avlancheGoUtils.AtomicInterface{}
 
@@ -89,7 +89,7 @@ func (replay *dbReplay) Start() error {
 
 	waitGroup := new(int64)
 
-	conns, err := replay.sc.DatabaseOnly()
+	conns, err := replay.sc.Database()
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func (replay *dbReplay) handleCReader(chain string, waitGroup *int64, worker uti
 	return nil
 }
 
-func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *servicesconn.Connections) error {
+func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker utils.Worker, conns *utils.Connections) error {
 	var err error
 	var writer services.Consumer
 	switch chain.VMType {
@@ -250,7 +250,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.writer.Consume(ctx, replay.conns, value.message, replay.persist)
-					if !db.ErrIsLockError(consumererr) {
+					if !utils.ErrIsLockError(consumererr) {
 						break
 					}
 					rsleep.Inc()
@@ -263,7 +263,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.writer.ConsumeConsensus(ctx, replay.conns, value.message, replay.persist)
-					if !db.ErrIsLockError(consumererr) {
+					if !utils.ErrIsLockError(consumererr) {
 						break
 					}
 					rsleep.Inc()
@@ -276,7 +276,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.Consume(ctx, replay.conns, value.message, value.block, replay.persist)
-					if !db.ErrIsLockError(consumererr) {
+					if !utils.ErrIsLockError(consumererr) {
 						break
 					}
 					rsleep.Inc()
@@ -286,7 +286,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 					return
 				}
 			case CONSUMECTRC:
-				transactionTrace := &cblock.TransactionTrace{}
+				transactionTrace := &modelsc.TransactionTrace{}
 				err := json.Unmarshal(value.message.Body(), transactionTrace)
 				if err != nil {
 					replay.errs.SetValue(consumererr)
@@ -295,7 +295,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.ConsumeTrace(ctx, replay.conns, value.message, transactionTrace, replay.persist)
-					if !db.ErrIsLockError(consumererr) {
+					if !utils.ErrIsLockError(consumererr) {
 						break
 					}
 					rsleep.Inc()
@@ -314,7 +314,7 @@ func (replay *dbReplay) workerProcessor() func(int, interface{}) {
 				rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 				for {
 					consumererr = value.cwriter.ConsumeLogs(ctx, replay.conns, value.message, txLogs, replay.persist)
-					if !db.ErrIsLockError(consumererr) {
+					if !utils.ErrIsLockError(consumererr) {
 						break
 					}
 					rsleep.Inc()
@@ -346,7 +346,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -361,10 +361,10 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -382,7 +382,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 
 			replay.counterAdded.Inc(tn)
 
-			block, err := cblock.Unmarshal(txPool.Serialization)
+			block, err := modelsc.Unmarshal(txPool.Serialization)
 			if err != nil {
 				replay.errs.SetValue(err)
 				return
@@ -424,7 +424,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -439,10 +439,10 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -492,7 +492,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -507,10 +507,10 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -560,7 +560,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -575,10 +575,10 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {
@@ -628,7 +628,7 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 		ctx := context.Background()
 		var txPools []TxPoolID
 		_, err := sess.Select("id").
-			From(idb.TableTxPool).
+			From(db.TableTxPool).
 			Where("topic=?", tn).
 			OrderAsc("created_at").
 			LoadContext(ctx, &txPools)
@@ -643,10 +643,10 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				return
 			}
 
-			txPoolQ := idb.TxPool{
+			txPoolQ := db.TxPool{
 				ID: txPoolID.ID,
 			}
-			var txPool *idb.TxPool
+			var txPool *db.TxPool
 			for {
 				txPool, err = replay.persist.QueryTxPool(ctx, sess, &txPoolQ)
 				if err == nil {

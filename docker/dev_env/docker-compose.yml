@@ -1,7 +1,5 @@
 version: '3.5'
 volumes:
-  redis-data:
-    name: ortelius_redis
   mysql-data:
     name: ortelius_mysql
 networks:
@@ -30,12 +28,4 @@ services:
       -c 'while ! migrate -path=/migrations/ -database "mysql://root:password@tcp(mysql:3306)/ortelius" up; do
         sleep 1
       done'
-    restart: on-failure
-  redis:
-    image: "redis:6.2.3-alpine3.13"
-    command: redis-server
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/var/lib/redis
     restart: on-failure

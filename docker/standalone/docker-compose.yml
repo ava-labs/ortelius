@@ -20,6 +20,7 @@ services:
     volumes:
       - avalanche-data:/var/lib/avalanche
       - ./../avalanchego_config.json:/opt/config.json
+      - ./../avalanchego_chain_config:/opt/avalanchego
       - avalanche-ipcs:/tmp
     depends_on:
       - indexer
@@ -31,7 +32,6 @@ services:
       - services
     external_links:
       - mysql
-      - redis
     volumes:
       - avalanche-ipcs:/tmp
       - ./config.standalone.json:/opt/config.json

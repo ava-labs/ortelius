@@ -1,4 +1,4 @@
-// (c) 2020, Ava Labs, Inc. All rights reserved.
+// (c) 2021, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package stream
@@ -9,12 +9,9 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
+	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/services"
-	"github.com/ava-labs/ortelius/services/db"
-	"github.com/ava-labs/ortelius/services/idb"
-	"github.com/ava-labs/ortelius/services/metrics"
-	"github.com/ava-labs/ortelius/services/servicesconn"
-	"github.com/ava-labs/ortelius/services/servicesctrl"
+	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 )
 
@@ -62,10 +59,10 @@ func NewConsumerDBFactory(factory serviceConsumerFactory, eventType EventType) P
 			c.id = fmt.Sprintf("consumer_consensus %d %s %s", conf.NetworkID, chainVM, chainID)
 		}
 
-		metrics.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
-		metrics.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
-		metrics.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
-		metrics.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
+		utils.Prometheus.CounterInit(c.metricProcessedCountKey, "records processed")
+		utils.Prometheus.CounterInit(c.metricProcessMillisCounterKey, "records processed millis")
+		utils.Prometheus.CounterInit(c.metricSuccessCountKey, "records success")
+		utils.Prometheus.CounterInit(c.metricFailureCountKey, "records failure")
 		sc.InitConsumeMetrics()
 
 		var err error
@@ -94,7 +91,7 @@ func (c *consumerDB) Close() error {
 	return nil
 }
 
-func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) error {
+func (c *consumerDB) Process(conns *utils.Connections, row *db.TxPool) error {
 	msg := &Message{
 		id:         row.MsgKey,
 		chainID:    c.chainID,
@@ -105,12 +102,12 @@ func (c *consumerDB) Process(conns *servicesconn.Connections, row *idb.TxPool) e
 	return c.Consume(conns, msg)
 }
 
-func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) error {
-	collectors := metrics.NewCollectors(
-		metrics.NewCounterIncCollect(c.metricProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
-		metrics.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
-		metrics.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
+func (c *consumerDB) Consume(conns *utils.Connections, msg *Message) error {
+	collectors := utils.NewCollectors(
+		utils.NewCounterIncCollect(c.metricProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(c.metricProcessMillisCounterKey),
+		utils.NewCounterIncCollect(servicesctrl.MetricConsumeProcessedCountKey),
+		utils.NewCounterObserveMillisCollect(servicesctrl.MetricConsumeProcessMillisCounterKey),
 	)
 	defer func() {
 		err := collectors.Collect()
@@ -123,7 +120,7 @@ func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) erro
 	rsleep := utils.NewRetrySleeper(1, 100*time.Millisecond, time.Second)
 	for {
 		err = c.persistConsume(conns, msg)
-		if !db.ErrIsLockError(err) {
+		if !utils.ErrIsLockError(err) {
 			break
 		}
 		rsleep.Inc()
@@ -136,11 +133,11 @@ func (c *consumerDB) Consume(conns *servicesconn.Connections, msg *Message) erro
 	}
 	c.Success()
 
-	c.sc.BalanceManager.Run()
+	c.sc.BalanceManager.Exec()
 	return err
 }
 
-func (c *consumerDB) persistConsume(conns *servicesconn.Connections, msg *Message) error {
+func (c *consumerDB) persistConsume(conns *utils.Connections, msg *Message) error {
 	ctx, cancelFn := context.WithTimeout(context.Background(), cfg.DefaultConsumeProcessWriteTimeout)
 	defer cancelFn()
 	switch c.eventType {
@@ -154,11 +151,11 @@ func (c *consumerDB) persistConsume(conns *servicesconn.Connections, msg *Messag
 }
 
 func (c *consumerDB) Failure() {
-	_ = metrics.Prometheus.CounterInc(c.metricFailureCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
+	_ = utils.Prometheus.CounterInc(c.metricFailureCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricConsumeFailureCountKey)
 }
 
 func (c *consumerDB) Success() {
-	_ = metrics.Prometheus.CounterInc(c.metricSuccessCountKey)
-	_ = metrics.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(c.metricSuccessCountKey)
+	_ = utils.Prometheus.CounterInc(servicesctrl.MetricConsumeSuccessCountKey)
 }
