@@ -1,6 +1,6 @@
 module github.com/ava-labs/ortelius
 
-go 1.17.2
+go 1.17
 
 require (
 	github.com/ava-labs/avalanchego v1.6.1
