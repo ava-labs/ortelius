@@ -174,7 +174,6 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		return ErrNoMessage
 	}
 	for _, container := range containers {
-		decodeBytes, err := formatting.Decode(formatting.Hex, container.Bytes)
 		if err != nil {
 			return err
 		}
@@ -185,7 +184,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			id = container.ID
 		default:
 			// x and p we compute the hash
-			nid, err := ids.ToID(hashing.ComputeHash256(decodeBytes))
+			nid, err := ids.ToID(hashing.ComputeHash256(container.Bytes))
 			if err != nil {
 				return err
 			}
@@ -196,10 +195,10 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			NetworkID:     p.conf.NetworkID,
 			ChainID:       p.chainID,
 			MsgKey:        id.String(),
-			Serialization: decodeBytes,
+			Serialization: container.Bytes,
 			Processed:     0,
 			Topic:         p.topic,
-			CreatedAt:     container.Timestamp,
+			CreatedAt:     time.Unix(container.Timestamp, 0),
 		}
 		err = txPool.ComputeID()
 		if err != nil {

@@ -59,8 +59,8 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
-	bcLookup := &ids.Aliaser{}
-	bcLookup.Initialize()
+	bcLookup := ids.NewAliaser()
+
 	id, err := ids.FromString(chainID)
 	if err != nil {
 		return nil, err
