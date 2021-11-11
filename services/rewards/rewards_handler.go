@@ -52,7 +52,8 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) 
 	r.doneCh = make(chan struct{}, 1)
 
 	r.conns = conns
-	r.client = platformvm.NewClient(sc.ServicesCfg.AvalancheGO, 1*time.Minute)
+	client := platformvm.NewClient(sc.ServicesCfg.AvalancheGO, 1*time.Minute)
+	r.client = &client
 	r.perist = db.NewPersist()
 
 	r.avaxAssetID = sc.GenesisContainer.AvaxAssetID
@@ -125,7 +126,7 @@ func (r *Handler) processRewards() error {
 		}
 		var rewardsUtxos [][]byte
 		arg := &api.GetTxArgs{TxID: id, Encoding: formatting.Hex}
-		rewardsUtxos, err = r.client.GetRewardUTXOs(arg)
+		rewardsUtxos, err = (*r.client).GetRewardUTXOs(arg)
 		if err != nil {
 			return err
 		}

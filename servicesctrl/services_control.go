@@ -33,9 +33,9 @@ type Control struct {
 	Services                   cfg.Services
 	ServicesCfg                cfg.Config
 	Chains                     map[string]cfg.Chain `json:"chains"`
-	Log      logging.Logger
-	Persist  db.Persist
-	Features map[string]struct{}
+	Log                        logging.Logger
+	Persist                    db.Persist
+	Features                   map[string]struct{}
 	BalanceManager             utils.ExecIface
 	GenesisContainer           *utils.GenesisContainer
 	IsAccumulateBalanceIndexer bool

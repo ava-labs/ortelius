@@ -156,12 +156,12 @@ func (p *producerChainContainer) getIndex() error {
 }
 
 func (p *producerChainContainer) ProcessNextMessage() error {
-	containerRange := &indexer.GetContainerRangeArgs{
+	containerRangeArgs := &indexer.GetContainerRangeArgs{
 		StartIndex: json.Uint64(p.nodeIndex.Idx),
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
 	}
-	containers, err := p.nodeIndexer.GetContainerRange(containerRange)
+	containers, err := (*p.nodeIndexer).GetContainerRange(containerRangeArgs)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
 		if IndexNotReady(err) {
@@ -291,7 +291,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 		id:                      fmt.Sprintf("producer %d %s %s", conf.NetworkID, chainID, eventType),
 		runningControl:          utils.NewRunning(),
-		nodeIndexer:             nodeIndexer,
+		nodeIndexer:             &nodeIndexer,
 	}
 	utils.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	utils.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")

@@ -51,5 +51,5 @@ func NewConsumerContext(ctx context.Context, db dbr.SessionRunner, ts int64, nan
 
 func (ic *ConsumerCtx) Time() time.Time       { return ic.time }
 func (ic *ConsumerCtx) DB() dbr.SessionRunner { return ic.db }
-func (ic *ConsumerCtx) Ctx() context.Context { return ic.ctx }
-func (ic *ConsumerCtx) Persist() db.Persist  { return ic.persist }
+func (ic *ConsumerCtx) Ctx() context.Context  { return ic.ctx }
+func (ic *ConsumerCtx) Persist() db.Persist   { return ic.persist }
