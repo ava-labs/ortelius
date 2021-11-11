@@ -28,7 +28,7 @@ services:
   avalanche:
     env_file:
       - production.env
-    image: "avaplatform/avalanchego:v1.6.4"
+    image: "avaplatform/avalanchego:v1.6.5"
     command: /bin/sh -cx "exec /avalanchego/build/avalanchego
       --config-file=/opt/config.json
       --network-id=$${NETWORKID}
@@ -44,7 +44,7 @@ services:
       - indexer
     restart: always
   indexer: &ortelius-app
-    image: "avaplatform/ortelius:v1.6.4"
+    image: "avaplatform/ortelius:v1.6.5"
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     external_links:
       - mysql
