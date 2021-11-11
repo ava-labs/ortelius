@@ -74,7 +74,7 @@ type producerChainContainer struct {
 	sc                      *servicesctrl.Control
 	conns                   *utils.Connections
 	runningControl          utils.Running
-	nodeIndexer             *indexer.Client
+	nodeIndexer             indexer.Client
 	conf                    cfg.Config
 	nodeIndex               *db.NodeIndex
 	nodeinstance            string
@@ -88,7 +88,7 @@ type producerChainContainer struct {
 func newContainer(
 	sc *servicesctrl.Control,
 	conf cfg.Config,
-	nodeIndexer *indexer.Client,
+	nodeIndexer indexer.Client,
 	topic string,
 	chainID string,
 	indexerType IndexType,
@@ -161,7 +161,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
 	}
-	containers, err := (*p.nodeIndexer).GetContainerRange(containerRangeArgs)
+	containers, err := p.nodeIndexer.GetContainerRange(containerRangeArgs)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
 		if IndexNotReady(err) {
@@ -266,7 +266,7 @@ type ProducerChain struct {
 
 	topic string
 
-	nodeIndexer  *indexer.Client
+	nodeIndexer  indexer.Client
 	chainID      string
 	indexerType  IndexType
 	indexerChain IndexedChain
@@ -291,7 +291,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 		metricFailureCountKey:   fmt.Sprintf("produce_records_failure_%s_%s", chainID, eventType),
 		id:                      fmt.Sprintf("producer %d %s %s", conf.NetworkID, chainID, eventType),
 		runningControl:          utils.NewRunning(),
-		nodeIndexer:             &nodeIndexer,
+		nodeIndexer:             nodeIndexer,
 	}
 	utils.Prometheus.CounterInit(p.metricProcessedCountKey, "records processed")
 	utils.Prometheus.CounterInit(p.metricSuccessCountKey, "records success")
