@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
@@ -30,7 +31,6 @@ import (
 	avaxIndexer "github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/palantir/stacktrace"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -67,12 +67,11 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	}
 
 	ctx := &snow.Context{
-		NetworkID:     networkID,
-		ChainID:       id,
-		Log:           logging.NoLog{},
-		Metrics:       prometheus.NewRegistry(),
-		BCLookup:      bcLookup,
-		EpochDuration: time.Hour,
+		NetworkID: networkID,
+		ChainID:   id,
+		Log:       logging.NoLog{},
+		Metrics:   metrics.NewOptionalGatherer(),
+		BCLookup:  bcLookup,
 	}
 
 	return &Writer{
