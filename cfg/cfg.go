@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/version/"
+	"github.com/ava-labs/avalanchego/version"
 )
 
 const appName = "ortelius"
@@ -33,7 +33,7 @@ type Config struct {
 	AvalancheGO       string `json:"avalanchego"`
 	NodeInstance      string `json:"nodeInstance"`
 	// Upgrade Times
-	AP5Activation uint64
+	AP5Activation int64
 }
 
 type Chain struct {
@@ -106,7 +106,7 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 
 	networkId := v.GetUint32(keysNetworkID)
-	ap5Activation := version.GetApricotPhase5Time(networkId)
+	ap5Activation := version.GetApricotPhase5Time(networkId).Unix()
 
 	// Put it all together
 	return &Config{
