@@ -85,11 +85,11 @@ github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db/go.mod h1:VT
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/ava-labs/avalanchego v1.6.4-rc.2/go.mod h1:DzxlGkF8hj3GiwRoQfHq9gJfyt4EyeIpAsdfBOBg6mI=
-github.com/ava-labs/avalanchego v1.6.5 h1:xzta2OGAjF7ka06Cl1IoB4jtrqhAuxjI1onVDGWwdsk=
-github.com/ava-labs/avalanchego v1.6.5/go.mod h1:M21LNXMX5AcvUfQ0x1wKewOEgJjOcq8W08m3gmnGJAU=
-github.com/ava-labs/coreth v0.7.3-rc.2 h1:LxBuIQnW7SuDUoxzD2PS/VT7s/9lGyiuGTQfCZnEk2s=
-github.com/ava-labs/coreth v0.7.3-rc.2/go.mod h1:QxdGE4n/MiBBirZ54Nqb/NyNWxveo1bnahzhpbDrhMc=
+github.com/ava-labs/avalanchego v1.6.6-0.20211122023205-994831adda9b/go.mod h1:jwfTpP+SB9AZVnHBuh3/d2WNbsIgGwUpqOfOgtEkelk=
+github.com/ava-labs/avalanchego v1.7.0-fuji h1:26ClTT8iJFo9f5EZPJPXV1nzt3G4pz5vhH4DB53IJuI=
+github.com/ava-labs/avalanchego v1.7.0-fuji/go.mod h1:jwfTpP+SB9AZVnHBuh3/d2WNbsIgGwUpqOfOgtEkelk=
+github.com/ava-labs/coreth v0.8.0-rc.2 h1:6E4WKaz7lczH9JcnDecc5nRjPF97ctHAafOnmPw+SAg=
+github.com/ava-labs/coreth v0.8.0-rc.2/go.mod h1:rxTZLwjo6dfyPRkf5WfLEFP3C6Tn21lCjjLUH5XqeqM=
 github.com/aws/aws-sdk-go-v2 v1.2.0/go.mod h1:zEQs02YRBw1DjK0PoJv3ygDYOFTre1ejlJWl8FwAuQo=
 github.com/aws/aws-sdk-go-v2/config v1.1.1/go.mod h1:0XsVy9lBI/BCXm+2Tuvt39YmdHwS5unDQmxZOYe8F5Y=
 github.com/aws/aws-sdk-go-v2/credentials v1.1.1/go.mod h1:mM2iIjwl7LULWtS6JCACyInboHirisUUdkBPoTHMOUo=
@@ -186,8 +186,8 @@ github.com/envoyproxy/go-control-plane v0.9.7/go.mod h1:cwu0lG7PUMfa9snN8LXBig5y
 github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/go-control-plane v0.9.9-0.20210217033140-668b12f5399d/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
-github.com/ethereum/go-ethereum v1.10.11 h1:KKIcwpmur9iTaVbR2dxlHu+peHVhU+/KX//NWvT1n9U=
-github.com/ethereum/go-ethereum v1.10.11/go.mod h1:W3yfrFyL9C1pHcwY5hmRHVDaorTiQxhYBkKyu5mEDHw=
+github.com/ethereum/go-ethereum v1.10.12 h1:el/KddB3gLEsnNgGQ3SQuZuiZjwnFTYHe5TwUet5Om4=
+github.com/ethereum/go-ethereum v1.10.12/go.mod h1:W3yfrFyL9C1pHcwY5hmRHVDaorTiQxhYBkKyu5mEDHw=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 h1:FtmdgXiUlNeRsoNMFlKLDt+S+6hbjVMEW6RGQ7aUf7c=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
