@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
@@ -36,8 +37,9 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Manager
-	avax  *avaxIndexer.Writer
+	codec         codec.Manager
+	avax          *avaxIndexer.Writer
+	ap5Activation uint64
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
@@ -46,11 +48,14 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
+	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
+
 	return &Writer{
-		networkID:   networkID,
-		avaxAssetID: avaxAssetID,
-		codec:       evm.Codec,
-		avax:        avaxIndexer.NewWriter(chainID, avaxAssetID),
+		networkID:     networkID,
+		avaxAssetID:   avaxAssetID,
+		codec:         evm.Codec,
+		avax:          avaxIndexer.NewWriter(chainID, avaxAssetID),
+		ap5Activation: uint64(ap5Activation),
 	}, nil
 }
 
@@ -61,16 +66,48 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	var atomicTxs []*evm.Tx
 	if block.BlockExtraData == nil || len(block.BlockExtraData) == 0 {
 		return []byte(""), nil
 	}
-	atomicTX := new(evm.Tx)
-	_, err = w.codec.Unmarshal(block.BlockExtraData, atomicTX)
+	if block.Header.Time < w.ap5Activation {
+		atomicTxs, err = w.extractAtomicTxsPreApricotPhase5(block.BlockExtraData)
+	} else {
+		atomicTxs, err = w.extractAtomicTxsPostApricotPhase5(block.BlockExtraData)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(atomicTX)
+	return json.Marshal(atomicTxs)
+}
+
+func (w *Writer) extractAtomicTxsPreApricotPhase5(atomicTxBytes []byte) ([]*evm.Tx, error) {
+	var atomicTx *evm.Tx
+	if _, err := w.codec.Unmarshal(atomicTxBytes, atomicTx); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal atomic tx (pre-AP5): %w", err)
+	}
+	if err := atomicTx.Sign(w.codec, nil); err != nil {
+		return nil, fmt.Errorf("failed to initialize singleton atomic tx due to: %w", err)
+	}
+	return []*evm.Tx{atomicTx}, nil
+}
+
+// [extractAtomicTxsPostApricotPhase5] extracts a slice of atomic transactions from [atomicTxBytes].
+// Note: this function assumes [atomicTxBytes] is non-empty.
+func (w *Writer) extractAtomicTxsPostApricotPhase5(atomicTxBytes []byte) ([]*evm.Tx, error) {
+	var atomicTxs []*evm.Tx
+	if _, err := w.codec.Unmarshal(atomicTxBytes, &atomicTxs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal atomic tx (post-AP5): %w", err)
+	}
+
+	for index, atx := range atomicTxs {
+		if err := atx.Sign(w.codec, nil); err != nil {
+			return nil, fmt.Errorf("failed to initialize atomic tx at index %d: %w", index, err)
+		}
+	}
+	return atomicTxs, nil
 }
 
 func (w *Writer) ConsumeLogs(ctx context.Context, conns *utils.Connections, c services.Consumable, txLogs *types.Log, persist db.Persist) error {
@@ -167,24 +204,24 @@ func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, c servic
 }
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *modelsc.Block) error {
-	var atomicTX *evm.Tx
-	var unsignedBytes []byte
+	var atomicTxs []*evm.Tx
 	if len(blockBytes) > 0 {
-		atomicTX = new(evm.Tx)
-		ver, err := w.codec.Unmarshal(blockBytes, atomicTX)
-		if err != nil {
-			return err
+		var err error
+		if block.Header.Time < w.ap5Activation {
+			atomicTxs, err = w.extractAtomicTxsPreApricotPhase5(block.BlockExtraData)
+		} else {
+			atomicTxs, err = w.extractAtomicTxsPostApricotPhase5(block.BlockExtraData)
 		}
-		unsignedBytes, err = w.codec.Marshal(ver, &atomicTX.UnsignedAtomicTx)
+
 		if err != nil {
 			return err
 		}
 	}
-	return w.indexBlockInternal(ctx, atomicTX, blockBytes, block, unsignedBytes)
+	return w.indexBlockInternal(ctx, atomicTxs, blockBytes, block)
 }
 
-func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, blockBytes []byte, block *modelsc.Block, unsignedBytes []byte) error {
-	txIDString := ""
+func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.Tx, blockBytes []byte, block *modelsc.Block) error {
+	txIDs := make([]string, len(atomicTXs))
 
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
 	if err != nil {
@@ -193,12 +230,9 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 
 	var typ models.CChainType = 0
 	var blockchainID string
-	if atomicTX != nil {
-		txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
-		if err != nil {
-			return err
-		}
-		txIDString = txID.String()
+	for i, atomicTX := range atomicTXs {
+		txID := atomicTX.ID()
+		txIDs[i] = txID.String()
 		switch atx := atomicTX.UnsignedAtomicTx.(type) {
 		case *evm.UnsignedExportTx:
 			typ = models.CChainExport
@@ -208,6 +242,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 				return err
 			}
 		case *evm.UnsignedImportTx:
+			unsignedBytes, err := w.codec.Marshal(0, &atomicTX.UnsignedAtomicTx)
+			if err != nil {
+				return err
+			}
+
 			typ = models.CChainImport
 			blockchainID = atx.BlockchainID.String()
 			err = w.indexImportTx(ctx, txID, atx, atomicTX.Creds, blockBytes, unsignedBytes)
@@ -253,22 +292,25 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTX *evm.Tx, 
 		htime = 1
 	}
 	tm := time.Unix(htime, 0)
-	cvmTransaction := &db.CvmTransactions{
-		ID:            id.String(),
-		TransactionID: txIDString,
-		Type:          typ,
-		BlockchainID:  blockchainID,
-		Block:         block.Header.Number.String(),
-		CreatedAt:     ctx.Time(),
-		Serialization: blockjson,
-		TxTime:        tm,
-		Nonce:         block.Header.Nonce.Uint64(),
-		Hash:          block.Header.Hash().String(),
-		ParentHash:    block.Header.ParentHash.String(),
-	}
-	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
-	if err != nil {
-		return err
+
+	for _, txIDString := range txIDs {
+		cvmTransaction := &db.CvmTransactions{
+			ID:            id.String(),
+			TransactionID: txIDString,
+			Type:          typ,
+			BlockchainID:  blockchainID,
+			Block:         block.Header.Number.String(),
+			CreatedAt:     ctx.Time(),
+			Serialization: blockjson,
+			TxTime:        tm,
+			Nonce:         block.Header.Nonce.Uint64(),
+			Hash:          block.Header.Hash().String(),
+			ParentHash:    block.Header.ParentHash.String(),
+		}
+		err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

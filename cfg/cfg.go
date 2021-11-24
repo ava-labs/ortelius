@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/version"
 )
 
 const appName = "ortelius"
@@ -31,6 +32,7 @@ type Config struct {
 	CchainID          string `json:"cchainId"`
 	AvalancheGO       string `json:"avalanchego"`
 	NodeInstance      string `json:"nodeInstance"`
+	AP5Activation     uint64
 }
 
 type Chain struct {
@@ -101,9 +103,13 @@ func NewFromFile(filePath string) (*Config, error) {
 		}
 		featuresMap[featurec] = struct{}{}
 	}
+
+	networkID := v.GetUint32(keysNetworkID)
+	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
+
 	// Put it all together
 	return &Config{
-		NetworkID:         v.GetUint32(keysNetworkID),
+		NetworkID:         networkID,
 		Features:          featuresMap,
 		Chains:            chains,
 		MetricsListenAddr: v.GetString(keysServicesMetricsListenAddr),
@@ -119,8 +125,9 @@ func NewFromFile(filePath string) (*Config, error) {
 				RODSN:  dbrodsn,
 			},
 		},
-		CchainID:     v.GetString(keysStreamProducerCchainID),
-		AvalancheGO:  v.GetString(keysStreamProducerAvalanchego),
-		NodeInstance: v.GetString(keysStreamProducerNodeInstance),
+		CchainID:      v.GetString(keysStreamProducerCchainID),
+		AvalancheGO:   v.GetString(keysStreamProducerAvalanchego),
+		NodeInstance:  v.GetString(keysStreamProducerNodeInstance),
+		AP5Activation: uint64(ap5Activation),
 	}, nil
 }

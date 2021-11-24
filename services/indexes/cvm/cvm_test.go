@@ -78,7 +78,7 @@ func TestInsertTxInternalExport(t *testing.T) {
 	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
+	err := writer.indexBlockInternal(cCtx, []*evm.Tx{tx}, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
@@ -94,7 +94,6 @@ func TestInsertTxInternalImport(t *testing.T) {
 	conns, writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
-
 	tx := &evm.Tx{}
 
 	extx := &evm.UnsignedImportTx{}
@@ -111,7 +110,7 @@ func TestInsertTxInternalImport(t *testing.T) {
 	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, tx, tx.Bytes(), block, tx.UnsignedBytes())
+	err := writer.indexBlockInternal(cCtx, []*evm.Tx{tx}, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
