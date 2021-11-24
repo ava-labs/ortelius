@@ -62,7 +62,6 @@ func TestInsertTxInternalExport(t *testing.T) {
 	defer closeFn()
 	ctx := context.Background()
 
-	var txs []*evm.Tx
 	tx := &evm.Tx{}
 
 	extx := &evm.UnsignedExportTx{}
@@ -73,14 +72,13 @@ func TestInsertTxInternalExport(t *testing.T) {
 	extx.ExportedOutputs = []*avalancheGoAvax.TransferableOutput{transferableOut}
 
 	tx.UnsignedAtomicTx = extx
-	txs = append(txs, tx)
 	header := types.Header{}
 	block := &modelsc.Block{Header: header}
 
 	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, txs, tx.Bytes(), block)
+	err := writer.indexBlockInternal(cCtx, []*evm.Tx{tx}, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}
@@ -96,7 +94,6 @@ func TestInsertTxInternalImport(t *testing.T) {
 	conns, writer, closeFn := newTestIndex(t, 5, testXChainID)
 	defer closeFn()
 	ctx := context.Background()
-	var txs []*evm.Tx
 	tx := &evm.Tx{}
 
 	extx := &evm.UnsignedImportTx{}
@@ -110,12 +107,10 @@ func TestInsertTxInternalImport(t *testing.T) {
 	header := types.Header{}
 	block := &modelsc.Block{Header: header}
 
-	txs = append(txs, tx)
-
 	persist := db.NewPersistMock()
 	session := conns.DB().NewSessionForEventReceiver(conns.Stream().NewJob("test_tx"))
 	cCtx := services.NewConsumerContext(ctx, session, time.Now().Unix(), 0, persist)
-	err := writer.indexBlockInternal(cCtx, txs, tx.Bytes(), block)
+	err := writer.indexBlockInternal(cCtx, []*evm.Tx{tx}, tx.Bytes(), block)
 	if err != nil {
 		t.Fatal("insert failed", err)
 	}

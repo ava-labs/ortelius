@@ -84,9 +84,9 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 }
 
 func (w *Writer) extractAtomicTxsPreApricotPhase5(atomicTxBytes []byte) ([]*evm.Tx, error) {
-	atomicTx := new(evm.Tx)
+	var atomicTx *evm.Tx
 	if _, err := w.codec.Unmarshal(atomicTxBytes, atomicTx); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal atomic transaction (pre-AP3): %w", err)
+		return nil, fmt.Errorf("failed to unmarshal atomic tx (pre-AP5): %w", err)
 	}
 	if err := atomicTx.Sign(w.codec, nil); err != nil {
 		return nil, fmt.Errorf("failed to initialize singleton atomic tx due to: %w", err)
@@ -99,7 +99,7 @@ func (w *Writer) extractAtomicTxsPreApricotPhase5(atomicTxBytes []byte) ([]*evm.
 func (w *Writer) extractAtomicTxsPostApricotPhase5(atomicTxBytes []byte) ([]*evm.Tx, error) {
 	var atomicTxs []*evm.Tx
 	if _, err := w.codec.Unmarshal(atomicTxBytes, &atomicTxs); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal atomic tx (AP5) due to %w", err)
+		return nil, fmt.Errorf("failed to unmarshal atomic tx (post-AP5): %w", err)
 	}
 
 	for index, atx := range atomicTxs {
