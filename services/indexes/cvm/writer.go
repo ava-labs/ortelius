@@ -221,7 +221,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 }
 
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.Tx, blockBytes []byte, block *modelsc.Block) error {
-	txIDString := ""
+	txIDs := make([]string, len(atomicTXs))
 
 	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
 	if err != nil {
@@ -230,12 +230,9 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.T
 
 	var typ models.CChainType = 0
 	var blockchainID string
-	for _, atomicTX := range atomicTXs {
-		txID, err := ids.ToID(hashing.ComputeHash256(blockBytes))
-		if err != nil {
-			return err
-		}
-		txIDString = txID.String()
+	for i, atomicTX := range atomicTXs {
+		txID := atomicTX.ID()
+		txIDs[i] = txID.String()
 		switch atx := atomicTX.UnsignedAtomicTx.(type) {
 		case *evm.UnsignedExportTx:
 			typ = models.CChainExport
@@ -245,9 +242,6 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.T
 				return err
 			}
 		case *evm.UnsignedImportTx:
-			if err != nil {
-				return err
-			}
 			unsignedBytes, err := w.codec.Marshal(0, &atomicTX.UnsignedAtomicTx)
 			if err != nil {
 				return err
@@ -298,22 +292,25 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.T
 		htime = 1
 	}
 	tm := time.Unix(htime, 0)
-	cvmTransaction := &db.CvmTransactions{
-		ID:            id.String(),
-		TransactionID: txIDString,
-		Type:          typ,
-		BlockchainID:  blockchainID,
-		Block:         block.Header.Number.String(),
-		CreatedAt:     ctx.Time(),
-		Serialization: blockjson,
-		TxTime:        tm,
-		Nonce:         block.Header.Nonce.Uint64(),
-		Hash:          block.Header.Hash().String(),
-		ParentHash:    block.Header.ParentHash.String(),
-	}
-	err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
-	if err != nil {
-		return err
+
+	for _, txIDString := range txIDs {
+		cvmTransaction := &db.CvmTransactions{
+			ID:            id.String(),
+			TransactionID: txIDString,
+			Type:          typ,
+			BlockchainID:  blockchainID,
+			Block:         block.Header.Number.String(),
+			CreatedAt:     ctx.Time(),
+			Serialization: blockjson,
+			TxTime:        tm,
+			Nonce:         block.Header.Nonce.Uint64(),
+			Hash:          block.Header.Hash().String(),
+			ParentHash:    block.Header.ParentHash.String(),
+		}
+		err = ctx.Persist().InsertCvmTransactions(ctx.Ctx(), ctx.DB(), cvmTransaction, cfg.PerformUpdates)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
