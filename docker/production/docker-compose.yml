@@ -44,7 +44,7 @@ services:
       - indexer
     restart: always
   indexer: &ortelius-app
-    image: "avaplatform/ortelius:v1.7.0-fuji"
+    image: "avaplatform/ortelius:v1.7.0-fuji-2"
     command: ["stream", "indexer", "-c", "/opt/config.json"]
     external_links:
       - mysql
