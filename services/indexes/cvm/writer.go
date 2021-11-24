@@ -102,12 +102,6 @@ func (w *Writer) extractAtomicTxsPostApricotPhase5(atomicTxBytes []byte) ([]*evm
 		return nil, fmt.Errorf("failed to unmarshal atomic tx (AP5) due to %w", err)
 	}
 
-	// Do not allow non-empty extra data field to contain zero atomic transactions. This would allow
-	// people to construct a block that contains useless data.
-	if len(atomicTxs) == 0 {
-		return nil, fmt.Errorf("missing atomic transactions")
-	}
-
 	for index, atx := range atomicTxs {
 		if err := atx.Sign(w.codec, nil); err != nil {
 			return nil, fmt.Errorf("failed to initialize atomic tx at index %d: %w", index, err)
