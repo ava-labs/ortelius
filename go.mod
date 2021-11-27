@@ -3,7 +3,7 @@ module github.com/ava-labs/ortelius
 go 1.16
 
 require (
-	github.com/ava-labs/avalanchego v1.7.0
+	github.com/ava-labs/avalanchego v1.7.1
 	github.com/ava-labs/coreth v0.8.0-rc.2
 	github.com/ethereum/go-ethereum v1.10.12
 	github.com/go-sql-driver/mysql v1.6.0
