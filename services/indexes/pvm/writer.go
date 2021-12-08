@@ -52,7 +52,7 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	_, avaxAssetID, err := genesis.Genesis(networkID, "")
+	_, avaxAssetID, err := genesis.FromConfig(genesis.GetConfig(networkID))
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, c servic
 }
 
 func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persist db.Persist) error {
-	genesisBytes, _, err := genesis.Genesis(w.networkID, "")
+	genesisBytes, _, err := genesis.FromConfig(genesis.GetConfig(w.networkID))
 	if err != nil {
 		return err
 	}
