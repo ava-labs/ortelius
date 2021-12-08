@@ -53,7 +53,7 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 		return nil, err
 	}
 
-	_, avaxAssetID, err := genesis.Genesis(networkID, "")
+	_, avaxAssetID, err := genesis.FromFile(networkID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 	}()
 
 	// Get platform genesis block
-	platformGenesisBytes, _, err = genesis.Genesis(w.networkID, "")
+	platformGenesisBytes, _, err = genesis.FromFile(w.networkID, "")
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to get platform genesis bytes")
 	}
