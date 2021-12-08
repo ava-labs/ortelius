@@ -21,7 +21,7 @@ type GenesisContainer struct {
 func NewGenesisContainer(networkID uint32) (*GenesisContainer, error) {
 	gc := &GenesisContainer{NetworkID: networkID}
 	var err error
-	gc.GenesisBytes, gc.AvaxAssetID, err = genesis.FromFile(gc.NetworkID, "")
+	gc.GenesisBytes, gc.AvaxAssetID, err = genesis.FromConfig(genesis.GetConfig(gc.NetworkID))
 	if err != nil {
 		return nil, err
 	}
