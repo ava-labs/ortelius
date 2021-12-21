@@ -86,8 +86,8 @@ github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hC
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/ava-labs/avalanchego v1.7.1/go.mod h1:jwfTpP+SB9AZVnHBuh3/d2WNbsIgGwUpqOfOgtEkelk=
-github.com/ava-labs/avalanchego v1.7.2 h1:FLlldL4+GVv7lhGsk92giUBeY+sYuCw21T/Z2BKpE94=
-github.com/ava-labs/avalanchego v1.7.2/go.mod h1:jwfTpP+SB9AZVnHBuh3/d2WNbsIgGwUpqOfOgtEkelk=
+github.com/ava-labs/avalanchego v1.7.3 h1:ry+D4AUBTdQqbgYU9RDE5/WW4byXk+SLASvxT6TiluY=
+github.com/ava-labs/avalanchego v1.7.3/go.mod h1:YPIP9GyzXKjscsWlvbPWvV0TQcgV+0t8rMe8sLvc0xQ=
 github.com/ava-labs/coreth v0.8.2-rc.0 h1:B1YuHNY3MeK0QfYWy67wlfoAct5xPXVnvbBPcjLhYlQ=
 github.com/ava-labs/coreth v0.8.2-rc.0/go.mod h1:N3+QxOXfZYZo0mU5hwcrEYLTj+c1zY7LjXg+6NMq5rk=
 github.com/aws/aws-sdk-go-v2 v1.2.0/go.mod h1:zEQs02YRBw1DjK0PoJv3ygDYOFTre1ejlJWl8FwAuQo=
@@ -349,6 +349,7 @@ github.com/hashicorp/go-immutable-radix v1.0.0/go.mod h1:0y9vanUI8NX6FsYoO3zeMjh
 github.com/hashicorp/go-msgpack v0.5.3/go.mod h1:ahLV/dePpqEmjfWmKiqvPkv/twdG7iPBM1vqhUKIvfM=
 github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
 github.com/hashicorp/go-plugin v1.3.0/go.mod h1:F9eH4LrE/ZsRdbwhfjs9k9HoDUwAHnYtXdgmf1AVNs0=
+github.com/hashicorp/go-plugin v1.4.3/go.mod h1:5fGEH17QVwTTcR0zV7yhDPLLmFX9YSZ38b18Udy6vYQ=
 github.com/hashicorp/go-rootcerts v1.0.0/go.mod h1:K6zTfqpRlCUIjkwsN4Z+hiSfzSTQa6eBIzfwKfwNnHU=
 github.com/hashicorp/go-sockaddr v1.0.0/go.mod h1:7Xibr9yA9JjQq1JpNB2Vw7kxv8xerXegt+ozgdvDeDU=
 github.com/hashicorp/go-syslog v1.0.0/go.mod h1:qPfqrKkXGihmCqbJM2mZgkZGvKG1dFdvsLplgctolz4=
