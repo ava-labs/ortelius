@@ -160,8 +160,9 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
 	}
-	ctx, cancelCtx := context.WithTimeout(context.Background(), dbReadTimeout)
+	ctx, cancelCtx := context.WithTimeout(context.Background(), readRPCTimeout)
 	defer cancelCtx()
+
 	containers, err := p.nodeIndexer.GetContainerRange(ctx, containerRangeArgs)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
