@@ -161,7 +161,10 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
 	}
-	containers, err := p.nodeIndexer.GetContainerRange(containerRangeArgs)
+	ctx, cancelCtx := context.WithTimeout(context.Background(), IndexerTimeout)
+	defer cancelCtx()
+
+	containers, err := p.nodeIndexer.GetContainerRange(ctx, containerRangeArgs)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
 		if IndexNotReady(err) {
@@ -277,7 +280,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 
 	endpoint := fmt.Sprintf("/ext/index/%s/%s", indexerChain, indexerType)
 
-	nodeIndexer := indexer.NewClient(conf.AvalancheGO, endpoint, IndexerTimeout)
+	nodeIndexer := indexer.NewClient(conf.AvalancheGO, endpoint)
 
 	p := &ProducerChain{
 		indexerType:             indexerType,
