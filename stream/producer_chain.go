@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	MaxTxRead = 500
+	IndexerTimeout = 3 * time.Minute
+	MaxTxRead      = 500
 )
 
 type IndexType byte
@@ -160,7 +161,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 		NumToFetch: json.Uint64(MaxTxRead),
 		Encoding:   formatting.Hex,
 	}
-	ctx, cancelCtx := context.WithTimeout(context.Background(), readRPCTimeout)
+	ctx, cancelCtx := context.WithTimeout(context.Background(), IndexerTimeout)
 	defer cancelCtx()
 
 	containers, err := p.nodeIndexer.GetContainerRange(ctx, containerRangeArgs)
