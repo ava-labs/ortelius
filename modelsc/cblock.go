@@ -92,7 +92,7 @@ type TransactionTrace struct {
 
 type Client struct {
 	rpcClient *rpc.Client
-	ethClient *ethclient.Client
+	ethClient ethclient.Client
 	lock      sync.Mutex
 }
 
