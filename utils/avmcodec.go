@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
@@ -26,7 +27,7 @@ func NewAVMCodec(networkID uint32) (codec.Manager, error) {
 		return nil, nil
 	}
 
-	g, err := genesis.VMGenesis(genesisBytes, avm.ID)
+	g, err := genesis.VMGenesis(genesisBytes, constants.AVMID)
 	if err != nil {
 		return nil, err
 	}

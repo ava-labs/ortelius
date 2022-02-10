@@ -6,7 +6,7 @@ package utils
 import (
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
-	avmVM "github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 )
 
@@ -26,7 +26,7 @@ func NewGenesisContainer(networkID uint32) (*GenesisContainer, error) {
 		return nil, err
 	}
 
-	gc.XChainGenesisTx, err = genesis.VMGenesis(gc.GenesisBytes, avmVM.ID)
+	gc.XChainGenesisTx, err = genesis.VMGenesis(gc.GenesisBytes, constants.AVMID)
 	if err != nil {
 		return nil, err
 	}

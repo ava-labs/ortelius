@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/avalanche/vertex"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/avm"
@@ -165,7 +166,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 			return stacktrace.Propagate(ErrIncorrectGenesisChainTxType, "Platform genesis contains invalid Chains")
 		}
 
-		if createChainTx.VMID != avm.ID {
+		if createChainTx.VMID != constants.AVMID {
 			continue
 		}
 
