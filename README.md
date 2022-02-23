@@ -1,3 +1,5 @@
+🔴WARNING: This has been deprecated, please read [this.](https://docs.avax.network/build/tools/deprecating-ortelius) 🔴
+
 # Ortelius
 
 A data processing pipeline for the [Avalanche network](https://avax.network).
