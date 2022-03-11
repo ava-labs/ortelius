@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/jinzhu/copier"
 )
 
 const appName = "ortelius"
@@ -82,7 +83,8 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 
 	// Build logging config
-	loggingConf, err := logging.DefaultConfig()
+	var loggingConf logging.Config
+	err = copier.Copy(loggingConf, logging.DefaultConfig)
 	if err != nil {
 		return nil, err
 	}

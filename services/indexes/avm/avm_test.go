@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"github.com/jinzhu/copier"
 )
 
 var (
@@ -128,7 +129,8 @@ func TestIndexBootstrap(t *testing.T) {
 func newTestIndex(t *testing.T, chainID ids.ID) (*utils.Connections, *Writer, *avax.Reader, func()) {
 	networkID := uint32(5)
 
-	logConf, err := logging.DefaultConfig()
+	var logConf logging.Config
+	err := copier.Copy(logConf, logging.DefaultConfig)
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
 	}
