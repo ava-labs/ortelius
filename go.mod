@@ -10,6 +10,7 @@ require (
 	github.com/gocraft/dbr/v2 v2.7.2
 	github.com/gocraft/web v0.0.0-20190207150652-9707327fb69b
 	github.com/gorilla/rpc v1.2.0
+	github.com/jinzhu/copier v0.3.5
 	github.com/neilotoole/errgroup v0.1.6
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/prometheus/client_golang v1.11.0
