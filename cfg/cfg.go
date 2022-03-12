@@ -83,8 +83,8 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 
 	// Build logging config
-	var loggingConf logging.Config
-	err = copier.Copy(loggingConf, logging.DefaultConfig)
+	loggingConf := logging.Config{}
+	err = copier.Copy(&loggingConf, &logging.DefaultConfig)
 	if err != nil {
 		return nil, err
 	}
