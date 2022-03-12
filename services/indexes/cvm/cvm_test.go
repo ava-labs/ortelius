@@ -28,8 +28,8 @@ var (
 )
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*utils.Connections, *Writer, func()) {
-	var logConf logging.Config
-	err := copier.Copy(logConf, logging.DefaultConfig)
+	logConf := logging.Config{}
+	err := copier.Copy(&logConf, &logging.DefaultConfig)
 	if err != nil {
 		t.Fatal("Failed to create logging config:", err.Error())
 	}
