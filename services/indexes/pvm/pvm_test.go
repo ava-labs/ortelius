@@ -48,7 +48,7 @@ func TestBootstrap(t *testing.T) {
 }
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*utils.Connections, *Writer, *avax.Reader, func()) {
-	logConf := logging.Config{}
+	logConf := logging.DefaultConfig
 
 	conf := cfg.Services{
 		Logging: logConf,

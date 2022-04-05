@@ -177,7 +177,7 @@ func TestAggregateTxfee(t *testing.T) {
 }
 
 func newTestIndex(t *testing.T) (*Reader, func()) {
-	logConf := logging.Config{}
+	logConf := logging.DefaultConfig
 
 	conf := cfg.Services{
 		Logging: logConf,
