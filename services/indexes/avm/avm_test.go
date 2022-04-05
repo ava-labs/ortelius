@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/params"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
-	"github.com/jinzhu/copier"
 )
 
 var (
@@ -130,10 +129,6 @@ func newTestIndex(t *testing.T, chainID ids.ID) (*utils.Connections, *Writer, *a
 	networkID := uint32(5)
 
 	logConf := logging.Config{}
-	err := copier.Copy(&logConf, &logging.DefaultConfig)
-	if err != nil {
-		t.Fatal("Failed to create logging config:", err.Error())
-	}
 
 	conf := cfg.Services{
 		Logging: logConf,
