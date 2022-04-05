@@ -17,7 +17,7 @@ jobs:
         with:
           version: latest
           working-directory: .
-          args: --timeout m
+          args: --timeout 3m
   test-and-build:
     name: Test and build on Go ${{ matrix.go }}
     runs-on: ubuntu-18.04
