@@ -1,5 +1,5 @@
 # Create base builder image
-FROM golang:1.17.1-alpine3.14 AS builder
+FROM golang:1.17.9-alpine3.14 AS builder
 WORKDIR /go/src/github.com/ava-labs/ortelius
 RUN apk add --no-cache alpine-sdk bash git make gcc musl-dev linux-headers git ca-certificates g++ libstdc++
 
