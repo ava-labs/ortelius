@@ -158,7 +158,7 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 			Timeout: &tracerTimeout,
 			Tracer:  &tracer,
 		}}
-		if err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", args); err != nil {
+		if err := c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", args); err != nil {
 			return nil, err
 		}
 
