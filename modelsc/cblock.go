@@ -154,10 +154,11 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 		}
 		var results []interface{}
 		err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction",
-			txh, TracerParam{Tracer: TracerJS, Timeout: "1m"})
+			txh, TracerParam{Tracer: "callTracer", Timeout: "1m"})
 		if err != nil {
 			return nil, err
 		}
+
 		for ipos, result := range results {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
