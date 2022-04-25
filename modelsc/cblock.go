@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/coreth/core/types"
+	"github.com/ava-labs/coreth/eth/tracers"
 	"github.com/ava-labs/coreth/ethclient"
 	"github.com/ava-labs/coreth/interfaces"
 	"github.com/ava-labs/coreth/rpc"
@@ -123,11 +124,6 @@ func (c *Client) Close() {
 	c.rpcClient.Close()
 }
 
-type TracerParam struct {
-	Tracer  string `json:"tracer"`
-	Timeout string `json:"timeout"`
-}
-
 type BlockContainer struct {
 	Block  *types.Block
 	Traces []*TransactionTrace
@@ -146,6 +142,11 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 		return nil, err
 	}
 
+	var (
+		tracer        = "callTracer"
+		tracerTimeout = "180s"
+	)
+
 	txTraces := make([]*TransactionTrace, 0, len(bl.Transactions()))
 	for _, tx := range bl.Transactions() {
 		txh := tx.Hash().Hex()
@@ -153,9 +154,11 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 			txh = "0x" + txh
 		}
 		var results []interface{}
-		err = c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction",
-			txh, TracerParam{Tracer: "callTracer", Timeout: "1m"})
-		if err != nil {
+		args := []interface{}{txh, &tracers.TraceConfig{
+			Timeout: &tracerTimeout,
+			Tracer:  &tracer,
+		}}
+		if err := c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", args); err != nil {
 			return nil, err
 		}
 
