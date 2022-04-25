@@ -10,14 +10,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/rpc"
 	"github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/eth/tracers"
 	"github.com/ava-labs/coreth/ethclient"
 	"github.com/ava-labs/coreth/interfaces"
-	"github.com/ava-labs/coreth/rpc"
 )
 
-var ErrNotFound = errors.New("block not found")
+var (
+	ErrNotFound = errors.New("block not found")
+	prefixEth   = "/ext/bc/C/rpc"
+)
 
 type Block struct {
 	Header         types.Header        `json:"header"`
@@ -92,20 +95,21 @@ type TransactionTrace struct {
 }
 
 type Client struct {
-	rpcClient *rpc.Client
+	rpcClient rpc.Requester
 	ethClient ethclient.Client
 	lock      sync.Mutex
 }
 
 func NewClient(url string) (*Client, error) {
-	rc, err := rpc.Dial(url)
+	rc := rpc.NewRPCRequester(url)
+	ec, err := ethclient.Dial(url + prefixEth)
 	if err != nil {
 		return nil, err
 	}
-	cl := &Client{}
-	cl.rpcClient = rc
-	cl.ethClient = ethclient.NewClient(rc)
-	return cl, nil
+	return &Client{
+		rpcClient: rc,
+		ethClient: ec,
+	}, nil
 }
 
 func (c *Client) Latest(rpcTimeout time.Duration) (*big.Int, error) {
@@ -120,9 +124,7 @@ func (c *Client) Latest(rpcTimeout time.Duration) (*big.Int, error) {
 	return big.NewInt(0).SetUint64(bl), nil
 }
 
-func (c *Client) Close() {
-	c.rpcClient.Close()
-}
+func (c *Client) Close() {}
 
 type BlockContainer struct {
 	Block  *types.Block
@@ -158,7 +160,11 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 			Timeout: &tracerTimeout,
 			Tracer:  &tracer,
 		}}
-		if err := c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", args); err != nil {
+		ops := rpc.NewOptions(nil)
+		if err := c.rpcClient.SendJSONRPCRequest(
+			ctx, prefixEth, ops.Headers(), ops.QueryParams(),
+			"debug_traceTransaction", args, &results,
+		); err != nil {
 			return nil, err
 		}
 

@@ -75,7 +75,7 @@ func newContainerC(
 		return nil, err
 	}
 
-	cl, err := modelsc.NewClient(conf.AvalancheGO + "/ext/bc/C/rpc")
+	cl, err := modelsc.NewClient(conf.AvalancheGO)
 	if err != nil {
 		_ = conns.Close()
 		return nil, err
@@ -385,7 +385,7 @@ func (p *ProducerCChain) runProcessor() error {
 	}
 
 	for icnt := 0; icnt < maxWorkers; icnt++ {
-		cl, err := modelsc.NewClient(p.conf.AvalancheGO + "/ext/bc/C/rpc")
+		cl, err := modelsc.NewClient(p.conf.AvalancheGO)
 		if err != nil {
 			return err
 		}
