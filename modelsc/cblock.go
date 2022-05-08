@@ -177,8 +177,11 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 		if err := c.rpcClient.CallContext(ctx, &raw, "debug_traceTransaction", args); err != nil {
 			return nil, err
 		}
-
-		for ipos, result := range raw {
+		result := make([]*Call, len(raw))
+		for i, tx := range raw {
+			result[i] = tx.Call
+		}
+		for ipos, call := range result {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
 				return nil, err
