@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/coreth/ethclient"
 	"github.com/ava-labs/coreth/interfaces"
 	"github.com/ava-labs/coreth/rpc"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 var ErrNotFound = errors.New("block not found")
@@ -26,6 +28,17 @@ type Block struct {
 	Version        uint32              `json:"version"`
 	BlockExtraData []byte              `json:"blockExtraData"`
 	Txs            []types.Transaction `json:"transactions,omitempty"`
+}
+
+type Call struct {
+	Type    string         `json:"type"`
+	From    common.Address `json:"from"`
+	To      common.Address `json:"to"`
+	Value   *hexutil.Big   `json:"value"`
+	GasUsed *hexutil.Big   `json:"gasUsed"`
+	Revert  bool           `json:"revert"`
+	Error   string         `json:"error,omitempty"`
+	Calls   []*Call        `json:"calls,omitempty"`
 }
 
 func New(bl *types.Block) (*Block, error) {
@@ -153,16 +166,19 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 		if !strings.HasPrefix(txh, "0x") {
 			txh = "0x" + txh
 		}
-		var results []interface{}
+
+		var raw []struct {
+			*Call `json:"result"`
+		}
 		args := []interface{}{txh, &tracers.TraceConfig{
 			Timeout: &tracerTimeout,
 			Tracer:  &tracer,
 		}}
-		if err := c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", args); err != nil {
+		if err := c.rpcClient.CallContext(ctx, &raw, "debug_traceTransaction", args); err != nil {
 			return nil, err
 		}
 
-		for ipos, result := range results {
+		for ipos, result := range raw {
 			traceBits, err := json.Marshal(result)
 			if err != nil {
 				return nil, err
