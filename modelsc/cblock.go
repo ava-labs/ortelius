@@ -182,7 +182,7 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 			result[i] = tx.Call
 		}
 		for ipos, call := range result {
-			traceBits, err := json.Marshal(result)
+			traceBits, err := json.Marshal(call)
 			if err != nil {
 				return nil, err
 			}
