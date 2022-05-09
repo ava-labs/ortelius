@@ -5,7 +5,6 @@ package avax
 
 import (
 	"context"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/ortelius/cfg"
@@ -83,9 +82,6 @@ func (r *Reader) dressAssets(ctx context.Context, dbRunner dbr.SessionRunner, as
 	if len(assets) == 0 {
 		return nil
 	}
-
-	tnow := time.Now().UTC()
-	tnow = tnow.Truncate(1 * time.Minute)
 
 	// Create a list of ids for querying, and a map for accumulating results later
 	assetIDs := make([]models.StringID, len(assets))
