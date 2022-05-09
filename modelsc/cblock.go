@@ -167,22 +167,16 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 			txh = "0x" + txh
 		}
 
-		var raw []struct {
-			*Call `json:"result"`
-		}
-		args := []interface{}{txh, &tracers.TraceConfig{
+		var results Call
+		args := &tracers.TraceConfig{
 			Timeout: &tracerTimeout,
 			Tracer:  &tracer,
-		}}
-		if err := c.rpcClient.CallContext(ctx, &raw, "debug_traceTransaction", args); err != nil {
+		}
+		if err := c.rpcClient.CallContext(ctx, &results, "debug_traceTransaction", txh, args); err != nil {
 			return nil, err
 		}
-		result := make([]*Call, len(raw))
-		for i, tx := range raw {
-			result[i] = tx.Call
-		}
-		for ipos, call := range result {
-			traceBits, err := json.Marshal(call)
+		for ipos, result := range results.Calls {
+			traceBits, err := json.Marshal(result)
 			if err != nil {
 				return nil, err
 			}
