@@ -166,7 +166,6 @@ func (c *Client) ReadBlock(blockNumber *big.Int, rpcTimeout time.Duration) (*Blo
 		if !strings.HasPrefix(txh, "0x") {
 			txh = "0x" + txh
 		}
-
 		var results Call
 		args := &tracers.TraceConfig{
 			Timeout: &tracerTimeout,
