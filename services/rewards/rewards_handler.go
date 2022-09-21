@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	avalancheGoAvax "github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/models"
 	"github.com/ava-labs/ortelius/services"
@@ -70,7 +71,7 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) 
 		case <-ticker.C:
 			err := r.processRewards()
 			if err != nil {
-				sc.Log.Error("process rewards %s", err)
+				sc.Log.Error(fmt.Sprintf("process rewards %s", err))
 			}
 		case <-r.doneCh:
 			return
@@ -162,7 +163,7 @@ func (r *Handler) processRewardUtxos(rewardsUtxos [][]byte, createdAt time.Time)
 
 	for _, reawrdUtxo := range rewardsUtxos {
 		var utxo *avalancheGoAvax.UTXO
-		_, err = platformvm.Codec.Unmarshal(reawrdUtxo, &utxo)
+		_, err = txs.Codec.Unmarshal(reawrdUtxo, &utxo)
 		if err != nil {
 			return err
 		}

@@ -134,7 +134,7 @@ func (replay *dbReplay) Start() error {
 			ctot[cnter].Waits = countersValues[cnter]
 		}
 
-		replay.sc.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
+		replay.sc.Log.Info(fmt.Sprintf("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt()))
 
 		var sortedcnters []string
 		for cnter := range ctot {
@@ -167,7 +167,7 @@ func (replay *dbReplay) Start() error {
 	logemit(waitGroupCnt)
 
 	if replay.errs.GetValue() != nil {
-		replay.sc.Log.Error("replay failed %v", replay.errs.GetValue().(error))
+		replay.sc.Log.Error(fmt.Sprintf("replay failed %v", replay.errs.GetValue().(error)))
 		return replay.errs.GetValue().(error)
 	}
 
@@ -217,9 +217,9 @@ func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker u
 	{
 		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
 		ctx := context.Background()
-		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
+		replay.sc.Log.Info(fmt.Sprintf("replay for topic %s bootstrap start", tn))
 		err := writer.Bootstrap(ctx, conns, replay.persist)
-		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
+		replay.sc.Log.Info(fmt.Sprintf("replay for topic %s bootstrap end %v", tn, err))
 		if err != nil {
 			replay.errs.SetValue(err)
 			return err
@@ -357,7 +357,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 
 		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				replay.sc.Log.Info(fmt.Sprintf("replay for topic %s stopped for errors", tn))
 				return
 			}
 
@@ -370,7 +370,7 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn(fmt.Sprintf("replay for topic %s error %v", tn, err))
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -435,7 +435,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 
 		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				replay.sc.Log.Info(fmt.Sprintf("replay for topic %s stopped for errors", tn))
 				return
 			}
 
@@ -448,7 +448,7 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn(fmt.Sprintf("replay for topic %s error %v", tn, err))
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -503,7 +503,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 
 		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				replay.sc.Log.Info(fmt.Sprintf("replay for topic %s stopped for errors", tn))
 				return
 			}
 
@@ -516,7 +516,7 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn(fmt.Sprintf("replay for topic %s error %v", tn, err))
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -571,7 +571,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 
 		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				replay.sc.Log.Info(fmt.Sprintf("replay for topic %s stopped for errors", tn))
 				return
 			}
 
@@ -584,7 +584,7 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn(fmt.Sprintf("replay for topic %s error %v", tn, err))
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -639,7 +639,7 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 
 		for _, txPoolID := range txPools {
 			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+				replay.sc.Log.Info(fmt.Sprintf("replay for topic %s stopped for errors", tn))
 				return
 			}
 
@@ -652,7 +652,7 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn(fmt.Sprintf("replay for topic %s error %v", tn, err))
 				time.Sleep(500 * time.Millisecond)
 			}
 

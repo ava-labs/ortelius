@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/formatting"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
 
 func GetQueryInt(q url.Values, key string, defaultVal int) (val int, err error) {
@@ -106,7 +106,7 @@ func AddressFromString(addrStr string) (ids.ShortID, error) {
 		addrStr = strings.TrimPrefix(addrStr, strings.ToLower(prefix)+"-")
 	}
 
-	_, addrBytes, err := formatting.ParseBech32(addrStr)
+	_, addrBytes, err := address.ParseBech32(addrStr)
 	if err != nil {
 		addrFromShortIDStr, err := ids.ShortFromString(addrStr)
 		if err == nil {

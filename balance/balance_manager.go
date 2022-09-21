@@ -135,7 +135,7 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 					continue
 				}
 				if err != nil {
-					a.sc.Logger().Error("accumulate ticker error %v", err)
+					a.sc.Logger().Error(fmt.Sprintf("accumulate ticker error %v", err))
 					return
 				}
 				if cnt < RowLimitValue {
@@ -149,7 +149,7 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 			ticker.Stop()
 			err := conns.Close()
 			if err != nil {
-				a.sc.Logger().Warn("connection close %v", err)
+				a.sc.Logger().Warn(fmt.Sprintf("connection close %v", err))
 			}
 			a.sc.Logger().Info("stop ticker")
 		}()
@@ -166,10 +166,10 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 }
 
 func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conns *utils.Connections) (uint64, error), trigger chan struct{}) {
-	a.sc.Logger().Info("start processing %v", id)
+	a.sc.Logger().Info(fmt.Sprintf("start processing %v", id))
 	go func() {
 		defer func() {
-			a.sc.Logger().Info("stop processing %v", id)
+			a.sc.Logger().Info(fmt.Sprintf("stop processing %v", id))
 		}()
 		runEvent := func(conns *utils.Connections) {
 			icnt := 0
@@ -180,7 +180,7 @@ func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conn
 					continue
 				}
 				if err != nil {
-					a.sc.Logger().Error("accumulate error %s %v", id, err)
+					a.sc.Logger().Error(fmt.Sprintf("accumulate error %s %v", id, err))
 					return
 				}
 				if cnt < RowLimitValue {
@@ -193,9 +193,9 @@ func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conn
 		defer func() {
 			err := conns.Close()
 			if err != nil {
-				a.sc.Logger().Warn("connection close %v", err)
+				a.sc.Logger().Warn(fmt.Sprintf("connection close %v", err))
 			}
-			a.sc.Logger().Info("stop processing %v", id)
+			a.sc.Logger().Info(fmt.Sprintf("stop processing %v", id))
 		}()
 
 		for {

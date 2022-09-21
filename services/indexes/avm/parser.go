@@ -5,16 +5,16 @@ package avm
 
 import (
 	"github.com/ava-labs/avalanchego/codec"
-	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/avm/txs"
 )
 
-func parseTx(c codec.Manager, bytes []byte) (*avm.Tx, error) {
-	tx := &avm.Tx{}
+func parseTx(c codec.Manager, bytes []byte) (*txs.Tx, error) {
+	tx := &txs.Tx{}
 	ver, err := c.Unmarshal(bytes, tx)
 	if err != nil {
 		return nil, err
 	}
-	unsignedBytes, err := c.Marshal(ver, &tx.UnsignedTx)
+	unsignedBytes, err := c.Marshal(ver, &tx.Unsigned)
 	if err != nil {
 		return nil, err
 	}

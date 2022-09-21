@@ -42,7 +42,7 @@ func (e *event) EventErr(eventName string, err error) error {
 		return err
 	}
 	e.eventName = eventName
-	e.logger.Warn("event %s %s %v", e.name, e.eventName, err)
+	e.logger.Warn(fmt.Sprintf("event %s %s %v", e.name, e.eventName, err))
 	return stacktrace.Propagate(err, fmt.Sprintf("%s %s", e.name, e.eventName))
 }
 
@@ -51,7 +51,7 @@ func (e *event) EventErrKv(eventName string, err error, kvs map[string]string) e
 		return err
 	}
 	e.eventName = eventName
-	e.logger.Warn("event %s %s %v", e.name, e.eventName, err)
+	e.logger.Warn(fmt.Sprintf("event %s %s %v", e.name, e.eventName, err))
 	return stacktrace.Propagate(err, fmt.Sprintf("%s %s", e.name, e.eventName))
 }
 

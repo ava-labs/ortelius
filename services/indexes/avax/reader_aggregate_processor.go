@@ -2,6 +2,7 @@ package avax
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"sort"
 	"sync"
@@ -275,14 +276,14 @@ func (r *Reader) processorTxAscFetch(conns *utils.Connections) {
 		}()
 
 		if _, err := builder.LoadContext(ctx, &txsAsc); err != nil {
-			r.sc.Log.Warn("ascending tx query fail %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("ascending tx query fail %v", err))
 			txsAsc = nil
 			return
 		}
 
 		err := dressTransactions(ctx, sess, txsAsc, r.sc.GenesisContainer.AvaxAssetID, nil, false)
 		if err != nil {
-			r.sc.Log.Warn("ascending tx dress tx fail %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("ascending tx dress tx fail %v", err))
 			txsAsc = nil
 			return
 		}
@@ -312,7 +313,7 @@ func (r *Reader) addressCounts(ctx context.Context, sess *dbr.Session) {
 		GroupBy("chain_id").
 		LoadContext(ctx, &addressCountl)
 	if err != nil {
-		r.sc.Log.Warn("Aggregate address counts %v", err)
+		r.sc.Log.Warn(fmt.Sprintf("Aggregate address counts %v", err))
 		return
 	}
 
@@ -339,7 +340,7 @@ func (r *Reader) txCounts(ctx context.Context, sess *dbr.Session) {
 		GroupBy("chain_id").
 		LoadContext(ctx, &txCountl)
 	if err != nil {
-		r.sc.Log.Warn("Aggregate tx counts %v", err)
+		r.sc.Log.Warn(fmt.Sprintf("Aggregate tx counts %v", err))
 		return
 	}
 
@@ -416,7 +417,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 
 		assets, addlAssetsFound, err := r.fetchAssets(ctx, sess, runTm, runDuration)
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 
@@ -428,7 +429,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 			urlv := url.Values{}
 			err = p.ForValues(1, urlv)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 			p.ListParams.EndTime = runTm
@@ -436,21 +437,21 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 			p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
 			id, err := ids.FromString(asset)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 			p.AssetID = &id
-			r.sc.Log.Info("aggregate %s %v-%v", id.String(), p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
+			r.sc.Log.Info(fmt.Sprintf("aggregate %s %v-%v", id.String(), p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339)))
 			aggr, err := r.Aggregate(ctx, p, conns)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
 			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 
@@ -464,7 +465,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 		for _, asset := range addlAssetsFound {
 			id, err := ids.FromString(asset)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 			_, ok := assetMap[id]
@@ -475,7 +476,7 @@ func (r *Reader) aggregateProcessorAssetAggr(conns *utils.Connections) {
 			pa := &params.ListAssetsParams{ListParams: params.ListParams{DisableCounting: true, ID: &id}}
 			lassets, err := r.ListAssets(ctx, pa, conns)
 			if err != nil {
-				r.sc.Log.Warn("Aggregate %v", err)
+				r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 				return
 			}
 			for _, lasset := range lassets.Assets {
@@ -522,13 +523,13 @@ func (r *Reader) processAggregate(conns *utils.Connections, runTm time.Time, tag
 	urlv.Add(params.KeyIntervalSize, intervalSize)
 	err := p.ForValues(1, urlv)
 	if err != nil {
-		r.sc.Log.Warn("Aggregate %v", err)
+		r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 		return nil, err
 	}
 	p.ListParams.EndTime = runTm
 	p.ListParams.StartTime = p.ListParams.EndTime.Add(deltaTime)
 	p.ChainIDs = append(p.ChainIDs, r.sc.GenesisContainer.XChainID.String())
-	r.sc.Log.Info("aggregate %s interval %s %v->%v", tag, intervalSize, p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339))
+	r.sc.Log.Info(fmt.Sprintf("aggregate %s interval %s %v->%v", tag, intervalSize, p.ListParams.StartTime.Format(time.RFC3339), p.ListParams.EndTime.Format(time.RFC3339)))
 	return r.Aggregate(ctx, p, conns)
 }
 
@@ -544,7 +545,7 @@ func (r *Reader) aggregateProcessor1m(conns *utils.Connections) {
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "1m", "1s", -time.Minute)
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 		r.readerAggregate.lock.Lock()
@@ -578,7 +579,7 @@ func (r *Reader) aggregateProcessor1h(conns *utils.Connections) {
 	runAgg := func(runtm time.Time) {
 		agg, err := r.processAggregate(conns, runtm, "1h", "5m", -time.Hour)
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 		r.readerAggregate.lock.Lock()
@@ -612,7 +613,7 @@ func (r *Reader) aggregateProcessor24h(conns *utils.Connections) {
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "24h", "hour", -(24 * time.Hour))
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 		r.readerAggregate.lock.Lock()
@@ -646,7 +647,7 @@ func (r *Reader) aggregateProcessor7d(conns *utils.Connections) {
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "7d", "day", -(7 * 24 * time.Hour))
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 		r.readerAggregate.lock.Lock()
@@ -680,7 +681,7 @@ func (r *Reader) aggregateProcessor30d(conns *utils.Connections) {
 	runAgg := func(runTm time.Time) {
 		agg, err := r.processAggregate(conns, runTm, "30d", "day", -(30 * 24 * time.Hour))
 		if err != nil {
-			r.sc.Log.Warn("Aggregate %v", err)
+			r.sc.Log.Warn(fmt.Sprintf("Aggregate %v", err))
 			return
 		}
 		r.readerAggregate.lock.Lock()

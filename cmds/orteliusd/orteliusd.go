@@ -119,7 +119,7 @@ func execute() error {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
 					}()
-					alog.Info("Starting metrics handler on %s", config.MetricsListenAddr)
+					alog.Info(fmt.Sprintf("Starting metrics handler on %s", config.MetricsListenAddr))
 				}
 				if config.AdminListenAddr != "" {
 					rpcServer := rpc.NewServer()
@@ -390,5 +390,5 @@ type MysqlLogger struct {
 
 func (m *MysqlLogger) Print(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	m.Log.Warn("mysql %s", s)
+	m.Log.Warn(fmt.Sprintf("mysql %s", s))
 }

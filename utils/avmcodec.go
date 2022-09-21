@@ -9,9 +9,10 @@ import (
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/vms/avm"
+	"github.com/ava-labs/avalanchego/vms/avm/fxs"
+	"github.com/ava-labs/avalanchego/vms/avm/txs"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
+	p_txs "github.com/ava-labs/avalanchego/vms/platformvm/txs"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 )
 
@@ -32,14 +33,14 @@ func NewAVMCodec(networkID uint32) (codec.Manager, error) {
 		return nil, err
 	}
 
-	createChainTx, ok := g.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
+	createChainTx, ok := g.Unsigned.(*p_txs.CreateChainTx)
 	if !ok {
 		return nil, ErrIncorrectGenesisChainTxType
 	}
 
 	var (
 		fxIDs = createChainTx.FxIDs
-		fxs   = make([]avm.Fx, 0, len(fxIDs))
+		fxs   = make([]fxs.Fx, 0, len(fxIDs))
 	)
 
 	for _, fxID := range fxIDs {
@@ -52,8 +53,11 @@ func NewAVMCodec(networkID uint32) (codec.Manager, error) {
 			// return nil, fmt.Errorf("Unknown FxID: %s", fxID)
 		}
 	}
-
-	_, codec, err := avm.NewCodecs(fxs)
+	parser, err := txs.NewParser(fxs)
+	if err != nil {
+		return nil, err
+	}
+	codec := parser.Codec()
 	codec.SetMaxSize(MaxCodecSize)
-	return codec, err
+	return codec, nil
 }

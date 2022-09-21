@@ -112,7 +112,7 @@ func (c *consumerDB) Consume(conns *utils.Connections, msg *Message) error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error(fmt.Sprintf("collectors.Collect: %s", err))
 		}
 	}()
 
@@ -128,7 +128,7 @@ func (c *consumerDB) Consume(conns *utils.Connections, msg *Message) error {
 	if err != nil {
 		c.Failure()
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
+		c.sc.Log.Error(fmt.Sprintf("consumer.Consume: %s", err))
 		return err
 	}
 	c.Success()

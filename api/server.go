@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -37,18 +38,19 @@ func NewServer(sc *servicesctrl.Control, conf cfg.Config) (*Server, error) {
 	return &Server{
 		sc: sc,
 		server: &http.Server{
-			Addr:         conf.ListenAddr,
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: cfg.HTTPWriteTimeout,
-			IdleTimeout:  15 * time.Second,
-			Handler:      router,
+			Addr:              conf.ListenAddr,
+			ReadTimeout:       5 * time.Second,
+			WriteTimeout:      cfg.HTTPWriteTimeout,
+			IdleTimeout:       15 * time.Second,
+			Handler:           router,
+			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}, err
 }
 
 // Listen begins listening for new socket connections and blocks until closed
 func (s *Server) Listen() error {
-	s.sc.Log.Info("Server listening on %s", s.server.Addr)
+	s.sc.Log.Info(fmt.Sprintf("Server listening on %s", s.server.Addr))
 	return s.server.ListenAndServe()
 }
 
@@ -61,7 +63,7 @@ func (s *Server) Close() error {
 }
 
 func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
-	sc.Log.Info("Router chainID %s", sc.GenesisContainer.XChainID.String())
+	sc.Log.Info(fmt.Sprintf("Router chainID %s", sc.GenesisContainer.XChainID.String()))
 
 	indexBytes, err := newIndexResponse(conf.NetworkID, sc.GenesisContainer.XChainID, sc.GenesisContainer.AvaxAssetID)
 	if err != nil {
@@ -107,7 +109,7 @@ func newRouter(sc *servicesctrl.Control, conf cfg.Config) (*web.Router, error) {
 		Middleware((*Context).setHeaders).
 		Get("/", func(c *Context, resp web.ResponseWriter, _ *web.Request) {
 			if _, err := resp.Write(indexBytes); err != nil {
-				sc.Log.Warn("resp write %v", err)
+				sc.Log.Warn(fmt.Sprintf("resp write %v", err))
 			}
 		}).
 		NotFound((*Context).notFoundHandler).

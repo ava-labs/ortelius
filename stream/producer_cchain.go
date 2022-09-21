@@ -128,7 +128,7 @@ func (p *producerCChainContainer) getBlock() error {
 	}
 	p.block = mblock
 	p.blockCount = cblockCount
-	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
+	p.sc.Log.Info(fmt.Sprintf("starting processing block %s cnt %s", p.block.String(), p.blockCount.String()))
 	return nil
 }
 
@@ -180,7 +180,7 @@ func (p *producerCChainContainer) catchupBlock(conns *utils.Connections, catchup
 				return
 			}
 			if _, ok := blockMap[startBlock.String()]; !ok {
-				p.sc.Log.Info("refill %v", startBlock.String())
+				p.sc.Log.Info(fmt.Sprintf("refill %v", startBlock.String()))
 				p.msgChan <- &blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock}
 			}
 			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
@@ -313,7 +313,7 @@ func (p *ProducerCChain) Listen() error {
 		// If there was an error we want to log it, and iff we are not stopping
 		// we want to add a retry delay.
 		if err != nil {
-			p.sc.Log.Error("Error running worker: %s", err.Error())
+			p.sc.Log.Error(fmt.Sprintf("Error running worker: %s", err.Error()))
 		}
 		if p.runningControl.IsStopped() {
 			break
@@ -370,7 +370,7 @@ func (p *ProducerCChain) runProcessor() error {
 
 		err := pc.Close()
 		if err != nil {
-			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+			p.sc.Log.Warn(fmt.Sprintf("Stopping worker for cchain %v", err))
 		}
 	}()
 
@@ -405,9 +405,9 @@ func (p *ProducerCChain) runProcessor() error {
 			err = pc.catchupErrs.GetValue().(error)
 			if !CChainNotReady(err) {
 				p.Failure()
-				p.sc.Log.Error("Catchup error: %v", err)
+				p.sc.Log.Error(fmt.Sprintf("Catchup error: %v", err))
 			} else {
-				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				p.sc.Log.Warn(TrimNL(err.Error()))
 			}
 			return err
 		}
@@ -431,12 +431,12 @@ func (p *ProducerCChain) runProcessor() error {
 
 		default:
 			if CChainNotReady(err) {
-				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				p.sc.Log.Warn(TrimNL(err.Error()))
 				return nil
 			}
 
 			p.Failure()
-			p.sc.Log.Error("Unknown error: %v", err)
+			p.sc.Log.Error(fmt.Sprintf("Unknown error: %v", err))
 			return err
 		}
 	}

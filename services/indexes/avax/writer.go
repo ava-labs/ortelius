@@ -12,12 +12,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/ava-labs/avalanchego/utils/formatting"
+	formatting "github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/nftfx"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/db"
@@ -57,6 +57,7 @@ type AddOutsContainer struct {
 func (w *Writer) InsertTransaction(
 	ctx services.ConsumerCtx,
 	txBytes []byte,
+	txID ids.ID,
 	unsignedBytes []byte,
 	baseTx *avax.BaseTx,
 	creds []verify.Verifiable,
@@ -74,7 +75,7 @@ func (w *Writer) InsertTransaction(
 
 	inidx := 0
 	for _, in := range baseTx.Ins {
-		totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, w.chainID)
+		totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, txID, creds, unsignedBytes, w.chainID)
 		if err != nil {
 			return err
 		}
@@ -83,7 +84,7 @@ func (w *Writer) InsertTransaction(
 
 	if addIns != nil {
 		for _, in := range addIns.Ins {
-			totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, baseTx.ID(), creds, unsignedBytes, addIns.ChainID)
+			totalin, err = w.InsertTransactionIns(inidx, ctx, totalin, in, txID, creds, unsignedBytes, addIns.ChainID)
 			if err != nil {
 				return err
 			}
@@ -93,7 +94,7 @@ func (w *Writer) InsertTransaction(
 
 	var idx uint32
 	for _, out := range baseTx.Outs {
-		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), w.chainID, false, false)
+		totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, txID, w.chainID, false, false)
 		if err != nil {
 			return err
 		}
@@ -102,7 +103,7 @@ func (w *Writer) InsertTransaction(
 
 	if addOuts != nil {
 		for _, out := range addOuts.Outs {
-			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, baseTx.ID(), addOuts.ChainID, addOuts.Stake, false)
+			totalout, err = w.InsertTransactionOuts(idx, ctx, totalout, out, txID, addOuts.ChainID, addOuts.Stake, false)
 			if err != nil {
 				return err
 			}
@@ -120,7 +121,7 @@ func (w *Writer) InsertTransaction(
 	// Add baseTx to the table
 	return w.InsertTransactionBase(
 		ctx,
-		baseTx.ID(),
+		txID,
 		w.chainID,
 		txType.String(),
 		baseTx.Memo,
@@ -421,7 +422,7 @@ func (w *Writer) ProcessStateOut(
 	var err error
 
 	switch typedOut := out.(type) {
-	case *platformvm.StakeableLockOut:
+	case *stakeable.LockOut:
 		xOut, ok := typedOut.TransferableOut.(*secp256k1fx.TransferOutput)
 		if !ok {
 			return 0, 0, fmt.Errorf("invalid type *secp256k1fx.TransferOutput")

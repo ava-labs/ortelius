@@ -95,7 +95,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 			if err != nil {
 				return err
 			}
-			sc.Log.Info("bootstrap %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+			sc.Log.Info(fmt.Sprintf("bootstrap %d vm %s chain %s", networkID, chain.VMType, chain.ID))
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -103,7 +103,7 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 				if err != nil {
 					errs.SetValue(err)
 				}
-				sc.Log.Info("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+				sc.Log.Info(fmt.Sprintf("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chain.ID))
 			}()
 		}
 	}
@@ -247,7 +247,7 @@ func IndexerFactories(
 
 				sess, err := conns.DB().NewSession("tx-pool", IteratorTimeout)
 				if err != nil {
-					sc.Log.Error("processing err %v", err)
+					sc.Log.Error(fmt.Sprintf("processing err %v", err))
 					time.Sleep(250 * time.Millisecond)
 					return
 				}
@@ -265,7 +265,7 @@ func IndexerFactories(
 					OrderAsc("processed").OrderAsc("created_at").
 					IterateContext(ctx)
 				if err != nil {
-					sc.Log.Warn("iter %v", err)
+					sc.Log.Warn(fmt.Sprintf("iter %v", err))
 					time.Sleep(250 * time.Millisecond)
 					return
 				}
@@ -286,7 +286,7 @@ func IndexerFactories(
 					err = iterator.Err()
 					if err != nil {
 						if err != io.EOF {
-							sc.Log.Error("iterator err %v", err)
+							sc.Log.Error(fmt.Sprintf("iterator err %v", err))
 						}
 						break
 					}
@@ -294,7 +294,7 @@ func IndexerFactories(
 					txp := &db.TxPool{}
 					err = iterator.Scan(txp)
 					if err != nil {
-						sc.Log.Error("scan %v", err)
+						sc.Log.Error(fmt.Sprintf("scan %v", err))
 						break
 					}
 					// skip previously processed
@@ -311,7 +311,7 @@ func IndexerFactories(
 
 				if errs.GetValue() != nil {
 					err := errs.GetValue().(error)
-					sc.Log.Error("processing err %v", err)
+					sc.Log.Error(fmt.Sprintf("processing err %v", err))
 					time.Sleep(250 * time.Millisecond)
 					return
 				}
