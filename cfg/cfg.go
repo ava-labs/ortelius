@@ -82,7 +82,10 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 
 	// Build logging config
-	loggingConf := logging.Config{}
+	loggingConf := logging.Config{
+		DisplayLevel: logging.Info,
+		LogLevel:     logging.Debug,
+	}
 	loggingConf.Directory = v.GetString(keysLogDirectory)
 
 	dbdsn := servicesDBViper.GetString(keysServicesDBDSN)
