@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         go:
-          - ''1.18.5'
+          - '1.18.5'
     services:
       mysql:
         image: mysql:8.0.26
