@@ -552,9 +552,7 @@ func (c *V2Context) GetAsset(w web.ResponseWriter, r *web.Request) {
 	})
 }
 
-//
 // PVM
-//
 func (c *V2Context) ListBlocks(w web.ResponseWriter, r *web.Request) {
 	collectors := utils.NewCollectors(
 		utils.NewCounterObserveMillisCollect(MetricMillis),

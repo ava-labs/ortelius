@@ -505,11 +505,9 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 		if err != nil {
 			return err
 		}
-		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionsRewardsOwners(ctx, tx.ID(), castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
-			if err != nil {
-				return err
-			}
+		err = w.insertTransactionsRewardsOwners(ctx, tx.ID(), castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
+		if err != nil {
+			return err
 		}
 	case *txs.CreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
