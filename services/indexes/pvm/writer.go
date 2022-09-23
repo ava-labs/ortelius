@@ -238,7 +238,7 @@ func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
 			BlockType: &btypeS,
 		}, nil
 	}
-	proposerBlock, _, err := block.Parse(txBytes) // double check if the blueberry bool is relevant
+	proposerBlock, _, err := block.Parse(txBytes)
 	if err != nil {
 		platformBlock, err := parsePlatformTx(txBytes)
 		if err != nil {
