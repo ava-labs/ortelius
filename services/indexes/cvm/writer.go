@@ -37,9 +37,10 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec         codec.Manager
-	avax          *avaxIndexer.Writer
-	ap5Activation uint64
+	codec               codec.Manager
+	avax                *avaxIndexer.Writer
+	ap5Activation       uint64
+	blueberryActivation uint64
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
@@ -49,13 +50,15 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	}
 
 	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
+	blueberryActivation := version.GetBlueberryTime(networkID).Unix()
 
 	return &Writer{
-		networkID:     networkID,
-		avaxAssetID:   avaxAssetID,
-		codec:         evm.Codec,
-		avax:          avaxIndexer.NewWriter(chainID, avaxAssetID),
-		ap5Activation: uint64(ap5Activation),
+		networkID:           networkID,
+		avaxAssetID:         avaxAssetID,
+		codec:               evm.Codec,
+		avax:                avaxIndexer.NewWriter(chainID, avaxAssetID),
+		ap5Activation:       uint64(ap5Activation),
+		blueberryActivation: uint64(blueberryActivation),
 	}, nil
 }
 
@@ -70,6 +73,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	if block.BlockExtraData == nil || len(block.BlockExtraData) == 0 {
 		return []byte(""), nil
 	}
+
 	if block.Header.Time < w.ap5Activation {
 		atomicTxs, err = w.extractAtomicTxsPreApricotPhase5(block.BlockExtraData)
 	} else {

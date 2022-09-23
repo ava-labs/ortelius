@@ -156,6 +156,16 @@ func (w *Writer) initCtx(b blocks.Block) {
 		}
 	case *blocks.ApricotAtomicBlock:
 		w.initCtxPtx(blk.Tx)
+	case *blocks.BlueberryProposalBlock:
+		for _, tx := range blk.Transactions {
+			w.initCtxPtx(tx)
+		}
+	case *blocks.BlueberryStandardBlock:
+		for _, tx := range blk.Transactions {
+			w.initCtxPtx(tx)
+		}
+	case *blocks.BlueberryAbortBlock:
+	case *blocks.BlueberryCommitBlock:
 	case *blocks.ApricotAbortBlock:
 	case *blocks.ApricotCommitBlock:
 	default:
@@ -341,7 +351,7 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte)
 	var ver uint16
 	var err error
 
-	proposerBlock, _, err := block.Parse(proposerblockBytes) // Blueberry bool confirm
+	proposerBlock, _, err := block.Parse(proposerblockBytes)
 	blockBytes := proposerblockBytes
 	if err == nil {
 		ver, err = w.codec.Unmarshal(proposerBlock.Block(), &pblock)
@@ -418,6 +428,26 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, proposerblockBytes []byte)
 	case *blocks.ApricotAbortBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
 	case *blocks.ApricotCommitBlock:
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
+	case *blocks.BlueberryProposalBlock:
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
+		for _, tx := range blk.Transactions {
+			errs.Add(
+				initializeTx(ver, w.codec, tx),
+				w.indexTransaction(ctx, blkID, *tx, false),
+			)
+		}
+	case *blocks.BlueberryStandardBlock:
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, blockBytes))
+		for _, tx := range blk.Transactions {
+			errs.Add(
+				initializeTx(ver, w.codec, tx),
+				w.indexTransaction(ctx, blkID, *tx, false),
+			)
+		}
+	case *blocks.BlueberryAbortBlock:
+		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, blockBytes))
+	case *blocks.BlueberryCommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, blockBytes))
 	default:
 		return fmt.Errorf("unknown type %s", reflect.TypeOf(pblock))
