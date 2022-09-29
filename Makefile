@@ -62,14 +62,17 @@ production_logs: ## Logs for production mode
 .PHONY: tests profile_tests check_binaries
 
 tests: ## Run tests
+	export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 	go test -race -timeout="120s" -coverprofile="coverage.out" -covermode="atomic" ./...
 
 tests_profile: ## Run tests with coverage profiling
+	export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 	go test -v -coverprofile=coverage.out -coverpkg=./... ./...
 	go tool cover -html=./coverage.out
 
 check_binaries: ## Ensure the binaries build
-	@(go build -o /dev/null ./api/b in/main.go 2>&1 >/dev/null && \
+	@(export CGO_CFLAGS="-O -D__BLST_PORTABLE__" && \
+	go build -o /dev/null ./api/b in/main.go 2>&1 >/dev/null && \
 	go build -o /dev/null ./client/bin/main.go 2>&1 >/dev/null && \
 	echo "Builds successful") || \
 	(echo "Builds failed" && exit 1)
