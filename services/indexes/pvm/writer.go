@@ -576,9 +576,13 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			return err
 		}
 	case *txs.AdvanceTimeTx:
+		return nil
 	case *txs.RemoveSubnetValidatorTx:
+		return nil
 	case *txs.TransformSubnetTx:
+		return nil
 	case *txs.AddPermissionlessValidatorTx:
+		return nil
 	case *txs.AddPermissionlessDelegatorTx:
 		return nil
 	case *txs.RewardValidatorTx:
