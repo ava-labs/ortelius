@@ -12,7 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
-	formatting "github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
@@ -332,14 +332,14 @@ func (w *Writer) InsertAddressFromPublicKey(
 func (w *Writer) InsertOutputAddress(
 	ctx services.ConsumerCtx,
 	outputID ids.ID,
-	address ids.ShortID,
+	addressID ids.ShortID,
 	sig []byte,
 	txID ids.ID,
 	idx uint32,
 	chainID string,
 ) error {
 	addressChain := &db.AddressChain{
-		Address:   address.String(),
+		Address:   addressID.String(),
 		ChainID:   chainID,
 		CreatedAt: ctx.Time(),
 		UpdatedAt: time.Now().UTC(),
@@ -349,13 +349,13 @@ func (w *Writer) InsertOutputAddress(
 		return err
 	}
 
-	bech32Addr, err := formatting.FormatBech32(models.Bech32HRP, address.Bytes())
+	bech32Addr, err := address.FormatBech32(models.Bech32HRP, addressID.Bytes())
 	if err != nil {
 		return err
 	}
 
 	addressBech32 := &db.AddressBech32{
-		Address:       address.String(),
+		Address:       addressID.String(),
 		Bech32Address: bech32Addr,
 		UpdatedAt:     time.Now().UTC(),
 	}
@@ -366,7 +366,7 @@ func (w *Writer) InsertOutputAddress(
 
 	outputAddressAccumulate := &db.OutputAddressAccumulate{
 		OutputID:      outputID.String(),
-		Address:       address.String(),
+		Address:       addressID.String(),
 		TransactionID: txID.String(),
 		OutputIndex:   idx,
 		CreatedAt:     time.Now(),
@@ -386,7 +386,7 @@ func (w *Writer) InsertOutputAddress(
 
 	outputAddresses := &db.OutputAddresses{
 		OutputID:           outputID.String(),
-		Address:            address.String(),
+		Address:            addressID.String(),
 		RedeemingSignature: sig,
 		CreatedAt:          ctx.Time(),
 		UpdatedAt:          time.Now().UTC(),
