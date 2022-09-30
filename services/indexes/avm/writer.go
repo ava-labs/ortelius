@@ -42,6 +42,8 @@ var (
 	ErrIncorrectGenesisChainTxType = errors.New("incorrect genesis chain tx type")
 )
 
+const MaxCodecSize = 100_000_000
+
 type Writer struct {
 	chainID     string
 	networkID   uint32
@@ -53,10 +55,8 @@ type Writer struct {
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec, err := utils.NewAVMCodec(networkID)
-	if err != nil {
-		return nil, err
-	}
+	avmCodec := x.Parser.Codec()
+	avmCodec.SetMaxSize(MaxCodecSize)
 
 	_, avaxAssetID, err := genesis.FromConfig(genesis.GetConfig(networkID))
 	if err != nil {
