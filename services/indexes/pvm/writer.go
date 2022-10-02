@@ -438,18 +438,19 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeTransformSubnet
 	case *txs.AddPermissionlessValidatorTx:
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeAddPermissionlessValidator
+
 		// TODO: Handle this for all subnetIDs
 		if castTx.Subnet != constants.PrimaryNetworkID {
 			break
 		}
 
-		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.StakeOuts,
 			Stake:   true,
 			ChainID: w.chainID,
 		}
-		typ = models.TransactionTypeAddPermissionlessValidator
 		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
 		if err != nil {
 			return err
@@ -460,18 +461,19 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			return err
 		}
 	case *txs.AddPermissionlessDelegatorTx:
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeAddPermissionlessDelegator
+
 		// TODO: Handle this for all subnetIDs
 		if castTx.Subnet != constants.PrimaryNetworkID {
 			break
 		}
 
-		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.StakeOuts,
 			Stake:   true,
 			ChainID: w.chainID,
 		}
-		typ = models.TransactionTypeAddPermissionlessDelegator
 		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
 		if err != nil {
 			return err
