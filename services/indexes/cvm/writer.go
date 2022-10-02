@@ -222,13 +222,12 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 }
 
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.Tx, blockBytes []byte, block *modelsc.Block) error {
-	txIDs := make([]string, len(atomicTXs))
-
-	id := ids.ID(hashing.ComputeHash256Array([]byte(block.Header.Number.String())))
-
-	var typ models.CChainType = 0
-	var blockchainID string
-	var err error
+	var (
+		txIDs                          = make([]string, len(atomicTXs))
+		typ          models.CChainType = 0
+		blockchainID string
+		err          error
+	)
 	for i, atomicTX := range atomicTXs {
 		txID := atomicTX.ID()
 		txIDs[i] = txID.String()
@@ -292,9 +291,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.T
 	}
 	tm := time.Unix(htime, 0)
 
+	id := ids.ID(hashing.ComputeHash256Array([]byte(block.Header.Number.String())))
+	idStr := id.String()
 	for _, txIDString := range txIDs {
 		cvmTransaction := &db.CvmTransactions{
-			ID:            id.String(),
+			ID:            idStr,
 			TransactionID: txIDString,
 			Type:          typ,
 			BlockchainID:  blockchainID,
