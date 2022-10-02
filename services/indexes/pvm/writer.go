@@ -258,6 +258,8 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 	var innerBlockBytes []byte
 	if err != nil {
 		innerBlockBytes = blockBytes
+		// We use the "nil"ness below, so we explicitly empty the value here to
+		// avoid unexpected errors
 		proposerBlock = nil
 	} else {
 		innerBlockBytes = proposerBlock.Block()
