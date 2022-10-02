@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -444,6 +445,18 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddPermissionlessValidator
+		// TODO: Should this be reported for all subnetIDs?
+		if castTx.Subnet == constants.PrimaryNetworkID {
+			err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+			if err != nil {
+				return err
+			}
+			// TODO: What to do about the different rewards owners?
+			err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.ValidatorRewardsOwner, baseTx, castTx.StakeOuts)
+			if err != nil {
+				return err
+			}
+		}
 	case *txs.AddPermissionlessDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
@@ -452,6 +465,17 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddPermissionlessDelegator
+		// TODO: Should this be reported for all subnetIDs?
+		if castTx.Subnet == constants.PrimaryNetworkID {
+			err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+			if err != nil {
+				return err
+			}
+			err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
+			if err != nil {
+				return err
+			}
+		}
 	case *txs.RewardValidatorTx:
 		rewards := &db.Rewards{
 			ID:                 txID.String(),
