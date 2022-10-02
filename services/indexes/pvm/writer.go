@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -364,14 +365,12 @@ func (w *Writer) indexCommonBlock(
 
 func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs.Tx, genesis bool) error {
 	var (
+		txID   = tx.ID()
 		baseTx avax.BaseTx
 		typ    models.TransactionType
+		ins    *avaxIndexer.AddInsContainer
+		outs   *avaxIndexer.AddOutsContainer
 	)
-
-	var ins *avaxIndexer.AddInsContainer
-	var outs *avaxIndexer.AddOutsContainer
-
-	var err error
 	switch castTx := tx.Unsigned.(type) {
 	case *txs.AddValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
@@ -381,16 +380,12 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddValidator
-		err = w.InsertTransactionValidator(ctx, tx.ID(), castTx.Validator)
-		if err != nil {
-			return err
-		}
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
 		if err != nil {
 			return err
 		}
 		if castTx.RewardsOwner != nil {
-			err = w.insertTransactionsRewardsOwners(ctx, tx.ID(), castTx.RewardsOwner, baseTx, castTx.StakeOuts)
+			err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.RewardsOwner, baseTx, castTx.StakeOuts)
 			if err != nil {
 				return err
 			}
@@ -398,10 +393,6 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 	case *txs.AddSubnetValidatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeAddSubnetValidator
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
 	case *txs.AddDelegatorTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
@@ -410,32 +401,20 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddDelegator
-		err = w.InsertTransactionValidator(ctx, tx.ID(), castTx.Validator)
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
 		if err != nil {
 			return err
 		}
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
-		err = w.insertTransactionsRewardsOwners(ctx, tx.ID(), castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
+		err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
 		if err != nil {
 			return err
 		}
 	case *txs.CreateSubnetTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateSubnet
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
 	case *txs.CreateChainTx:
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeCreateChain
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
 	case *txs.ImportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		ins = &avaxIndexer.AddInsContainer{
@@ -443,10 +422,6 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: castTx.SourceChain.String(),
 		}
 		typ = models.TransactionTypePVMImport
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
 	case *txs.ExportTx:
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
@@ -454,23 +429,62 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: castTx.DestinationChain.String(),
 		}
 		typ = models.TransactionTypePVMExport
-		err = w.InsertTransactionBlock(ctx, tx.ID(), blkID)
-		if err != nil {
-			return err
-		}
 	case *txs.AdvanceTimeTx:
 		return nil
 	case *txs.RemoveSubnetValidatorTx:
-		return nil
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeRemoveSubnetValidator
 	case *txs.TransformSubnetTx:
-		return nil
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeTransformSubnet
 	case *txs.AddPermissionlessValidatorTx:
-		return nil
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeAddPermissionlessValidator
+
+		// TODO: Handle this for all subnetIDs
+		if castTx.Subnet != constants.PrimaryNetworkID {
+			break
+		}
+
+		outs = &avaxIndexer.AddOutsContainer{
+			Outs:    castTx.StakeOuts,
+			Stake:   true,
+			ChainID: w.chainID,
+		}
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+		if err != nil {
+			return err
+		}
+		// TODO: What to do about the different rewards owners?
+		err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.ValidatorRewardsOwner, baseTx, castTx.StakeOuts)
+		if err != nil {
+			return err
+		}
 	case *txs.AddPermissionlessDelegatorTx:
-		return nil
+		baseTx = castTx.BaseTx.BaseTx
+		typ = models.TransactionTypeAddPermissionlessDelegator
+
+		// TODO: Handle this for all subnetIDs
+		if castTx.Subnet != constants.PrimaryNetworkID {
+			break
+		}
+
+		outs = &avaxIndexer.AddOutsContainer{
+			Outs:    castTx.StakeOuts,
+			Stake:   true,
+			ChainID: w.chainID,
+		}
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+		if err != nil {
+			return err
+		}
+		err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
+		if err != nil {
+			return err
+		}
 	case *txs.RewardValidatorTx:
 		rewards := &db.Rewards{
-			ID:                 tx.ID().String(),
+			ID:                 txID.String(),
 			BlockID:            blkID.String(),
 			Txid:               castTx.TxID.String(),
 			Shouldprefercommit: castTx.ShouldPreferCommit,
@@ -479,6 +493,11 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 		return ctx.Persist().InsertRewards(ctx.Ctx(), ctx.DB(), rewards, cfg.PerformUpdates)
 	default:
 		return fmt.Errorf("unknown tx type %T", castTx)
+	}
+
+	err := w.InsertTransactionBlock(ctx, txID, blkID)
+	if err != nil {
+		return err
 	}
 
 	return w.avax.InsertTransaction(
