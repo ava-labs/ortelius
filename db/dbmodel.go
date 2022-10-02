@@ -2457,8 +2457,8 @@ type PvmProposer struct {
 	ID       string
 	ParentID string
 	BlkID    string
-	// Deprecated: This is populated with the hash of the proposervm's block,
-	//             not the proposerBlkID. Use ID instead.
+	// Deprecated: [ProposerBlkID] is populated with the hash of the
+	//             proposervm's block, not the proposerBlkID. Use ID instead.
 	ProposerBlkID string
 	PChainHeight  uint64
 	Proposer      string
