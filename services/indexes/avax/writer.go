@@ -282,10 +282,7 @@ func (w *Writer) InsertOutput(
 			TransactionID: txID.String(),
 			CreatedAt:     time.Now(),
 		}
-		err = outputTxsAccumulate.ComputeID()
-		if err != nil {
-			return err
-		}
+		outputTxsAccumulate.ComputeID()
 		err = ctx.Persist().InsertOutputTxsAccumulate(ctx.Ctx(), ctx.DB(), outputTxsAccumulate)
 		if err != nil {
 			return err
@@ -371,10 +368,7 @@ func (w *Writer) InsertOutputAddress(
 		OutputIndex:   idx,
 		CreatedAt:     time.Now(),
 	}
-	err = outputAddressAccumulate.ComputeID()
-	if err != nil {
-		return err
-	}
+	outputAddressAccumulate.ComputeID()
 	err = ctx.Persist().InsertOutputAddressAccumulateOut(ctx.Ctx(), ctx.DB(), outputAddressAccumulate, cfg.PerformUpdates)
 	if err != nil {
 		return err

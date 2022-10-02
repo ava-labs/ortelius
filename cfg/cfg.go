@@ -23,17 +23,17 @@ var (
 )
 
 type Config struct {
-	NetworkID           uint32 `json:"networkID"`
-	Chains              `json:"chains"`
-	Services            `json:"services"`
-	MetricsListenAddr   string `json:"metricsListenAddr"`
-	AdminListenAddr     string `json:"adminListenAddr"`
-	Features            map[string]struct{}
-	CchainID            string `json:"cchainId"`
-	AvalancheGO         string `json:"avalanchego"`
-	NodeInstance        string `json:"nodeInstance"`
-	AP5Activation       uint64
-	BlueberryActivation uint64
+	NetworkID         uint32 `json:"networkID"`
+	Chains            `json:"chains"`
+	Services          `json:"services"`
+	MetricsListenAddr string `json:"metricsListenAddr"`
+	AdminListenAddr   string `json:"adminListenAddr"`
+	Features          map[string]struct{}
+	CchainID          string `json:"cchainId"`
+	AvalancheGO       string `json:"avalanchego"`
+	NodeInstance      string `json:"nodeInstance"`
+	AP5Activation     uint64 `json:"ap5Activation"`
+	BanffActivation   uint64 `json:"banffActivation"`
 }
 
 type Chain struct {
@@ -107,7 +107,7 @@ func NewFromFile(filePath string) (*Config, error) {
 
 	networkID := v.GetUint32(keysNetworkID)
 	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
-	blueberryActivation := version.GetBlueberryTime(networkID).Unix()
+	banffActivation := version.GetBanffTime(networkID).Unix()
 
 	// Put it all together
 	return &Config{
@@ -127,10 +127,10 @@ func NewFromFile(filePath string) (*Config, error) {
 				RODSN:  dbrodsn,
 			},
 		},
-		CchainID:            v.GetString(keysStreamProducerCchainID),
-		AvalancheGO:         v.GetString(keysStreamProducerAvalanchego),
-		NodeInstance:        v.GetString(keysStreamProducerNodeInstance),
-		AP5Activation:       uint64(ap5Activation),
-		BlueberryActivation: uint64(blueberryActivation),
+		CchainID:        v.GetString(keysStreamProducerCchainID),
+		AvalancheGO:     v.GetString(keysStreamProducerAvalanchego),
+		NodeInstance:    v.GetString(keysStreamProducerNodeInstance),
+		AP5Activation:   uint64(ap5Activation),
+		BanffActivation: uint64(banffActivation),
 	}, nil
 }

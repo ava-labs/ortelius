@@ -11,7 +11,6 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -36,28 +35,23 @@ import (
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
 	"github.com/palantir/stacktrace"
+	"go.uber.org/zap"
 )
 
 var (
 	ErrIncorrectGenesisChainTxType = errors.New("incorrect genesis chain tx type")
 )
 
-const MaxCodecSize = 100_000_000
-
 type Writer struct {
 	chainID     string
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec codec.Manager
-	avax  *avax.Writer
-	ctx   *snow.Context
+	avax *avax.Writer
+	ctx  *snow.Context
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
-	avmCodec := x.Parser.Codec()
-	avmCodec.SetMaxSize(MaxCodecSize)
-
 	_, avaxAssetID, err := genesis.FromConfig(genesis.GetConfig(networkID))
 	if err != nil {
 		return nil, err
@@ -83,7 +77,6 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 	return &Writer{
 		chainID:     chainID,
-		codec:       avmCodec,
 		networkID:   networkID,
 		avaxAssetID: avaxAssetID,
 		avax:        avax.NewWriter(chainID, avaxAssetID),
@@ -93,44 +86,12 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 
 func (*Writer) Name() string { return "avm-index" }
 
-func (w *Writer) initCtx(tx *txs.Tx) {
-	switch castTx := tx.Unsigned.(type) {
-	case *txs.CreateAssetTx:
-		for _, utxo := range castTx.Outs {
-			utxo.Out.InitCtx(w.ctx)
-		}
-	case *txs.OperationTx:
-		for _, utxo := range castTx.Outs {
-			utxo.Out.InitCtx(w.ctx)
-		}
-	case *txs.ImportTx:
-		for _, utxo := range castTx.Outs {
-			utxo.Out.InitCtx(w.ctx)
-		}
-	case *txs.ExportTx:
-		for _, utxo := range castTx.Outs {
-			utxo.Out.InitCtx(w.ctx)
-		}
-		for _, out := range castTx.ExportedOuts {
-			out.InitCtx(w.ctx)
-		}
-	case *txs.BaseTx:
-		for _, utxo := range castTx.Outs {
-			utxo.Out.InitCtx(w.ctx)
-		}
-		for _, out := range castTx.Outs {
-			out.InitCtx(w.ctx)
-		}
-	default:
-	}
-}
-
 func (w *Writer) ParseJSON(txBytes []byte) ([]byte, error) {
-	tx, err := parseTx(w.codec, txBytes)
+	tx, err := x.Parser.ParseGenesis(txBytes)
 	if err != nil {
 		return nil, err
 	}
-	w.initCtx(tx)
+	tx.Unsigned.InitCtx(w.ctx)
 	return json.Marshal(tx)
 }
 
@@ -142,8 +103,9 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 
 	defer func() {
 		if err != nil {
-			w.ctx.Log.Warn(fmt.Sprintf("bootstrap %v", err))
-			return
+			w.ctx.Log.Warn("bootstrapping failed",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -193,8 +155,9 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections,
 
 	defer func() {
 		if err != nil {
-			w.ctx.Log.Warn(fmt.Sprintf("consume consensus %v", err))
-			return
+			w.ctx.Log.Warn("consuming consensus failed",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -215,12 +178,7 @@ func (w *Writer) ConsumeConsensus(ctx context.Context, conns *utils.Connections,
 	cCtx := services.NewConsumerContext(ctx, dbTx, c.Timestamp(), c.Nanosecond(), persist)
 
 	for _, tx := range txs {
-		var txID ids.ID
-		txID, err = ids.ToID(hashing.ComputeHash256(tx))
-		if err != nil {
-			return err
-		}
-
+		txID := ids.ID(hashing.ComputeHash256Array(tx))
 		transactionsEpoch := &db.TransactionsEpoch{
 			ID:        txID.String(),
 			Epoch:     vert.Epoch(),
@@ -247,8 +205,9 @@ func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, i servic
 			return
 		}
 		if !utils.ErrIsLockError(err) {
-			w.ctx.Log.Warn(fmt.Sprintf("consume %v", err))
-			return
+			w.ctx.Log.Warn("consuming failed",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -271,30 +230,18 @@ func (w *Writer) Consume(ctx context.Context, conns *utils.Connections, i servic
 
 func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) error {
 	avmGenesis := &avm.Genesis{}
-	ver, err := w.codec.Unmarshal(genesisBytes, avmGenesis)
+	_, err := x.Parser.GenesisCodec().Unmarshal(genesisBytes, avmGenesis)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to parse avm genesis bytes")
 	}
 
-	for i, tx := range avmGenesis.Txs {
-		txBytes, err := w.codec.Marshal(ver, &txs.Tx{Unsigned: &tx.CreateAssetTx})
-		if err != nil {
-			return stacktrace.Propagate(err, "Failed to serialize wrapped avm genesis tx %d", i)
-		}
-		unsignedBytes, err := w.codec.Marshal(ver, &tx.CreateAssetTx)
-		if err != nil {
-			return err
-		}
-		tx.Initialize(unsignedBytes)
-
-		fullTx := &txs.Tx{
-			Unsigned: &tx.CreateAssetTx,
-		}
-		if err := x.Parser.InitializeGenesisTx(fullTx); err != nil {
+	for i, genesisAsset := range avmGenesis.Txs {
+		tx := &txs.Tx{Unsigned: &genesisAsset.CreateAssetTx}
+		if err := x.Parser.InitializeGenesisTx(tx); err != nil {
 			return err
 		}
 
-		if err = w.insertCreateAssetTx(ctx, txBytes, fullTx.ID(), &tx.CreateAssetTx, nil, tx.Alias, true); err != nil {
+		if err = w.insertCreateAssetTx(ctx, tx.Bytes(), tx.ID(), &genesisAsset.CreateAssetTx, nil, genesisAsset.Alias, true); err != nil {
 			return stacktrace.Propagate(err, "Failed to index avm genesis tx %d", i)
 		}
 	}
@@ -302,7 +249,7 @@ func (w *Writer) insertGenesis(ctx services.ConsumerCtx, genesisBytes []byte) er
 }
 
 func (w *Writer) insertTx(ctx services.ConsumerCtx, txBytes []byte) error {
-	tx, err := parseTx(w.codec, txBytes)
+	tx, err := x.Parser.ParseGenesis(txBytes)
 	if err != nil {
 		return err
 	}

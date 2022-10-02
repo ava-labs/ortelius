@@ -1118,10 +1118,7 @@ func (r *Reader) CTxDATA(ctx context.Context, p *params.TxDataParam) ([]byte, er
 
 	txIDs := ""
 	if len(unserializedBlock.BlockExtraData) != 0 {
-		txID, err := ids.ToID(hashing.ComputeHash256(unserializedBlock.BlockExtraData))
-		if err != nil {
-			return nil, err
-		}
+		txID := ids.ID(hashing.ComputeHash256Array(unserializedBlock.BlockExtraData))
 		txIDs = txID.String()
 	}
 

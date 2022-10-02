@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/rpc/v2/json2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 const (
@@ -124,7 +125,9 @@ func execute() error {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
 					}()
-					alog.Info(fmt.Sprintf("Starting metrics handler on %s", config.MetricsListenAddr))
+					alog.Info("starting metrics handler",
+						zap.String("addr", config.MetricsListenAddr),
+					)
 				}
 				if config.AdminListenAddr != "" {
 					rpcServer := rpc.NewServer()
@@ -400,5 +403,7 @@ type MysqlLogger struct {
 
 func (m *MysqlLogger) Print(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	m.Log.Warn(fmt.Sprintf("mysql %s", s))
+	m.Log.Warn("mysql",
+		zap.String("body", s),
+	)
 }

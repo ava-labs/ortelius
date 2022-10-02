@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/avax"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 type Handler struct {
@@ -71,7 +72,9 @@ func (r *Handler) runTicker(sc *servicesctrl.Control, conns *utils.Connections) 
 		case <-ticker.C:
 			err := r.processRewards()
 			if err != nil {
-				sc.Log.Error(fmt.Sprintf("process rewards %s", err))
+				sc.Log.Error("failed processing rewards",
+					zap.Error(err),
+				)
 			}
 		case <-r.doneCh:
 			return

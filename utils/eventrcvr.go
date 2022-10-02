@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/gocraft/dbr/v2"
 	"github.com/palantir/stacktrace"
+	"go.uber.org/zap"
 )
 
 type EventRcvr struct {
@@ -38,12 +39,7 @@ func (e *event) EventKv(eventName string, kvs map[string]string) {
 }
 
 func (e *event) EventErr(eventName string, err error) error {
-	if ErrIsDuplicateEntryError(err) || ErrIsLockError(err) {
-		return err
-	}
-	e.eventName = eventName
-	e.logger.Warn(fmt.Sprintf("event %s %s %v", e.name, e.eventName, err))
-	return stacktrace.Propagate(err, fmt.Sprintf("%s %s", e.name, e.eventName))
+	return e.EventErrKv(eventName, err, nil)
 }
 
 func (e *event) EventErrKv(eventName string, err error, kvs map[string]string) error {
@@ -51,7 +47,11 @@ func (e *event) EventErrKv(eventName string, err error, kvs map[string]string) e
 		return err
 	}
 	e.eventName = eventName
-	e.logger.Warn(fmt.Sprintf("event %s %s %v", e.name, e.eventName, err))
+	e.logger.Warn("event error",
+		zap.String("name", e.name),
+		zap.String("eventName", e.eventName),
+		zap.Error(err),
+	)
 	return stacktrace.Propagate(err, fmt.Sprintf("%s %s", e.name, e.eventName))
 }
 
