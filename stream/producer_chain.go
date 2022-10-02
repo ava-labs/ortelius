@@ -150,7 +150,9 @@ func (p *producerChainContainer) getIndex() error {
 	p.nodeIndex = nodeIndex
 	p.nodeIndex.Instance = p.nodeinstance
 	p.nodeIndex.Topic = p.topic
-	p.sc.Log.Info("starting processing", zap.Uint64("node index", p.nodeIndex.Idx))
+	p.sc.Log.Info("starting processing",
+		zap.Uint64("nodeIndex", p.nodeIndex.Idx),
+	)
 	return nil
 }
 
@@ -181,11 +183,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			id = container.ID
 		default:
 			// x and p we compute the hash
-			nid, err := ids.ToID(hashing.ComputeHash256(container.Bytes))
-			if err != nil {
-				return err
-			}
-			id = nid
+			id = hashing.ComputeHash256Array(container.Bytes)
 		}
 
 		txPool := &db.TxPool{
@@ -318,8 +316,13 @@ func (p *ProducerChain) Success() {
 }
 
 func (p *ProducerChain) Listen() error {
-	p.sc.Log.Info(fmt.Sprintf("Started worker manager for %s", p.ID()))
-	defer p.sc.Log.Info(fmt.Sprintf("Exiting worker manager for %s", p.ID()))
+	id := p.ID()
+	p.sc.Log.Info("starting worker manager",
+		zap.String("id", id),
+	)
+	defer p.sc.Log.Info("exiting worker manager",
+		zap.String("id", id),
+	)
 
 	for !p.runningControl.IsStopped() {
 		err := p.runProcessor()
@@ -327,7 +330,9 @@ func (p *ProducerChain) Listen() error {
 		// If there was an error we want to log it, and iff we are not stopping
 		// we want to add a retry delay.
 		if err != nil {
-			p.sc.Log.Error(fmt.Sprintf("Error running worker: %s", err.Error()))
+			p.sc.Log.Error("error running worker",
+				zap.Error(err),
+			)
 		}
 		if p.runningControl.IsStopped() {
 			break
@@ -348,8 +353,13 @@ func (p *ProducerChain) runProcessor() error {
 		return nil
 	}
 
-	p.sc.Log.Info(fmt.Sprintf("Starting worker for %s", p.ID()))
-	defer p.sc.Log.Info(fmt.Sprintf("Exiting worker for %s", p.ID()))
+	id := p.ID()
+	p.sc.Log.Info("starting worker",
+		zap.String("id", id),
+	)
+	defer p.sc.Log.Info("exiting worker",
+		zap.String("id", id),
+	)
 
 	pc, err := newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.metricProcessedCountKey)
 	if err != nil {
@@ -360,7 +370,10 @@ func (p *ProducerChain) runProcessor() error {
 		pc.runningControl.Close()
 		err := pc.Close()
 		if err != nil {
-			p.sc.Log.Warn(fmt.Sprintf("Stopping worker for chain %v", err))
+			p.sc.Log.Warn("stopping worker",
+				zap.String("id", id),
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -386,12 +399,16 @@ func (p *ProducerChain) runProcessor() error {
 
 		default:
 			if ChainNotReady(err) {
-				p.sc.Log.Warn(TrimNL(err.Error()))
+				p.sc.Log.Warn("chain not ready when processing message",
+					zap.Error(err),
+				)
 				return nil
 			}
 
 			p.Failure()
-			p.sc.Log.Error(fmt.Sprintf("Unknown error: %v", err))
+			p.sc.Log.Error("unknown error when processing message",
+				zap.Error(err),
+			)
 			return err
 		}
 	}

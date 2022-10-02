@@ -32,8 +32,8 @@ type Config struct {
 	CchainID            string `json:"cchainId"`
 	AvalancheGO         string `json:"avalanchego"`
 	NodeInstance        string `json:"nodeInstance"`
-	AP5Activation       uint64
-	BlueberryActivation uint64
+	AP5Activation       uint64 `json:"ap5Activation"`
+	BlueberryActivation uint64 `json:"blueberryActivation"`
 }
 
 type Chain struct {

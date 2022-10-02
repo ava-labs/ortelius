@@ -1612,10 +1612,7 @@ type OutputAddressAccumulate struct {
 
 func (b *OutputAddressAccumulate) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s", b.OutputID, b.Address)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -1764,10 +1761,7 @@ type OutputTxsAccumulate struct {
 
 func (b *OutputTxsAccumulate) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s:%s:%s", b.ChainID, b.AssetID, b.Address, b.TransactionID)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -1826,10 +1820,7 @@ type AccumulateBalancesAmount struct {
 
 func (b *AccumulateBalancesAmount) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -1927,10 +1918,7 @@ type AccumulateBalancesTransactions struct {
 
 func (b *AccumulateBalancesTransactions) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -2159,10 +2147,7 @@ type TxPool struct {
 
 func (b *TxPool) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s", b.MsgKey, b.Topic)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -2421,10 +2406,7 @@ type CvmLogs struct {
 
 func (b *CvmLogs) ComputeID() error {
 	idsv := fmt.Sprintf("%s:%s:%d", b.BlockHash, b.TxHash, b.LogIndex)
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
 	return nil
 }
@@ -2478,9 +2460,11 @@ func (p *persist) InsertCvmLogs(
 }
 
 type PvmProposer struct {
-	ID            string
-	ParentID      string
-	BlkID         string
+	ID       string
+	ParentID string
+	BlkID    string
+	// Deprecated: This is populated with the hash of the proposervm's block,
+	//             not the proposerBlkID. Use ID instead.
 	ProposerBlkID string
 	PChainHeight  uint64
 	Proposer      string

@@ -227,13 +227,11 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.Tx, blockBytes []byte, block *modelsc.Block) error {
 	txIDs := make([]string, len(atomicTXs))
 
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(block.Header.Number.String())))
 
 	var typ models.CChainType = 0
 	var blockchainID string
+	var err error
 	for i, atomicTX := range atomicTXs {
 		txID := atomicTX.ID()
 		txIDs[i] = txID.String()
