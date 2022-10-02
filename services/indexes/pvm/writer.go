@@ -438,6 +438,11 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 		baseTx = castTx.BaseTx.BaseTx
 		typ = models.TransactionTypeTransformSubnet
 	case *txs.AddPermissionlessValidatorTx:
+		// TODO: Handle this for all subnetIDs
+		if castTx.Subnet != constants.PrimaryNetworkID {
+			break
+		}
+
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.StakeOuts,
@@ -445,19 +450,21 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddPermissionlessValidator
-		// TODO: Should this be reported for all subnetIDs?
-		if castTx.Subnet == constants.PrimaryNetworkID {
-			err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
-			if err != nil {
-				return err
-			}
-			// TODO: What to do about the different rewards owners?
-			err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.ValidatorRewardsOwner, baseTx, castTx.StakeOuts)
-			if err != nil {
-				return err
-			}
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+		if err != nil {
+			return err
+		}
+		// TODO: What to do about the different rewards owners?
+		err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.ValidatorRewardsOwner, baseTx, castTx.StakeOuts)
+		if err != nil {
+			return err
 		}
 	case *txs.AddPermissionlessDelegatorTx:
+		// TODO: Handle this for all subnetIDs
+		if castTx.Subnet != constants.PrimaryNetworkID {
+			break
+		}
+
 		baseTx = castTx.BaseTx.BaseTx
 		outs = &avaxIndexer.AddOutsContainer{
 			Outs:    castTx.StakeOuts,
@@ -465,16 +472,13 @@ func (w *Writer) indexTransaction(ctx services.ConsumerCtx, blkID ids.ID, tx txs
 			ChainID: w.chainID,
 		}
 		typ = models.TransactionTypeAddPermissionlessDelegator
-		// TODO: Should this be reported for all subnetIDs?
-		if castTx.Subnet == constants.PrimaryNetworkID {
-			err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
-			if err != nil {
-				return err
-			}
-			err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
-			if err != nil {
-				return err
-			}
+		err := w.InsertTransactionValidator(ctx, txID, castTx.Validator)
+		if err != nil {
+			return err
+		}
+		err = w.insertTransactionsRewardsOwners(ctx, txID, castTx.DelegationRewardsOwner, baseTx, castTx.StakeOuts)
+		if err != nil {
+			return err
 		}
 	case *txs.RewardValidatorTx:
 		rewards := &db.Rewards{
