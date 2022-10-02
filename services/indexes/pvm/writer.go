@@ -319,13 +319,13 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, innerBlockBytes))
 	case *blocks.ApricotCommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, innerBlockBytes))
-	case *blocks.BlueberryProposalBlock:
+	case *blocks.BanffProposalBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, innerBlockBytes))
-	case *blocks.BlueberryStandardBlock:
+	case *blocks.BanffStandardBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeStandard, blk.CommonBlock, innerBlockBytes))
-	case *blocks.BlueberryAbortBlock:
+	case *blocks.BanffAbortBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeAbort, blk.CommonBlock, innerBlockBytes))
-	case *blocks.BlueberryCommitBlock:
+	case *blocks.BanffCommitBlock:
 		errs.Add(w.indexCommonBlock(ctx, blkID, models.BlockTypeCommit, blk.CommonBlock, innerBlockBytes))
 	default:
 		return fmt.Errorf("unknown type %T", blk)

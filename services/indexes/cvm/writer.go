@@ -37,10 +37,10 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec               codec.Manager
-	avax                *avaxIndexer.Writer
-	ap5Activation       uint64
-	blueberryActivation uint64
+	codec           codec.Manager
+	avax            *avaxIndexer.Writer
+	ap5Activation   uint64
+	banffActivation uint64
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
@@ -50,15 +50,15 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	}
 
 	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
-	blueberryActivation := version.GetBlueberryTime(networkID).Unix()
+	banffActivation := version.GetBanffTime(networkID).Unix()
 
 	return &Writer{
-		networkID:           networkID,
-		avaxAssetID:         avaxAssetID,
-		codec:               evm.Codec,
-		avax:                avaxIndexer.NewWriter(chainID, avaxAssetID),
-		ap5Activation:       uint64(ap5Activation),
-		blueberryActivation: uint64(blueberryActivation),
+		networkID:       networkID,
+		avaxAssetID:     avaxAssetID,
+		codec:           evm.Codec,
+		avax:            avaxIndexer.NewWriter(chainID, avaxAssetID),
+		ap5Activation:   uint64(ap5Activation),
+		banffActivation: uint64(banffActivation),
 	}, nil
 }
 
