@@ -127,7 +127,9 @@ func (w *Writer) ParseJSON(b []byte) ([]byte, error) {
 	tx, err := txs.Parse(blocks.GenesisCodec, b)
 	if err == nil {
 		tx.Unsigned.InitCtx(w.ctx)
-		txtype := reflect.TypeOf(tx) // Should this be `tx.Unsigned`?
+		// TODO: Should we be reporting the type of [tx.Unsigned] rather than
+		//       `tx`?
+		txtype := reflect.TypeOf(tx)
 		txtypeS := txtype.String()
 		return json.Marshal(&PtxDataModel{
 			Tx:     tx,
