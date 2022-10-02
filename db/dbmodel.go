@@ -1610,11 +1610,10 @@ type OutputAddressAccumulate struct {
 	CreatedAt       time.Time
 }
 
-func (b *OutputAddressAccumulate) ComputeID() error {
+func (b *OutputAddressAccumulate) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s", b.OutputID, b.Address)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryOutputAddressAccumulateOut(
@@ -1759,11 +1758,10 @@ type OutputTxsAccumulate struct {
 	CreatedAt     time.Time
 }
 
-func (b *OutputTxsAccumulate) ComputeID() error {
+func (b *OutputTxsAccumulate) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s:%s:%s", b.ChainID, b.AssetID, b.Address, b.TransactionID)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryOutputTxsAccumulate(
@@ -1818,11 +1816,10 @@ type AccumulateBalancesAmount struct {
 	UpdatedAt   time.Time
 }
 
-func (b *AccumulateBalancesAmount) ComputeID() error {
+func (b *AccumulateBalancesAmount) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryAccumulateBalancesReceived(
@@ -1916,11 +1913,10 @@ type AccumulateBalancesTransactions struct {
 	UpdatedAt        time.Time
 }
 
-func (b *AccumulateBalancesTransactions) ComputeID() error {
+func (b *AccumulateBalancesTransactions) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s:%s", b.ChainID, b.AssetID, b.Address)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryAccumulateBalancesTransactions(
@@ -2145,11 +2141,10 @@ type TxPool struct {
 	CreatedAt     time.Time
 }
 
-func (b *TxPool) ComputeID() error {
+func (b *TxPool) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s", b.MsgKey, b.Topic)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryTxPool(
@@ -2404,11 +2399,10 @@ type CvmLogs struct {
 	Serialization []byte
 }
 
-func (b *CvmLogs) ComputeID() error {
+func (b *CvmLogs) ComputeID() {
 	idsv := fmt.Sprintf("%s:%s:%d", b.BlockHash, b.TxHash, b.LogIndex)
 	id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 	b.ID = id.String()
-	return nil
 }
 
 func (p *persist) QueryCvmLogs(

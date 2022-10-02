@@ -195,10 +195,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			Topic:         p.topic,
 			CreatedAt:     time.Unix(container.Timestamp, 0),
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, p.conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err

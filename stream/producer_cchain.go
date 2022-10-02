@@ -504,10 +504,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			Topic:         p.topicTrc,
 			CreatedAt:     localBlock.time,
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
@@ -532,10 +529,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			Topic:         p.topicLogs,
 			CreatedAt:     localBlock.time,
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
@@ -558,10 +552,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		Topic:         p.topic,
 		CreatedAt:     localBlock.time,
 	}
-	err = txPool.ComputeID()
-	if err != nil {
-		return err
-	}
+	txPool.ComputeID()
 	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 	if err != nil {
 		return err

@@ -140,10 +140,7 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *utils.Connections, c se
 		CreatedAt:     cCtx.Time(),
 		Serialization: c.Body(),
 	}
-	err = cvmLogs.ComputeID()
-	if err != nil {
-		return err
-	}
+	cvmLogs.ComputeID()
 	err = persist.InsertCvmLogs(ctx, dbTx, cvmLogs, cfg.PerformUpdates)
 	if err != nil {
 		return err

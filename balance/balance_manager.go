@@ -466,20 +466,14 @@ func (a *Handler) processOutputsBase(
 			TransactionID: row.TransactionID,
 			CreatedAt:     time.Now(),
 		}
-		err = outputsTxsAccumulate.ComputeID()
-		if err != nil {
-			return err
-		}
+		outputsTxsAccumulate.ComputeID()
 		err = persist.InsertOutputTxsAccumulate(ctx, dbTx, outputsTxsAccumulate)
 		if err != nil {
 			return err
 		}
 
 		b.UpdatedAt = time.Unix(1, 0)
-		err = b.ComputeID()
-		if err != nil {
-			return err
-		}
+		b.ComputeID()
 
 		switch typ {
 		case processTypeOut:
@@ -665,10 +659,7 @@ func (a *Handler) processTransactionsBase(
 		Address:   row.Address,
 		UpdatedAt: time.Unix(1, 0),
 	}
-	err = b.ComputeID()
-	if err != nil {
-		return err
-	}
+	b.ComputeID()
 	err = persist.InsertAccumulateBalancesTransactions(ctx, dbTx, b)
 	if err != nil {
 		return err
