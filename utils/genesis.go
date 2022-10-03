@@ -7,12 +7,12 @@ import (
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/platformvm/txs"
 )
 
 type GenesisContainer struct {
 	NetworkID       uint32
-	XChainGenesisTx *platformvm.Tx
+	XChainGenesisTx *txs.Tx
 	XChainID        ids.ID
 	AvaxAssetID     ids.ID
 	GenesisBytes    []byte

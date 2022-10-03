@@ -1033,11 +1033,7 @@ func TestOutputAddressAccumulateOut(t *testing.T) {
 	v.TransactionID = "txid1"
 	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("db fail", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1088,11 +1084,7 @@ func TestOutputAddressAccumulateIn(t *testing.T) {
 	v.TransactionID = "txid1"
 	v.OutputIndex = 1
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1143,11 +1135,7 @@ func TestOutputTxsAccumulate(t *testing.T) {
 	v.Address = "adr1"
 	v.TransactionID = "tr1"
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1181,11 +1169,7 @@ func TestAccumulateBalancesReceived(t *testing.T) {
 	v.TotalAmount = "0"
 	v.UtxoCount = "0"
 	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1219,11 +1203,7 @@ func TestAccumulateBalancesSent(t *testing.T) {
 	v.TotalAmount = "0"
 	v.UtxoCount = "0"
 	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1256,11 +1236,7 @@ func TestAccumulateBalancesTransactions(t *testing.T) {
 	v.Address = "adr1"
 	v.TransactionCount = "0"
 	v.UpdatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1427,11 +1403,7 @@ func TestTxPool(t *testing.T) {
 	v.Topic = "topic1"
 	v.MsgKey = "key1"
 	v.CreatedAt = time.Now().UTC().Truncate(1 * time.Second)
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("compute id failed", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 
@@ -1615,11 +1587,7 @@ func TestCvmLogs(t *testing.T) {
 	v.Removed = false
 	v.CreatedAt = tm
 	v.Serialization = []byte("bits1")
-
-	err := v.ComputeID()
-	if err != nil {
-		t.Fatal("db fail", err)
-	}
+	v.ComputeID()
 
 	stream := &dbr.NullEventReceiver{}
 

@@ -78,9 +78,7 @@ func CacheKey(name string, val interface{}) string {
 	return fmt.Sprintf("%s=%v", name, val)
 }
 
-//
 // Global params
-//
 type ListParams struct {
 	Values url.Values
 	ID     *ids.ID

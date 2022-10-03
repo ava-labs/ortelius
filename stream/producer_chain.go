@@ -12,14 +12,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
-	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/json"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/ortelius/cfg"
 	"github.com/ava-labs/ortelius/db"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -151,20 +150,17 @@ func (p *producerChainContainer) getIndex() error {
 	p.nodeIndex = nodeIndex
 	p.nodeIndex.Instance = p.nodeinstance
 	p.nodeIndex.Topic = p.topic
-	p.sc.Log.Info("starting processing %d", p.nodeIndex.Idx)
+	p.sc.Log.Info("starting processing",
+		zap.Uint64("nodeIndex", p.nodeIndex.Idx),
+	)
 	return nil
 }
 
 func (p *producerChainContainer) ProcessNextMessage() error {
-	containerRangeArgs := &indexer.GetContainerRangeArgs{
-		StartIndex: json.Uint64(p.nodeIndex.Idx),
-		NumToFetch: json.Uint64(MaxTxRead),
-		Encoding:   formatting.Hex,
-	}
 	ctx, cancelCtx := context.WithTimeout(context.Background(), IndexerTimeout)
 	defer cancelCtx()
 
-	containers, err := p.nodeIndexer.GetContainerRange(ctx, containerRangeArgs)
+	containers, err := p.nodeIndexer.GetContainerRange(ctx, p.nodeIndex.Idx, MaxTxRead)
 	if err != nil {
 		time.Sleep(readRPCTimeout)
 		if IndexNotReady(err) {
@@ -187,11 +183,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			id = container.ID
 		default:
 			// x and p we compute the hash
-			nid, err := ids.ToID(hashing.ComputeHash256(container.Bytes))
-			if err != nil {
-				return err
-			}
-			id = nid
+			id = hashing.ComputeHash256Array(container.Bytes)
 		}
 
 		txPool := &db.TxPool{
@@ -203,10 +195,7 @@ func (p *producerChainContainer) ProcessNextMessage() error {
 			Topic:         p.topic,
 			CreatedAt:     time.Unix(container.Timestamp, 0),
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, p.conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
@@ -280,7 +269,7 @@ func NewProducerChain(sc *servicesctrl.Control, conf cfg.Config, chainID string,
 
 	endpoint := fmt.Sprintf("/ext/index/%s/%s", indexerChain, indexerType)
 
-	nodeIndexer := indexer.NewClient(conf.AvalancheGO, endpoint)
+	nodeIndexer := indexer.NewClient(fmt.Sprintf("%s%s", conf.AvalancheGO, endpoint))
 
 	p := &ProducerChain{
 		indexerType:             indexerType,
@@ -324,8 +313,13 @@ func (p *ProducerChain) Success() {
 }
 
 func (p *ProducerChain) Listen() error {
-	p.sc.Log.Info("Started worker manager for %s", p.ID())
-	defer p.sc.Log.Info("Exiting worker manager for %s", p.ID())
+	id := p.ID()
+	p.sc.Log.Info("starting worker manager",
+		zap.String("id", id),
+	)
+	defer p.sc.Log.Info("exiting worker manager",
+		zap.String("id", id),
+	)
 
 	for !p.runningControl.IsStopped() {
 		err := p.runProcessor()
@@ -333,7 +327,9 @@ func (p *ProducerChain) Listen() error {
 		// If there was an error we want to log it, and iff we are not stopping
 		// we want to add a retry delay.
 		if err != nil {
-			p.sc.Log.Error("Error running worker: %s", err.Error())
+			p.sc.Log.Error("error running worker",
+				zap.Error(err),
+			)
 		}
 		if p.runningControl.IsStopped() {
 			break
@@ -354,8 +350,13 @@ func (p *ProducerChain) runProcessor() error {
 		return nil
 	}
 
-	p.sc.Log.Info("Starting worker for %s", p.ID())
-	defer p.sc.Log.Info("Exiting worker for %s", p.ID())
+	id := p.ID()
+	p.sc.Log.Info("starting worker",
+		zap.String("id", id),
+	)
+	defer p.sc.Log.Info("exiting worker",
+		zap.String("id", id),
+	)
 
 	pc, err := newContainer(p.sc, p.conf, p.nodeIndexer, p.topic, p.chainID, p.indexerType, p.indexerChain, p.metricProcessedCountKey)
 	if err != nil {
@@ -366,7 +367,10 @@ func (p *ProducerChain) runProcessor() error {
 		pc.runningControl.Close()
 		err := pc.Close()
 		if err != nil {
-			p.sc.Log.Warn("Stopping worker for chain %w", err)
+			p.sc.Log.Warn("stopping worker",
+				zap.String("id", id),
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -392,12 +396,16 @@ func (p *ProducerChain) runProcessor() error {
 
 		default:
 			if ChainNotReady(err) {
-				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				p.sc.Log.Warn("chain not ready when processing message",
+					zap.Error(err),
+				)
 				return nil
 			}
 
 			p.Failure()
-			p.sc.Log.Error("Unknown error: %v", err)
+			p.sc.Log.Error("unknown error when processing message",
+				zap.Error(err),
+			)
 			return err
 		}
 	}

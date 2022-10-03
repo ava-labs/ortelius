@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/stream"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -95,7 +96,11 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 			if err != nil {
 				return err
 			}
-			sc.Log.Info("bootstrap %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+			sc.Log.Info("starting bootstrap",
+				zap.Uint32("networkID", networkID),
+				zap.String("vmType", chain.VMType),
+				zap.String("chainID", chain.ID),
+			)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -103,7 +108,11 @@ func Bootstrap(sc *servicesctrl.Control, networkID uint32, chains cfg.Chains, fa
 				if err != nil {
 					errs.SetValue(err)
 				}
-				sc.Log.Info("bootstrap complete %d vm %s chain %s", networkID, chain.VMType, chain.ID)
+				sc.Log.Info("finished bootstrap",
+					zap.Uint32("networkID", networkID),
+					zap.String("vmType", chain.VMType),
+					zap.String("chainID", chain.ID),
+				)
 			}()
 		}
 	}
@@ -245,9 +254,13 @@ func IndexerFactories(
 				ctx, cancelCTX := context.WithTimeout(context.Background(), IteratorTimeout)
 				defer cancelCTX()
 
-				sess, err := conns.DB().NewSession("tx-pool", IteratorTimeout)
+				name := "tx-pool"
+				sess, err := conns.DB().NewSession(name, IteratorTimeout)
 				if err != nil {
-					sc.Log.Error("processing err %v", err)
+					sc.Log.Error("failed creating session",
+						zap.String("name", name),
+						zap.Error(err),
+					)
 					time.Sleep(250 * time.Millisecond)
 					return
 				}
@@ -265,7 +278,10 @@ func IndexerFactories(
 					OrderAsc("processed").OrderAsc("created_at").
 					IterateContext(ctx)
 				if err != nil {
-					sc.Log.Warn("iter %v", err)
+					sc.Log.Warn("failed creating iterator",
+						zap.String("name", name),
+						zap.Error(err),
+					)
 					time.Sleep(250 * time.Millisecond)
 					return
 				}
@@ -286,7 +302,10 @@ func IndexerFactories(
 					err = iterator.Err()
 					if err != nil {
 						if err != io.EOF {
-							sc.Log.Error("iterator err %v", err)
+							sc.Log.Error("failed iterating",
+								zap.String("name", name),
+								zap.Error(err),
+							)
 						}
 						break
 					}
@@ -294,7 +313,10 @@ func IndexerFactories(
 					txp := &db.TxPool{}
 					err = iterator.Scan(txp)
 					if err != nil {
-						sc.Log.Error("scan %v", err)
+						sc.Log.Error("failed scanning iterator",
+							zap.String("name", name),
+							zap.Error(err),
+						)
 						break
 					}
 					// skip previously processed
@@ -309,9 +331,12 @@ func IndexerFactories(
 					time.Sleep(1 * time.Millisecond)
 				}
 
-				if errs.GetValue() != nil {
-					err := errs.GetValue().(error)
-					sc.Log.Error("processing err %v", err)
+				if errIntf := errs.GetValue(); errIntf != nil {
+					err := errIntf.(error)
+					sc.Log.Error("failed processing",
+						zap.String("name", name),
+						zap.Error(err),
+					)
 					time.Sleep(250 * time.Millisecond)
 					return
 				}

@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/ortelius/services"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 // consumer takes events from db and sends them to a service consumer
@@ -112,7 +113,9 @@ func (c *consumerDB) Consume(conns *utils.Connections, msg *Message) error {
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("failed collecting",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -128,7 +131,9 @@ func (c *consumerDB) Consume(conns *utils.Connections, msg *Message) error {
 	if err != nil {
 		c.Failure()
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
+		c.sc.Log.Error("failed consuming",
+			zap.Error(err),
+		)
 		return err
 	}
 	c.Success()

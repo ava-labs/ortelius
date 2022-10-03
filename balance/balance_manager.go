@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/dbr/v2"
+	"go.uber.org/zap"
 )
 
 var RowLimitValue = uint64(5000)
@@ -135,7 +136,9 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 					continue
 				}
 				if err != nil {
-					a.sc.Logger().Error("accumulate ticker error %v", err)
+					a.sc.Logger().Error("failed processing outputs",
+						zap.Error(err),
+					)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -149,7 +152,9 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 			ticker.Stop()
 			err := conns.Close()
 			if err != nil {
-				a.sc.Logger().Warn("connection close %v", err)
+				a.sc.Logger().Warn("connection closed with error",
+					zap.Error(err),
+				)
 			}
 			a.sc.Logger().Info("stop ticker")
 		}()
@@ -166,11 +171,22 @@ func (a *Manager) runTicker(conns *utils.Connections) {
 }
 
 func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conns *utils.Connections) (uint64, error), trigger chan struct{}) {
-	a.sc.Logger().Info("start processing %v", id)
+	a.sc.Logger().Info("starting processing",
+		zap.String("id", id),
+	)
 	go func() {
 		defer func() {
-			a.sc.Logger().Info("stop processing %v", id)
+			err := conns.Close()
+			if err != nil {
+				a.sc.Logger().Warn("connection closed with error",
+					zap.Error(err),
+				)
+			}
+			a.sc.Logger().Info("stopping processing",
+				zap.String("id", id),
+			)
 		}()
+
 		runEvent := func(conns *utils.Connections) {
 			icnt := 0
 			for ; icnt < retryProcessing; icnt++ {
@@ -180,7 +196,10 @@ func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conn
 					continue
 				}
 				if err != nil {
-					a.sc.Logger().Error("accumulate error %s %v", id, err)
+					a.sc.Logger().Error("failed processing",
+						zap.String("id", id),
+						zap.Error(err),
+					)
 					return
 				}
 				if cnt < RowLimitValue {
@@ -189,14 +208,6 @@ func (a *Manager) runProcessing(id string, conns *utils.Connections, f func(conn
 				icnt = 0
 			}
 		}
-
-		defer func() {
-			err := conns.Close()
-			if err != nil {
-				a.sc.Logger().Warn("connection close %v", err)
-			}
-			a.sc.Logger().Info("stop processing %v", id)
-		}()
 
 		for {
 			select {
@@ -455,20 +466,14 @@ func (a *Handler) processOutputsBase(
 			TransactionID: row.TransactionID,
 			CreatedAt:     time.Now(),
 		}
-		err = outputsTxsAccumulate.ComputeID()
-		if err != nil {
-			return err
-		}
+		outputsTxsAccumulate.ComputeID()
 		err = persist.InsertOutputTxsAccumulate(ctx, dbTx, outputsTxsAccumulate)
 		if err != nil {
 			return err
 		}
 
 		b.UpdatedAt = time.Unix(1, 0)
-		err = b.ComputeID()
-		if err != nil {
-			return err
-		}
+		b.ComputeID()
 
 		switch typ {
 		case processTypeOut:
@@ -654,10 +659,7 @@ func (a *Handler) processTransactionsBase(
 		Address:   row.Address,
 		UpdatedAt: time.Unix(1, 0),
 	}
-	err = b.ComputeID()
-	if err != nil {
-		return err
-	}
+	b.ComputeID()
 	err = persist.InsertAccumulateBalancesTransactions(ctx, dbTx, b)
 	if err != nil {
 		return err

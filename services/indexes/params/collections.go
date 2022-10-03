@@ -608,9 +608,7 @@ func ForValueChainID(chainID *ids.ID, chainIDs []string) []string {
 	return chainIDs
 }
 
-//
 // Sorting
-//
 type TransactionSort uint8
 
 func toTransactionSort(s string) TransactionSort {

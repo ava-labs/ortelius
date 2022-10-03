@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/ortelius/modelsc"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -128,7 +129,10 @@ func (p *producerCChainContainer) getBlock() error {
 	}
 	p.block = mblock
 	p.blockCount = cblockCount
-	p.sc.Log.Info("starting processing block %s cnt %s", p.block.String(), p.blockCount.String())
+	p.sc.Log.Info("stating processing block",
+		zap.Stringer("block", p.block),
+		zap.Stringer("count", p.blockCount),
+	)
 	return nil
 }
 
@@ -179,8 +183,12 @@ func (p *producerCChainContainer) catchupBlock(conns *utils.Connections, catchup
 			if p.catchupErrs.GetValue() != nil {
 				return
 			}
-			if _, ok := blockMap[startBlock.String()]; !ok {
-				p.sc.Log.Info("refill %v", startBlock.String())
+
+			startBlockStr := startBlock.String()
+			if _, ok := blockMap[startBlockStr]; !ok {
+				p.sc.Log.Info("refilling message chan",
+					zap.String("block", startBlockStr),
+				)
 				p.msgChan <- &blockWorkContainer{errs: &p.catchupErrs, blockNumber: startBlock}
 			}
 			startBlock = big.NewInt(0).Add(startBlock, big.NewInt(1))
@@ -313,7 +321,9 @@ func (p *ProducerCChain) Listen() error {
 		// If there was an error we want to log it, and iff we are not stopping
 		// we want to add a retry delay.
 		if err != nil {
-			p.sc.Log.Error("Error running worker: %s", err.Error())
+			p.sc.Log.Error("error running worker",
+				zap.Error(err),
+			)
 		}
 		if p.runningControl.IsStopped() {
 			break
@@ -370,7 +380,9 @@ func (p *ProducerCChain) runProcessor() error {
 
 		err := pc.Close()
 		if err != nil {
-			p.sc.Log.Warn("Stopping worker for cchain %w", err)
+			p.sc.Log.Warn("stopping worker for cchain",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -401,13 +413,17 @@ func (p *ProducerCChain) runProcessor() error {
 	// Create a closure that processes the next message from the backend
 	processNextMessage := func() error {
 		err := pc.ProcessNextMessage()
-		if pc.catchupErrs.GetValue() != nil {
-			err = pc.catchupErrs.GetValue().(error)
+		if errIntf := pc.catchupErrs.GetValue(); errIntf != nil {
+			err := errIntf.(error)
 			if !CChainNotReady(err) {
 				p.Failure()
-				p.sc.Log.Error("Catchup error: %v", err)
+				p.sc.Log.Error("catchup error",
+					zap.Error(err),
+				)
 			} else {
-				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				p.sc.Log.Warn("catchup error",
+					zap.Error(err),
+				)
 			}
 			return err
 		}
@@ -431,12 +447,16 @@ func (p *ProducerCChain) runProcessor() error {
 
 		default:
 			if CChainNotReady(err) {
-				p.sc.Log.Warn("%s", TrimNL(err.Error()))
+				p.sc.Log.Warn("chain not ready when processing message",
+					zap.Error(err),
+				)
 				return nil
 			}
 
 			p.Failure()
-			p.sc.Log.Error("Unknown error: %v", err)
+			p.sc.Log.Error("unknown error when processing message",
+				zap.Error(err),
+			)
 			return err
 		}
 	}
@@ -473,10 +493,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		}
 
 		idsv := fmt.Sprintf("%s:%d", txTranactionTraces.Hash, txTranactionTraces.Idx)
-		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-		if err != nil {
-			return err
-		}
+		id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 
 		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
@@ -487,10 +504,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			Topic:         p.topicTrc,
 			CreatedAt:     localBlock.time,
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
@@ -504,10 +518,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		}
 
 		idsv := fmt.Sprintf("%s:%s:%d", log.BlockHash, log.TxHash, log.Index)
-		id, err := ids.ToID(hashing.ComputeHash256([]byte(idsv)))
-		if err != nil {
-			return err
-		}
+		id := ids.ID(hashing.ComputeHash256Array([]byte(idsv)))
 
 		txPool := &db.TxPool{
 			NetworkID:     p.conf.NetworkID,
@@ -518,10 +529,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 			Topic:         p.topicLogs,
 			CreatedAt:     localBlock.time,
 		}
-		err = txPool.ComputeID()
-		if err != nil {
-			return err
-		}
+		txPool.ComputeID()
 		err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 		if err != nil {
 			return err
@@ -533,10 +541,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		return err
 	}
 
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(cblk.Header.Number.String())))
-	if err != nil {
-		return err
-	}
+	id := ids.ID(hashing.ComputeHash256Array([]byte(cblk.Header.Number.String())))
 
 	txPool := &db.TxPool{
 		NetworkID:     p.conf.NetworkID,
@@ -547,10 +552,7 @@ func (p *ProducerCChain) processWork(conns *utils.Connections, localBlock *local
 		Topic:         p.topic,
 		CreatedAt:     localBlock.time,
 	}
-	err = txPool.ComputeID()
-	if err != nil {
-		return err
-	}
+	txPool.ComputeID()
 	err = UpdateTxPool(dbWriteTimeout, conns, p.sc.Persist, txPool, p.sc)
 	if err != nil {
 		return err

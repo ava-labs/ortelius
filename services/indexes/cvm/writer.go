@@ -37,9 +37,10 @@ type Writer struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 
-	codec         codec.Manager
-	avax          *avaxIndexer.Writer
-	ap5Activation uint64
+	codec           codec.Manager
+	avax            *avaxIndexer.Writer
+	ap5Activation   uint64
+	banffActivation uint64
 }
 
 func NewWriter(networkID uint32, chainID string) (*Writer, error) {
@@ -49,13 +50,15 @@ func NewWriter(networkID uint32, chainID string) (*Writer, error) {
 	}
 
 	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
+	banffActivation := version.GetBanffTime(networkID).Unix()
 
 	return &Writer{
-		networkID:     networkID,
-		avaxAssetID:   avaxAssetID,
-		codec:         evm.Codec,
-		avax:          avaxIndexer.NewWriter(chainID, avaxAssetID),
-		ap5Activation: uint64(ap5Activation),
+		networkID:       networkID,
+		avaxAssetID:     avaxAssetID,
+		codec:           evm.Codec,
+		avax:            avaxIndexer.NewWriter(chainID, avaxAssetID),
+		ap5Activation:   uint64(ap5Activation),
+		banffActivation: uint64(banffActivation),
 	}, nil
 }
 
@@ -70,6 +73,7 @@ func (w *Writer) ParseJSON(txdata []byte) ([]byte, error) {
 	if block.BlockExtraData == nil || len(block.BlockExtraData) == 0 {
 		return []byte(""), nil
 	}
+
 	if block.Header.Time < w.ap5Activation {
 		atomicTxs, err = w.extractAtomicTxsPreApricotPhase5(block.BlockExtraData)
 	} else {
@@ -136,10 +140,7 @@ func (w *Writer) ConsumeLogs(ctx context.Context, conns *utils.Connections, c se
 		CreatedAt:     cCtx.Time(),
 		Serialization: c.Body(),
 	}
-	err = cvmLogs.ComputeID()
-	if err != nil {
-		return err
-	}
+	cvmLogs.ComputeID()
 	err = persist.InsertCvmLogs(ctx, dbTx, cvmLogs, cfg.PerformUpdates)
 	if err != nil {
 		return err
@@ -221,15 +222,12 @@ func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte, block *
 }
 
 func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.Tx, blockBytes []byte, block *modelsc.Block) error {
-	txIDs := make([]string, len(atomicTXs))
-
-	id, err := ids.ToID(hashing.ComputeHash256([]byte(block.Header.Number.String())))
-	if err != nil {
-		return err
-	}
-
-	var typ models.CChainType = 0
-	var blockchainID string
+	var (
+		txIDs                          = make([]string, len(atomicTXs))
+		typ          models.CChainType = 0
+		blockchainID string
+		err          error
+	)
 	for i, atomicTX := range atomicTXs {
 		txID := atomicTX.ID()
 		txIDs[i] = txID.String()
@@ -293,9 +291,11 @@ func (w *Writer) indexBlockInternal(ctx services.ConsumerCtx, atomicTXs []*evm.T
 	}
 	tm := time.Unix(htime, 0)
 
+	id := ids.ID(hashing.ComputeHash256Array([]byte(block.Header.Number.String())))
+	idStr := id.String()
 	for _, txIDString := range txIDs {
 		cvmTransaction := &db.CvmTransactions{
-			ID:            id.String(),
+			ID:            idStr,
 			TransactionID: txIDString,
 			Type:          typ,
 			BlockchainID:  blockchainID,

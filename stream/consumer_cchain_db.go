@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/ortelius/services/indexes/cvm"
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
+	"go.uber.org/zap"
 )
 
 type consumerCChainDB struct {
@@ -137,7 +138,9 @@ func (c *consumerCChainDB) ConsumeLogs(conns *utils.Connections, msg services.Co
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("failed collecting",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -157,7 +160,9 @@ func (c *consumerCChainDB) ConsumeLogs(conns *utils.Connections, msg services.Co
 	if err != nil {
 		c.Failure()
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
+		c.sc.Log.Error("failed consuming",
+			zap.Error(err),
+		)
 		return err
 	}
 	c.Success()
@@ -180,7 +185,9 @@ func (c *consumerCChainDB) ConsumeTrace(conns *utils.Connections, msg services.C
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("failed collecting",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -200,7 +207,9 @@ func (c *consumerCChainDB) ConsumeTrace(conns *utils.Connections, msg services.C
 	if err != nil {
 		c.Failure()
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
+		c.sc.Log.Error("failed consuming",
+			zap.Error(err),
+		)
 		return err
 	}
 	c.Success()
@@ -223,7 +232,9 @@ func (c *consumerCChainDB) Consume(conns *utils.Connections, msg services.Consum
 	defer func() {
 		err := collectors.Collect()
 		if err != nil {
-			c.sc.Log.Error("collectors.Collect: %s", err)
+			c.sc.Log.Error("failed collecting",
+				zap.Error(err),
+			)
 		}
 	}()
 
@@ -246,7 +257,9 @@ func (c *consumerCChainDB) Consume(conns *utils.Connections, msg services.Consum
 	if err != nil {
 		c.Failure()
 		collectors.Error()
-		c.sc.Log.Error("consumer.Consume: %s", err)
+		c.sc.Log.Error("failed consuming",
+			zap.Error(err),
+		)
 		return err
 	}
 	c.Success()

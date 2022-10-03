@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/ortelius/servicesctrl"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/ortelius/db"
 
@@ -134,7 +135,10 @@ func (replay *dbReplay) Start() error {
 			ctot[cnter].Waits = countersValues[cnter]
 		}
 
-		replay.sc.Log.Info("wgc: %d, jobs: %d", waitGroupCnt, worker.JobCnt())
+		replay.sc.Log.Info("replaying db",
+			zap.Int64("wgc", waitGroupCnt),
+			zap.Int64("jobs", worker.JobCnt()),
+		)
 
 		var sortedcnters []string
 		for cnter := range ctot {
@@ -166,9 +170,12 @@ func (replay *dbReplay) Start() error {
 
 	logemit(waitGroupCnt)
 
-	if replay.errs.GetValue() != nil {
-		replay.sc.Log.Error("replay failed %v", replay.errs.GetValue().(error))
-		return replay.errs.GetValue().(error)
+	if errIntf := replay.errs.GetValue(); errIntf != nil {
+		err := errIntf.(error)
+		replay.sc.Log.Error("replaying db failed",
+			zap.Error(err),
+		)
+		return err
 	}
 
 	return nil
@@ -216,10 +223,15 @@ func (replay *dbReplay) handleReader(chain cfg.Chain, waitGroup *int64, worker u
 
 	{
 		tn := fmt.Sprintf("%d-%s", replay.config.NetworkID, chain.ID)
+		replay.sc.Log.Info("starting bootstrap replay",
+			zap.String("topic", tn),
+		)
 		ctx := context.Background()
-		replay.sc.Log.Info("replay for topic %s bootstrap start", tn)
 		err := writer.Bootstrap(ctx, conns, replay.persist)
-		replay.sc.Log.Info("replay for topic %s bootstrap end %v", tn, err)
+		replay.sc.Log.Info("finished bootstrap replay",
+			zap.String("topic", tn),
+			zap.Error(err),
+		)
 		if err != nil {
 			replay.errs.SetValue(err)
 			return err
@@ -356,8 +368,12 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 		}
 
 		for _, txPoolID := range txPools {
-			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+			if errIntf := replay.errs.GetValue(); errIntf != nil {
+				err := errIntf.(error)
+				replay.sc.Log.Info("topic replay stopped due to error",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				return
 			}
 
@@ -370,7 +386,10 @@ func (replay *dbReplay) startCchain(chain string, waitGroup *int64, worker utils
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn("topic replay erred",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -434,8 +453,12 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 		}
 
 		for _, txPoolID := range txPools {
-			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+			if errIntf := replay.errs.GetValue(); errIntf != nil {
+				err := errIntf.(error)
+				replay.sc.Log.Info("topic replay stopped due to error",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				return
 			}
 
@@ -448,7 +471,10 @@ func (replay *dbReplay) startCchainTrc(chain string, waitGroup *int64, worker ut
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn("topic replay erred",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -502,8 +528,12 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 		}
 
 		for _, txPoolID := range txPools {
-			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+			if errIntf := replay.errs.GetValue(); errIntf != nil {
+				err := errIntf.(error)
+				replay.sc.Log.Info("topic replay stopped due to error",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				return
 			}
 
@@ -516,7 +546,10 @@ func (replay *dbReplay) startCchainLog(chain string, waitGroup *int64, worker ut
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn("topic replay erred",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -570,8 +603,12 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 		}
 
 		for _, txPoolID := range txPools {
-			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+			if errIntf := replay.errs.GetValue(); errIntf != nil {
+				err := errIntf.(error)
+				replay.sc.Log.Info("topic replay stopped due to error",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				return
 			}
 
@@ -584,7 +621,10 @@ func (replay *dbReplay) startConsensus(chain cfg.Chain, waitGroup *int64, worker
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn("topic replay erred",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				time.Sleep(500 * time.Millisecond)
 			}
 
@@ -638,8 +678,12 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 		}
 
 		for _, txPoolID := range txPools {
-			if replay.errs.GetValue() != nil {
-				replay.sc.Log.Info("replay for topic %s stopped for errors", tn)
+			if errIntf := replay.errs.GetValue(); errIntf != nil {
+				err := errIntf.(error)
+				replay.sc.Log.Info("topic replay stopped due to error",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				return
 			}
 
@@ -652,7 +696,10 @@ func (replay *dbReplay) startDecision(chain cfg.Chain, waitGroup *int64, worker 
 				if err == nil {
 					break
 				}
-				replay.sc.Log.Warn("replay for topic %s error %v", tn, err)
+				replay.sc.Log.Warn("topic replay erred",
+					zap.String("topic", tn),
+					zap.Error(err),
+				)
 				time.Sleep(500 * time.Millisecond)
 			}
 

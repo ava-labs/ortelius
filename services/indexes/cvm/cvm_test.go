@@ -27,7 +27,10 @@ var (
 )
 
 func newTestIndex(t *testing.T, networkID uint32, chainID ids.ID) (*utils.Connections, *Writer, func()) {
-	logConf := logging.DefaultConfig
+	logConf := logging.Config{
+		DisplayLevel: logging.Info,
+		LogLevel:     logging.Debug,
+	}
 
 	conf := cfg.Services{
 		Logging: logConf,
