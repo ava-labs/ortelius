@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/rpc/v2/json2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 const (
@@ -114,12 +115,19 @@ func execute() error {
 					sm := http.NewServeMux()
 					sm.Handle("/metrics", promhttp.Handler())
 					go func() {
-						err = http.ListenAndServe(config.MetricsListenAddr, sm)
+						server := &http.Server{
+							Addr:              config.MetricsListenAddr,
+							Handler:           sm,
+							ReadHeaderTimeout: 5 * time.Second,
+						}
+						err = server.ListenAndServe()
 						if err != nil {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
 					}()
-					alog.Info("Starting metrics handler on %s", config.MetricsListenAddr)
+					alog.Info("starting metrics handler",
+						zap.String("addr", config.MetricsListenAddr),
+					)
 				}
 				if config.AdminListenAddr != "" {
 					rpcServer := rpc.NewServer()
@@ -133,7 +141,12 @@ func execute() error {
 					sm := http.NewServeMux()
 					sm.Handle("/api", rpcServer)
 					go func() {
-						err = http.ListenAndServe(config.AdminListenAddr, sm)
+						server := &http.Server{
+							Handler:           sm,
+							Addr:              config.AdminListenAddr,
+							ReadHeaderTimeout: 5 * time.Second,
+						}
+						err = server.ListenAndServe()
 						if err != nil {
 							log.Fatalln("Failed to start metrics listener", err.Error())
 						}
@@ -390,5 +403,7 @@ type MysqlLogger struct {
 
 func (m *MysqlLogger) Print(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	m.Log.Warn("mysql %s", s)
+	m.Log.Warn("mysql",
+		zap.String("body", s),
+	)
 }

@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         go:
-          - '1.17.9'
+          - '1.19.1'
     steps:
       - uses: actions/checkout@v2
       - name: golangci-lint
@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         go:
-          - '1.17.9'
+          - '1.19.1'
     services:
       mysql:
         image: mysql:8.0.26

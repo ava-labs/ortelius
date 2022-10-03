@@ -177,10 +177,11 @@ func TestAggregateTxfee(t *testing.T) {
 }
 
 func newTestIndex(t *testing.T) (*Reader, func()) {
-	logConf := logging.DefaultConfig
-
 	conf := cfg.Services{
-		Logging: logConf,
+		Logging: logging.Config{
+			DisplayLevel: logging.Info,
+			LogLevel:     logging.Debug,
+		},
 		DB: &cfg.DB{
 			Driver: "mysql",
 			DSN:    "root:password@tcp(127.0.0.1:3306)/ortelius_test?parseTime=true",

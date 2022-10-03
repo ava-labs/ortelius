@@ -6,7 +6,6 @@ package stream
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/ava-labs/ortelius/cfg"
@@ -49,24 +48,4 @@ func UpdateTxPool(
 		sc.Enqueue(txPool)
 	}
 	return err
-}
-
-func TrimNL(msg string) string {
-	oldmsg := msg
-	for {
-		msg = strings.TrimPrefix(msg, "\n")
-		if msg == oldmsg {
-			break
-		}
-		oldmsg = msg
-	}
-	oldmsg = msg
-	for {
-		msg = strings.TrimSuffix(msg, "\n")
-		if msg == oldmsg {
-			break
-		}
-		oldmsg = msg
-	}
-	return msg
 }

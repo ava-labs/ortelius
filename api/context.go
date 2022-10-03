@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/ortelius/servicesctrl"
 	"github.com/ava-labs/ortelius/utils"
 	"github.com/gocraft/web"
+	"go.uber.org/zap"
 )
 
 var (
@@ -79,7 +80,9 @@ func (c *Context) WriteCacheable(w http.ResponseWriter, cacheable utils.Cacheabl
 
 	// Write error or response
 	if err != nil {
-		c.sc.Log.Warn("server error %v", err)
+		c.sc.Log.Warn("server error",
+			zap.Error(err),
+		)
 		c.WriteErr(w, 500, ErrCacheableFnFailed)
 		return
 	}
@@ -94,7 +97,9 @@ func (c *Context) WriteErr(w http.ResponseWriter, code int, err error) {
 	})
 	if err != nil {
 		w.WriteHeader(500)
-		c.sc.Log.Warn("marshal %v", err)
+		c.sc.Log.Warn("marshal error",
+			zap.Error(err),
+		)
 		return
 	}
 

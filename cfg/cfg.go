@@ -32,7 +32,8 @@ type Config struct {
 	CchainID          string `json:"cchainId"`
 	AvalancheGO       string `json:"avalanchego"`
 	NodeInstance      string `json:"nodeInstance"`
-	AP5Activation     uint64
+	AP5Activation     uint64 `json:"ap5Activation"`
+	BanffActivation   uint64 `json:"banffActivation"`
 }
 
 type Chain struct {
@@ -82,7 +83,10 @@ func NewFromFile(filePath string) (*Config, error) {
 	}
 
 	// Build logging config
-	loggingConf := logging.DefaultConfig
+	loggingConf := logging.Config{
+		DisplayLevel: logging.Info,
+		LogLevel:     logging.Debug,
+	}
 	loggingConf.Directory = v.GetString(keysLogDirectory)
 
 	dbdsn := servicesDBViper.GetString(keysServicesDBDSN)
@@ -103,6 +107,7 @@ func NewFromFile(filePath string) (*Config, error) {
 
 	networkID := v.GetUint32(keysNetworkID)
 	ap5Activation := version.GetApricotPhase5Time(networkID).Unix()
+	banffActivation := version.GetBanffTime(networkID).Unix()
 
 	// Put it all together
 	return &Config{
@@ -122,9 +127,10 @@ func NewFromFile(filePath string) (*Config, error) {
 				RODSN:  dbrodsn,
 			},
 		},
-		CchainID:      v.GetString(keysStreamProducerCchainID),
-		AvalancheGO:   v.GetString(keysStreamProducerAvalanchego),
-		NodeInstance:  v.GetString(keysStreamProducerNodeInstance),
-		AP5Activation: uint64(ap5Activation),
+		CchainID:        v.GetString(keysStreamProducerCchainID),
+		AvalancheGO:     v.GetString(keysStreamProducerAvalanchego),
+		NodeInstance:    v.GetString(keysStreamProducerNodeInstance),
+		AP5Activation:   uint64(ap5Activation),
+		BanffActivation: uint64(banffActivation),
 	}, nil
 }
