@@ -3,8 +3,8 @@ module github.com/ava-labs/ortelius
 go 1.18
 
 require (
-	github.com/ava-labs/avalanchego v1.9.0-fuji
-	github.com/ava-labs/coreth v0.11.0-rc.0
+	github.com/ava-labs/avalanchego v1.9.0
+	github.com/ava-labs/coreth v0.11.0-rc.4
 	github.com/ethereum/go-ethereum v1.10.25
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocraft/dbr/v2 v2.7.2
