@@ -154,7 +154,7 @@ func (w *Writer) ParseJSON(b []byte) ([]byte, error) {
 	}
 
 	// Try and parse as proposervm block
-	proposerBlock, _, err := block.Parse(b)
+	proposerBlock, err := block.Parse(b)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func (w *Writer) Bootstrap(ctx context.Context, conns *utils.Connections, persis
 }
 
 func (w *Writer) indexBlock(ctx services.ConsumerCtx, blockBytes []byte) error {
-	proposerBlock, _, err := block.Parse(blockBytes)
+	proposerBlock, err := block.Parse(blockBytes)
 	var innerBlockBytes []byte
 	if err != nil {
 		innerBlockBytes = blockBytes
