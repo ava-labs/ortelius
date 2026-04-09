@@ -11,9 +11,9 @@ jobs:
         go:
           - '1.19.1'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@5c56cd6c9dc07901af25baab6f2b0d9f3b7c3018 # v2
         with:
           version: latest
           working-directory: .
@@ -35,8 +35,8 @@ jobs:
           MYSQL_DATABASE: ortelius_test
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v1
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
+      - uses: actions/setup-go@0caeaed6fd66a828038c2da3c0f662a42862658f # v1
         with:
           go-version: ${{ matrix.go }}
 
