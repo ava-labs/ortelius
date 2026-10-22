@@ -46,7 +46,7 @@ jobs:
           go-version: ${{ matrix.go }}
 
       - name: Test binary build
-        run: go build cmds/orteliusd/orteliusd.go
+        run: go build -ldflags=-checklinkname=0 cmds/orteliusd/orteliusd.go
 
       - name: Migrate the database
         run: |
