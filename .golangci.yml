@@ -1,63 +1,64 @@
-run:
-  max-same-issues: 0
-  max-issues-per-linter: 0
-
-issues:
-  exclude:
-    - Error return value of `.*\.EventErr(Kv)?` is not checked
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - goconst
-
-linters-settings:
-  errcheck:
-    check-type-assertions: false
-    check-blank: false
-  goconst:
-    min-occurrences: 2
-  gocyclo:
-    min-complexity: 30
-  misspell:
-    locale: US
-  nakedret:
-    max-func-lines: 0
-  unparam:
-    algo: cha
-    check-exported: false
-
+version: "2"
 linters:
   enable:
     - asciicheck
     - bodyclose
-    - deadcode
-    - depguard
     - dogsled
-    - errcheck
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - golint
     - goprintffuncname
     - gosec
-    - gosimple
-    - govet
-    - ineffassign
-    - maligned
     - misspell
     - nakedret
     - nolintlint
     - prealloc
     - rowserrcheck
-    - scopelint
     - staticcheck
-    - structcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
-    - unused
-    - varcheck
     - whitespace
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+    goconst:
+      min-occurrences: 2
+    gocyclo:
+      min-complexity: 30
+    misspell:
+      locale: US
+    nakedret:
+      max-func-lines: 0
+    unparam:
+      check-exported: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - goconst
+        path: _test\.go
+      - path: (.+)\.go$
+        text: Error return value of `.*\.EventErr(Kv)?` is not checked
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
