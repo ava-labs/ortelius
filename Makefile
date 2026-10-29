@@ -63,11 +63,11 @@ production_logs: ## Logs for production mode
 
 tests: ## Run tests
 	export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
-	go test -race -timeout="120s" -coverprofile="coverage.out" -covermode="atomic" ./...
+	go test -race -ldflags=-checklinkname=0 -timeout="120s" -coverprofile="coverage.out" -covermode="atomic" ./...
 
 tests_profile: ## Run tests with coverage profiling
 	export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
-	go test -v -coverprofile=coverage.out -coverpkg=./... ./...
+	go test -v -ldflags=-checklinkname=0 -coverprofile=coverage.out -coverpkg=./... ./...
 	go tool cover -html=./coverage.out
 
 check_binaries: ## Ensure the binaries build
