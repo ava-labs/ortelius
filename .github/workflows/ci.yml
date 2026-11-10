@@ -1,9 +1,18 @@
 ---
 
 name: build-check
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions: {}
+
 jobs:
   lint:
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: read
     name: lint
     runs-on: ubuntu-24.04
     strategy:
@@ -12,6 +21,8 @@ jobs:
           - '1.26.10'
     steps:
       - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ matrix.go }}
@@ -24,6 +35,8 @@ jobs:
           # The v2 config lints the whole tree; existing findings are tracked separately.
           only-new-issues: true
   test-and-build:
+    permissions:
+      contents: read
     name: Test and build on Go ${{ matrix.go }}
     runs-on: ubuntu-24.04
     strategy:
@@ -41,6 +54,8 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
     steps:
       - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ matrix.go }}
